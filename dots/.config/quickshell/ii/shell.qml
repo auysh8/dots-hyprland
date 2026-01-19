@@ -9,6 +9,8 @@
 import "modules/common"
 import "services"
 import "panelFamilies"
+import "modules/ii/overview"
+import "lyricsLayer"
 
 import QtQuick
 import QtQuick.Window
@@ -21,6 +23,9 @@ ShellRoot {
 
     // Stuff for every panel family
     ReloadPopup {}
+    AppDrawerWindow {}
+    OtherPopup {}
+    LyricsWindow {}
 
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()

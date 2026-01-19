@@ -1,0 +1,3 @@
+module qs.modules.ii.sysmon
+SystemMonitor 1.0 SystemMonitor.qml
+SystemMonitorWindow 1.0 SystemMonitorWindow.qml

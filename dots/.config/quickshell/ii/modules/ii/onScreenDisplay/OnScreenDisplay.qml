@@ -27,7 +27,16 @@ Scope {
         },
     ]
 
+    property bool startupBlocked: true
+    Timer {
+        interval: 5000
+        running: true
+        repeat: false
+        onTriggered: root.startupBlocked = false
+    }
+
     function triggerOsd() {
+        if (root.startupBlocked) return;
         GlobalStates.osdVolumeOpen = true;
         osdTimeout.restart();
     }

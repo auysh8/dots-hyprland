@@ -19,6 +19,10 @@ Singleton {
 	property real swapFree: 0
 	property real swapUsed: swapTotal - swapFree
     property real swapUsedPercentage: swapTotal > 0 ? (swapUsed / swapTotal) : 0
+    property real networkDownloadSpeed: 0
+    property real networkUploadSpeed: 0
+    property real lastRx: 0
+    property real lastTx: 0
     property real cpuUsage: 0
     property var previousCpuStats
 
@@ -92,6 +96,28 @@ Singleton {
                 previousCpuStats = { total, idle }
             }
 
+            
+            // Network Speed
+            fileNetDev.reload()
+            var lines = fileNetDev.text().split('\n')
+            var rx = 0; var tx = 0;
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].trim()
+                if (line.indexOf(':') === -1) continue
+                var parts = line.split(/\s+/)
+                if (parts.length > 9 && parts[0] !== 'lo:') {
+                     if (parts[0].indexOf(':') !== -1) {
+                         rx += Number(parts[1]); tx += Number(parts[9]);
+                     }
+                }
+            }
+            if (lastRx > 0) {
+                 networkDownloadSpeed = rx - lastRx; networkUploadSpeed = tx - lastTx;
+                 if (networkDownloadSpeed < 0) networkDownloadSpeed = 0;
+                 if (networkUploadSpeed < 0) networkUploadSpeed = 0;
+            }
+            lastRx = rx; lastTx = tx;
+
             root.updateHistories()
             interval = Config.options?.resources?.updateInterval ?? 3000
         }
@@ -99,6 +125,7 @@ Singleton {
 
 	FileView { id: fileMeminfo; path: "/proc/meminfo" }
     FileView { id: fileStat; path: "/proc/stat" }
+    FileView { id: fileNetDev; path: "/proc/net/dev" }
 
     Process {
         id: findCpuMaxFreqProc

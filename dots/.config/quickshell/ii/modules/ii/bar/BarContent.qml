@@ -329,6 +329,9 @@ Item { // Bar content region
                 Layout.fillHeight: true
             }
 
+            NetworkSpeed {
+                Layout.alignment: Qt.AlignVCenter
+            }
             // Weather
             Loader {
                 Layout.leftMargin: 4

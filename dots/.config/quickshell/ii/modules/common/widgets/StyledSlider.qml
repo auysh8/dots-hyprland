@@ -7,12 +7,6 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell.Widgets
 
-/**
- * Material 3 slider. See https://m3.material.io/components/sliders/overview
- * It doesn't exactly match the spec because it does not make sense to have stuff on a computer that fucking huge.
- * Should be at 3/4 scale...
- */
-
 Slider {
     id: root
 
@@ -36,21 +30,43 @@ Slider {
     property color dotColor: Appearance.m3colors.m3onSecondaryContainer
     property color dotColorHighlighted: Appearance.m3colors.m3onPrimary
     property real unsharpenRadius: Appearance.rounding.unsharpen
+    
     property real trackWidth: configuration
+    
+    // [CHANGED] 1. Smoothly animate the thickness of the track when config changes
+    Behavior on trackWidth {
+        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
+    }
+
     property real trackRadius: trackWidth >= StyledSlider.Configuration.XL ? 21
         : trackWidth >= StyledSlider.Configuration.L ? 12
         : trackWidth >= StyledSlider.Configuration.M ? 9
         : trackWidth >= StyledSlider.Configuration.S ? 6
         : height / 2
+        
     property real handleHeight: (configuration === StyledSlider.Configuration.Wavy) ? 24 : Math.max(33, trackWidth + 9)
+    
+    // [CHANGED] 2. Smoothly animate the handle height
+    Behavior on handleHeight {
+        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
+    }
+    
     property real handleWidth: root.pressed ? handlePressedWidth : handleDefaultWidth
     property real handleMargins: 4
     property real trackDotSize: 3
     property bool usePercentTooltip: true
     property string tooltipContent: usePercentTooltip ? `${Math.round(((value - from) / (to - from)) * 100)}%` : `${Math.round(value)}`
-    property bool wavy: configuration === StyledSlider.Configuration.Wavy // If true, the progress bar will have a wavy fill effect
+    
+    property bool wavy: configuration === StyledSlider.Configuration.Wavy
     property bool animateWave: true
-    property real waveAmplitudeMultiplier: wavy ? 0.5 : 0
+    
+    // [CHANGED] 3. Create an animated amplitude property
+    // This decouples the "target" state from the "visual" state
+    property real animatedAmplitudeMultiplier: wavy ? 0.5 : 0.0
+    Behavior on animatedAmplitudeMultiplier {
+        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
+    }
+    
     property real waveFrequency: 6
     property real waveFps: 60
 
@@ -62,7 +78,7 @@ Slider {
     from: 0
     to: 1
 
-    Behavior on value { // This makes the adjusted value (like volume) shift smoothly
+    Behavior on value {
         SmoothedAnimation {
             velocity: Appearance.animation.elementMoveFast.velocity
         }
@@ -98,7 +114,7 @@ Slider {
         width: parent.width
         implicitHeight: trackWidth
         
-        // Fill left
+        // Fill left (Solid Rectangle)
         Loader {
             anchors {
                 verticalCenter: parent.verticalCenter
@@ -106,7 +122,11 @@ Slider {
             }
             width: root.handleMargins + (root.visualPosition * root.effectiveDraggingWidth) - (root.handleWidth / 2 + root.handleMargins)
             height: root.trackWidth
-            active: !root.wavy
+            
+            // [CHANGED] 4. Logic Update: Only show the solid rect if we are NOT wavy AND fully flattened
+            // This prevents it from snapping in while the wave is still animating down
+            active: !root.wavy && root.animatedAmplitudeMultiplier <= 0.01
+            
             sourceComponent: Rectangle {
                 color: root.highlightColor
                 topLeftRadius: root.trackRadius
@@ -116,6 +136,7 @@ Slider {
             }
         }
 
+        // Fill left (Wavy Line)
         Loader {
             anchors {
                 verticalCenter: parent.verticalCenter
@@ -123,13 +144,20 @@ Slider {
             }
             width: root.handleMargins + (root.visualPosition * root.effectiveDraggingWidth) - (root.handleWidth / 2 + root.handleMargins)
             height: root.height
-            active: root.wavy
+            
+            // [CHANGED] 4. Logic Update: Keep this active as long as we have SOME amplitude
+            // This allows the wave to "flatten out" visibly before we unload it
+            active: root.wavy || root.animatedAmplitudeMultiplier > 0.01
+            
             sourceComponent: WavyLine {
                 id: wavyFill
                 frequency: root.waveFrequency
                 fullLength: root.width
                 color: root.highlightColor
-                amplitudeMultiplier: root.wavy ? 0.5 : 0
+                
+                // [CHANGED] Bind to the animated value instead of the hard boolean
+                amplitudeMultiplier: root.animatedAmplitudeMultiplier
+                
                 width: root.handleMargins + (root.visualPosition * root.effectiveDraggingWidth) - (root.handleWidth / 2 + root.handleMargins)
                 height: root.trackWidth
                 Connections {

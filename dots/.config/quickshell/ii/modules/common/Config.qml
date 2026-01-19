@@ -224,6 +224,7 @@ Singleton {
             }
 
             property JsonObject bar: JsonObject {
+               property bool showNetworkSpeed: false
                 property JsonObject autoHide: JsonObject {
                     property bool enable: false
                     property int hoverRegionWidth: 2
@@ -613,6 +614,7 @@ Singleton {
                     property bool smootherSearchBar: true
                 }
                 property JsonObject bar: JsonObject {
+               property bool showNetworkSpeed: false
                     property bool bottom: true
                     property bool leftAlignApps: false
                 }
