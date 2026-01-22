@@ -311,11 +311,14 @@ def is_cache_valid(cache_path):
         return False
 
 def fetch_lyrics(title, artist, album="", duration=0):
-    """Fetch lyrics from syncedlyrics (Enhanced) or lrclib.net (Fallback)"""
+    """
+    Fetch lyrics strictly from LRCLIB for accuracy.
+    Uses track duration to filter for the correct version of the song.
+    """
     ensure_cache_dir()
     cache_path = get_cache_path(artist, title)
     
-    # Check cache
+    # 1. Check local cache
     if is_cache_valid(cache_path):
         try:
             with open(cache_path, 'r') as f:
@@ -325,39 +328,11 @@ def fetch_lyrics(title, artist, album="", duration=0):
                     return cached["lyrics"]
                 elif cached.get("not_found"):
                     return None
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"[Cache] Error reading cache: {e}", file=sys.stderr)
-    
-    # Priority 1: SyncedLyrics (Musixmatch) -> Word-by-word
-    if HAS_SYNCEDLYRICS:
-        try:
-            term = f"{title} {artist}"
-            print(f"[Backend] Searching SyncedLyrics for: {term}", file=sys.stderr)
-            
-            # Suppress stdout because syncedlyrics prints log messages
-            f_io = io.StringIO()
-            with contextlib.redirect_stdout(f_io), contextlib.redirect_stderr(f_io):
-                lrc_content = syncedlyrics.search(term, enhanced=True)
-            
-            if lrc_content:
-                lyrics = parse_lrc(lrc_content)
-                if lyrics:
-                    is_enhanced = any(len(line.get("words", [])) > 0 for line in lyrics)
-                    print(f"[Backend] Found {len(lyrics)} lines (enhanced: {is_enhanced})", file=sys.stderr)
-                    
-                    # Cache positive result
-                    with open(cache_path, 'w') as f:
-                        json.dump({
-                            "lyrics": lyrics,
-                            "source": "syncedlyrics",
-                            "timestamp": time.time()
-                        }, f)
-                    return lyrics
-        except Exception as e:
-            print(f"[Backend] SyncedLyrics error: {e}", file=sys.stderr)
+        except (json.JSONDecodeError, IOError):
+            pass
 
-    # Priority 2: Lrclib (Standard/Fallback)
-    if artist:
+    # 2. Fetch from LRCLIB using the 'get' endpoint for version accuracy
+    if artist and title:
         try:
             params = {
                 "track_name": title,
@@ -365,6 +340,8 @@ def fetch_lyrics(title, artist, album="", duration=0):
             }
             if album:
                 params["album_name"] = album
+            
+            # Passing duration ensures the lyrics match the audio length (±2s)
             if duration > 0:
                 params["duration"] = int(duration)
             
@@ -373,23 +350,14 @@ def fetch_lyrics(title, artist, album="", duration=0):
             
             with urllib.request.urlopen(req, timeout=5) as response:
                 data = json.loads(response.read().decode())
+                
+                # Prioritize 'syncedLyrics' for line-by-line timing
                 lrc_content = data.get("syncedLyrics") or data.get("plainLyrics")
                 
                 if lrc_content:
-                    if data.get("syncedLyrics"):
-                        lyrics = parse_lrc(lrc_content)
-                    else:
-                        # Plain lyrics: fake timestamps
-                        lyrics = [
-                            {"time": i * 3, "text": line.strip(), "words": []} 
-                            for i, line in enumerate(lrc_content.split('\n')) 
-                            if line.strip()
-                        ]
-                    
+                    lyrics = parse_lrc(lrc_content)
                     if lyrics:
-                        print(f"[Backend] Found lrclib lyrics ({len(lyrics)} lines)", file=sys.stderr)
-                        
-                        # Cache positive result
+                        # Cache the successful result
                         with open(cache_path, 'w') as f:
                             json.dump({
                                 "lyrics": lyrics,
@@ -397,19 +365,20 @@ def fetch_lyrics(title, artist, album="", duration=0):
                                 "timestamp": time.time()
                             }, f)
                         return lyrics
-        except (urllib.error.URLError, json.JSONDecodeError, IOError) as e:
-            print(f"[Backend] Lrclib error: {e}", file=sys.stderr)
-    
-    # Cache negative result with timestamp
-    print(f"[Backend] No lyrics found for {title} - {artist}", file=sys.stderr)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                print(f"[Backend] Lyrics not found for {title}", file=sys.stderr)
+            else:
+                print(f"[Backend] API error: {e.code}", file=sys.stderr)
+        except Exception as e:
+            print(f"[Backend] Fetch error: {e}", file=sys.stderr)
+
+    # 3. Store negative result to prevent spamming
     try:
         with open(cache_path, 'w') as f:
-            json.dump({
-                "not_found": True,
-                "timestamp": time.time()
-            }, f)
-    except IOError as e:
-        print(f"[Cache] Error writing negative cache: {e}", file=sys.stderr)
+            json.dump({"not_found": True, "timestamp": time.time()}, f)
+    except IOError:
+        pass
     
     return None
 

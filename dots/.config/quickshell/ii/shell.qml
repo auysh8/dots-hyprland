@@ -9,6 +9,7 @@
 import "modules/common"
 import "services"
 import "panelFamilies"
+import "kdeConnect"
 import "modules/ii/overview"
 import "lyricsLayer"
 
@@ -26,6 +27,7 @@ ShellRoot {
     AppDrawerWindow {}
     OtherPopup {}
     LyricsWindow {}
+    KDEDrawer {}
 
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
