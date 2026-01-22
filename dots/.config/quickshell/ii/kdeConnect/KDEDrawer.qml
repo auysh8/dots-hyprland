@@ -168,7 +168,8 @@ Scope {
 
             // Only exist as a surface while open or actively in use
             // This prevents it from blocking clicks when the drawer is "closed"
-            visible: isOpen || userActive
+            // Always visible if device is online (pill mode), or if active/open
+            visible: true // We manage opacity/visibility of inner items now
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -269,15 +270,41 @@ DropArea {
                         rightMargin: 20
                         bottomMargin: 20
                     }
-                    width: 380
-                    height: 600
-                    radius: 32
+                    width: isOpen ? 380 : 64
+                    height: isOpen ? 600 : 64
+                    radius: isOpen ? 32 : 32
                     color: backgroundColor
+                    clip: true // Prevents content from spilling during animation
+
+                    Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
+                    Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
+                    
+                    // Simple click to open when in pill mode
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: !isOpen
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                             isOpen = true
+                             userActive = true
+                             closeTimer.stop()
+                        }
+                    }
+
+                    // Pill Icon (Visible only when closed)
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "smartphone"
+                        color: accentColor
+                        iconSize: 32
+                        opacity: isOpen ? 0 : 1
+                        scale: isOpen ? 0.5 : 1
+                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                        Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
+                    }
 
                     transformOrigin: Item.BottomRight
-                    scale: isOpen ? 1.0 : 1.0   // always present
-                    opacity: isOpen ? 1.0 : 0.0
-                    visible: opacity > 0
+                    visible: deviceOnline // Only show pill/drawer if device is found
                     DropArea {
         anchors.fill: parent
         enabled: deviceOnline
@@ -321,6 +348,9 @@ DropArea {
                         anchors.fill: parent
                         anchors.margins: 32
                         spacing: 28
+                        opacity: isOpen ? 1 : 0 // Fade content out when closing
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: 200 } }
 
                         // Header
                         RowLayout {
