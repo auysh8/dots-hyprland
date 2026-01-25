@@ -6,7 +6,7 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Qt5Compat.GraphicalEffects
+// import Qt5Compat.GraphicalEffects  // Removed - not used and heavy to load
 import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell
@@ -20,38 +20,51 @@ WindowDialog {
     WindowDialogTitle {
         text: Translation.tr("Bluetooth devices")
     }
-    WindowDialogSeparator {
-        visible: !(Bluetooth.defaultAdapter?.discovering ?? false)
-    }
-    StyledIndeterminateProgressBar {
-        visible: Bluetooth.defaultAdapter?.discovering ?? false
+    Item {
         Layout.fillWidth: true
-        Layout.topMargin: -8
-        Layout.bottomMargin: -8
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
+        Layout.preferredHeight: 1
+        
+        // Delay reading Bluetooth state to avoid jitter during animation
+        // Delay reading Bluetooth state to avoid jitter during animation
+        property bool isDiscovering: root.contentReady ? (Bluetooth.defaultAdapter?.discovering ?? false) : false
+        
+        WindowDialogSeparator {
+            anchors.fill: parent
+            visible: !parent.isDiscovering
+        }
+        StyledIndeterminateProgressBar {
+            visible: parent.isDiscovering
+            anchors.fill: parent
+            anchors.leftMargin: -Appearance.rounding.large
+            anchors.rightMargin: -Appearance.rounding.large
+        }
     }
-    StyledListView {
+    Loader {
+        id: listLoader
         Layout.fillHeight: true
         Layout.fillWidth: true
         Layout.topMargin: -15
         Layout.bottomMargin: -16
         Layout.leftMargin: -Appearance.rounding.large
         Layout.rightMargin: -Appearance.rounding.large
+        
+        active: root.contentReady
+        
+        sourceComponent: StyledListView {
+            clip: true
+            spacing: 0
+            animateAppearance: false
 
-        clip: true
-        spacing: 0
-        animateAppearance: false
-
-        model: ScriptModel {
-            values: BluetoothStatus.friendlyDeviceList
-        }
-        delegate: BluetoothDeviceItem {
-            required property BluetoothDevice modelData
-            device: modelData
-            anchors {
-                left: parent?.left
-                right: parent?.right
+            model: ScriptModel {
+                values: BluetoothStatus.friendlyDeviceList
+            }
+            delegate: BluetoothDeviceItem {
+                required property BluetoothDevice modelData
+                device: modelData
+                anchors {
+                    left: parent?.left
+                    right: parent?.right
+                }
             }
         }
     }

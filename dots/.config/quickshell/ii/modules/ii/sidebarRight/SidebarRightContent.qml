@@ -8,6 +8,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
+import QtQuick.Effects
 
 import qs.modules.ii.sidebarRight.quickToggles
 import qs.modules.ii.sidebarRight.quickToggles.classicStyle
@@ -28,6 +29,8 @@ Item {
     property bool showNightLightDialog: false
     property bool showWifiDialog: false
     property bool editMode: false
+    property Item activeSourceItem: null
+    readonly property bool anyDialogOpen: showAudioOutputDialog || showAudioInputDialog || showBluetoothDialog || showNightLightDialog || showWifiDialog
 
     Connections {
         target: GlobalStates
@@ -57,6 +60,16 @@ Item {
         border.width: 1
         border.color: Appearance.colors.colLayer0Border
         radius: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
+
+        property real blurRadius: root.anyDialogOpen ? 48 : 0
+        Behavior on blurRadius { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+        layer.enabled: blurRadius > 0
+        layer.effect: MultiEffect {
+            blurEnabled: true
+            blurMax: 48
+            blur: sidebarRightBackground.blurRadius / 48
+            saturation: 0.5
+        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -130,8 +143,16 @@ Item {
         dialog: BluetoothDialog {}
         onShownChanged: {
             if (!shown) {
+                bluetoothStartTimer.stop();
                 Bluetooth.defaultAdapter.discovering = false;
             } else {
+                bluetoothStartTimer.start();
+            }
+        }
+        Timer {
+            id: bluetoothStartTimer
+            interval: 150
+            onTriggered: {
                 Bluetooth.defaultAdapter.enabled = true;
                 Bluetooth.defaultAdapter.discovering = true;
             }
@@ -147,9 +168,19 @@ Item {
         shownPropertyString: "showWifiDialog"
         dialog: WifiDialog {}
         onShownChanged: {
-            if (!shown) return;
-            Network.enableWifi();
-            Network.rescanWifi();
+            if (!shown) {
+                wifiStartTimer.stop();
+            } else {
+                wifiStartTimer.start();
+            }
+        }
+        Timer {
+            id: wifiStartTimer
+            interval: 150
+            onTriggered: {
+                Network.enableWifi();
+                Network.rescanWifi();
+            }
         }
     }
 
@@ -160,22 +191,37 @@ Item {
         readonly property bool shown: root[shownPropertyString]
         anchors.fill: parent
 
-        onShownChanged: if (shown) toggleDialogLoader.active = true;
-        active: shown
+        active: shown || (item && item.visible)
+        
         onActiveChanged: {
-            if (active) {
-                item.show = true;
-                item.forceActiveFocus();
+            if (active && item) {
+                if (item.sourceItem !== undefined) item.sourceItem = root.activeSourceItem;
+                // Defer showing to allow initial geometry (startRect) to settle
+                // so the animation plays from start->target instead of jumping.
+                openTimer.restart();
             }
         }
+        
+        Timer {
+            id: openTimer
+            interval: 10
+            repeat: false
+            onTriggered: {
+                if (toggleDialogLoader.item) {
+                    toggleDialogLoader.item.animationsEnabled = true;
+                    toggleDialogLoader.item.show = true;
+                    toggleDialogLoader.item.forceActiveFocus();
+                }
+            }
+        }
+
         Connections {
             target: toggleDialogLoader.item
             function onDismiss() {
+                // Start closing animation
                 toggleDialogLoader.item.show = false
+                // Update state; loader stays active due to item.visible binding
                 root[toggleDialogLoader.shownPropertyString] = false;
-            }
-            function onVisibleChanged() {
-                if (!toggleDialogLoader.item.visible && !root[toggleDialogLoader.shownPropertyString]) toggleDialogLoader.active = false;
             }
         }
     }
@@ -189,19 +235,24 @@ Item {
         active: Config.options.sidebar.quickToggles.style === styleName
         Connections {
             target: quickPanelImplLoader.item
-            function onOpenAudioOutputDialog() {
+            function onOpenAudioOutputDialog(sourceItem) {
+                root.activeSourceItem = sourceItem;
                 root.showAudioOutputDialog = true;
             }
-            function onOpenAudioInputDialog() {
+            function onOpenAudioInputDialog(sourceItem) {
+                root.activeSourceItem = sourceItem;
                 root.showAudioInputDialog = true;
             }
-            function onOpenBluetoothDialog() {
+            function onOpenBluetoothDialog(sourceItem) {
+                root.activeSourceItem = sourceItem;
                 root.showBluetoothDialog = true;
             }
-            function onOpenNightLightDialog() {
+            function onOpenNightLightDialog(sourceItem) {
+                root.activeSourceItem = sourceItem;
                 root.showNightLightDialog = true;
             }
-            function onOpenWifiDialog() {
+            function onOpenWifiDialog(sourceItem) {
+                root.activeSourceItem = sourceItem;
                 root.showWifiDialog = true;
             }
         }

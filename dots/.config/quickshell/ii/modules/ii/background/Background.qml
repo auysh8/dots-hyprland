@@ -89,9 +89,13 @@ Variants {
         }
 
         onWallpaperPathChanged: {
+            bgRoot.zoomScaleReady = false;
             bgRoot.updateZoomScale();
             // Clock position gets updated after zoom scale is updated
         }
+
+        // Zoom scale calculation state
+        property bool zoomScaleReady: true
 
         // Wallpaper zoom scale
         function updateZoomScale() {
@@ -118,68 +122,261 @@ Variants {
                         // Oversized = can be zoomed for parallax, yay
                         bgRoot.effectiveWallpaperScale = Math.min(bgRoot.preferredWallpaperScale, width / screenWidth, height / screenHeight);
                     }
+                    bgRoot.zoomScaleReady = true;
                 }
             }
         }
 
         Item {
+            id: wallpaperContainer
             anchors.fill: parent
             clip: true
 
-            // Wallpaper
-            StyledImage {
-                id: wallpaper
-                visible: opacity > 0 && !blurLoader.active
-                opacity: (status === Image.Ready && !bgRoot.wallpaperIsVideo) ? 1 : 0
-                cache: false
-                smooth: false
-                // Range = groups that workspaces span on
-                property int chunkSize: Config?.options.bar.workspaces.shown ?? 10
-                property int lower: Math.floor(bgRoot.firstWorkspaceId / chunkSize) * chunkSize
-                property int upper: Math.ceil(bgRoot.lastWorkspaceId / chunkSize) * chunkSize
-                property int range: upper - lower
-                property real valueX: {
-                    let result = 0.5;
-                    if (Config.options.background.parallax.enableWorkspace && !bgRoot.verticalParallax) {
-                        result = ((bgRoot.monitor.activeWorkspace?.id - lower) / range);
-                    }
-                    if (Config.options.background.parallax.enableSidebar) {
-                        result += (0.15 * GlobalStates.sidebarRightOpen - 0.15 * GlobalStates.sidebarLeftOpen);
-                    }
-                    return result;
+            // Animation state
+            property string oldSource: ""
+            property string newSource: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+            property bool isAnimating: false
+            property bool pendingAnimation: false
+            property real revealProgress: 1.0
+
+            // Wallpaper positioning properties
+            property int chunkSize: Config?.options.bar.workspaces.shown ?? 10
+            property int lower: Math.floor(bgRoot.firstWorkspaceId / chunkSize) * chunkSize
+            property int upper: Math.ceil(bgRoot.lastWorkspaceId / chunkSize) * chunkSize
+            property int range: upper - lower
+            property real valueX: {
+                let result = 0.5;
+                if (Config.options.background.parallax.enableWorkspace && !bgRoot.verticalParallax) {
+                    result = ((bgRoot.monitor.activeWorkspace?.id - lower) / range);
                 }
-                property real valueY: {
-                    let result = 0.5;
-                    if (Config.options.background.parallax.enableWorkspace && bgRoot.verticalParallax) {
-                        result = ((bgRoot.monitor.activeWorkspace?.id - lower) / range);
-                    }
-                    return result;
+                if (Config.options.background.parallax.enableSidebar) {
+                    result += (0.15 * GlobalStates.sidebarRightOpen - 0.15 * GlobalStates.sidebarLeftOpen);
                 }
-                property real effectiveValueX: Math.max(0, Math.min(1, valueX))
-                property real effectiveValueY: Math.max(0, Math.min(1, valueY))
-                x: -(bgRoot.movableXSpace) - (effectiveValueX - 0.5) * 2 * bgRoot.movableXSpace
-                y: -(bgRoot.movableYSpace) - (effectiveValueY - 0.5) * 2 * bgRoot.movableYSpace
-                source: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+                return result;
+            }
+            property real valueY: {
+                let result = 0.5;
+                if (Config.options.background.parallax.enableWorkspace && bgRoot.verticalParallax) {
+                    result = ((bgRoot.monitor.activeWorkspace?.id - lower) / range);
+                }
+                return result;
+            }
+            property real effectiveValueX: Math.max(0, Math.min(1, valueX))
+            property real effectiveValueY: Math.max(0, Math.min(1, valueY))
+            property real wpX: -(bgRoot.movableXSpace) - (effectiveValueX - 0.5) * 2 * bgRoot.movableXSpace
+            property real wpY: -(bgRoot.movableYSpace) - (effectiveValueY - 0.5) * 2 * bgRoot.movableYSpace
+            property real wpW: bgRoot.wallpaperWidth / bgRoot.wallpaperToScreenRatio * bgRoot.effectiveWallpaperScale
+            property real wpH: bgRoot.wallpaperHeight / bgRoot.wallpaperToScreenRatio * bgRoot.effectiveWallpaperScale
+
+            // Frozen position/dimensions for old wallpaper (captured at transition start)
+            property real frozenX: 0
+            property real frozenY: 0
+            property real frozenW: 0
+            property real frozenH: 0
+
+            onNewSourceChanged: {
+                if (oldSource !== "" && oldSource !== newSource && newSource !== "") {
+                    // Freeze current position/dimensions for old wallpaper
+                    frozenX = wpX;
+                    frozenY = wpY;
+                    frozenW = wpW;
+                    frozenH = wpH;
+                    // Set old wallpaper source and mark animation as pending
+                    oldWallpaper.source = oldSource;
+                    pendingAnimation = true;
+                    imageReady = false;
+                    revealProgress = 0;
+                    fadeProgress = 0;
+                    // Start fade animation immediately
+                    fadeAnimation.restart();
+                }
+                oldSource = newSource;
+            }
+
+            // Track if the new image has loaded
+            property bool imageReady: false
+            
+            // Fade animation progress (0 = old wallpaper visible, 1 = black)
+            property real fadeProgress: 0
+
+            // Function to try starting reveal animation (checks both conditions)
+            function tryStartReveal() {
+                if (pendingAnimation && imageReady && bgRoot.zoomScaleReady && fadeProgress >= 1) {
+                    pendingAnimation = false;
+                    isAnimating = true;
+                    revealAnimation.restart();
+                }
+            }
+
+            // Function called when new image is ready
+            function onImageLoaded() {
+                imageReady = true;
+                tryStartReveal();
+            }
+
+            // Watch for zoom scale ready changes
+            Connections {
+                target: bgRoot
+                function onZoomScaleReadyChanged() {
+                    if (bgRoot.zoomScaleReady) {
+                        wallpaperContainer.tryStartReveal();
+                    }
+                }
+            }
+
+            // Fade to black animation
+            NumberAnimation {
+                id: fadeAnimation
+                target: wallpaperContainer
+                property: "fadeProgress"
+                from: 0
+                to: 1
+                duration: 350
+                easing.type: Easing.InOutQuint
+                onFinished: {
+                    wallpaperContainer.tryStartReveal();
+                }
+            }
+
+            // Circle reveal animation
+            NumberAnimation {
+                id: revealAnimation
+                target: wallpaperContainer
+                property: "revealProgress"
+                from: 0
+                to: 1
+                duration: 1400
+                easing.type: Easing.OutQuint
+                onFinished: {
+                    wallpaperContainer.isAnimating = false;
+                    wallpaperContainer.fadeProgress = 0;
+                }
+            }
+
+            // Black background (shown during fade and reveal)
+            Rectangle {
+                id: fadeToBlack
+                anchors.fill: parent
+                color: "black"
+                visible: wallpaperContainer.pendingAnimation || wallpaperContainer.isAnimating
+            }
+
+            // Old wallpaper (fades out to reveal black)
+            Image {
+                id: oldWallpaper
+                // Show during both loading phase (pendingAnimation) and animation phase
+                visible: (wallpaperContainer.pendingAnimation || wallpaperContainer.isAnimating) && !blurLoader.active
+                // Fade OUT as fadeProgress increases (1 - fadeProgress)
+                opacity: 1 - wallpaperContainer.fadeProgress
+                // Subtle scale down during fade for depth effect
+                scale: 1 - (wallpaperContainer.fadeProgress * 0.08)
+                transformOrigin: Item.Center
+                x: wallpaperContainer.frozenX
+                y: wallpaperContainer.frozenY
+                width: wallpaperContainer.frozenW
+                height: wallpaperContainer.frozenH
                 fillMode: Image.PreserveAspectCrop
+                asynchronous: false
+                retainWhileLoading: true
+                cache: true
+                sourceSize {
+                    width: wallpaperContainer.frozenW * bgRoot.monitor.scale
+                    height: wallpaperContainer.frozenH * bgRoot.monitor.scale
+                }
+            }
+
+            // The new wallpaper (always exists for blur to reference)
+            Image {
+                id: wallpaper
+                x: wallpaperContainer.wpX
+                y: wallpaperContainer.wpY
+                width: wallpaperContainer.wpW
+                height: wallpaperContainer.wpH
+                source: wallpaperContainer.newSource
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                retainWhileLoading: true
+                cache: false
+                // Hide during loading phase OR when blurLoader is active (lock screen uses blur)
+                // But keep rendering for blur source
+                visible: !blurLoader.active && (!wallpaperContainer.pendingAnimation || wallpaperContainer.isAnimating)
+                // During animation, hide because the masked version is shown instead
+                opacity: wallpaperContainer.isAnimating ? 0 : 1
+                sourceSize {
+                    width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
+                    height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
+                }
+                
+                // Start animation when new image is loaded
+                onStatusChanged: {
+                    if (status === Image.Ready) {
+                        wallpaperContainer.onImageLoaded();
+                    }
+                }
+                
                 Behavior on x {
+                    enabled: !wallpaperContainer.isAnimating && !wallpaperContainer.pendingAnimation
                     NumberAnimation {
                         duration: 600
                         easing.type: Easing.OutCubic
                     }
                 }
                 Behavior on y {
+                    enabled: !wallpaperContainer.isAnimating && !wallpaperContainer.pendingAnimation
                     NumberAnimation {
                         duration: 600
                         easing.type: Easing.OutCubic
                     }
                 }
-                sourceSize {
-                    width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
-                    height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
-                }
-                width: bgRoot.wallpaperWidth / bgRoot.wallpaperToScreenRatio * bgRoot.effectiveWallpaperScale
-                height: bgRoot.wallpaperHeight / bgRoot.wallpaperToScreenRatio * bgRoot.effectiveWallpaperScale
             }
+
+            // Circle reveal mask (only during animation)
+            Item {
+                id: newWallpaperClip
+                anchors.fill: parent
+                visible: wallpaperContainer.isAnimating && !blurLoader.active
+                layer.enabled: true
+                layer.effect: OpacityMask {
+                    maskSource: Item {
+                        width: newWallpaperClip.width
+                        height: newWallpaperClip.height
+                        
+                        RadialGradient {
+                            anchors.fill: parent
+                            horizontalRadius: wallpaperContainer.revealProgress * wallpaperContainer.maxRadius
+                            verticalRadius: wallpaperContainer.revealProgress * wallpaperContainer.maxRadius
+                            horizontalOffset: 0
+                            verticalOffset: 0
+                            gradient: Gradient {
+                                GradientStop { position: 0.0; color: "white" }
+                                GradientStop { position: 0.92; color: "white" }
+                                GradientStop { position: 1.0; color: "transparent" }
+                            }
+                        }
+                    }
+                }
+
+                // Copy of wallpaper for the masked reveal
+                Image {
+                    id: maskedWallpaper
+                    x: wallpaperContainer.wpX
+                    y: wallpaperContainer.wpY
+                    width: wallpaperContainer.wpW
+                    height: wallpaperContainer.wpH
+                    source: wallpaperContainer.newSource
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    retainWhileLoading: true
+                    cache: true
+                    sourceSize {
+                        width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
+                        height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
+                    }
+                }
+            }
+
+            // Add maxRadius property to wallpaperContainer
+            property real maxRadius: Math.sqrt(Math.pow(bgRoot.screen.width, 2) + Math.pow(bgRoot.screen.height, 2)) / 2 * 1.2
 
             Loader {
                 id: blurLoader

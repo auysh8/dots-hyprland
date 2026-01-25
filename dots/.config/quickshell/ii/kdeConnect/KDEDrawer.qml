@@ -25,17 +25,21 @@ Scope {
     property bool drawerHovered: false
     property bool openedFromCorner: false  // Track if opened from corner
     property bool isTransferring: false     // Track file transfer in progress vs edge
+    property bool isPillVisible: false      // Autohide state
+    property bool isDragging: false         // Global drag state tracking
+
 
 
     // --- Colors ---
     // --- Colors ---
-    // Use Opaque Base colors to avoid transparency issues
-    property color backgroundColor: Appearance.colors.colLayer0Base
-    property color cardColor: Appearance.colors.colLayer1Base
+    // Use transparent layer color for blur effect support
+    property color backgroundColor: Appearance.colors.colLayer0
+    property color cardColor: Appearance.colors.colLayer1Base // Keep cards opaque/solid for contrast
     property color textColor: Appearance.colors.colOnSurface
     property color textSecondary: Appearance.colors.colSubtext
     property color accentColor: Appearance.colors.colPrimary
     property color successColor: Appearance.m3colors.m3success
+    property color warningColor: "#fab387"  // Warm orange for Ring (alert action)
 
     /* --- CLOSE TIMER (shared) --- */
     Timer {
@@ -51,19 +55,23 @@ Scope {
         }
     }
 
-    /* --- TRANSFER COMPLETE TIMER --- */
+
+
+    /* --- TRANSFER TIMER --- */
     Timer {
-        id: transferCompleteTimer
-        interval: 10000  // Give it 10 seconds for user to see the status
+        id: transferTimer
+        interval: 2000
+        onTriggered: isTransferring = false
+    }
+
+    /* --- AUTOHIDE TIMER --- */
+    Timer {
+        id: autohideTimer
+        interval: 3000
+        running: isPillVisible && !isOpen && !drawerHovered
         onTriggered: {
-            console.log("KDE: Transfer complete timer triggered, setting isTransferring = false")
-            isTransferring = false
-            // Now allow the drawer to close if user isn't active
-            // We don't force userActive = false here, strictly rely on hover status
-            if (!drawerHovered) {
-                userActive = false
-                closeTimer.restart()
-            }
+            console.log("KDE: Autohiding pill due to inactivity")
+            isPillVisible = false
         }
     }
 
@@ -102,11 +110,10 @@ Scope {
                 const inCorner = cursorX >= right - 5 && cursorY >= bottom - 5
 
                 if (inCorner) {
-                    isOpen = true
-                    userActive = true
-                    openedFromCorner = true  // Always true since only corner opens it
-                    closeTimer.stop()
-                } else if (!drawerHovered && !isTransferring) {
+                    // Wake up the pill
+                    isPillVisible = true
+                    autohideTimer.restart()
+                } else if (!drawerHovered && !isTransferring && !isDragging) {
                     // Don't close during file transfers - let transferCompleteTimer handle it
                     // Corner-opened drawers get extended timeout for file dropping
                     closeTimer.interval = 2000  // 2 seconds for corner-opened drawers
@@ -172,11 +179,15 @@ Scope {
             visible: true // We manage opacity/visibility of inner items now
 
             WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "kde-connect-drawer"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
             color: "transparent"
             implicitWidth: 420
             implicitHeight: 620
+
+            // Mask the window to the drawer shape (pill or full) so clicks pass through empty space
+            mask: Region { item: drawer }
 
             DropArea {
     anchors.fill: parent
@@ -202,17 +213,20 @@ DropArea {
 
     onEntered: (drag) => {
         if (!drag.hasUrls) return
+        kdeRoot.isDragging = true
         isOpen = true
         userActive = true // Mark as active so it stays open
         closeTimer.stop()
     }
 
     onExited: {
+        kdeRoot.isDragging = false
         userActive = false // No longer active if the file leaves the area
         closeTimer.restart()
     }
 
     onDropped: {
+        kdeRoot.isDragging = false
         userActive = false
         closeTimer.restart()
         // ... (your existing drop logic for kdeconnect-cli)
@@ -270,20 +284,29 @@ DropArea {
                         rightMargin: 20
                         bottomMargin: 20
                     }
-                    width: isOpen ? 380 : 64
-                    height: isOpen ? 600 : 64
-                    radius: isOpen ? 32 : 32
+                    width: isOpen ? 380 : (isPillVisible ? 48 : 0)
+                    height: isOpen ? 600 : (isPillVisible ? 48 : 0)
+                    radius: isOpen ? 32 : 24
                     color: backgroundColor
                     clip: true // Prevents content from spilling during animation
 
                     Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
                     Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
                     
-                    // Simple click to open when in pill mode
+                    // Open on Hover (only active when pill is shown)
                     MouseArea {
                         anchors.fill: parent
-                        enabled: !isOpen
+                        visible: !isOpen  // Hide completely when open so clicks pass through
+                        enabled: isPillVisible
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onEntered: {
+                             isOpen = true
+                             userActive = true
+                             closeTimer.stop()
+                             isPillVisible = true // Keep it visible
+                        }
+                        // Also wake up if clicked (fallback)
                         onClicked: {
                              isOpen = true
                              userActive = true
@@ -296,15 +319,19 @@ DropArea {
                         anchors.centerIn: parent
                         text: "smartphone"
                         color: accentColor
-                        iconSize: 32
-                        opacity: isOpen ? 0 : 1
-                        scale: isOpen ? 0.5 : 1
+                        iconSize: 24
+                        opacity: (isOpen || !isPillVisible) ? 0 : 1 // Hide if open OR autohidden
+                        scale: (isOpen || !isPillVisible) ? 0.5 : 1
                         Behavior on opacity { NumberAnimation { duration: 200 } }
                         Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutBack } }
                     }
 
                     transformOrigin: Item.BottomRight
-                    visible: deviceOnline // Only show pill/drawer if device is found
+                    // Visible if: Online AND (Open OR PillVisible)
+                    // We animate opacity for smooth toggle, but toggle visible to release input mask when hidden
+                    opacity: (deviceOnline && (isOpen || isPillVisible)) ? 1 : 0
+                    visible: opacity > 0
+                    Behavior on opacity { NumberAnimation { duration: 300 } }
                     DropArea {
         anchors.fill: parent
         enabled: deviceOnline
@@ -314,7 +341,7 @@ DropArea {
 
             console.log("KDE: Starting file transfer, setting isTransferring = true")
             isTransferring = true  // Show loading indicator
-            transferCompleteTimer.restart()  // Start transfer completion timer
+            transferTimer.restart()
 
             // Process the files
             for (const url of drop.urls) {
@@ -352,23 +379,75 @@ DropArea {
                         visible: opacity > 0
                         Behavior on opacity { NumberAnimation { duration: 200 } }
 
-                        // Header
+                        // Header - Refined with phone icon and status
                         RowLayout {
                             Layout.fillWidth: true
+                            spacing: 12
+
+                            // Phone icon with online indicator
+                            Rectangle {
+                                width: 40
+                                height: 40
+                                radius: 12
+                                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "smartphone"
+                                    color: accentColor
+                                    iconSize: 22
+                                }
+
+                                // Online dot
+                                Rectangle {
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    anchors.margins: -2
+                                    width: 12
+                                    height: 12
+                                    radius: 6
+                                    color: deviceOnline ? successColor : "#f38ba8"
+                                    border.width: 2
+                                    border.color: cardColor
+
+                                    // Pulse animation when online
+                                    SequentialAnimation on scale {
+                                        loops: Animation.Infinite
+                                        running: deviceOnline
+                                        NumberAnimation { to: 1.2; duration: 800; easing.type: Easing.InOutQuad }
+                                        NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutQuad }
+                                    }
+                                }
+                            }
+
+                            // Device name
                             Text {
                                 text: deviceName
                                 color: textColor
-                                font.pixelSize: 24
+                                font.pixelSize: 20
                                 font.weight: Font.Bold
                                 Layout.fillWidth: true
                             }
-                            MaterialSymbol {
-                                text: "keyboard_arrow_down"
-                                color: textSecondary
-                                iconSize: 24
+
+                            // Minimize button
+                            Rectangle {
+                                width: 32
+                                height: 32
+                                radius: 16
+                                color: minimizeArea.containsMouse ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.1) : "transparent"
+                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "keyboard_arrow_down"
+                                    color: textSecondary
+                                    iconSize: 24
+                                }
                                 
                                 MouseArea {
+                                    id: minimizeArea
                                     anchors.fill: parent
+                                    hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         isOpen = false
@@ -379,38 +458,35 @@ DropArea {
                             }
                         }
 
-                        // Battery Card
+                        // Battery Card - Compact horizontal design
                         Rectangle {
                             Layout.fillWidth: true
-                            height: 130
-                            radius: 24
+                            height: 70
+                            radius: 20
                             color: cardColor
 
-                            ColumnLayout {
+                            RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: 24
-                                spacing: 12
+                                anchors.margins: 16
+                                spacing: 14
 
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    Text {
-                                        text: batteryPercent >= 0 ? batteryPercent + "%" : "--%"
-                                        font.pixelSize: 38
-                                        font.weight: Font.Bold
-                                        color: textColor
-                                    }
-                                    Text {
-                                        text: "Battery"
-                                        color: textSecondary
-                                        font.pixelSize: 16
-                                        Layout.leftMargin: 8
-                                    }
-                                    Item { Layout.fillWidth: true }
+                                // Battery icon with circle background
+                                Rectangle {
+                                    width: 38
+                                    height: 38
+                                    radius: 12
+                                    color: batteryCharging 
+                                        ? Qt.rgba(successColor.r, successColor.g, successColor.b, 0.2)
+                                        : (batteryPercent < 20 
+                                            ? Qt.rgba(1, 0.4, 0.4, 0.2) 
+                                            : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15))
+
                                     MaterialSymbol {
-                                        iconSize: 28
+                                        anchors.centerIn: parent
+                                        iconSize: 22
                                         color: batteryCharging
                                             ? successColor
-                                            : (batteryPercent < 20 ? "#f38ba8" : textSecondary)
+                                            : (batteryPercent < 20 ? "#f38ba8" : accentColor)
                                         text: batteryCharging
                                             ? "battery_charging_full"
                                             : batteryPercent >= 90
@@ -421,53 +497,97 @@ DropArea {
                                     }
                                 }
 
+                                // Percentage
+                                Text {
+                                    text: batteryPercent >= 0 ? batteryPercent + "%" : "--%"
+                                    font.pixelSize: 24
+                                    font.weight: Font.Bold
+                                    color: textColor
+                                }
+
+                                // Progress bar - takes remaining space
                                 Rectangle {
                                     Layout.fillWidth: true
-                                    height: 8
-                                    radius: 4
-                                    color: Qt.rgba(1, 1, 1, 0.1)
+                                    height: 10
+                                    radius: 5
+                                    color: Qt.rgba(1, 1, 1, 0.08)
 
                                     Rectangle {
-                                        height: 8
-                                        radius: 4
-                                        color: batteryCharging ? successColor : accentColor
+                                        height: 10
+                                        radius: 5
                                         width: parent.width * Math.max(batteryPercent, 0) / 100
+                                        
+                                        // Gradient fill
+                                        gradient: Gradient {
+                                            orientation: Gradient.Horizontal
+                                            GradientStop { 
+                                                position: 0.0
+                                                color: batteryCharging ? successColor : accentColor
+                                            }
+                                            GradientStop { 
+                                                position: 1.0
+                                                color: batteryCharging 
+                                                    ? Qt.lighter(successColor, 1.3) 
+                                                    : Qt.lighter(accentColor, 1.2)
+                                            }
+                                        }
+
                                         Behavior on width {
                                             NumberAnimation { duration: 500; easing.type: Easing.OutQuad }
                                         }
                                     }
                                 }
+
+                                // Charging indicator text
+                                Text {
+                                    visible: batteryCharging
+                                    text: "⚡"
+                                    font.pixelSize: 16
+                                }
                             }
                         }
 
-                        // Actions Row
+                        // Actions Row - Icon-only with tooltips
                         RowLayout {
                              Layout.fillWidth: true
                              spacing: 12
                              visible: deviceOnline
 
-                             // Find My Phone
+                             // Ring - Warning/Orange (alert action)
                              Rectangle {
+                                 id: ringBtn
                                  Layout.fillWidth: true
-                                 height: 50
-                                 radius: 16
-                                 color: ringArea.containsMouse ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15) : cardColor
+                                 Layout.preferredWidth: ringArea.pressed ? 110 : 100 
+                                 height: ringArea.pressed ? 52 : 48
+                                 radius: ringArea.pressed ? 12 : 16
+                                 color: ringArea.containsMouse 
+                                     ? warningColor 
+                                     : cardColor
+                                 border.width: 0
+                                 border.color: "transparent"
+                                 
+                                 // Property for StyledToolTip
+                                 property bool hovered: ringArea.containsMouse
+                                 
+                                 Behavior on Layout.preferredWidth { 
+                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
+                                 }
+                                 Behavior on height { 
+                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
+                                 }
+                                 Behavior on radius { NumberAnimation { duration: 200 } }
                                  Behavior on color { ColorAnimation { duration: 150 } }
 
-                                 RowLayout {
+                                 MaterialSymbol {
                                      anchors.centerIn: parent
-                                     spacing: 8
-                                     MaterialSymbol {
-                                         text: "notifications_active"
-                                         color: accentColor
-                                         iconSize: 20
-                                     }
-                                     Text {
-                                         text: "Ring"
-                                         color: textColor
-                                         font.pixelSize: 14
-                                         font.weight: Font.Medium
-                                     }
+                                     text: "ring_volume"
+                                     color: ringArea.containsMouse ? Appearance.m3colors.m3onPrimary : textColor
+                                     iconSize: 24
+                                     Behavior on color { ColorAnimation { duration: 150 } }
+                                 }
+
+                                 StyledToolTip {
+                                     text: "Ring Phone"
                                  }
 
                                  MouseArea {
@@ -483,28 +603,41 @@ DropArea {
                                  }
                              }
 
-                             // Ping
+                             // Ping - Success/Green (confirmation)
                              Rectangle {
+                                 id: pingBtn
                                  Layout.fillWidth: true
-                                 height: 50
-                                 radius: 16
-                                 color: pingArea.containsMouse ? Qt.rgba(successColor.r, successColor.g, successColor.b, 0.15) : cardColor
+                                 Layout.preferredWidth: pingArea.pressed ? 110 : 100 
+                                 height: pingArea.pressed ? 52 : 48
+                                 radius: pingArea.pressed ? 12 : 16
+                                 color: pingArea.containsMouse 
+                                     ? successColor 
+                                     : cardColor
+                                 border.width: 0
+                                 border.color: "transparent"
+                                 
+                                 // Property for StyledToolTip
+                                 property bool hovered: pingArea.containsMouse
+                                 
+                                 Behavior on Layout.preferredWidth { 
+                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
+                                 }
+                                 Behavior on height { 
+                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
+                                 }
+                                 Behavior on radius { NumberAnimation { duration: 200 } }
                                  Behavior on color { ColorAnimation { duration: 150 } }
 
-                                 RowLayout {
+                                 MaterialSymbol {
                                      anchors.centerIn: parent
-                                     spacing: 8
-                                     MaterialSymbol {
-                                         text: "touch_app"
-                                         color: successColor
-                                         iconSize: 20
-                                     }
-                                     Text {
-                                         text: "Ping"
-                                         color: textColor
-                                         font.pixelSize: 14
-                                         font.weight: Font.Medium
-                                     }
+                                     text: "touch_app"
+                                     color: pingArea.containsMouse ? Appearance.m3colors.m3onPrimary : textColor
+                                     iconSize: 24
+                                     Behavior on color { ColorAnimation { duration: 150 } }
+                                 }
+
+                                 StyledToolTip {
+                                     text: "Ping"
                                  }
 
                                  MouseArea {
@@ -515,6 +648,55 @@ DropArea {
                                      onClicked: {
                                          if(!activeDeviceId) return
                                          sendProcess.command = ["kdeconnect-cli", "--ping", "--device", activeDeviceId]
+                                         sendProcess.running = true
+                                     }
+                                 }
+                             }
+
+                             // Mirror - Primary/Accent (main feature)
+                             Rectangle {
+                                 id: mirrorBtn
+                                 Layout.fillWidth: true
+                                 Layout.preferredWidth: mirrorArea.pressed ? 110 : 100 
+                                 height: mirrorArea.pressed ? 52 : 48
+                                 radius: mirrorArea.pressed ? 12 : 16
+                                 color: mirrorArea.containsMouse 
+                                     ? accentColor 
+                                     : cardColor
+                                 border.width: 0
+                                 border.color: "transparent"
+                                 
+                                 // Property for StyledToolTip
+                                 property bool hovered: mirrorArea.containsMouse
+                                 
+                                 Behavior on Layout.preferredWidth { 
+                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
+                                 }
+                                 Behavior on height { 
+                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
+                                 }
+                                 Behavior on radius { NumberAnimation { duration: 200 } }
+                                 Behavior on color { ColorAnimation { duration: 150 } }
+
+                                 MaterialSymbol {
+                                     anchors.centerIn: parent
+                                     text: "screen_share"
+                                     color: mirrorArea.containsMouse ? Appearance.m3colors.m3onPrimary : textColor
+                                     iconSize: 24
+                                     Behavior on color { ColorAnimation { duration: 150 } }
+                                 }
+
+                                 StyledToolTip {
+                                     text: "Mirror Screen"
+                                 }
+
+                                 MouseArea {
+                                     id: mirrorArea
+                                     anchors.fill: parent
+                                     hoverEnabled: true
+                                     cursorShape: Qt.PointingHandCursor
+                                     onClicked: {
+                                         sendProcess.command = ["bash", Qt.resolvedUrl("mirror_phone.sh").toString().replace("file://", "")]
                                          sendProcess.running = true
                                      }
                                  }
@@ -579,34 +761,37 @@ DropArea {
                             Rectangle {
                                 anchors.fill: parent
                                 radius: 28
-                                // Use themed color instead of hardcoded black
-                                color: Qt.rgba(cardColor.r, cardColor.g, cardColor.b, 0.9)
-                                visible: isTransferring
+                                color: Qt.rgba(cardColor.r, cardColor.g, cardColor.b, 0.95)
                                 z: 100
+
+                                // Animate visibility
+                                opacity: isTransferring ? 1 : 0
+                                visible: opacity > 0
+                                Behavior on opacity { NumberAnimation { duration: 300 } }
+                                
+                                scale: isTransferring ? 1 : 0.9
+                                Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
 
                                 Item {
                                     anchors.fill: parent
-
-                                    Text {
-                                        id: sharingText
-                                        text: "Sharing..."
-                                        color: textColor
-                                        font.pixelSize: 16
-                                        font.weight: Font.Bold
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.verticalCenterOffset: -40
-                                    }
 
                                     // Morphing Spinner
                                     Item {
                                         id: loaderContainer
                                         anchors.centerIn: parent
-                                        anchors.verticalCenterOffset: 10
-                                        width: 48
-                                        height: 48
+                                        width: 64
+                                        height: 64
                                         visible: isTransferring
                                         
+                                        // Light background circle
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 56
+                                            height: 56
+                                            radius: 28
+                                            color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
+                                        }
+
                                         MaterialCookie {
                                             id: loadingCookie
                                             anchors.fill: parent
@@ -646,16 +831,31 @@ DropArea {
                                 id: fileDropArea
                                 anchors.fill: parent
                                 enabled: deviceOnline
-                                onEntered: parent.children[0].requestPaint() // Repaint canvas on enter
-                                onExited: parent.children[0].requestPaint() // Repaint canvas on exit
+                                onEntered: (drag) => {
+                                    parent.children[0].requestPaint()
+                                    // Keep drawer open when dragging inside
+                                    kdeRoot.isDragging = true
+                                    isOpen = true
+                                    userActive = true
+                                    closeTimer.stop()
+                                }
+                                onExited: {
+                                    parent.children[0].requestPaint()
+                                    // Allow close if dragging out
+                                    kdeRoot.isDragging = false
+                                    userActive = false
+                                    closeTimer.restart()
+                                }
 
                                 onDropped: (drop) => {
+                                    kdeRoot.isDragging = false
                                     parent.children[0].requestPaint() // Reset canvas
                                     if (!drop.hasUrls || !activeDeviceId) return
 
                                     console.log("KDE: Starting file transfer from inner DropArea")
+                                    console.log("KDE: Starting file transfer from inner DropArea")
                                     isTransferring = true
-                                    transferCompleteTimer.restart()
+                                    transferTimer.restart()
 
                                     for (const url of drop.urls) {
                                         sendProcess.command = [
@@ -671,22 +871,40 @@ DropArea {
                             }
                         }
 
-                        // Status
-                        RowLayout {
+                        // Status Pill - Floating style
+                        Rectangle {
                             Layout.alignment: Qt.AlignHCenter
-                            spacing: 10
-                            Rectangle {
-                                width: 10
-                                height: 10
-                                radius: 5
-                                color: deviceOnline ? successColor : "#f38ba8"
-                            }
-                            Text {
-                                text: deviceOnline ? "CONNECTED VIA WI-FI" : "DISCONNECTED"
-                                color: textSecondary
-                                font.pixelSize: 11
-                                font.weight: Font.Bold
-                                font.letterSpacing: 1.2
+                            width: statusRow.width + 20
+                            height: 28
+                            radius: 14
+                            color: Qt.rgba(cardColor.r, cardColor.g, cardColor.b, 0.6)
+
+                            RowLayout {
+                                id: statusRow
+                                anchors.centerIn: parent
+                                spacing: 8
+
+                                Rectangle {
+                                    width: 8
+                                    height: 8
+                                    radius: 4
+                                    color: deviceOnline ? successColor : "#f38ba8"
+
+                                    // Pulse animation when online
+                                    SequentialAnimation on opacity {
+                                        loops: Animation.Infinite
+                                        running: deviceOnline
+                                        NumberAnimation { to: 0.4; duration: 1000 }
+                                        NumberAnimation { to: 1.0; duration: 1000 }
+                                    }
+                                }
+
+                                Text {
+                                    text: deviceOnline ? "Connected" : "Offline"
+                                    color: textSecondary
+                                    font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                }
                             }
                         }
                     }

@@ -101,11 +101,11 @@ AbstractQuickPanel {
                             baseCellWidth: root.baseCellWidth
                             baseCellHeight: root.baseCellHeight
                             spacing: root.spacing
-                            onOpenAudioOutputDialog: root.openAudioOutputDialog()
-                            onOpenAudioInputDialog: root.openAudioInputDialog()
-                            onOpenBluetoothDialog: root.openBluetoothDialog()
-                            onOpenNightLightDialog: root.openNightLightDialog()
-                            onOpenWifiDialog: root.openWifiDialog()
+                            onOpenAudioOutputDialog: (sourceItem) => root.openAudioOutputDialog(sourceItem)
+                            onOpenAudioInputDialog: (sourceItem) => root.openAudioInputDialog(sourceItem)
+                            onOpenBluetoothDialog: (sourceItem) => root.openBluetoothDialog(sourceItem)
+                            onOpenNightLightDialog: (sourceItem) => root.openNightLightDialog(sourceItem)
+                            onOpenWifiDialog: (sourceItem) => root.openWifiDialog(sourceItem)
                         }
                     }
                 }

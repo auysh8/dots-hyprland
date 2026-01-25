@@ -229,6 +229,7 @@ Singleton {
                     property bool enable: false
                     property int hoverRegionWidth: 2
                     property bool pushWindows: false
+                    property bool showOnEmptyWorkspace: true // Show bar when no apps are open in the workspace
                     property JsonObject showWhenPressingSuper: JsonObject {
                         property bool enable: true
                         property int delay: 140

@@ -6,6 +6,7 @@ import qs.modules.ii.background
 import qs.modules.ii.bar
 import qs.modules.ii.cheatsheet
 import qs.modules.ii.dock
+import qs.modules.ii.dynamicIsland
 import qs.modules.ii.lock
 import qs.modules.ii.mediaControls
 import qs.modules.ii.notificationPopup
@@ -42,6 +43,7 @@ Scope {
     PanelLoader { component: SidebarLeft {} }
     PanelLoader { component: SidebarRight {} }
     PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
+    PanelLoader { extraCondition: Config.options.bar.vertical; component: DynamicIsland {} }
     PanelLoader { component: WallpaperSelector {} }
     PanelLoader { component: SystemMonitorWindow {} }
 }

@@ -14,11 +14,11 @@ DelegateChooser {
     required property real baseCellHeight
     required property real spacing
     required property int startingIndex
-    signal openAudioOutputDialog()
-    signal openAudioInputDialog()
-    signal openBluetoothDialog()
-    signal openNightLightDialog()
-    signal openWifiDialog()
+    signal openAudioOutputDialog(var sourceItem)
+    signal openAudioInputDialog(var sourceItem)
+    signal openBluetoothDialog(var sourceItem)
+    signal openNightLightDialog(var sourceItem)
+    signal openWifiDialog(var sourceItem)
 
     role: "type"
 
@@ -34,7 +34,7 @@ DelegateChooser {
         cellSpacing: root.spacing
         cellSize: modelData.size
         onOpenMenu: {
-            root.openNightLightDialog()
+            root.openNightLightDialog(this)
         }
     } }
 
@@ -50,7 +50,7 @@ DelegateChooser {
         cellSpacing: root.spacing
         cellSize: modelData.size
         onOpenMenu: {
-            root.openAudioOutputDialog()
+            root.openAudioOutputDialog(this)
         }
     } }
 
@@ -66,7 +66,7 @@ DelegateChooser {
         cellSpacing: root.spacing
         cellSize: modelData.size
         onOpenMenu: {
-            root.openBluetoothDialog()
+            root.openBluetoothDialog(this)
         }
     } }
 
@@ -160,7 +160,7 @@ DelegateChooser {
         cellSpacing: root.spacing
         cellSize: modelData.size
         onOpenMenu: {
-            root.openAudioInputDialog()
+            root.openAudioInputDialog(this)
         }
     } }
 
@@ -189,7 +189,7 @@ DelegateChooser {
         cellSpacing: root.spacing
         cellSize: modelData.size
         onOpenMenu: {
-            root.openWifiDialog()
+            root.openWifiDialog(this)
         }
     } }
 
@@ -205,7 +205,7 @@ DelegateChooser {
         cellSpacing: root.spacing
         cellSize: modelData.size
         onOpenMenu: {
-            root.openNightLightDialog()
+            root.openNightLightDialog(this)
         }
     } }
 

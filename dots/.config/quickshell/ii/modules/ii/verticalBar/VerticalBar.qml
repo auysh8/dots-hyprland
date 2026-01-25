@@ -33,6 +33,16 @@ Scope {
                 screen: barLoader.modelData
 
                 property var brightnessMonitor: Brightness.getMonitorForScreen(barLoader.modelData)
+
+                // Get the Hyprland monitor corresponding to this screen
+                property var hyprlandMonitor: HyprlandData.monitors.find(m => m.name === barLoader.modelData.name)
+                // Check if the current workspace has no windows
+                property int currentWorkspaceId: hyprlandMonitor?.activeWorkspace?.id ?? -1
+                property bool workspaceEmpty: {
+                    if (currentWorkspaceId < 0) return false;
+                    const windowsInWorkspace = HyprlandData.hyprlandClientsForWorkspace(currentWorkspaceId);
+                    return windowsInWorkspace.length === 0;
+                }
                 
                 Timer {
                     id: showBarTimer
@@ -54,7 +64,9 @@ Scope {
                     }
                 }
                 property bool superShow: false
-                property bool mustShow: hoverRegion.containsMouse || superShow
+                // Show bar when: hovering, Super key pressed, OR workspace is empty (if showOnEmptyWorkspace enabled)
+                property bool showOnEmptyWorkspace: Config?.options.bar.autoHide.showOnEmptyWorkspace ?? true
+                property bool mustShow: hoverRegion.containsMouse || superShow || (showOnEmptyWorkspace && workspaceEmpty)
                 exclusionMode: ExclusionMode.Ignore
                 exclusiveZone: (Config?.options.bar.autoHide.enable && (!mustShow || !Config?.options.bar.autoHide.pushWindows)) ? 0 :
                     Appearance.sizes.baseVerticalBarWidth + (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
