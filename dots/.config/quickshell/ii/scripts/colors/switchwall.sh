@@ -162,150 +162,137 @@ switch() {
     color_flag="$4"
     color="$5"
 
-    # Start Gemini auto-categorization if enabled
-    aiStylingEnabled=$(jq -r '.background.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE")
-    if [[ "$aiStylingEnabled" == "true" ]]; then
-        "$SCRIPT_DIR/../ai/gemini-categorize-wallpaper.sh" "$imgpath" > "$STATE_DIR/user/generated/wallpaper/category.txt" &
+    if [[ -z "$imgpath" && "$color_flag" != "1" ]]; then
+        echo 'Aborted'
+        exit 0
     fi
 
-    read scale screenx screeny screensizey < <(hyprctl monitors -j | jq '.[] | select(.focused) | .scale, .x, .y, .height' | xargs)
-    cursorposx=$(hyprctl cursorpos -j | jq '.x' 2>/dev/null) || cursorposx=960
-    cursorposx=$(bc <<< "scale=0; ($cursorposx - $screenx) * $scale / 1")
-    cursorposy=$(hyprctl cursorpos -j | jq '.y' 2>/dev/null) || cursorposy=540
-    cursorposy=$(bc <<< "scale=0; ($cursorposy - $screeny) * $scale / 1")
-    cursorposy_inverted=$((screensizey - cursorposy))
-
-    if [[ "$color_flag" == "1" ]]; then
-        matugen_args=(color hex "$color")
-        generate_colors_material_args=(--color "$color")
-    else
-        if [[ -z "$imgpath" ]]; then
-            echo 'Aborted'
-            exit 0
-        fi
-
+    # Handle wallpaper switching immediately in main thread
+    if [[ "$color_flag" != "1" ]]; then
         check_and_prompt_upscale "$imgpath" &
         kill_existing_mpvpaper
 
         if is_video "$imgpath"; then
             mkdir -p "$THUMBNAIL_DIR"
-
-            missing_deps=()
-            if ! command -v mpvpaper &> /dev/null; then
-                missing_deps+=("mpvpaper")
-            fi
-            if ! command -v ffmpeg &> /dev/null; then
-                missing_deps+=("ffmpeg")
-            fi
-            if [ ${#missing_deps[@]} -gt 0 ]; then
-                echo "Missing deps: ${missing_deps[*]}"
-                echo "Arch: sudo pacman -S ${missing_deps[*]}"
-                action=$(notify-send \
-                    -a "Wallpaper switcher" \
-                    -c "im.error" \
-                    -A "install_arch=Install (Arch)" \
-                    "Can't switch to video wallpaper" \
-                    "Missing dependencies: ${missing_deps[*]}")
-                if [[ "$action" == "install_arch" ]]; then
-                    kitty -1 sudo pacman -S "${missing_deps[*]}"
-                    if command -v mpvpaper &>/dev/null && command -v ffmpeg &>/dev/null; then
-                        notify-send 'Wallpaper switcher' 'Alright, try again!' -a "Wallpaper switcher"
-                    fi
-                fi
-                exit 0
-            fi
-
             # Set wallpaper path
             set_wallpaper_path "$imgpath"
-
-            # Set video wallpaper
+            # Start mpvpaper
             local video_path="$imgpath"
             monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
             for monitor in $monitors; do
                 mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" &
                 sleep 0.1
             done
-
-            # Extract first frame for color generation
-            thumbnail="$THUMBNAIL_DIR/$(basename "$imgpath").jpg"
-            ffmpeg -y -i "$imgpath" -vframes 1 "$thumbnail" 2>/dev/null
-
-            # Set thumbnail path
-            set_thumbnail_path "$thumbnail"
-
-            if [ -f "$thumbnail" ]; then
-                matugen_args=(image "$thumbnail")
-                generate_colors_material_args=(--path "$thumbnail")
-                create_restore_script "$video_path"
-            else
-                echo "Cannot create image to colorgen"
-                remove_restore
-                exit 1
-            fi
+            create_restore_script "$video_path"
         else
-            matugen_args=(image "$imgpath")
-            generate_colors_material_args=(--path "$imgpath")
             # Update wallpaper path in config
             set_wallpaper_path "$imgpath"
             remove_restore
         fi
     fi
 
-    # Determine mode if not set
-    if [[ -z "$mode_flag" ]]; then
-        current_mode=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'")
-        if [[ "$current_mode" == "prefer-dark" ]]; then
-            mode_flag="dark"
+    # Background the heavy tasks: Gemini, Thumbnail, Color Gen
+    (
+        # Set up args for background tasks
+        local matugen_args=()
+        local generate_colors_material_args=()
+
+        if [[ "$color_flag" == "1" ]]; then
+            matugen_args=(color hex "$color")
+            generate_colors_material_args=(--color "$color")
         else
-            mode_flag="light"
+            if is_video "$imgpath"; then
+                # Extract thumbnail in background
+                thumbnail="$THUMBNAIL_DIR/$(basename "$imgpath").jpg"
+                nice -n 15 ffmpeg -y -i "$imgpath" -vframes 1 "$thumbnail" 2>/dev/null
+                set_thumbnail_path "$thumbnail"
+                matugen_args=(image "$thumbnail")
+                generate_colors_material_args=(--path "$thumbnail")
+            else
+                matugen_args=(image "$imgpath")
+                generate_colors_material_args=(--path "$imgpath")
+            fi
         fi
-    fi
 
-    # enforce dark mode for terminal
-    if [[ -n "$mode_flag" ]]; then
-        matugen_args+=(--mode "$mode_flag")
-        if [[ $(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode' "$SHELL_CONFIG_FILE") == "true" ]]; then
-            generate_colors_material_args+=(--mode "dark")
-        else
-            generate_colors_material_args+=(--mode "$mode_flag")
+        # Start Gemini auto-categorization
+        aiStylingEnabled=$(jq -r '.background.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE" 2>/dev/null)
+        if [[ "$aiStylingEnabled" == "true" ]]; then
+            nice -n 15 "$SCRIPT_DIR/../ai/gemini-categorize-wallpaper.sh" "$imgpath" > "$STATE_DIR/user/generated/wallpaper/category.txt" &
         fi
-    fi
-    [[ -n "$type_flag" ]] && matugen_args+=(--type "$type_flag") && generate_colors_material_args+=(--scheme "$type_flag")
-    generate_colors_material_args+=(--termscheme "$terminalscheme" --blend_bg_fg)
-    generate_colors_material_args+=(--cache "$STATE_DIR/user/generated/color.txt")
 
-    pre_process "$mode_flag"
+        # Small delay to let the UI settle
+        sleep 0.3
 
-    # Check if app and shell theming is enabled in config
-    if [ -f "$SHELL_CONFIG_FILE" ]; then
-        enable_apps_shell=$(jq -r '.appearance.wallpaperTheming.enableAppsAndShell' "$SHELL_CONFIG_FILE")
-        if [ "$enable_apps_shell" == "false" ]; then
-            echo "App and shell theming disabled, skipping matugen and color generation"
-            return
+        # Determine mode if not set
+        if [[ -z "$mode_flag" ]]; then
+            current_mode=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'") || current_mode="dark"
+            [[ "$current_mode" =~ "dark" ]] && mode_flag="dark" || mode_flag="light"
         fi
-    fi
 
-    # Set harmony and related properties
-    if [ -f "$SHELL_CONFIG_FILE" ]; then
-        harmony=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmony' "$SHELL_CONFIG_FILE")
-        harmonize_threshold=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold' "$SHELL_CONFIG_FILE")
-        term_fg_boost=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost' "$SHELL_CONFIG_FILE")
+        # Auto-detect scheme if needed
+        if [[ "$type_flag" == "auto" ]]; then
+            allowed_types=(scheme-content scheme-expressive scheme-fidelity scheme-fruit-salad scheme-monochrome scheme-neutral scheme-rainbow scheme-tonal-spot auto)
+            if [[ -n "$imgpath" && -f "$imgpath" ]]; then
+                detected_type="$(detect_scheme_type_from_image "$imgpath")"
+                valid_detected=0
+                for t in "${allowed_types[@]}"; do
+                    if [[ "$detected_type" == "$t" && "$detected_type" != "auto" ]]; then
+                        valid_detected=1
+                        break
+                    fi
+                done
+                if [[ $valid_detected -eq 1 ]]; then
+                    type_flag="$detected_type"
+                else
+                    type_flag="scheme-tonal-spot"
+                fi
+            else
+                type_flag="scheme-tonal-spot"
+            fi
+        fi
+
+        # Enforce mode for terminal
+        if [[ -n "$mode_flag" ]]; then
+            matugen_args+=(--mode "$mode_flag")
+            if [[ $(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode' "$SHELL_CONFIG_FILE" 2>/dev/null) == "true" ]]; then
+                generate_colors_material_args+=(--mode "dark")
+            else
+                generate_colors_material_args+=(--mode "$mode_flag")
+            fi
+        fi
+        [[ -n "$type_flag" ]] && matugen_args+=(--type "$type_flag") && generate_colors_material_args+=(--scheme "$type_flag")
+        generate_colors_material_args+=(--termscheme "$terminalscheme" --blend_bg_fg)
+        generate_colors_material_args+=(--cache "$STATE_DIR/user/generated/color.txt")
+
+        pre_process "$mode_flag"
+
+        # Check if app and shell theming is enabled
+        enable_apps_shell=$(jq -r '.appearance.wallpaperTheming.enableAppsAndShell' "$SHELL_CONFIG_FILE" 2>/dev/null)
+        if [[ "$enable_apps_shell" == "false" ]]; then
+            exit 0
+        fi
+
+        # Harmony settings
+        harmony=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmony' "$SHELL_CONFIG_FILE" 2>/dev/null)
+        harmonize_threshold=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold' "$SHELL_CONFIG_FILE" 2>/dev/null)
+        term_fg_boost=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost' "$SHELL_CONFIG_FILE" 2>/dev/null)
         [[ "$harmony" != "null" && -n "$harmony" ]] && generate_colors_material_args+=(--harmony "$harmony")
         [[ "$harmonize_threshold" != "null" && -n "$harmonize_threshold" ]] && generate_colors_material_args+=(--harmonize_threshold "$harmonize_threshold")
         [[ "$term_fg_boost" != "null" && -n "$term_fg_boost" ]] && generate_colors_material_args+=(--term_fg_boost "$term_fg_boost")
-    fi
 
-    matugen "${matugen_args[@]}"
-    source "$(eval echo $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate"
-    python3 "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" \
-        > "$STATE_DIR"/user/generated/material_colors.scss
-    "$SCRIPT_DIR"/applycolor.sh
-    deactivate
+        # Run generators with low priority
+        nice -n 15 matugen "${matugen_args[@]}" &>/dev/null
+        source "$(eval echo $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate"
+        nice -n 15 python3 "$SCRIPT_DIR/generate_colors_material.py" "${generate_colors_material_args[@]}" \
+            > "$STATE_DIR"/user/generated/material_colors.scss
+        nice -n 15 "$SCRIPT_DIR"/applycolor.sh
+        deactivate
 
-    # Pass screen width, height, and wallpaper path to post_process
-    max_width_desired="$(hyprctl monitors -j | jq '([.[].width] | min)' | xargs)"
-    max_height_desired="$(hyprctl monitors -j | jq '([.[].height] | min)' | xargs)"
-    post_process "$max_width_desired" "$max_height_desired" "$imgpath"
+        # Final post processing
+        max_width_desired="$(hyprctl monitors -j | jq '([.[].width] | min)' | xargs)"
+        max_height_desired="$(hyprctl monitors -j | jq '([.[].height] | min)' | xargs)"
+        post_process "$max_width_desired" "$max_height_desired" "$imgpath"
+    ) &
 }
 
 main() {
@@ -406,28 +393,10 @@ main() {
         imgpath="$(kdialog --getopenfilename . --title 'Choose wallpaper')"
     fi
 
-    # If type_flag is 'auto', detect scheme type from image (after imgpath is set)
-    if [[ "$type_flag" == "auto" ]]; then
-        if [[ -n "$imgpath" && -f "$imgpath" ]]; then
-            detected_type="$(detect_scheme_type_from_image "$imgpath")"
-            # Only use detected_type if it's valid
-            valid_detected=0
-            for t in "${allowed_types[@]}"; do
-                if [[ "$detected_type" == "$t" && "$detected_type" != "auto" ]]; then
-                    valid_detected=1
-                    break
-                fi
-            done
-            if [[ $valid_detected -eq 1 ]]; then
-                type_flag="$detected_type"
-            else
-                echo "[switchwall] Warning: Could not auto-detect a valid scheme, defaulting to 'scheme-tonal-spot'" >&2
-                type_flag="scheme-tonal-spot"
-            fi
-        else
-            echo "[switchwall] Warning: No image to auto-detect scheme from, defaulting to 'scheme-tonal-spot'" >&2
-            type_flag="scheme-tonal-spot"
-        fi
+    # If type_flag is 'auto', we will detect it inside switch (in background) to avoid blocking
+    if [[ "$type_flag" == "auto" && -z "$imgpath" ]]; then
+         # Only warn if we don't have an image path by now
+         echo "[switchwall] Warning: No image to auto-detect scheme from (delayed)" >&2
     fi
 
     switch "$imgpath" "$mode_flag" "$type_flag" "$color_flag" "$color"

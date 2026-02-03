@@ -16,20 +16,40 @@ import Qt5Compat.GraphicalEffects
 
 Scope {
     id: root
-    property bool showLyrics: false
+    property bool showLyrics: LyricsService.open
     property bool closing: false
     property bool isFullscreen: false
     property bool isResizing: false
+
     property bool lyricsLoaded: false
+    property bool isRecognizing: false
     
     // Use native MPRIS for UI updates only (art, progress)
     readonly property var availablePlayers: MprisController.players
-property MprisPlayer selectedPlayer: null
-readonly property MprisPlayer activePlayer: selectedPlayer ? selectedPlayer : MprisController.activePlayer
+    property MprisPlayer selectedPlayer: null
+    readonly property MprisPlayer activePlayer: selectedPlayer ? selectedPlayer : MprisController.activePlayer
 
-readonly property real position: activePlayer ? activePlayer.position : 0
-readonly property real duration: activePlayer ? activePlayer.length : 0
-readonly property bool isPlaying: activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing
+    property real position: 0
+    
+    Connections {
+        target: root.activePlayer || null
+        ignoreUnknownSignals: true
+        function onPositionChanged() {
+            var diff = Math.abs(root.position - root.activePlayer.position)
+            if (diff > 1.5 || !root.isPlaying) {
+                root.position = root.activePlayer.position
+            }
+        }
+    }
+    
+    Timer {
+        running: root.isPlaying
+        interval: 20
+        repeat: true
+        onTriggered: root.position += 0.02
+    }
+    readonly property real duration: activePlayer ? activePlayer.length : 0
+    readonly property bool isPlaying: activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing
 
     
     // Player switching
@@ -59,6 +79,18 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
             layoutTransitioning = false
         }
     }
+
+    Timer {
+        id: lyricsLoadTimeout
+        interval: 3000 // 3 seconds timeout
+        running: root.isPlaying && root.lyricsCount === 0 && !root.lyricsLoaded
+        onTriggered: {
+            console.log("[Lyrics] Load timed out, forcing loaded state")
+            root.lyricsLoaded = true
+        }
+    }
+    
+
     
     // FIX: Auto-open when Spotify is playing
     readonly property string playerName: activePlayer?.identity || ""
@@ -72,9 +104,11 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
     property string cleanedTitle: ""
     property string artist: ""
     
-    // FIX: Track artUrl separately to detect changes
-    property var artUrl: activePlayer?.trackArtUrl
-    property string lastProcessedArtUrl: "" // Track what we last processed
+    // FIX: Track artUrl separately as string to avoid null/undefined issues
+    // FIX: Track artUrl separately as string
+    property string artUrl: (activePlayer && activePlayer.trackArtUrl) ? activePlayer.trackArtUrl : ""
+    property string artFileName: Qt.md5(artUrl)
+    property string artFilePath: `${Directories.coverArt}/${artFileName}`
     property string lastProcessedTitle: "" // Track last title for song change detection
     
     // FIX: Watch displayTitle changes to detect song changes (works for player switching too)
@@ -95,50 +129,55 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
             currentSongTitle = ""
             
             // Trigger art download if artUrl is valid
-            if (artUrl && artUrl.length > 0) {
-                lastProcessedArtUrl = artUrl
-                artDownloaded = false
-                artLoading = false
-                Qt.callLater(downloadArt)
-            }
+            // Art download handled by onArtUrlChanged now to prevent race conditions
         }
     }
     
-    property string artDownloadLocation: Directories.coverArt
-    property string artFileName: Qt.md5(artUrl || "")
-    property string artFilePath: artFileName ? `${artDownloadLocation}/${artFileName}` : ""
+    property string artDownloadLocation: Directories.coverArt // Compat
     
-    // FIX: Separate loading state from downloaded state
-    property bool artLoading: false
-    property bool artDownloaded: false
-    property string displayedArtFilePath: artDownloaded ? Qt.resolvedUrl(artFilePath) : ""
+    // MediaPage Logic
+
+    property bool downloaded: false
+    property string displayedArtFilePath: downloaded ? Qt.resolvedUrl(artFilePath) : ""
     
-    // FIX: Use displayedArtFilePath for image too (consistency)
+    // UI Compatibility Aliases
     readonly property string albumArt: displayedArtFilePath
+    readonly property bool artDownloaded: downloaded
+    readonly property bool artLoading: !downloaded && artUrl.length > 0
     
-    // Lyrics state
-    property int currentLine: -1
+    // Trigger download when path changes (MediaPage Logic)
+    onArtFilePathChanged: {
+        if (root.artUrl.length == 0) return
+        
+        console.log("[Lyrics] artFilePath changed, triggering download")
+        
+        coverArtDownloader.targetFile = root.artUrl 
+        coverArtDownloader.artFilePath = root.artFilePath
+        
+        root.downloaded = false
+        coverArtDownloader.running = true
+    }
+    
+    // Cleanup other state variables/functions
     property int lyricsCount: 0
-    
-    // FIX: Force color update counter to re-trigger ColorQuantizer
+    property int currentLine: -1
     property int colorUpdateTrigger: 0
+    property string currentSongTitle: "" 
     
     // Color extraction from album art
     ColorQuantizer {
         id: colorQuantizer
-        // FIX: Add trigger dependency to force re-evaluation
-        source: root.colorUpdateTrigger >= 0 ? root.displayedArtFilePath : ""
+        source: root.displayedArtFilePath
         depth: 0
         rescaleSize: 1
     }
     
     // Extract dominant color or use default
     readonly property color extractedColor: {
-        if (!artDownloaded || displayedArtFilePath.length === 0) {
+        if (!downloaded || displayedArtFilePath.length === 0) {
             return Appearance.colors.colPrimary
         }
         let c = colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary
-        console.log("[Lyrics] Extracted color:", c, "from:", displayedArtFilePath)
         return c
     }
     
@@ -192,163 +231,158 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
         } 
     }
     
-
-    // FIX: Watch artUrl changes directly and reset state immediately
-    onArtUrlChanged: {
-        console.log("[Lyrics] artUrl changed to:", artUrl)
-        
-        // FIX: Only process if artUrl is valid AND different from last
-        // Don't clear anything when artUrl becomes empty (pause state)
-        if (artUrl && artUrl.length > 0 && artUrl !== lastProcessedArtUrl) {
-            lastProcessedArtUrl = artUrl
-            artDownloaded = false
-            artLoading = false
-            
-            // Clear lyrics when song actually changes (new valid artUrl)
-            console.log("[Lyrics] New song detected, clearing lyrics")
-            lyricsModel.clear()
-            lyricsCount = 0
-            currentLine = -1
-            currentSongTitle = ""
-            
-            // Start download process
-            Qt.callLater(downloadArt)
+    // Debug logging for art state
+    onArtLoadingChanged: console.log("[Lyrics] State: artLoading =", artLoading)
+    onArtDownloadedChanged: console.log("[Lyrics] State: artDownloaded =", artDownloaded)
+    
+    // FIX: Clean titles on frontend too
+    readonly property string cleanDisplayTitle: {
+        let title = displayTitle
+        if (!title) return ""
+        const suffixes = [" - YouTube Music", " - YouTube", " (Official Video)", " (Official Audio)"]
+        for (let i = 0; i < suffixes.length; i++) {
+            if (title.endsWith(suffixes[i])) {
+                title = title.substring(0, title.length - suffixes[i].length)
+            }
         }
+        return title
     }
     
-    // FIX: Separate download function for better control
-    function downloadArt() {
-        if (!artUrl || artUrl.length === 0) {
-            artDownloaded = false
-            artLoading = false
-            return
+    // Reset on title change handler removed - redundant or causing conflicts
+    // State clearing is handled in onArtUrlChanged and parseUpdate logic
+
+    Component.onCompleted: {
+        // Initial Art Download Trigger
+        if (artUrl && artUrl.length > 0) {
+            console.log("[Lyrics] Startup art download trigger:", artUrl)
+            // This will trigger onArtFilePathChanged if artFilePath is derived
+            // and different from its initial empty state.
         }
         
-        console.log("[Lyrics] Starting download for:", artFilePath)
-        
-        // Update binding-dependent properties before starting process
-        coverArtDownloader.targetFile = artUrl
-        coverArtDownloader.artFilePath = artFilePath
-        
-        artLoading = true
-        artDownloaded = false
-        coverArtDownloader.running = true
+        // Initial Position Sync
+        if (root.activePlayer) {
+            root.position = root.activePlayer.position
+        }
     }
     
     Process {
         id: coverArtDownloader
-        property string targetFile: ""
-        property string artFilePath: ""
+        property string targetFile: root.artUrl
+        property string artFilePath: root.artFilePath
         
-        // FIX: Always download, don't check if file exists
-        // (or add timestamp check for cache validity)
-        command: ["bash", "-c", `curl -sSL '${targetFile}' -o '${artFilePath}'`]
+        // EXACT command from MediaPage - simple and reliable
+        command: [ "bash", "-c", `[ -f '${artFilePath}' ] || curl -sSL '${targetFile}' -o '${artFilePath}'` ]
         
         onExited: (exitCode, exitStatus) => {
-            console.log("[Lyrics] Download finished, exitCode:", exitCode)
-            root.artLoading = false
+            console.log("[Lyrics] Download process exited. Code:", exitCode)
+            root.downloaded = true
+        }
+    }
+    
+    function parseUpdate(data) {
+        if (!data) return
+        
+        // Update parsing status
+        isRecognizing = !!data.recognizing
+        
+        // Update lyrics if changed
+        if (data.lyrics) {
+            var newLyrics = data.lyrics
             
-            if (exitCode === 0) {
-                root.artDownloaded = true
-                // FIX: Force color re-extraction by changing trigger
-                root.colorUpdateTrigger++
-                console.log("[Lyrics] Art downloaded successfully, trigger:", root.colorUpdateTrigger)
+            // Handle explicitly empty lyrics (backend confirms no lyrics found)
+            if (newLyrics.length === 0) {
+                 lyricsLoaded = true
+                 // Only clear if we had lyrics before
+                 if (lyricsModel.count > 0) {
+                     lyricsModel.clear()
+                     lyricsCount = 0
+                 }
             } else {
-                console.log("[Lyrics] Download failed")
-                root.artDownloaded = false
+                // Update if count changed or first/last line different (simple checksum-ish)
+                var currentCount = lyricsModel.count
+                var needsUpdate = (newLyrics.length !== currentCount)
+                
+                if (!needsUpdate && newLyrics.length > 0 && currentCount > 0) {
+                    // Check first and middle line text to ensure content is same
+                    if (lyricsModel.get(0).text !== newLyrics[0].text) needsUpdate = true
+                }
+                
+                if (needsUpdate) {
+                    // console.log("[LyricsWindow] Updating lyrics model with", newLyrics.length, "lines")
+                    
+                    // FIX: Set state flags FIRST to prevent UI flicker
+                    lyricsCount = newLyrics.length
+                    lyricsLoaded = true
+                    
+                    lyricsModel.clear()
+                    for (var i = 0; i < newLyrics.length; i++) {
+                        var line = newLyrics[i]
+                        var wordsJson = line.words ? JSON.stringify(line.words) : "[]"
+                        lyricsModel.append({
+                            "time": line.time,
+                            "text": line.text,
+                            "words": wordsJson
+                        })
+                    }
+                    
+                    // If we just loaded lyrics, scroll to current line immediately
+                    if (currentLine >= 0 && currentLine < lyricsCount) {
+                        lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+                    }
+                }
             }
         }
+        
+        // Update current line
+        if (data.currentLine !== undefined && data.currentLine !== currentLine) {
+            currentLine = data.currentLine
+            
+            // Auto-scroll if not manual
+            if (!lyricsView.manualScrollMode && currentLine >= 0 && currentLine < lyricsCount) {
+                // FIX: Use small delay to ensure view is ready
+                if (lyricsLoaded) {
+                    lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+                }
+            }
+        }
+        
+        // Update tracked info
+        cleanedTitle = data.song || ""
+        artist = data.artist || ""
     }
     
     ListModel { id: lyricsModel }
     
     function toggle() {
-        if (showLyrics) closeWindow()
-        else showLyrics = true
+        LyricsService.toggle()
     }
-    
-    function toggleFullscreen() {
-        if (showLyrics) {
-            isFullscreen = !isFullscreen
-            console.log("[Lyrics] Fullscreen:", isFullscreen)
-        }
-    }
-    
+
     function closeWindow() {
         if (root.showLyrics) {
             closing = true
-            showLyrics = false
-            isFullscreen = false // Reset fullscreen on close
+            LyricsService.open = false
+            isFullscreen = false
         }
     }
     
-    function formatTime(seconds) {
-        if (!seconds || seconds < 0) return "0:00"
-        let mins = Math.floor(seconds / 60)
-        let secs = Math.floor(seconds % 60)
-        return mins + ":" + (secs < 10 ? "0" : "") + secs
+    function toggleFullscreen() {
+        isFullscreen = !isFullscreen
     }
-    
-    property string currentSongTitle: ""
-    
-    function parseUpdate(data) {
-        // 1. We received a response (even if empty), so stop the loading animation.
-        root.lyricsLoaded = true 
-        
-        let newLyrics = data.lyrics || []
-        let songTitle = data.song || ""
-        let newCurrentLine = data.currentLine !== undefined ? data.currentLine : -1
-        
-        // OPTIMIZATION: If song hasn't changed, just update the position
-        // This prevents flickering and high CPU usage from rebuilding the model every line
-        if (songTitle !== "" && songTitle === currentSongTitle && lyricsModel.count > 0 && lyricsModel.count === newLyrics.length) {
-            if (root.currentLine !== newCurrentLine) {
-                root.currentLine = newCurrentLine
-            }
-            return
-        }
-        
-        console.log("[Lyrics] New song or lyrics loaded. Lines:", newLyrics.length)
-        
-        // Full update
-        currentSongTitle = songTitle
-        root.currentLine = newCurrentLine
-        lyricsModel.clear()
-        
-        for (let i = 0; i < newLyrics.length; i++) {
-            lyricsModel.append({ 
-                text: newLyrics[i].text, 
-                time: newLyrics[i].time,
-                words: JSON.stringify(newLyrics[i].words || []) 
-            })
-        }
-        
-        lyricsCount = newLyrics.length
-        
-        // Reset scroll only on full load
-        if (lyricsCount > 0) {
-            lyricsView.positionViewAtBeginning()
-        }
-    }
-    
-    Timer {
-        running: root.isPlaying && root.showLyrics
-        interval: 500
-        repeat: true
-        onTriggered: {
-            // Update MPRIS position for progress bar
-            activePlayer?.positionChanged()
-        }
-    }
-    
+
     IpcHandler {
         target: "lyrics"
-        function toggle() { root.toggle() }
-        function open() { root.showLyrics = true }
+        function toggle() { 
+            console.log("[LyricsWindow] Received toggle IPC signal!")
+            LyricsService.toggle() 
+        }
+        function open() { 
+            console.log("[LyricsWindow] Received open IPC signal!")
+            LyricsService.open = true 
+        }
         function close() { root.closeWindow() }
         function fullscreen() { root.toggleFullscreen() }
     }
-    
+
     // Trigger update when we switch players
     onPlayerNameChanged: {
         if (playerName !== "") {
@@ -356,12 +390,7 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
             // For now, relies on next poll cycle which is frequent enough (0.5s)
         }
     }
-    
-    // Note: Backend auto-detects via MPRIS, no need to send track info
-    // onCleanedTitleChanged: {
-    //     // StdinSink not available in this Quickshell version
-    // }
-    
+
     Process {
         // Backend Process (restarted on change)
         id: backend
@@ -385,15 +414,6 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                         let identity = parts[1]
                         let b64 = parts[2]
                         
-                        // Debug identity mismatch
-                        console.log("Update from backend:", identity, "| Frontend player:", root.playerName, "| Track:", root.displayTitle)
-                        
-                        // FIX: Match by SONG TITLE instead of player identity
-                        // This works because:
-                        // - Backend identity: "kdeconnect.mpris_943b26ace42442cd868568f214db8016"
-                        // - Frontend identity: "VIVI - RMX3771" (device name from MPRIS Identity field)
-                        // These don't match, but the song title is the same in both!
-                        
                         try {
                             let json = Qt.atob(b64)
                             let data = JSON.parse(json)
@@ -402,28 +422,24 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                             let updateSong = (data.song || "").toLowerCase().trim()
                             let updateArtist = (data.artist || "").toLowerCase().trim()
                             
-                            // Get song info from MPRIS (frontend)
-                            let frontendSong = root.displayTitle.toLowerCase().trim()
+                            // Get safe frontend info (cleaned)
+                            let frontendSong = root.cleanDisplayTitle.toLowerCase().trim()
                             let frontendArtist = root.displayArtist.toLowerCase().trim()
                             
-                            // Match if song title matches (primary) or artist matches (fallback)
-                            // Also accept if there's only one player active
+                            // 1. Exact or Partial Title Match (Most reliable)
+                            // 2. Exact or Partial Artist Match
+                            // 3. Last Result Fallback (if only one player)
+                            
                             let isSongMatch = (
-                                updateSong === frontendSong ||  // Exact song match
-                                (updateSong && frontendSong && (
-                                    updateSong.includes(frontendSong) ||
-                                    frontendSong.includes(updateSong)
-                                )) ||
-                                (updateArtist === frontendArtist && updateArtist !== "") ||  // Same artist
-                                root.availablePlayers.length <= 1  // Only one player, accept it
+                                updateSong === frontendSong || 
+                                (updateSong && frontendSong && (updateSong.includes(frontendSong) || frontendSong.includes(updateSong))) ||
+                                (updateArtist === frontendArtist && updateArtist !== "")
                             )
                             
                             if (isSongMatch) {
-                                console.log("Match found! Updating lyrics for:", data.song)
+                                // console.log("Match found! Updating lyrics")
                                 root.parseUpdate(data)
-                            } else {
-                                console.log("No match - update song:", updateSong, "frontend song:", frontendSong)
-                            }
+                            } 
                         } catch(e) { 
                             console.log("Lyrics parse error:", e) 
                         }
@@ -434,6 +450,21 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
         
         stderr: SplitParser {
             onRead: (line) => console.log(line)
+        }
+        
+        onExited: (exitCode, exitStatus) => {
+            console.log("[LyricsWindow] Backend exited with code", exitCode, "- Restarting in 1s...")
+            restartTimer.start()
+        }
+    }
+    
+    Timer {
+        id: restartTimer
+        interval: 1000
+        repeat: false
+        onTriggered: {
+            console.log("[LyricsWindow] Restarting backend...")
+            backend.running = true
         }
     }
     
@@ -1002,13 +1033,13 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                             Layout.alignment: Qt.AlignHCenter
                             Layout.topMargin: 60 // Push down to avoid overlap with player badge
 
-                            Image {
+                                Image {
                                 id: albumImage
                                 anchors.fill: parent
                                 source: root.albumArt
                                 fillMode: Image.PreserveAspectCrop
                                 visible: false
-                                cache: false
+                                // cache: false // Removed to prevent potential flicker
                                 asynchronous: true
                             }
 
@@ -1115,7 +1146,10 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                                         handleColor: root.contentColor
                                         value: root.duration > 0 ? root.position / root.duration : 0
                                         onMoved: {
-                                            if (root.activePlayer) root.activePlayer.position = value * root.duration;
+                                            if (root.activePlayer) {
+                                                root.activePlayer.position = value * root.duration;
+                                                root.position = root.activePlayer.position;
+                                            }
                                         }
                                     }
                                 }
@@ -1169,15 +1203,11 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                                         id: prevBtnContainer
                                         property bool isPressed: prevArea.pressed
                                         
-                                        implicitWidth: isPressed ? (root.isFullscreen ? 96 : 80) : (root.isFullscreen ? 80 : 64)
+                                        implicitWidth: (root.isFullscreen ? 80 : 64) + (isPressed ? 16 : (playBtnContainer.isPressed ? -10 : 0))
                                         implicitHeight: root.isFullscreen ? 75 : 60
                                         
                                         Behavior on implicitWidth { 
-                                            NumberAnimation { 
-                                                duration: 300
-                                                easing.type: Easing.OutBack
-                                                easing.overshoot: 2
-                                            } 
+                                            animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
                                         }
                                         Behavior on implicitHeight { 
                                             NumberAnimation { 
@@ -1221,15 +1251,11 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                                         property bool isPressed: playArea.pressed
                                         
                                         // Larger in fullscreen
-                                        implicitWidth: isPressed ? (root.isFullscreen ? 190 : 150) : (root.isFullscreen ? 170 : 130)
+                                        implicitWidth: (root.isFullscreen ? 170 : 130) + (isPressed ? 20 : (prevBtnContainer.isPressed ? -16 : (nextBtnContainer.isPressed ? -16 : 0)))
                                         implicitHeight: root.isFullscreen ? 75 : 60
                                         
                                         Behavior on implicitWidth { 
-                                            NumberAnimation { 
-                                                duration: 300
-                                                easing.type: Easing.OutBack
-                                                easing.overshoot: 2
-                                            } 
+                                            animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
                                         }
                                         Behavior on implicitHeight { 
                                             NumberAnimation { 
@@ -1274,15 +1300,11 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                                         id: nextBtnContainer
                                         property bool isPressed: nextArea.pressed
                                         
-                                        implicitWidth: isPressed ? (root.isFullscreen ? 96 : 80) : (root.isFullscreen ? 80 : 64)
+                                        implicitWidth: (root.isFullscreen ? 80 : 64) + (isPressed ? 16 : (playBtnContainer.isPressed ? -10 : 0))
                                         implicitHeight: root.isFullscreen ? 75 : 60
                                         
                                         Behavior on implicitWidth { 
-                                            NumberAnimation { 
-                                                duration: 300
-                                                easing.type: Easing.OutBack
-                                                easing.overshoot: 2
-                                            } 
+                                            animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
                                         }
                                         Behavior on implicitHeight { 
                                             NumberAnimation { 
@@ -1351,30 +1373,62 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                         visible: !lyricsPanel.centeredMode
                         
                         
-                        // Close button (top-right)
-                        Rectangle {
+                        // Window Controls (Top-Right)
+                        Row {
                             anchors.top: parent.top
                             anchors.right: parent.right
-                            width: 32
-                            height: 32
-                            radius: 16
-                            color: closeBtn.containsMouse ? Qt.rgba(1,1,1,0.2) : "transparent"
+                            spacing: 8
                             z: 10
                             
-                            Text {
-                                anchors.centerIn: parent
-                                text: "✕"
-                                color: root.secondaryContentColor
-                                font.pixelSize: 16
-                                font.weight: Font.Medium
+                            // Helper component for M3 Icon Buttons
+                            component M3IconButton: Rectangle {
+                                id: btnRoot
+                                property string iconName: ""
+                                property var action: null
+                                property bool active: false
+                                
+                                width: 32
+                                height: 32
+                                radius: 16
+                                
+                                // Material 3 Filled Tonal / Standard variant
+                                // Use a subtle background by default, darken on hover
+                                color: btnArea.containsMouse 
+                                    ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
+                                    : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
+                                
+                                Behavior on color { ColorAnimation { duration: 150 } }
+                                
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: btnRoot.iconName
+                                    iconSize: 18
+                                    // Use primary content color for icon
+                                    color: root.contentColor
+                                    opacity: 0.8
+                                }
+                                
+                                MouseArea {
+                                    id: btnArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: if (btnRoot.action) btnRoot.action()
+                                }
                             }
-                            
-                            MouseArea {
-                                id: closeBtn
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.closeWindow()
+
+                            // Fullscreen / View Mode Button
+                            M3IconButton {
+                                iconName: root.isFullscreen ? "branding_watermark" : "crop_free"
+                                action: () => root.toggleFullscreen()
+                            }
+
+                            // Close Button
+                            M3IconButton {
+                                iconName: "close"
+                                action: () => root.closeWindow()
+                                // Make close button slightly more prominent on hover if desired, 
+                                // but keeping consistent for now.
                             }
                         }
                         Item {
@@ -1383,14 +1437,13 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                             anchors.bottomMargin: 16
                             clip: true
 
-                            // 1. The Morphing Loader
-                            // VISIBLE: Only while actively waiting for data
+                            // VISIBLE: Only while actively waiting for data OR recognizing
                             Item {
                                 id: loaderContainer
                                 anchors.centerIn: parent
                                 width: 64
                                 height: 64
-                                visible: root.isPlaying && root.lyricsCount === 0 && !root.lyricsLoaded
+                                visible: root.lyricsCount === 0 && (root.isRecognizing || (root.isPlaying && !root.lyricsLoaded))
                                 
                                 MaterialCookie {
                                     id: loadingCookie
@@ -1408,20 +1461,23 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                                     loops: Animation.Infinite
                                     running: loaderContainer.visible // Only spin if visible
                                 }
+                            }
+                            
 
-                                Timer {
-                                    interval: 800
-                                    running: loaderContainer.visible // Only morph if visible
-                                    repeat: true
-                                    triggeredOnStart: true
-                                    onTriggered: {
-                                        const shapes = [0, 4, 5, 6, 12]
-                                        let next = shapes[Math.floor(Math.random() * shapes.length)]
-                                        while (next === loadingCookie.sides) {
-                                            next = shapes[Math.floor(Math.random() * shapes.length)]
-                                        }
-                                        loadingCookie.sides = next
+
+
+                            Timer {
+                                interval: 800
+                                running: loaderContainer.visible // Only morph if visible
+                                repeat: true
+                                triggeredOnStart: true
+                                onTriggered: {
+                                    const shapes = [0, 4, 5, 6, 12]
+                                    let next = shapes[Math.floor(Math.random() * shapes.length)]
+                                    while (next === loadingCookie.sides) {
+                                        next = shapes[Math.floor(Math.random() * shapes.length)]
                                     }
+                                    loadingCookie.sides = next
                                 }
                             }
 
@@ -1438,8 +1494,8 @@ readonly property bool isPlaying: activePlayer && activePlayer.playbackState ===
                                 font.pixelSize: 18
                                 font.family: "Inter, Segoe UI, sans-serif"
                                 
-                                // Show if lyrics are empty AND (we are not playing OR we are done loading)
-                                visible: root.lyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded)
+                                // Show if (Recognizing) OR (Lyrics Empty AND (Not Playing OR Loaded))
+                                visible: (root.lyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded)) && !root.isRecognizing
                             }
 
                             // 3. The Lyrics List

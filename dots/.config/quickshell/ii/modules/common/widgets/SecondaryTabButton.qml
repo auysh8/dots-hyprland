@@ -159,7 +159,7 @@ TabButton {
                     text: buttonIcon
                     iconSize: Appearance.font.pixelSize.huge
                     fill: root.checked ? 1 : 0
-                    color: root.checked ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1
+                    color: root.checked ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
                     Behavior on color {
                         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                     }
@@ -169,7 +169,7 @@ TabButton {
                 id: buttonTextWidget
                 verticalAlignment: Text.AlignVCenter
                 font.pixelSize: Appearance.font.pixelSize.small
-                color: root.checked ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer1
+                color: root.checked ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
                 text: buttonText
                 Behavior on color {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)

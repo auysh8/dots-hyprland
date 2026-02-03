@@ -60,12 +60,27 @@ GroupButton {
     verticalPadding: padding
 
     colBackground: Appearance.colors.colLayer2
-    colBackgroundToggled: (altAction && expandedSize) ? Appearance.colors.colLayer2 : Appearance.colors.colPrimary
-    colBackgroundToggledHover: (altAction && expandedSize) ? Appearance.colors.colLayer2Hover : Appearance.colors.colPrimaryHover
-    colBackgroundToggledActive: (altAction && expandedSize) ? Appearance.colors.colLayer2Active : Appearance.colors.colPrimaryActive
+    
+    // Check if the model reports a "connected" state (e.g. Wifi connected to AP)
+    // If connected, we fill the whole pill (Solid style). If just enabled (Toggled), we keep split style.
+    readonly property bool isConnected: {
+        if (toggleModel && toggleModel.connected !== undefined) return toggleModel.connected;
+        // Fallback: Check status text for common "disconnected" states
+        if (!toggled) return false;
+        if (!statusText) return false;
+        const s = statusText.toLowerCase();
+        return s !== "not connected" && s !== "disconnected";
+    }
+    
+    colBackgroundToggled: (isConnected || !(altAction && expandedSize)) ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
+    colBackgroundToggledHover: (isConnected || !(altAction && expandedSize)) ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer2Hover
+    colBackgroundToggledActive: (isConnected || !(altAction && expandedSize)) ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer2Active
     buttonRadius: toggled ? Appearance.rounding.large : height / 2
     buttonRadiusPressed: Appearance.rounding.normal
-    property color colText: (toggled && !(altAction && expandedSize) && enabled) ? Appearance.colors.colOnPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer2, enabled ? 0 : 0.7)
+    
+    readonly property bool isStartSolid: isConnected
+    
+    property color colText: (isStartSolid || (toggled && !(altAction && expandedSize) && enabled)) ? Appearance.colors.colOnPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer2, enabled ? 0 : 0.7)
     property color colIcon: expandedSize ? ((root.toggled) ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer3) : colText
 
     onClicked: {
@@ -102,10 +117,10 @@ GroupButton {
                 id: iconBackground
                 anchors.fill: parent
                 implicitWidth: height
-                radius: root.radius - root.verticalPadding
+                radius: root.buttonRadius - root.verticalPadding
                 color: {
-                    const baseColor = root.toggled ? Appearance.colors.colPrimary : Appearance.colors.colLayer3
-                    const transparentizeAmount = (root.altAction && root.expandedSize) ? 0 : 1
+                    const baseColor = root.toggled ? Appearance.colors.colPrimary : "transparent"
+                    const transparentizeAmount = (root.altAction && root.expandedSize && root.toggled) ? 0 : 1
                     return ColorUtils.transparentize(baseColor, transparentizeAmount)
                 }
 
@@ -154,7 +169,7 @@ GroupButton {
                         right: parent.right
                     }
                     font.pixelSize: Appearance.font.pixelSize.smallie
-                    font.weight: 600
+                    font.weight: 900
                     color: root.colText
                     elide: Text.ElideRight
                     text: root.name
@@ -168,7 +183,7 @@ GroupButton {
                     }
                     font {
                         pixelSize: Appearance.font.pixelSize.smaller
-                        weight: 100
+                        weight: 600
                     }
                     color: root.colText
                     elide: Text.ElideRight

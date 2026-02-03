@@ -36,6 +36,9 @@ Scope {
     }
 
     function triggerOsd() {
+        // If vertical bar (Dynamic Island) is enabled, disable default OSD
+        if (Config.options.bar.vertical) return;
+        
         if (root.startupBlocked) return;
         GlobalStates.osdVolumeOpen = true;
         osdTimeout.restart();

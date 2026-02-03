@@ -44,12 +44,24 @@ while true; do
     if [ -n "$WIFI_IFACE" ]; then
         CUR_WIFI=$(get_val "/sys/class/net/$WIFI_IFACE/operstate")
         if [ "$CUR_WIFI" != "$LAST_WIFI" ] && [ "$CUR_WIFI" != "Unknown" ]; then
-            if [ "$CUR_WIFI" == "up" ]; then
-                echo "good|WIFI|Connected" >> "$LOG_FILE"
-            elif [ "$CUR_WIFI" == "down" ]; then
-                echo "bad|WIFI|Disconnected" >> "$LOG_FILE"
+            # Debounce: Wait to confirm state is stable
+            sleep 3
+            CONFIRM_WIFI=$(get_val "/sys/class/net/$WIFI_IFACE/operstate")
+            
+            if [ "$CONFIRM_WIFI" == "$CUR_WIFI" ]; then
+                if [ "$CUR_WIFI" == "up" ]; then
+                    # Get SSID for better context
+                    WIFI_SSID=$(nmcli -t -f active,ssid dev wifi | grep '^yes' | cut -d: -f2)
+                    if [ -z "$WIFI_SSID" ]; then
+                        echo "good|WIFI|Connected" >> "$LOG_FILE"
+                    else
+                        echo "good|WIFI|Connected: $WIFI_SSID" >> "$LOG_FILE"
+                    fi
+                elif [ "$CUR_WIFI" == "down" ]; then
+                    echo "bad|WIFI|Disconnected" >> "$LOG_FILE"
+                fi
+                LAST_WIFI="$CUR_WIFI"
             fi
-            LAST_WIFI="$CUR_WIFI"
         fi
     fi
 

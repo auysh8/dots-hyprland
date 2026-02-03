@@ -140,6 +140,19 @@ Button {
         Behavior on color {
             animation: Appearance?.animation.elementMoveFast.colorAnimation.createObject(this)
         }
+        
+        // M3 State Layer Overlay
+        Rectangle {
+            id: stateLayer
+            anchors.fill: parent
+            radius: parent.radius
+            color: root.toggled ? Appearance?.colors.colOnPrimary ?? "#FFFFFF" : Appearance?.colors.colPrimary ?? "#65558F"
+            opacity: root.down ? 0.12 : (root.hovered ? 0.08 : 0)
+            
+            Behavior on opacity {
+                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+            }
+        }
 
         layer.enabled: true
         layer.effect: OpacityMask {

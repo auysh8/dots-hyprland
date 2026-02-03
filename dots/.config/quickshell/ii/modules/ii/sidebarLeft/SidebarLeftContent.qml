@@ -65,7 +65,7 @@ Item {
             implicitWidth: swipeView.implicitWidth
             implicitHeight: swipeView.implicitHeight
             radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer1
+            color: "transparent"
 
             SwipeView { // Content pages
                 id: swipeView
@@ -74,14 +74,6 @@ Item {
                 currentIndex: tabBar.currentIndex
 
                 clip: true
-                layer.enabled: true
-                layer.effect: OpacityMask {
-                    maskSource: Rectangle {
-                        width: swipeView.width
-                        height: swipeView.height
-                        radius: Appearance.rounding.small
-                    }
-                }
 
                 contentChildren: [
                     ...(root.aiChatEnabled ? [aiChat.createObject()] : []),

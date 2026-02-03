@@ -234,7 +234,7 @@ FocusScope {
                 
                 background: Rectangle {
                     radius: Appearance.rounding.normal * 3
-                    color: Appearance.colors.colLayer1
+                    color: Appearance.colors.colLayer2
                     border.width: searchField.activeFocus ? 2 : 0
                     border.color: Appearance.colors.colPrimary
                     

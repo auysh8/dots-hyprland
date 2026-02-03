@@ -40,7 +40,7 @@ Scope {
                 var parts = data.trim().split("|");
                 if (parts.length >= 3) {
                     var incomingType = parts[0].toLowerCase();
-                    var allowedTypes = ["neutral", "good", "bad", "toggle"];
+                    var allowedTypes = ["toggle"];
                     if (!allowedTypes.includes(incomingType)) return;
                     root.popupType = incomingType;
                     root.title = parts[1];

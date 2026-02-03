@@ -93,12 +93,7 @@ Item { // Bar content region
                 Layout.fillHeight: false
             }
             
-            HorizontalBarSeparator {}
 
-            VerticalMedia {
-                Layout.fillWidth: true
-                Layout.fillHeight: false
-            }
         }
 
         HorizontalBarSeparator {

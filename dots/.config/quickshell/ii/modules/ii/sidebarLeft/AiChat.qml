@@ -88,10 +88,20 @@ Item {
             name: "key",
             description: Translation.tr("Set API key"),
             execute: args => {
-                if (args[0] == "get") {
+                // Join all args and strip ANY whitespace/newlines
+                const rawKey = args.join("");
+                const cleanKey = rawKey.replace(/\s+/g, "");
+                
+                if (cleanKey.length === 0) {
+                    Ai.addMessage(Translation.tr("Usage: %1key YOUR_API_KEY").arg(root.commandPrefix), Ai.interfaceRole);
+                    return;
+                }
+                
+                if (cleanKey == "get") {
                     Ai.printApiKey();
                 } else {
-                    Ai.setApiKey(args[0]);
+                    Ai.setApiKey(cleanKey);
+                    Ai.addMessage(Translation.tr("API key set successfully"), Ai.interfaceRole);
                 }
             }
         },
@@ -198,22 +208,38 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
     ]
 
     function handleInput(inputText) {
-        if (inputText.startsWith(root.commandPrefix)) {
-            // Handle special commands
-            const command = inputText.split(" ")[0].substring(1);
-            const args = inputText.split(" ").slice(1);
-            const commandObj = root.allCommands.find(cmd => cmd.name === `${command}`);
+        // Trim logic to handle newlines/spaces gracefully
+        const trimmedInput = inputText.trim();
+        
+        if (trimmedInput.startsWith(root.commandPrefix)) {
+            // Split by ANY whitespace (space, tab, newline)
+            const parts = trimmedInput.split(/\s+/);
+            const commandName = parts[0].substring(1); // Remove "/"
+            
+            // Reconstruct args based on the split parts
+            // We pass the raw parts as args, the commands can handle re-joining if needed
+            const args = parts.slice(1);
+
+            const commandObj = root.allCommands.find(cmd => cmd.name === commandName);
             if (commandObj) {
-                commandObj.execute(args);
+                try {
+                    console.log("[AiChat] Executing command:", commandName);
+                    commandObj.execute(args);
+                } catch (e) {
+                    console.error("[AiChat] Command execution error:", e);
+                    Ai.addMessage("Error: " + e.toString(), Ai.interfaceRole);
+                }
             } else {
-                Ai.addMessage(Translation.tr("Unknown command: ") + command, Ai.interfaceRole);
+                Ai.addMessage(Translation.tr("Unknown command: ") + commandName, Ai.interfaceRole);
             }
         } else {
             Ai.sendUserMessage(inputText);
         }
 
         // Always scroll to bottom when user sends a message
-        messageListView.positionViewAtEnd();
+        if (messageListView) {
+            Qt.callLater(() => messageListView.positionViewAtEnd());
+        }
     }
 
     Process {
@@ -326,7 +352,12 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     StatusItem {
                         icon: Ai.currentModelHasApiKey ? "key" : "key_off"
                         statusText: ""
-                        description: Ai.currentModelHasApiKey ? Translation.tr("API key is set\nChange with /key YOUR_API_KEY") : Translation.tr("No API key\nSet it with /key YOUR_API_KEY")
+                        description: Ai.currentModelHasApiKey ? Translation.tr("API key is set\nClick to change") : Translation.tr("No API key\nClick to set")
+                        onClicked: {
+                            root.inputField.text = "/key "
+                            root.inputField.cursorPosition = root.inputField.text.length
+                            root.inputField.forceActiveFocus()
+                        }
                     }
                     StatusSeparator {}
                     StatusItem {
@@ -365,13 +396,15 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
                 property int lastResponseLength: 0
                 onContentHeightChanged: {
-                    if (atYEnd)
-                        Qt.callLater(positionViewAtEnd);
+                    if (ScrollBar.vertical.pressed || dragging) return;
+                    if (atYEnd || (contentHeight - contentY - height < 50))
+                        positionViewAtEnd();
                 }
                 onCountChanged: {
+                    if (ScrollBar.vertical.pressed || dragging) return;
                     // Auto-scroll when new messages are added
-                    if (atYEnd)
-                        Qt.callLater(positionViewAtEnd);
+                    if (atYEnd || (contentHeight - contentY - height < 50))
+                        positionViewAtEnd();
                 }
 
                 add: null // Prevent function calls from being janky
@@ -390,6 +423,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                         Ai.messageByID[modelData];
                     }
                     messageInputField: root.inputField
+                    chatListView: messageListView
                 }
             }
 
@@ -504,15 +538,24 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 }
                 spacing: 0
 
-                StyledTextArea { // The actual TextArea
-                    id: messageInputField
-                    wrapMode: TextArea.Wrap
+                ScrollView {
+                    id: messageInputScrollView
                     Layout.fillWidth: true
-                    padding: 10
-                    color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
-                    placeholderText: Translation.tr('Message the model... "%1" for commands').arg(root.commandPrefix)
-
+                    Layout.maximumHeight: 300
+                    clip: true
+                    // Ensure the ScrollBar doesn't overlap text if possible, or just accept default.
+                    // Transparent background for ScrollView
                     background: null
+
+                    StyledTextArea { // The actual TextArea
+                        id: messageInputField
+                        wrapMode: TextArea.Wrap
+                        // Layout.fillWidth: true // Removed, controlled by ScrollView
+                        padding: 10
+                        color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+                        placeholderText: Translation.tr('Message the model... "%1" for commands').arg(root.commandPrefix)
+
+                        background: null
 
                     onTextChanged: {
                         // Handle suggestions
@@ -685,6 +728,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             }
                         }
                     }
+                }
                 }
 
                 RippleButton { // Send button

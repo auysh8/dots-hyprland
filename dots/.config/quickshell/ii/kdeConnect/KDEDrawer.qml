@@ -34,7 +34,7 @@ Scope {
     // --- Colors ---
     // Use transparent layer color for blur effect support
     property color backgroundColor: Appearance.colors.colLayer0
-    property color cardColor: Appearance.colors.colLayer1Base // Keep cards opaque/solid for contrast
+    property color cardColor: Appearance.colors.colLayer2
     property color textColor: Appearance.colors.colOnSurface
     property color textSecondary: Appearance.colors.colSubtext
     property color accentColor: Appearance.colors.colPrimary
@@ -288,6 +288,8 @@ DropArea {
                     height: isOpen ? 600 : (isPillVisible ? 48 : 0)
                     radius: isOpen ? 32 : 24
                     color: backgroundColor
+                    border.width: 1
+                    border.color: Appearance.colors.colLayer0Border
                     clip: true // Prevents content from spilling during animation
 
                     Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
@@ -738,13 +740,14 @@ DropArea {
                                     height: 64
                                     radius: 32
                                     color: fileDropArea.containsDrag ? accentColor : Qt.rgba(cardColor.r, cardColor.g, cardColor.b, 0.5)
+
                                     Behavior on color { ColorAnimation { duration: 150 } }
 
                                     MaterialSymbol {
                                         anchors.centerIn: parent
                                         text: "upload_file"
                                         iconSize: 32
-                                        color: fileDropArea.containsDrag ? Appearance.m3colors.m3onPrimary : accentColor
+                                        color: fileDropArea.containsDrag ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnSurface
                                     }
                                 }
 
@@ -877,7 +880,7 @@ DropArea {
                             width: statusRow.width + 20
                             height: 28
                             radius: 14
-                            color: Qt.rgba(cardColor.r, cardColor.g, cardColor.b, 0.6)
+                            color: "transparent"
 
                             RowLayout {
                                 id: statusRow

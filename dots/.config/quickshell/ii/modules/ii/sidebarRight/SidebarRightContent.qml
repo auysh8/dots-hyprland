@@ -268,7 +268,7 @@ Item {
                 bottom: parent.bottom
                 left: parent.left
             }
-            color: Appearance.colors.colLayer1
+            color: "transparent"
             radius: height / 2
             implicitWidth: uptimeRow.implicitWidth + 24
             implicitHeight: uptimeRow.implicitHeight + 8
@@ -303,7 +303,7 @@ Item {
                 bottom: parent.bottom
                 right: parent.right
             }
-            color: Appearance.colors.colLayer1
+            color: "transparent"
             padding: 4
 
             QuickToggleButton {

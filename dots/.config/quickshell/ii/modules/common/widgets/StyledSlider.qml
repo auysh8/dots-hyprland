@@ -13,6 +13,7 @@ Slider {
     property list<real> stopIndicatorValues: [1]
     enum Configuration {
         Wavy = 4,
+        Sleek = 6,
         XS = 12,
         S = 18,
         M = 30,
@@ -44,7 +45,7 @@ Slider {
         : trackWidth >= StyledSlider.Configuration.S ? 6
         : height / 2
         
-    property real handleHeight: (configuration === StyledSlider.Configuration.Wavy) ? 24 : Math.max(33, trackWidth + 9)
+    property real handleHeight: (configuration === StyledSlider.Configuration.Wavy || configuration === StyledSlider.Configuration.Sleek) ? 24 : Math.max(33, trackWidth + 9)
     
     // [CHANGED] 2. Smoothly animate the handle height
     Behavior on handleHeight {
@@ -155,11 +156,11 @@ Slider {
                 fullLength: root.width
                 color: root.highlightColor
                 
-                // [CHANGED] Bind to the animated value instead of the hard boolean
                 amplitudeMultiplier: root.animatedAmplitudeMultiplier
                 
                 width: root.handleMargins + (root.visualPosition * root.effectiveDraggingWidth) - (root.handleWidth / 2 + root.handleMargins)
-                height: root.trackWidth
+                height: root.height
+                lineWidth: root.trackWidth
                 Connections {
                     target: root
                     function onValueChanged() { wavyFill.requestPaint(); }

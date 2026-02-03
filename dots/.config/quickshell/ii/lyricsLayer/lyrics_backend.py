@@ -24,6 +24,7 @@ from queue import Queue
 from datetime import datetime, timedelta
 import contextlib
 import io
+import shlex
 
 # Configuration
 POLL_INTERVAL = 0.3  # seconds between updates
@@ -224,6 +225,88 @@ def get_current_player_info(player_identity=None):
         print(f"[Backend] Error getting player info: {e}", file=sys.stderr)
         return None
 
+def log_debug(msg):
+    try:
+        with open("/tmp/lyrics_debug.log", "a") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}\n")
+    except:
+        pass
+
+def get_default_monitor_source():
+    """Get the PulseAudio monitor source for the default sink"""
+    try:
+        pactl = subprocess.run(["pactl", "get-default-sink"], capture_output=True, text=True)
+        if pactl.returncode != 0:
+            log_debug(f"pactl failed: {pactl.stderr}")
+            return None
+        sink = pactl.stdout.strip()
+        log_debug(f"Default sink: {sink}")
+        return f"{sink}.monitor"
+    except Exception as e:
+        log_debug(f"Monitor source error: {e}")
+        return None
+
+def recognize_song():
+    """
+    Record a snippet of system audio and recognize it using SongRec.
+    Returns: {'title': str, 'artist': str} or None
+    """
+    monitor_source = get_default_monitor_source()
+    if not monitor_source:
+        print("[Recognition] Could not find monitor source", file=sys.stderr)
+        return None
+
+    filename = f"/tmp/rec_{int(time.time())}.ogg"
+    
+    try:
+        # Record 5 seconds
+        cmd = [
+            "ffmpeg", "-y", 
+            "-f", "pulse", "-i", monitor_source,
+            "-t", "5",
+            "-ac", "1",
+            "-ar", "44100",
+            "-vn", 
+            "-c:a", "libvorbis",
+            "-loglevel", "error",
+            filename
+        ]
+        
+        subprocess.run(cmd, check=True, timeout=10)
+        
+        # Recognize
+        result = subprocess.run(
+            ["songrec", "audio-file-to-recognized-song", filename],
+            capture_output=True, text=True, timeout=20
+        )
+        
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            track = data.get("track", {})
+            if track:
+                log_debug(f"Identified: {track.get('title')} - {track.get('subtitle')}")
+                print(f"[Recognition] Identified: {track.get('title')} - {track.get('subtitle')}", file=sys.stderr)
+                return {
+                    "title": track.get("title"),
+                    "artist": track.get("subtitle")
+                }
+            else:
+                log_debug("SongRec returned no track data")
+        else:
+            log_debug(f"SongRec failed: {result.stderr}")
+
+    except Exception as e:
+        log_debug(f"Recognition exception: {e}")
+        print(f"[Recognition] Error: {e}", file=sys.stderr)
+    finally:
+        if os.path.exists(filename):
+            try:
+                os.remove(filename)
+            except:
+                pass
+                
+    return None
+
 def parse_lrc(lrc_content):
     """
     Parse LRC format (Standard or Enhanced) into list of:
@@ -312,11 +395,17 @@ def is_cache_valid(cache_path):
 
 def fetch_lyrics(title, artist, album="", duration=0):
     """
-    Fetch lyrics strictly from LRCLIB for accuracy.
-    Uses track duration to filter for the correct version of the song.
+    Fetch lyrics from LRCLIB.
+    Strategy:
+    1. Try exact match via /get endpoint (requires precise duration)
+    2. If that fails, FALLBACK to /search endpoint and find best match
     """
     ensure_cache_dir()
     cache_path = get_cache_path(artist, title)
+    
+    # Debug log
+    log_debug(f"Fetching lyrics for: {title} - {artist} (Duration: {duration}s)")
+    print(f"[Backend] Fetching: {title} - {artist} ({duration}s)", file=sys.stderr)
     
     # 1. Check local cache
     if is_cache_valid(cache_path):
@@ -331,55 +420,132 @@ def fetch_lyrics(title, artist, album="", duration=0):
         except (json.JSONDecodeError, IOError):
             pass
 
-    # 2. Fetch from LRCLIB using the 'get' endpoint for version accuracy
-    if artist and title:
-        try:
-            params = {
-                "track_name": title,
-                "artist_name": artist,
-            }
-            if album:
-                params["album_name"] = album
-            
-            # Passing duration ensures the lyrics match the audio length (±2s)
-            if duration > 0:
-                params["duration"] = int(duration)
-            
-            url = f"https://lrclib.net/api/get?{urllib.parse.urlencode(params)}"
-            req = urllib.request.Request(url, headers={"User-Agent": "LyricsLayer/1.0"})
-            
-            with urllib.request.urlopen(req, timeout=5) as response:
-                data = json.loads(response.read().decode())
-                
-                # Prioritize 'syncedLyrics' for line-by-line timing
-                lrc_content = data.get("syncedLyrics") or data.get("plainLyrics")
-                
-                if lrc_content:
-                    lyrics = parse_lrc(lrc_content)
-                    if lyrics:
-                        # Cache the successful result
-                        with open(cache_path, 'w') as f:
-                            json.dump({
-                                "lyrics": lyrics,
-                                "source": "lrclib",
-                                "timestamp": time.time()
-                            }, f)
-                        return lyrics
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                print(f"[Backend] Lyrics not found for {title}", file=sys.stderr)
-            else:
-                print(f"[Backend] API error: {e.code}", file=sys.stderr)
-        except Exception as e:
-            print(f"[Backend] Fetch error: {e}", file=sys.stderr)
+    if not artist or not title:
+        return None
 
-    # 3. Store negative result to prevent spamming
+    # Helper to process and cache results
+    def process_result(data, method="get"):
+        lrc_content = data.get("syncedLyrics") or data.get("plainLyrics")
+        if lrc_content:
+            lyrics = parse_lrc(lrc_content)
+            if lyrics:
+                with open(cache_path, 'w') as f:
+                    json.dump({
+                        "lyrics": lyrics,
+                        "source": "lrclib",
+                        "method": method,
+                        "timestamp": time.time()
+                    }, f)
+                return lyrics
+        return None
+
+    # 2. Try EXACT MATCH (/get endpoint)
+    # This is fastest but requires duration to be within ±2s
     try:
+        log_debug(f"Attempting /get with duration {duration}")
+        params = {
+            "track_name": title,
+            "artist_name": artist,
+        }
+        if album:
+            params["album_name"] = album
+        
+        # Only use duration for /get if we have it
+        if duration > 0:
+            params["duration"] = int(duration)
+        
+        url = f"https://lrclib.net/api/get?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "LyricsLayer/1.0"})
+        
+        with urllib.request.urlopen(req, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            log_debug("/get returned success, processing result")
+            res = process_result(data, "get")
+            if res: 
+                log_debug("Exact match found!")
+                return res
+
+    except urllib.error.HTTPError as e:
+        log_debug(f"/get failed with HTTP {e.code}")
+    except Exception as e:
+        log_debug(f"/get failed with {e}")
+
+    # 3. FALLBACK: SEARCH (/search endpoint)
+    # This handles duration mismatches, different album versions, etc.
+    try:
+        log_debug("Attempting /search fallback")
+        params = {"q": f"{title} {artist}"}
+        url = f"https://lrclib.net/api/search?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(url, headers={"User-Agent": "LyricsLayer/1.0"})
+        
+        with urllib.request.urlopen(req, timeout=5) as response:
+            results = json.loads(response.read().decode())
+            log_debug(f"/search returned {len(results)} results")
+            
+            if not results:
+                print(f"[Backend] No search results found", file=sys.stderr)
+            else:
+                # Find best match from results
+                best_match = None
+                best_score = -1
+                
+                target_duration = int(duration) if duration > 0 else 0
+                
+                for track in results:
+                    score = 0
+                    
+                    # 1. Duration check (Critical)
+                    track_dur = int(track.get("duration", 0))
+                    if target_duration > 0 and track_dur > 0:
+                        diff = abs(track_dur - target_duration)
+                        if diff <= 2: score += 10    # Perfect match
+                        elif diff <= 5: score += 5   # Close enough
+                        else: score -= 5             # Likely wrong version
+                    
+                    # 2. Title Match
+                    t_title = track.get("trackName", "").lower()
+                    if t_title == title.lower(): score += 5
+                    elif title.lower() in t_title: score += 2
+                    
+                    # 3. Artist Match
+                    t_artist = track.get("artistName", "").lower()
+                    if t_artist == artist.lower(): score += 5
+                    elif artist.lower() in t_artist: score += 2
+                    
+                    # 4. Synced Lyrics Preference
+                    if track.get("syncedLyrics"): score += 3
+                    
+                    if score > best_score:
+                        best_score = score
+                        best_match = track
+                
+                if best_match and best_score > 0:
+                    log_debug(f"Found best match: {best_match.get('trackName')} (Score: {best_score})")
+                    res = process_result(best_match, "search")
+                    if res: return res
+                else:
+                    log_debug("No suitable match found in search results")
+
+    except Exception as e:
+        log_debug(f"Search fallback error: {e}")
+        print(f"[Backend] Search fallback error: {e}", file=sys.stderr)
+
+    # 4. Retry with split artist (e.g. "Ruth B. & Dean Lewis" -> "Ruth B.")
+    if artist and " & " in artist:
+        primary_artist = artist.split(" & ")[0]
+        log_debug(f"Retrying with primary artist: {primary_artist}")
+        res = fetch_lyrics(title, primary_artist, album, duration)
+        if res: return res
+
+    # 5. Store negative result to prevent spamming
+    try:
+        log_debug(f"Writing negative cache to {cache_path}")
         with open(cache_path, 'w') as f:
             json.dump({"not_found": True, "timestamp": time.time()}, f)
-    except IOError:
-        pass
+    except IOError as e:
+        log_debug(f"Failed to write cache: {e}")
     
+    log_debug("Returning None (no lyrics found)")
     return None
 
 def get_current_line_index(lyrics, position):
@@ -387,12 +553,16 @@ def get_current_line_index(lyrics, position):
     if not lyrics:
         return -1
     
-    current_index = 0
+    current_index = -1
+    
+    # Iterate to find the last line that has started (time <= position)
     for i, line in enumerate(lyrics):
         if line["time"] <= position:
             current_index = i
         else:
+            # We reached a line in the future, stop
             break
+            
     return current_index
 
 class LyricsMonitor:
@@ -400,11 +570,23 @@ class LyricsMonitor:
         self.players = {}  # { identity: player_state }
         self.running = True
         self.color_queue = Queue()
+        self.recognition_queue = Queue()
     
     def _extract_color_async(self, art_url, identity):
         """Background thread for color extraction"""
         color = extract_dominant_color(art_url)
         self.color_queue.put((identity, color if color else "#f5f5f0"))
+
+    def _recognize_async(self, identity):
+        """Background thread for song recognition"""
+        print(f"[Monitor] Starting recognition for {identity}", file=sys.stderr)
+        
+        # Update state to identifying
+        if identity in self.players:
+            self.players[identity]["is_recognizing"] = True
+            
+        result = recognize_song()
+        self.recognition_queue.put((identity, result))
     
     def update_players(self):
         """Update state for all active players"""
@@ -416,6 +598,31 @@ class LyricsMonitor:
                     self.players[identity]["bgColor"] = color
         except Exception as e:
             print(f"[Monitor] Color queue error: {e}", file=sys.stderr)
+
+        # Check for recognition results
+        try:
+            while not self.recognition_queue.empty():
+                identity, result = self.recognition_queue.get_nowait()
+                if identity in self.players:
+                    player = self.players[identity]
+                    player["is_recognizing"] = False  # Done recognizing
+                    
+                    if result:
+                        # Update metadata with recognized info
+                        player["raw_song"] = player["song"] # update raw to prevent override loop if title matched
+                        player["song"] = result["title"]
+                        player["artist"] = result["artist"]
+                    print(f"[Monitor] Applying recognized metadata for {identity}", file=sys.stderr)
+                    
+                    # Retry fetch with new info but keep duration
+                    player["lyrics"] = fetch_lyrics(
+                        player["song"], 
+                        player["artist"], 
+                        "", # No album info from songrec usually
+                        player["duration"]
+                    )
+        except Exception as e:
+            print(f"[Monitor] Recognition queue error: {e}", file=sys.stderr)
 
         # Get list of active players
         try:
@@ -436,6 +643,9 @@ class LyricsMonitor:
                 continue
             current_identities.add(identity)
             
+            # Check if player is a browser
+            is_browser = any(b in identity.lower() for b in ["firefox", "chrome", "chromium", "brave", "edge", "opera", "vivaldi", "zen", "plasma-browser-integration"])
+            
             # Get info for this player
             info = get_current_player_info(identity)
             if not info:
@@ -448,27 +658,54 @@ class LyricsMonitor:
             position = info.get("position", 0)
             duration = info.get("length", 0)
             
-            # Initialize player state if new
             if identity not in self.players:
                 print(f"[Monitor] New player: {identity}", file=sys.stderr)
                 self.players[identity] = {
                     "song": "",
                     "artist": "",
+                    "raw_song": "",    # Store raw playerctl title
+                    "raw_artist": "",  # Store raw playerctl artist
                     "artUrl": "",
                     "bgColor": "#f5f5f0",
                     "lyrics": [],
                     "currentLine": -1,
-                    "last_updated": 0
+                    "last_updated": 0,
+                    "recognition_attempted": False,  # Track if we've tried fallback
+                    "is_recognizing": False
                 }
             
             player_state = self.players[identity]
             
-            # Check if song changed
-            if title != player_state["song"] or artist != player_state["artist"]:
+            # Check if song changed (compare against RAW values)
+            if title != player_state["raw_song"] or artist != player_state["raw_artist"]:
                 print(f"[Monitor] Song changed on {identity}: {title} - {artist}", file=sys.stderr)
+                log_debug(f"Song changed: {title}")
+                
+                # Update RAW and EFFECTIVE values
+                player_state["raw_song"] = title
+                player_state["raw_artist"] = artist
                 player_state["song"] = title
                 player_state["artist"] = artist
-                player_state["lyrics"] = fetch_lyrics(title, artist, album, duration)
+                
+                if is_browser:
+                    print(f"[Monitor] Skipping lyrics for browser: {identity}", file=sys.stderr)
+                    player_state["lyrics"] = []
+                else:
+                    player_state["lyrics"] = fetch_lyrics(title, artist, album, duration)
+                
+                player_state["recognition_attempted"] = False # Reset for new song
+                
+                # If lyrics failed and we haven't tried recognition yet, trigger it IMMEDIATELY
+                # This prevents sending a "No Lyrics" state before switching to "Recognizing"
+                if not is_browser and not player_state["lyrics"]:
+                    log_debug(f"Triggering recognition immediately for {identity}")
+                    player_state["recognition_attempted"] = True
+                    player_state["is_recognizing"] = True # Set flag immediately
+                    threading.Thread(
+                        target=self._recognize_async,
+                        args=(identity,),
+                        daemon=True
+                    ).start()
                 
                 lyrics_count = len(player_state['lyrics']) if player_state['lyrics'] else 0
                 print(f"[Monitor] Fetched {lyrics_count} lines", file=sys.stderr)
@@ -525,7 +762,7 @@ def main():
                 # Send updates for each player
                 for identity, state in monitor.players.items():
                     # Create state hash to detect changes
-                    state_id = f"{state['song']}:{state['currentLine']}:{state['bgColor']}"
+                    state_id = f"{state['song']}:{state['currentLine']}:{state['bgColor']}:{state.get('is_recognizing', False)}"
                     
                     # Send update if changed or periodically (every ~1 second)
                     should_update = (
@@ -545,7 +782,8 @@ def main():
                             "currentLine": state["currentLine"],
                             "position": state["position"],
                             "duration": state["duration"],
-                            "bgColor": state["bgColor"]
+                            "bgColor": state["bgColor"],
+                            "recognizing": state.get("is_recognizing", False)
                         }
                         
                         print(f"UPDATE:{identity}:{encode_response(response_data)}", flush=True)

@@ -20,6 +20,8 @@ Rectangle {
     property bool renderMarkdown: true
     property bool editing: false
 
+    property ListView chatListView
+
     property list<var> messageBlocks: StringUtils.splitMarkdownBlocks(root.messageData?.content)
 
     anchors.left: parent?.left
@@ -300,6 +302,7 @@ Rectangle {
                         segmentContent: modelData.content
                         segmentLang: modelData.lang
                         messageData: root.messageData
+                        chatListView: root.chatListView
                     } }
                     DelegateChoice { roleValue: "think"; MessageThinkBlock {
                         editing: root.editing

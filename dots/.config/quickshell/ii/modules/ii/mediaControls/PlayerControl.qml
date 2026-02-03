@@ -28,25 +28,32 @@ Item { // Player instance
 
     property string displayedArtFilePath: root.downloaded ? Qt.resolvedUrl(artFilePath) : ""
 
-    component TrackChangeButton: RippleButton {
+    component TrackChangeButton: Rectangle {
+        property var iconName
+        property var downAction
+
         implicitWidth: 24
         implicitHeight: 24
+        radius: implicitHeight / 2
+        color: mouseArea.containsMouse ? blendedColors.colSecondaryContainerHover : ColorUtils.transparentize(blendedColors.colSecondaryContainer, 1)
+        Behavior on color { ColorAnimation { duration: 150 } }
 
-        property var iconName
-        colBackground: ColorUtils.transparentize(blendedColors.colSecondaryContainer, 1)
-        colBackgroundHover: blendedColors.colSecondaryContainerHover
-        colRipple: blendedColors.colSecondaryContainerActive
-
-        contentItem: MaterialSymbol {
+        MaterialSymbol {
+            anchors.centerIn: parent
             iconSize: Appearance.font.pixelSize.huge
-            fill: 1
-            horizontalAlignment: Text.AlignHCenter
             color: blendedColors.colOnSecondaryContainer
             text: iconName
 
             Behavior on color {
                 animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
             }
+        }
+
+        MouseArea {
+            id: mouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: downAction()
         }
     }
 
@@ -281,31 +288,40 @@ Item { // Player instance
                         }
                     }
 
-                    RippleButton {
+                    Rectangle {
                         id: playPauseButton
                         anchors.right: parent.right
                         anchors.bottom: sliderRow.top
                         anchors.bottomMargin: 5
+                        
                         property real size: 44
-                        implicitWidth: size
-                        implicitHeight: size
-                        downAction: () => root.player.togglePlaying();
+                        // Animate width/height/radius
+                        width: size
+                        height: size
+                        radius: root.player?.isPlaying ? Appearance?.rounding.normal : 22
 
-                        buttonRadius: root.player?.isPlaying ? Appearance?.rounding.normal : size / 2
-                        colBackground: root.player?.isPlaying ? blendedColors.colPrimary : blendedColors.colSecondaryContainer
-                        colBackgroundHover: root.player?.isPlaying ? blendedColors.colPrimaryHover : blendedColors.colSecondaryContainerHover
-                        colRipple: root.player?.isPlaying ? blendedColors.colPrimaryActive : blendedColors.colSecondaryContainerActive
+                        color: (playBtnMouse.containsMouse || root.player?.isPlaying) 
+                                ? (root.player?.isPlaying ? blendedColors.colPrimaryHover : blendedColors.colSecondaryContainerHover) 
+                                : (root.player?.isPlaying ? blendedColors.colPrimary : blendedColors.colSecondaryContainer)
+                        Behavior on radius { NumberAnimation { duration: 200 } }
+                        Behavior on color { ColorAnimation { duration: 150 } }
 
-                        contentItem: MaterialSymbol {
+                        MaterialSymbol {
+                            anchors.centerIn: parent
                             iconSize: Appearance.font.pixelSize.huge
-                            fill: 1
-                            horizontalAlignment: Text.AlignHCenter
                             color: root.player?.isPlaying ? blendedColors.colOnPrimary : blendedColors.colOnSecondaryContainer
                             text: root.player?.isPlaying ? "pause" : "play_arrow"
 
                             Behavior on color {
                                 animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                             }
+                        }
+
+                        MouseArea {
+                            id: playBtnMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: root.player.togglePlaying();
                         }
                     }
                 }

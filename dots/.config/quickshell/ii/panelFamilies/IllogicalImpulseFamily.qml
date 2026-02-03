@@ -43,7 +43,7 @@ Scope {
     PanelLoader { component: SidebarLeft {} }
     PanelLoader { component: SidebarRight {} }
     PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
-    PanelLoader { extraCondition: Config.options.bar.vertical; component: DynamicIsland {} }
+    PanelLoader { component: DynamicIsland {} }
     PanelLoader { component: WallpaperSelector {} }
     PanelLoader { component: SystemMonitorWindow {} }
 }

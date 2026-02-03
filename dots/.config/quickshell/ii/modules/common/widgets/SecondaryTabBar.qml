@@ -20,34 +20,19 @@ TabBar {
 
         Rectangle {
             id: activeIndicator
-            z: 9999
-            anchors.bottom: parent.bottom
-            topLeftRadius: height
-            topRightRadius: height
-            bottomLeftRadius: 0
-            bottomRightRadius: 0
-            color: Appearance.colors.colPrimary
+            z: -1
+            anchors.verticalCenter: parent.verticalCenter
+            radius: height / 2
+            color: Appearance.colors.colSecondaryContainer
             // Animation
             property real baseWidth: root.width / root.count
             AnimatedTabIndexPair {
                 id: idxPair
                 index: root.currentIndex
             }
-            height: 3
+            height: parent.height - 10
             x: Math.min(idxPair.idx1, idxPair.idx2) * baseWidth + root.indicatorPadding
             width: ((Math.max(idxPair.idx1, idxPair.idx2) + 1) * baseWidth - root.indicatorPadding) - x
-        }
-
-        Rectangle { // Tabbar bottom border
-            id: tabBarBottomBorder
-            z: 9998
-            anchors.bottom: parent.bottom
-            height: 1
-            anchors {
-                left: parent.left
-                right: parent.right
-            }
-            color: Appearance.colors.colOutlineVariant
         }
     }
 }

@@ -4,8 +4,7 @@ import qs.modules.common
 Rectangle {
     id: root
 
-    radius: Appearance.rounding.normal
-    color: Appearance.colors.colLayer1
+    color: "transparent"
 
     signal openAudioOutputDialog(var sourceItem)
     signal openAudioInputDialog(var sourceItem)

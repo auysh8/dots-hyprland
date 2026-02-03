@@ -298,13 +298,25 @@ Singleton {
             "name": "DeepSeek R1",
             "icon": "deepseek-symbolic",
             "description": Translation.tr("Online via %1 | %2's model").arg("OpenRouter").arg("DeepSeek"),
-            "homepage": "https://openrouter.ai/deepseek/deepseek-r1:free",
+            "homepage": "https://openrouter.ai/deepseek/deepseek-r1",
             "endpoint": "https://openrouter.ai/api/v1/chat/completions",
-            "model": "deepseek/deepseek-r1:free",
+            "model": "deepseek/deepseek-r1",
             "requires_key": true,
             "key_id": "openrouter",
             "key_get_link": "https://openrouter.ai/settings/keys",
-            "key_get_description": Translation.tr("**Pricing**: free. Data use policy varies depending on your OpenRouter account settings.\n\n**Instructions**: Log into OpenRouter account, go to Keys on the topright menu, click Create API Key"),
+            "key_get_description": Translation.tr("**Pricing**: Low/Usage-based. Data use policy varies depending on your OpenRouter account settings.\n\n**Instructions**: Log into OpenRouter account, go to Keys on the topright menu, click Create API Key"),
+        }),
+        "openrouter-deepseek-free": aiModelComponent.createObject(this, {
+            "name": "DeepSeek v1t2 (Free)",
+            "icon": "deepseek-symbolic",
+            "description": Translation.tr("Online via %1 | %2's model").arg("OpenRouter").arg("DeepSeek"),
+            "homepage": "https://openrouter.ai/tngtech/deepseek-r1t2-chimera:free",
+            "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+            "model": "tngtech/deepseek-r1t2-chimera:free",
+            "requires_key": true,
+            "key_id": "openrouter",
+            "key_get_link": "https://openrouter.ai/settings/keys",
+            "key_get_description": Translation.tr("**Pricing**: free.\n\n**Instructions**: Log into OpenRouter account, go to Keys on the topright menu, click Create API Key"),
         }),
     }
     property var modelList: Object.keys(root.models)
@@ -317,14 +329,24 @@ Singleton {
     }
     property ApiStrategy currentApiStrategy: apiStrategies[models[currentModelId]?.api_format || "openai"]
 
+    function loadExtraModels() {
+        if (!Config.ready) return;
+        const extra = Config.options.ai.extraModels ?? [];
+        extra.forEach(model => {
+            const safeModelName = root.safeModelName(model["model"]);
+            // Only add if not already present (prevents duplicates if called multiple times, though overwriting is usually fine)
+            root.addModel(safeModelName, model)
+        });
+        // Force update model list
+        root.modelList = Object.keys(root.models);
+    }
+
+    onModelsChanged: loadExtraModels()
+
     Connections {
         target: Config
         function onReadyChanged() {
-            if (!Config.ready) return;
-            (Config?.options.ai?.extraModels ?? []).forEach(model => {
-                const safeModelName = root.safeModelName(model["model"]);
-                root.addModel(safeModelName, model)
-            });
+            if (Config.ready) root.loadExtraModels();
         }
     }
 
@@ -332,6 +354,7 @@ Singleton {
     property string pendingFilePath: ""
 
     Component.onCompleted: {
+        if (Config.ready) root.loadExtraModels();
         setModel(currentModelId, false, false); // Do necessary setup for model
     }
 
@@ -358,6 +381,7 @@ Singleton {
 
     function addModel(modelName, data) {
         root.models[modelName] = aiModelComponent.createObject(this, data);
+        root.modelList = Object.keys(root.models);
     }
 
     Process {
@@ -369,7 +393,7 @@ Singleton {
                 try {
                     if (data.length === 0) return;
                     const dataJson = JSON.parse(data);
-                    root.modelList = [...root.modelList, ...dataJson];
+                    // root.modelList = [...root.modelList, ...dataJson]; // Don't need this if addModel updates it
                     dataJson.forEach(model => {
                         const safeModelName = root.safeModelName(model);
                         root.addModel(safeModelName, {
@@ -382,9 +406,6 @@ Singleton {
                             "requires_key": false,
                         })
                     });
-
-                    root.modelList = Object.keys(root.models);
-
                 } catch (e) {
                     console.log("Could not fetch Ollama models:", e);
                 }
@@ -510,7 +531,11 @@ Singleton {
                 }
             }
         } else {
-            if (feedback) root.addMessage(Translation.tr("Invalid model. Supported: \n```\n") + modelList.join("\n```\n```\n"), Ai.interfaceRole) + "\n```"
+            if (modelList.length === 0) {
+                 root.addMessage(Translation.tr("No models available. This likely means 'policies.ai' is set to 2 (Local Only) in your config, but no local models (Ollama) were found."), Ai.interfaceRole);
+            } else {
+                if (feedback) root.addMessage(Translation.tr("Invalid model. Supported: \n```\n") + modelList.join("\n") + "\n```", Ai.interfaceRole);
+            }
         }
     }
 
@@ -539,6 +564,10 @@ Singleton {
 
     function setApiKey(key) {
         const model = models[currentModelId];
+        if (!model) {
+            root.addMessage(Translation.tr("No valid model selected. Please select a model first."), Ai.interfaceRole);
+            return;
+        }
         if (!model.requires_key) {
             root.addMessage(Translation.tr("%1 does not require an API key").arg(model.name), Ai.interfaceRole);
             return;

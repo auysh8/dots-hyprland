@@ -14,7 +14,7 @@ FocusScope {
     id: root
     
     // UI Configuration - Using shell theme colors
-    property color backgroundColor: Qt.rgba(Appearance.colors.colLayer0.r, Appearance.colors.colLayer0.g, Appearance.colors.colLayer0.b, 0.95)
+    property color backgroundColor: Appearance.colors.colLayer0
     property color cardColor: Appearance.colors.colLayer1
     property color textColor: Appearance.colors.colOnLayer0
     property color textSecondary: Appearance.m3colors.m3onSurfaceVariant
@@ -131,7 +131,7 @@ FocusScope {
         radius: root.cornerRadius
         color: root.backgroundColor
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.08)
+        border.color: Appearance.colors.colLayer0Border
         
         MouseArea {
             anchors.fill: parent
