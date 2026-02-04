@@ -479,7 +479,7 @@ DropArea {
                                     radius: 12
                                     color: batteryCharging 
                                         ? Qt.rgba(successColor.r, successColor.g, successColor.b, 0.2)
-                                        : (batteryPercent < 20 
+                                        : (batteryPercent != -1 && batteryPercent < 20 
                                             ? Qt.rgba(1, 0.4, 0.4, 0.2) 
                                             : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15))
 
@@ -488,14 +488,16 @@ DropArea {
                                         iconSize: 22
                                         color: batteryCharging
                                             ? successColor
-                                            : (batteryPercent < 20 ? "#f38ba8" : accentColor)
+                                            : (batteryPercent != -1 && batteryPercent < 20 ? "#f38ba8" : accentColor)
                                         text: batteryCharging
                                             ? "battery_charging_full"
-                                            : batteryPercent >= 90
-                                                ? "battery_full"
-                                                : batteryPercent >= 50
-                                                    ? "battery_4_bar"
-                                                    : "battery_2_bar"
+                                            : batteryPercent == -1
+                                                ? "battery_unknown"
+                                                : batteryPercent >= 90
+                                                    ? "battery_full"
+                                                    : batteryPercent >= 50
+                                                        ? "battery_4_bar"
+                                                        : "battery_2_bar"
                                     }
                                 }
 

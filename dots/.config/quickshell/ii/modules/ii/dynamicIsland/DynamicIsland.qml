@@ -118,6 +118,8 @@ Scope {
                 property alias popupTitle: logic.popupTitle
                 property alias popupMessage: logic.popupMessage
                 property alias hasPopup: logic.hasPopup
+                property alias popupCategory: logic.popupCategory
+                property alias popupAction: logic.popupAction
                 
                 property alias micActive: logic.micActive
                 property alias cameraActive: logic.cameraActive
@@ -201,6 +203,8 @@ Scope {
                     target: Battery
                     function onIsPluggedInChanged() {
                         islandContainer.isCharging = Battery.isPluggedIn;
+                        logic.popupCategory = "battery"
+                        logic.popupAction = Battery.isPluggedIn ? "charging" : "unplugged"
                         islandContainer.modeOverride = 4
                         modeTimer.restart()
                     }
@@ -210,6 +214,8 @@ Scope {
                         if (Battery.isPluggedIn && Battery.percentage >= 0.99) {
                             islandContainer.batterySource = "system";
                             islandContainer.isCharging = Battery.isPluggedIn;
+                            logic.popupCategory = "battery"
+                            logic.popupAction = "charging"
                             islandContainer.modeOverride = 4;
                             modeTimer.restart();
                         }
@@ -614,73 +620,60 @@ Scope {
                                     id: popupIcon
                                     anchors.centerIn: parent
                                     text: {
-                                        var t = (islandContainer.popupTitle + " " + islandContainer.popupMessage).toLowerCase();
-                                        
-                                        // Media (Prioritize "Now Playing")
-                                        if (t.includes("now playing") || t.includes("spotify") || t.includes("music")) return "music_note";
-
-                                        // Mic / Recording
-                                        if (t.includes("microphone") || t.includes("recording")) {
-                                            if ((t.includes("mute") && !t.includes("unmute")) || t.includes("off") || t.includes("disabled")) return "mic_off";
-                                            return "mic";
+                                        switch (islandContainer.popupCategory) {
+                                            case "screenshot": return "screenshot";
+                                            case "download": return islandContainer.popupAction === "complete" ? "download_done" : "download";
+                                            case "clipboard": return "content_paste";
+                                            case "media": return "music_note";
+                                            case "microphone": return islandContainer.popupAction === "muted" ? "mic_off" : "mic";
+                                            case "volume": return islandContainer.popupAction === "muted" ? "volume_off" : "volume_up";
+                                            case "wifi": return islandContainer.popupAction === "disconnected" ? "wifi_off" : "wifi";
+                                            case "bluetooth":
+                                                if (islandContainer.popupAction === "connected") return "bluetooth_connected";
+                                                if (islandContainer.popupAction === "disconnected") return "bluetooth_disabled";
+                                                return "bluetooth";
+                                            case "battery":
+                                                if (islandContainer.popupAction === "charging") return "battery_charging_full";
+                                                if (islandContainer.popupAction === "low") return "battery_alert";
+                                                return "battery_std";
+                                            case "pomodoro":
+                                                if (islandContainer.popupAction === "break") return "coffee";
+                                                if (islandContainer.popupAction === "complete") return "check_circle";
+                                                return "timer";
+                                            case "brightness": return "brightness_6";
+                                            case "notification": return "notifications";
+                                            case "message": return "message";
+                                            case "mail": return "mail";
+                                            case "update": return "system_update";
+                                            case "camera": return "videocam";
+                                            case "file": return "description";
+                                            default:
+                                                if (islandContainer.popupType === "bad") return "warning";
+                                                if (islandContainer.popupType === "good") return "check_circle";
+                                                return "info";
                                         }
-
-                                        // Volume / Audio
-                                        if (t.includes("volume") || t.includes("audio")) {
-                                            if ((t.includes("mute") && !t.includes("unmute")) || t.includes("off") || t.includes("zero") || t.includes("silence")) return "volume_off";
-                                            return "volume_up";
-                                        }
-
-                                        // Wifi / Network
-                                        if (t.includes("wifi") || t.includes("network")) {
-                                            if (t.includes("disconnect") || t.includes("off") || t.includes("lost")) return "wifi_off";
-                                            return "wifi";
-                                        }
-
-                                        // Bluetooth
-                                        if (t.includes("bluetooth")) {
-                                            if (t.includes("disconnect") || t.includes("off")) return "bluetooth_disabled";
-                                            return "bluetooth";
-                                        }
-                                        
-
-                                        // Pomodoro
-                                        if (t.includes("pomodoro")) {
-                                            if (t.includes("break")) return "coffee";
-                                            return "timer";
-                                        }
-
-                                        // System / Hardware
-                                        if (t.includes("clipboard")) return "content_paste";
-                                        if (t.includes("brightness")) return "brightness_6";
-                                        if (t.includes("battery")) {
-                                            if (t.includes("plug") || t.includes("charg")) return "battery_charging_full";
-                                            return "battery_std";
-                                        }
-                                        
-                                        // Communication
-                                        if (t.includes("notification")) return "notifications";
-                                        if (t.includes("message") || t.includes("sms")) return "message";
-                                        if (t.includes("mail")) return "mail";
-                                        
-                                        // Actions / Status
-                                        if (t.includes("screenshot")) return "screenshot";
-                                        if (t.includes("update") || t.includes("upgrade")) return "system_update";
-                                        if (t.includes("download")) return "download";
-                                        if (t.includes("camera")) return "videocam";
-                                        if (t.includes("play") || t.includes("media") || t.includes("music")) return "music_note";
-                                        
-                                        // Generic
-                                        if (t.includes("error") || t.includes("fail")) return "error";
-                                        if (islandContainer.popupType === "bad") return "warning";
-                                        if (islandContainer.popupType === "good") return "check_circle";
-                                        
-                                        return "info";
                                     }
                                     color: {
-                                        if (islandContainer.popupTitle.toLowerCase().includes("clipboard")) return Appearance.colors.colPrimary;
-                                        if (islandContainer.popupType === "bad") return Appearance.colors.colError;
-                                        return Appearance.colors.colPrimary;
+                                        if (islandContainer.popupType === "bad")
+                                            return Appearance.colors.colError;
+
+                                        switch (islandContainer.popupCategory) {
+                                            case "battery":
+                                                if (islandContainer.popupAction === "low") return Appearance.colors.colError;
+                                                if (islandContainer.popupAction === "charging") return Appearance.colors.colPrimary;
+                                                return Appearance.colors.colOnLayer0;
+
+                                            case "wifi":
+                                            case "bluetooth":
+                                            case "microphone":
+                                                if (islandContainer.popupAction === "disconnected" ||
+                                                    islandContainer.popupAction === "muted")
+                                                    return Appearance.colors.colError;
+                                                return Appearance.colors.colPrimary;
+
+                                            default:
+                                                return Appearance.colors.colPrimary;
+                                        }
                                     }
                                     iconSize: 24
                                 }
@@ -988,123 +981,7 @@ Scope {
                         }
                     }
 
-                    // Custom Popup Content
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        visible: false // islandContainer.mode === 3 (Moved to collapsed view)
-                        opacity: visible ? 1 : 0
 
-                        spacing: 12
-                        
-                        // Icon based on type
-                        Rectangle {
-                            width: 32
-                            height: 32
-                            radius: 16
-                            color: {
-                                switch(islandContainer.popupType) {
-                                    case "good": return Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.2);
-                                    case "bad": return Qt.rgba(Appearance.colors.colError.r, Appearance.colors.colError.g, Appearance.colors.colError.b, 0.2);
-                                    default: return Qt.rgba(Appearance.colors.colOnLayer0.r, Appearance.colors.colOnLayer0.g, Appearance.colors.colOnLayer0.b, 0.1);
-                                }
-                            }
-                            
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                text: {
-                                    // Context-aware icons based on title if generic type
-                                    var t = islandContainer.popupTitle.toLowerCase();
-                                    if (t.includes("now playing")) return "music_note";
-                                    if (t.includes("screenshot")) return "screenshot_monitor";
-                                    if (t.includes("battery")) return "battery_alert";
-                                    if (t.includes("wifi")) {
-                                        return islandContainer.popupMessage.includes("Connected") ? "wifi" : "wifi_off";
-                                    }
-                                    if (t.includes("bluetooth")) {
-                                        return islandContainer.popupMessage.includes("Connected") ? "bluetooth_connected" : (islandContainer.popupMessage.includes("On") ? "bluetooth" : "bluetooth_disabled");
-                                    }
-                                    if (t.includes("volume")) return "volume_up";
-                                    if (t.includes("brightness")) return "brightness_7";
-                                    
-                                    if (t.includes("power")) {
-                                        return islandContainer.popupMessage.includes("Plugged") ? "bolt" : "power_off";
-                                    }
-                                    if (t.includes("system")) {
-                                        return islandContainer.popupMessage.includes("Disk") ? "hard_drive_2" : "dns";
-                                    }
-                                    
-                                    if (t.includes("clipboard")) return "content_paste";
-                                    
-                                    if (t.includes("mic")) {
-                                        return islandContainer.popupMessage.includes("Unmuted") ? "mic" : "mic_off";
-                                    }
-                                    
-                                    switch(islandContainer.popupType) {
-                                        case "good": return "check_circle";
-                                        case "bad": return "warning";
-                                        default: return "info";
-                                    }
-                                }
-                                color: {
-                                    var t = islandContainer.popupTitle.toLowerCase();
-                                    if (t.includes("now playing")) return Appearance.colors.colPrimary;
-                                    if (t.includes("screenshot")) return Appearance.colors.colPrimary;
-                                    
-                                    if (t.includes("wifi")) {
-                                        return islandContainer.popupMessage.includes("Connected") ? Appearance.colors.colPrimary : Appearance.colors.colError;
-                                    }
-                                    if (t.includes("bluetooth")) {
-                                        return islandContainer.popupMessage.includes("Connected") ? Appearance.colors.colPrimary : (islandContainer.popupMessage.includes("On") ? Appearance.colors.colPrimary : Appearance.colors.colError);
-                                    }
-
-                                    if (t.includes("power")) {
-                                        return islandContainer.popupMessage.includes("Plugged") ? Appearance.colors.colPrimary : Appearance.colors.colError;
-                                    }
-                                    if (t.includes("system")) {
-                                        return islandContainer.popupMessage.includes("Disk") ? Appearance.colors.colError : Appearance.colors.colPrimary;
-                                    }
-
-                                    if (t.includes("clipboard")) return Appearance.colors.colPrimary;
-
-                                    if (t.includes("mic")) {
-                                        return islandContainer.popupMessage.includes("Unmuted") ? Appearance.colors.colPrimary : Appearance.colors.colError;
-                                    }
-                                    
-                                    switch(islandContainer.popupType) {
-                                        case "good": return Appearance.colors.colPrimary;
-                                        case "bad": return Appearance.colors.colError;
-                                        default: return Appearance.colors.colOnLayer0;
-                                    }
-                                }
-                                iconSize: Appearance.font.pixelSize.large
-                            }
-                        }
-                        
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-                            
-                            Text {
-                                text: islandContainer.popupTitle
-                                Layout.fillWidth: true
-                                color: Appearance.colors.colOnLayer0
-                                font.weight: Font.Bold
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                elide: Text.ElideRight
-                            }
-                            
-                            Text {
-                                text: islandContainer.popupMessage
-                                Layout.fillWidth: true
-                                color: Appearance.colors.colOnLayer0
-                                opacity: 0.7
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                elide: Text.ElideRight
-                                maximumLineCount: 2
-                            }
-                        }
-                    }
 
                     // Battery Content
                     RowLayout {

@@ -64,7 +64,8 @@ Singleton {
             }
 
             Quickshell.execDetached(["notify-send", "Pomodoro", notificationMessage, "-a", "Shell"]);
-            Quickshell.execDetached(["sh", "-c", "echo 'neutral|Pomodoro|" + notificationMessage + "' >> /tmp/qs_popup.log"]);
+            let action = Persistent.states.timer.pomodoro.isBreak ? "break" : "focus";
+            Quickshell.execDetached(["sh", "-c", "echo 'neutral|Pomodoro|" + notificationMessage + "|pomodoro|" + action + "' >> /tmp/qs_popup.log"]);
             if (Config.options.sounds.pomodoro) {
                 Audio.playSystemSound("alarm-clock-elapsed")
             }

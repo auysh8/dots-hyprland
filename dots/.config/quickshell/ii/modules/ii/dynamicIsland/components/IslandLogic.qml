@@ -12,6 +12,10 @@ Item {
     property string popupTitle: ""
     property string popupMessage: ""
     property bool hasPopup: false
+
+    // Structured popup metadata
+    property string popupCategory: "generic"
+    property string popupAction: ""
     
     // Spam Prevention
     property var lastPopupTime: 0
@@ -36,29 +40,39 @@ Item {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Media Watcher (Now Playing Popup)
-    // -------------------------------------------------------------------------
-    property string lastTrackTitle: ""
-    Connections {
-        target: MprisController
-        function onTrackChanged() {
-            var newTitle = MprisController.activeTrack.title;
-            var newArtist = MprisController.activeTrack.artist;
-            if (newTitle !== "" && newTitle !== root.lastTrackTitle) {
-                root.lastTrackTitle = newTitle;
-                
-                // Trigger Now Playing Popup
-                root.popupType = "neutral";
-                root.popupTitle = "Now Playing";
-                // Show "Song Name • Artist Name"
-                root.popupMessage = newTitle + (newArtist ? " • " + newArtist : "");
-                root.hasPopup = true;
-                
-                popupTimer.restart();
-            }
+// -------------------------------------------------------------------------
+// Media Watcher (Now Playing Popup)
+// -------------------------------------------------------------------------
+property string lastTrackTitle: ""
+Connections {
+    target: MprisController
+    function onTrackChanged() {
+        var newTitle = MprisController.activeTrack.title;
+        var newArtist = MprisController.activeTrack.artist;
+        if (newTitle !== "" && newTitle !== root.lastTrackTitle) {
+            root.lastTrackTitle = newTitle;
+            
+            // Build message
+            let msg = newTitle + (newArtist ? " • " + newArtist : "");
+            
+            // IMPORTANT: Set category BEFORE setting other properties
+            root.popupCategory = "media";
+            root.popupAction = "playing";
+            
+            // Then set the rest
+            root.popupType = "neutral";
+            root.popupTitle = "Now Playing";
+            root.popupMessage = msg;
+            root.hasPopup = true;
+            
+            // Update spam prevention to match
+            root.lastPopupContent = "Now Playing" + msg;
+            root.lastPopupTime = new Date().getTime();
+            
+            popupTimer.restart();
         }
     }
+}
 
     signal batteryEvent(bool plugged)
     
@@ -118,6 +132,11 @@ Item {
                     var allowedTypes = ["neutral", "good", "bad"];
                     if (!allowedTypes.includes(incomingType)) return;
                     
+                    // Pre-normalize media messages to avoid flicker & spam check misses
+                    if (parts[1].toLowerCase().includes("now playing")) {
+                        parts[2] = parts[2].replace(" - ", " • ");
+                    }
+
                     var t = parts[1].trim().toLowerCase();
                     var m = parts.length > 2 ? parts[2].trim().toLowerCase() : "";
                     
@@ -144,16 +163,58 @@ Item {
                     if (contentHash === root.lastPopupContent && (now - root.lastPopupTime) < 4000) {
                         return; // Ignore duplicate
                     }
+
+                    // Special handling for "Now Playing" - ignore from log if media watcher recently fired
+                    if (t === "now playing" && (now - root.lastPopupTime) < 2000) {
+                        console.log("DynamicIsland: Ignoring Now Playing from log - media watcher handled it");
+                        return;
+                    }
+
                     root.lastPopupContent = contentHash;
                     root.lastPopupTime = now;
 
+                    // Parse structured metadata if present
+                    var cat = parts.length >= 4 ? parts[3].trim().toLowerCase() : "generic";
+                    var act = parts.length >= 5 ? parts[4].trim().toLowerCase() : "";
+
+                    // Migration Fallbacks for Legacy Scripts (Mapping titles to categories)
+                    if (cat === "generic") {
+                        if (t === "now playing" || t.startsWith("now playing")) {
+                            cat = "media";
+                            act = "playing";
+                        }
+                        else if (t.includes("download")) cat = "download";
+                        else if (t.includes("wifi")) cat = "wifi";
+                        else if (t.includes("bluetooth")) cat = "bluetooth";
+                        else if (t.includes("battery") || t.includes("power")) cat = "battery";
+                        else if (t.includes("microphone")) cat = "microphone";
+                        else if (t.includes("screenshot")) cat = "screenshot";
+                        else if (t.includes("clipboard")) cat = "clipboard";
+                        else if (t.includes("pomodoro")) cat = "pomodoro";
+
+                        // Action inference for legacy scripts
+                        if (act === "" && m !== "") {
+                             if (m.includes("completed") || m.includes("saved") || m.includes("done") || m.includes("finished")) act = "complete";
+                             else if (m.includes("connected")) act = "connected";
+                             else if (m.includes("disconnected") || m.includes("lost")) act = "disconnected";
+                             else if (m.includes("muted") || m.includes("mute") || m.includes("off")) act = "muted";
+                             else if (m.includes("charging") || m.includes("plugged")) act = "charging";
+                             else if (m.includes("low")) act = "low";
+                        }
+                    }
+
+                    // Apply structured metadata first to prevent icon flicker
+                    root.popupCategory = cat;
+                    root.popupAction = act;
+
+                    // Then apply display content
                     root.popupType = incomingType;
                     root.popupTitle = parts[1];
                     root.popupMessage = parts[2];
                     root.hasPopup = true;
                     
-                    // Bluetooth Connection Sequence
-                    if (t.includes("bluetooth") && m.includes("connected")) {
+                    // Bluetooth Connection Sequence (Preserve specialized logic)
+                    if (cat === "bluetooth" && act === "connected" && !t.includes("battery")) {
                         // Extract device name: "Connected: AirPods" -> "AirPods"
                         var devName = parts[2].replace("Connected:", "").trim();
                         print("DynamicIsland: Bluetooth Connected to " + devName + ", scheduling battery check...");
@@ -176,7 +237,11 @@ Item {
     Timer {
         id: popupTimer
         interval: root.popupType === "bad" ? 5000 : 3000
-        onTriggered: root.hasPopup = false
+        onTriggered: {
+            root.hasPopup = false
+            root.popupCategory = "generic"
+            root.popupAction = ""
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -184,7 +249,7 @@ Item {
     // -------------------------------------------------------------------------
     Process {
         id: clipboardWatcher
-        command: ["wl-paste", "--watch", "bash", "-c", "echo 'neutral|Clipboard|Copied' >> /tmp/qs_popup.log"]
+        command: ["wl-paste", "--watch", "bash", "-c", "echo 'neutral|Clipboard|Copied|clipboard|copied' >> /tmp/qs_popup.log"]
         running: true
     }
 
@@ -257,6 +322,8 @@ Item {
                     root.popupType = newMute ? "bad" : "good";
                     root.popupTitle = "Microphone";
                     root.popupMessage = newMute ? "Muted" : "Unmuted";
+                    root.popupCategory = "microphone"
+                    root.popupAction = newMute ? "muted" : "unmuted"
                     root.hasPopup = true;
                     popupTimer.restart();
                 }
@@ -363,6 +430,8 @@ Item {
                          root.popupType = "bad";
                          root.popupTitle = "Battery";
                          root.popupMessage = "Low Battery: " + dev.name + " (" + dev.battery + "%)";
+                         root.popupCategory = "battery"
+                         root.popupAction = "low"
                          root.hasPopup = true;
                          popupTimer.restart();
                          

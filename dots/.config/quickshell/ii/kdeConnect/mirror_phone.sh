@@ -30,14 +30,35 @@ adb start-server 2>/dev/null
 # Check if device is connected via USB
 USB_DEVICE=$(adb devices | grep -v "List" | grep "device$" | head -1)
 
+# Check if device is connected via USB
+USB_DEVICE=$(adb devices | grep -v "List" | grep "device$" | head -1)
+
 if [ -n "$USB_DEVICE" ]; then
-    # USB device found, get IP and store it for wireless use later
-    PHONE_IP=$(adb shell ip route | grep wlan0 | awk '{print $9}')
+    notify-send "Phone Mirror" "USB Device Detected. Enabling Wireless Mode..." -t 2000
+    
+    # Get IP first (before restarting ADB)
+    # Matches 'src <IP>' from 'ip route' to support wlan0, rndis0, etc.
+    PHONE_IP=$(adb shell ip route | grep " src " | awk '{print $9}' | head -1)
+    
     if [ -n "$PHONE_IP" ]; then
+        echo "Detected IP via USB: $PHONE_IP"
         mkdir -p "$CONFIG_DIR"
         echo "$PHONE_IP" > "$CONFIG_FILE"
     fi
-    notify-send "Phone Mirror" "Starting mirror via USB..." -t 2000
+
+    # Enable ADB over TCP/IP on port 5555
+    # This restarts the adbd daemon on the phone, dropping the USB connection briefly
+    adb tcpip 5555 || true
+    
+    # Wait for adbd to restart
+    sleep 2
+    
+    # Connect wirelessly immediately if we have an IP
+    if [ -n "$PHONE_IP" ]; then
+        adb connect "$PHONE_IP:5555" || true
+    fi
+    
+    notify-send "Phone Mirror" "Starting mirror..." -t 2000
     scrcpy $SCRCPY_OPTS &
     exit 0
 fi
@@ -49,11 +70,42 @@ try_connect() {
     if [ -z "$ip" ]; then
         return 1
     fi
-    adb connect "$ip:5555" 2>&1 | grep -q "connected"
-    return $?
+    
+    local out
+    out=$(adb connect "$ip:5555" 2>&1)
+    
+    if echo "$out" | grep -q "connected"; then
+        return 0
+    else
+        # If we found the IP but connection refused, return specific error code 2
+        if echo "$out" | grep -q "refused"; then
+            return 2
+        fi
+        return 1
+    fi
 }
 
-# Method 1: Try saved IP from previous connection
+# Method 1A: Detect from active KDE Connect connection (Most Reliable for WiFi)
+DETECTED_IP=$(ss -tunp state established | grep kdeconnect | grep ":1716" | awk '{print $5}' | sed 's/\[::ffff://;s/\]:.*//' | head -1)
+
+if [ -n "$DETECTED_IP" ]; then
+    echo "Detected IP via KDE Connect: $DETECTED_IP"
+    try_connect "$DETECTED_IP"
+    res=$?
+    
+    if [ $res -eq 0 ]; then
+        mkdir -p "$CONFIG_DIR"
+        echo "$DETECTED_IP" > "$CONFIG_FILE"
+        notify-send "Phone Mirror" "Connected via active session: $DETECTED_IP" -t 2000
+        scrcpy $SCRCPY_OPTS &
+        exit 0
+    elif [ $res -eq 2 ]; then
+        notify-send "Phone Mirror" "Found phone at $DETECTED_IP but ADB port is closed.\n\nPlease connect via USB cable once and click this button again to enable wireless mirroring." -u critical
+        exit 1
+    fi
+fi
+
+# Method 1B: Try saved IP from previous connection
 if [ -f "$CONFIG_FILE" ]; then
     SAVED_IP=$(cat "$CONFIG_FILE")
     if try_connect "$SAVED_IP"; then
@@ -93,6 +145,6 @@ if command -v zenity &> /dev/null; then
         exit 1
     fi
 else
-    notify-send "Phone Mirror" "Could not auto-detect phone.\n\nConnect via USB first, or install zenity for manual IP entry." -u critical
+    notify-send "Phone Mirror" "Could not auto-detect phone.\n\nConnect via USB first to enable wireless, or install zenity for manual IP entry." -u critical
     exit 1
 fi

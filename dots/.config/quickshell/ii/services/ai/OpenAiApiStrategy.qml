@@ -21,9 +21,11 @@ ApiStrategy {
                 }),
             ],
             "stream": true,
-            "tools": tools,
             "temperature": temperature,
         };
+        if (model.supportsTools && tools.length > 0) {
+            baseData["tools"] = tools;
+        }
         return model.extraParams ? Object.assign({}, baseData, model.extraParams) : baseData;
     }
 

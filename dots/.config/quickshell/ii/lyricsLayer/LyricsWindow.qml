@@ -483,6 +483,11 @@ Scope {
             // Enable keyboard focus in fullscreen mode
             WlrLayershell.keyboardFocus: root.isFullscreen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             color: "transparent"
+
+            IdleInhibitor {
+                enabled: root.isFullscreen
+                window: window
+            }
             
             // Keyboard shortcuts (only work in fullscreen when focused)
             Keys.onPressed: (event) => {

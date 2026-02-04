@@ -16,10 +16,17 @@ import "pages"
 
 Item {
     id: root
+    clip: false
     implicitHeight: mainLayout.implicitHeight + 32 // Add margins to height
+
+    // Player switching
+    readonly property var availablePlayers: MprisController.players
+    property MprisPlayer selectedPlayer: null
+    readonly property MprisPlayer activePlayer: selectedPlayer ? selectedPlayer : MprisController.activePlayer
+    property bool showPlayerPicker: false
     
     // Art Handling
-    property string artUrl: (MprisController.activePlayer && MprisController.activePlayer.trackArtUrl) ? MprisController.activePlayer.trackArtUrl : ""
+    property string artUrl: (activePlayer && activePlayer.trackArtUrl) ? activePlayer.trackArtUrl : ""
     property string artDownloadLocation: Directories.coverArt
     property string artFileName: Qt.md5(artUrl)
     property string artFilePath: `${artDownloadLocation}/${artFileName}`
@@ -86,26 +93,26 @@ Item {
     property real currentPosition: 0
     
     Connections {
-        target: MprisController.activePlayer || null
+        target: activePlayer || null
         ignoreUnknownSignals: true
         function onPositionChanged() {
-            var diff = Math.abs(root.currentPosition - MprisController.activePlayer.position)
-            if (diff > 1.5 || !MprisController.isPlaying) {
-                root.currentPosition = MprisController.activePlayer.position
+            var diff = Math.abs(root.currentPosition - activePlayer.position)
+            if (diff > 1.5 || !(activePlayer && activePlayer.isPlaying)) {
+                root.currentPosition = activePlayer.position
             }
         }
     }
     
     Timer {
-        running: MprisController.isPlaying
+        running: activePlayer && activePlayer.isPlaying
         interval: 20
         repeat: true
         onTriggered: root.currentPosition += 0.02
     }
 
     Component.onCompleted: {
-        if (MprisController.activePlayer) {
-            root.currentPosition = MprisController.activePlayer.position
+        if (activePlayer) {
+            root.currentPosition = activePlayer.position
         }
     }
 
@@ -170,28 +177,96 @@ Item {
         anchors.margins: 12
         spacing: 6
 
-        // Top Info
-        ColumnLayout {
+        // Top Row (Title + Player Badge)
+        RowLayout {
             Layout.fillWidth: true
-            spacing: 0
-            
-            Text {
+            spacing: 8
+
+            // Title + Artist (left)
+            ColumnLayout {
                 Layout.fillWidth: true
-                text: MprisController.activeTrack.title || "No Media"
-                font.pixelSize: 16
-                font.weight: Font.Bold
-                color: root.contentColor
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignLeft
+                spacing: 0
+
+                Text {
+                    Layout.fillWidth: true
+                    text: activePlayer?.trackTitle || "No Media"
+                    font.pixelSize: 16
+                    font.weight: Font.Bold
+                    color: root.contentColor
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignLeft
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: activePlayer?.trackArtist || "Unknown Artist"
+                    font.pixelSize: 13
+                    color: root.secondaryContentColor
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignLeft
+                }
             }
-            
-            Text {
-                Layout.fillWidth: true
-                text: MprisController.activeTrack.artist || "Unknown Artist"
-                font.pixelSize: 13
-                color: root.secondaryContentColor
-                elide: Text.ElideRight
-                horizontalAlignment: Text.AlignLeft
+
+            // Player Badge (right)
+            Rectangle {
+                id: playerBadge
+                Layout.alignment: Qt.AlignTop | Qt.AlignRight
+                Layout.preferredHeight: 28
+                Layout.preferredWidth: playerRow.width + 16
+                radius: 14
+                color: playerBadgeArea.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.3) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.15)
+                border.color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
+                border.width: 1
+                visible: root.availablePlayers.length > 0
+                
+                Behavior on color { ColorAnimation { duration: 150 } }
+                
+                Row {
+                    id: playerRow
+                    anchors.centerIn: parent
+                    spacing: 6
+                    
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: {
+                            let name = (activePlayer?.identity || "").toLowerCase()
+                            if (name.includes("spotify")) return "music_note"
+                            if (name.includes("firefox") || name.includes("chrome")) return "language"
+                            if (name.includes("vlc") || name.includes("mpv")) return "movie"
+                            return "headphones"
+                        }
+                        iconSize: 14
+                        color: root.secondaryContentColor
+                    }
+                    
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: activePlayer?.identity || "No Player"
+                        color: root.secondaryContentColor
+                        font.pixelSize: 11
+                        font.weight: Font.Medium
+                    }
+                    
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.showPlayerPicker ? "expand_less" : "expand_more"
+                        iconSize: 12
+                        color: root.secondaryContentColor
+                        visible: root.availablePlayers.length > 1
+                    }
+                }
+                
+                MouseArea {
+                    id: playerBadgeArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: root.availablePlayers.length > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: {
+                        if (root.availablePlayers.length > 1) {
+                            root.showPlayerPicker = !root.showPlayerPicker
+                        }
+                    }
+                }
             }
         }
 
@@ -200,20 +275,18 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 24 // Give it some room for the wave
             
-            configuration: MprisController.isPlaying ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
+            configuration: (activePlayer && activePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
             highlightColor: root.contentColor
             trackColor: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.5)
             handleColor: root.contentColor
             value: {
-                const player = MprisController.activePlayer;
-                return (player && player.length > 0) ? root.currentPosition / player.length : 0;
+                return (activePlayer && activePlayer.length > 0) ? root.currentPosition / activePlayer.length : 0;
             }
             
             onMoved: {
-                const player = MprisController.activePlayer;
-                if (player) {
-                    player.position = value * player.length;
-                    root.currentPosition = player.position;
+                if (activePlayer) {
+                    activePlayer.position = value * activePlayer.length;
+                    root.currentPosition = activePlayer.position;
                 }
             }
         }
@@ -285,7 +358,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: MprisController.previous()
+                    onClicked: activePlayer?.previous()
                 }
             }
 
@@ -311,7 +384,7 @@ Item {
 
                     MaterialSymbol {
                         anchors.centerIn: parent
-                        text: MprisController.isPlaying ? "pause" : "play_arrow"
+                        text: (activePlayer && activePlayer.isPlaying) ? "pause" : "play_arrow"
                         iconSize: 28
                         color: root.pillContentColor
                     }
@@ -322,7 +395,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: MprisController.togglePlaying()
+                    onClicked: activePlayer?.togglePlaying()
                 }
             }
 
@@ -357,7 +430,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: MprisController.next()
+                    onClicked: activePlayer?.next()
                 }
             }
 
@@ -365,6 +438,157 @@ Item {
             
              // Empty space
              Item { width: 28 }
+        }
+    }
+    // Player Picker Overlay (Floating)
+    Item {
+        id: playerPickerOverlay
+        anchors.fill: parent
+        z: 999
+        visible: true
+        enabled: root.showPlayerPicker
+        opacity: root.showPlayerPicker ? 1 : 0
+        
+        Behavior on opacity { 
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic } 
+        }
+        
+        // Background click catcher to close dropdown
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.showPlayerPicker = false
+        }
+
+        // Floating Popup Container
+        Item {
+            id: popupContainer
+            width: 200
+            height: playerPickerColumn.implicitHeight + 12
+            
+            // Absolute positioning using mapToItem to avoid layout shifting
+            x: playerBadge.mapToItem(root, 0, 0).x + playerBadge.width - width
+            y: playerBadge.mapToItem(root, 0, 0).y + playerBadge.height + 4
+            
+            // Visual animate-only properties
+            scale: root.showPlayerPicker ? 1 : 0.92
+            transformOrigin: Item.TopRight
+            
+            Behavior on y {
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
+            Behavior on scale { 
+                NumberAnimation { duration: root.showPlayerPicker ? 250 : 150; easing.type: Easing.OutBack; easing.overshoot: 1.5 } 
+            }
+            
+            Rectangle {
+                anchors.fill: parent
+                radius: 12
+                color: ColorUtils.mix(root.backgroundColor, "#000000", 0.4)
+                opacity: 0.95
+                
+                layer.enabled: true
+                layer.effect: DropShadow {
+                    horizontalOffset: 0
+                    verticalOffset: 6
+                    radius: 12
+                    samples: 24
+                    color: Qt.rgba(0, 0, 0, 0.6)
+                }
+            }
+            
+            Rectangle {
+                anchors.fill: parent
+                radius: 12
+                color: "transparent"
+                border.color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.25)
+                border.width: 1
+            }
+            
+            Column {
+                id: playerPickerColumn
+                anchors.fill: parent
+                anchors.margins: 6
+                spacing: 0
+                
+                Repeater {
+                    model: root.availablePlayers
+                    
+                    Item {
+                        width: parent.width
+                        height: 36
+                        
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            radius: 8
+                            color: playerItemArea.containsMouse 
+                                ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
+                                : (root.activePlayer === modelData 
+                                    ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.08)
+                                    : "transparent")
+                            
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+                        
+                        Item {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            
+                            Text {
+                                anchors.left: parent.left
+                                anchors.right: playerIcon.left
+                                anchors.rightMargin: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.identity || "Unknown Player"
+                                color: root.contentColor
+                                font.pixelSize: 12
+                                font.weight: root.activePlayer === modelData ? Font.DemiBold : Font.Normal
+                                elide: Text.ElideRight
+                            }
+                            
+                            MaterialSymbol {
+                                id: playerIcon
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: {
+                                    let id = (modelData.identity || "").toLowerCase()
+                                    if (id.includes("spotify")) return "music_note"
+                                    if (id.includes("firefox") || id.includes("chrome")) return "language"
+                                    if (id.includes("vlc") || id.includes("mpv")) return "movie"
+                                    return "headphones"
+                                }
+                                iconSize: 16
+                                color: root.activePlayer === modelData 
+                                    ? root.contentColor
+                                    : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.7)
+                            }
+                        }
+                        
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 2
+                            height: 16
+                            radius: 1
+                            color: root.pillContentColor
+                            visible: root.activePlayer === modelData
+                        }
+                        
+                        MouseArea {
+                            id: playerItemArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.selectedPlayer = modelData
+                                root.showPlayerPicker = false
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -314,9 +314,21 @@ Singleton {
             "endpoint": "https://openrouter.ai/api/v1/chat/completions",
             "model": "tngtech/deepseek-r1t2-chimera:free",
             "requires_key": true,
+            "key_get_description": Translation.tr("**Pricing**: free.\n\n**Instructions**: Log into OpenRouter account, go to Keys on the topright menu, click Create API Key"),
+            "supportsTools": false,
+        }),
+        "arcee-ai-trinity-large-preview-free": aiModelComponent.createObject(this, {
+            "name": "Trinity Large Preview (Free)",
+            "icon": "openrouter-symbolic", 
+            "description": Translation.tr("Online via %1 | %2's model").arg("OpenRouter").arg("Arcee AI"),
+            "homepage": "https://openrouter.ai/arcee-ai/trinity-large-preview:free",
+            "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+            "model": "arcee-ai/trinity-large-preview:free",
+            "requires_key": true,
             "key_id": "openrouter",
             "key_get_link": "https://openrouter.ai/settings/keys",
             "key_get_description": Translation.tr("**Pricing**: free.\n\n**Instructions**: Log into OpenRouter account, go to Keys on the topright menu, click Create API Key"),
+            "supportsTools": false,
         }),
     }
     property var modelList: Object.keys(root.models)
