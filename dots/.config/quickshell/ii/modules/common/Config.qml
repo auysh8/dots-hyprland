@@ -209,6 +209,14 @@ Singleton {
                         property real x: 400
                         property real y: 100
                     }
+                    property JsonObject particles: JsonObject {
+                        property bool enable: false
+                        // We use dummy values to satisfy the AbstractBackgroundWidget requirements
+                        // Since we override placement in the widget itself, these won't do much
+                        property string placementStrategy: "free"
+                        property real x: 0
+                        property real y: 0
+                    }
                 }
                 property string wallpaperPath: ""
                 property string thumbnailPath: ""

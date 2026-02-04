@@ -17,6 +17,7 @@ import Quickshell.Hyprland
 import qs.modules.ii.background.widgets
 import qs.modules.ii.background.widgets.clock
 import qs.modules.ii.background.widgets.weather
+import qs.modules.ii.background.widgets.particles
 
 Variants {
     id: root
@@ -406,6 +407,7 @@ Variants {
 
             WidgetCanvas {
                 id: widgetCanvas
+                readonly property real parallaxFactor: Config.options.background.parallax.widgetsFactor
                 anchors {
                     left: wallpaper.left
                     right: wallpaper.right
@@ -413,15 +415,14 @@ Variants {
                     bottom: wallpaper.bottom
                     horizontalCenter: undefined
                     verticalCenter: undefined
-                    readonly property real parallaxFactor: Config.options.background.parallax.widgetsFactor
                     leftMargin: {
                         const xOnWallpaper = bgRoot.movableXSpace;
-                        const extraMove = (wallpaper.effectiveValueX * 2 * bgRoot.movableXSpace) * (parallaxFactor - 1);
+                        const extraMove = (wallpaperContainer.effectiveValueX * 2 * bgRoot.movableXSpace) * (parallaxFactor - 1);
                         return xOnWallpaper - extraMove;
                     }
                     topMargin: {
                         const yOnWallpaper = bgRoot.movableYSpace;
-                        const extraMove = (wallpaper.effectiveValueY * 2 * bgRoot.movableYSpace) * (parallaxFactor - 1);
+                        const extraMove = (wallpaperContainer.effectiveValueY * 2 * bgRoot.movableYSpace) * (parallaxFactor - 1);
                         return yOnWallpaper - extraMove;
                     }
                     Behavior on leftMargin {
@@ -487,6 +488,18 @@ Variants {
                         scaledScreenHeight: bgRoot.screen.height / bgRoot.effectiveWallpaperScale
                         wallpaperScale: bgRoot.effectiveWallpaperScale
                         wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.particles.enable
+                    sourceComponent: ParticleWidget {
+                        monitor: bgRoot.monitor
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width / bgRoot.effectiveWallpaperScale
+                        scaledScreenHeight: bgRoot.screen.height / bgRoot.effectiveWallpaperScale
+                        wallpaperScale: bgRoot.effectiveWallpaperScale
                     }
                 }
             }
