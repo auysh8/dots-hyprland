@@ -14,81 +14,82 @@ StyledPopup {
 
     Row {
         anchors.centerIn: parent
-        spacing: 12
+        spacing: 28
 
-        Column {
-            anchors.top: parent.top
-            spacing: 8
+        component ResourceCircle: Column {
+            spacing: 12
+            property string icon: ""
+            property string label: ""
+            property real value: 0
+            property string detail: ""
+            property color highlightColor: Appearance.colors.colPrimary
 
-            StyledPopupHeaderRow {
-                icon: "memory"
-                label: "RAM"
+            Item {
+                width: 76
+                height: 76
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                CircularProgress {
+                    anchors.fill: parent
+                    implicitSize: 76
+                    lineWidth: 6
+                    value: parent.parent.value
+                    colPrimary: parent.parent.value > 0.9 ? Appearance.m3colors.m3error : parent.parent.highlightColor
+                    colSecondary: Appearance.colors.colLayer1
+                }
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: parent.parent.icon
+                    iconSize: 30
+                    color: parent.parent.value > 0.9 ? Appearance.m3colors.m3error : parent.parent.highlightColor
+                    opacity: 0.9
+                }
             }
+
             Column {
-                spacing: 4
-                StyledPopupValueRow {
-                    icon: "clock_loader_60"
-                    label: Translation.tr("Used:")
-                    value: root.formatKB(ResourceUsage.memoryUsed)
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 1
+                StyledText {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: parent.parent.label
+                    font.weight: Font.Black
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnSurface
                 }
-                StyledPopupValueRow {
-                    icon: "check_circle"
-                    label: Translation.tr("Free:")
-                    value: root.formatKB(ResourceUsage.memoryFree)
-                }
-                StyledPopupValueRow {
-                    icon: "empty_dashboard"
-                    label: Translation.tr("Total:")
-                    value: root.formatKB(ResourceUsage.memoryTotal)
+                StyledText {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: parent.parent.detail
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colOnSurfaceVariant
+                    opacity: 0.8
                 }
             }
         }
 
-        Column {
+        ResourceCircle {
+            icon: "memory"
+            label: "RAM"
+            value: ResourceUsage.memoryUsedPercentage
+            detail: root.formatKB(ResourceUsage.memoryUsed)
+            highlightColor: Appearance.m3colors.m3primary
+        }
+
+        ResourceCircle {
             visible: ResourceUsage.swapTotal > 0
-            anchors.top: parent.top
-            spacing: 8
-
-            StyledPopupHeaderRow {
-                icon: "swap_horiz"
-                label: "Swap"
-            }
-            Column {
-                spacing: 4
-                StyledPopupValueRow {
-                    icon: "clock_loader_60"
-                    label: Translation.tr("Used:")
-                    value: root.formatKB(ResourceUsage.swapUsed)
-                }
-                StyledPopupValueRow {
-                    icon: "check_circle"
-                    label: Translation.tr("Free:")
-                    value: root.formatKB(ResourceUsage.swapFree)
-                }
-                StyledPopupValueRow {
-                    icon: "empty_dashboard"
-                    label: Translation.tr("Total:")
-                    value: root.formatKB(ResourceUsage.swapTotal)
-                }
-            }
+            icon: "swap_horiz"
+            label: "SWAP"
+            value: ResourceUsage.swapUsedPercentage
+            detail: root.formatKB(ResourceUsage.swapUsed)
+            highlightColor: Appearance.m3colors.m3tertiary
         }
 
-        Column {
-            anchors.top: parent.top
-            spacing: 8
-
-            StyledPopupHeaderRow {
-                icon: "planner_review"
-                label: "CPU"
-            }
-            Column {
-                spacing: 4
-                StyledPopupValueRow {
-                    icon: "bolt"
-                    label: Translation.tr("Load:")
-                    value: `${Math.round(ResourceUsage.cpuUsage * 100)}%`
-                }
-            }
+        ResourceCircle {
+            icon: "planner_review"
+            label: "CPU"
+            value: ResourceUsage.cpuUsage
+            detail: `${Math.round(ResourceUsage.cpuUsage * 100)}%`
+            highlightColor: Appearance.m3colors.m3secondary
         }
     }
 }

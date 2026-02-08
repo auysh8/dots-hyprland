@@ -8,6 +8,7 @@ RowLayout {
     required property string icon
     required property string label
     required property string value
+    property bool bold: false
     spacing: 4
 
     MaterialSymbol {
@@ -18,6 +19,7 @@ RowLayout {
     StyledText {
         text: root.label
         color: Appearance.colors.colOnSurfaceVariant
+        font.weight: root.bold ? Font.Bold : Font.Normal
     }
     StyledText {
         Layout.fillWidth: true
@@ -25,5 +27,6 @@ RowLayout {
         visible: root.value !== ""
         color: Appearance.colors.colOnSurfaceVariant
         text: root.value
+        font.weight: root.bold ? Font.Bold : Font.Normal
     }
 }

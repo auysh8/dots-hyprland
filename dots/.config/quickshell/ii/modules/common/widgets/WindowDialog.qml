@@ -130,9 +130,14 @@ Rectangle {
         property color openColor: Appearance.m3colors.m3surfaceContainer
         property color closedColor: {
             // Logic to determine the source toggle's background color
-            const isSmall = root.toggleWidth <= 100;
             const isToggled = root.sourceItem?.toggled ?? false;
             
+            // Prefer explicitly defined toggled color if available
+            if (isToggled && root.sourceItem && root.sourceItem.colBackgroundToggled !== undefined) {
+                return root.sourceItem.colBackgroundToggled;
+            }
+
+            const isSmall = root.toggleWidth <= 100;
             if (isSmall) {
                 // Small toggles are colored when active (Blue -> Surface)
                 // Use Opaque Layer 3 Base (SurfaceContainerHigh) for inactive state to prevent transparency glitches
@@ -284,7 +289,7 @@ Rectangle {
                         //   - Inactive: Circle (Height/2 = 22)
                         radius: (root.toggleWidth > 100) ? (isToggled ? 12 : 22) : (height / 2)
                         
-                        color: isToggled ? Appearance.colors.colPrimary : Appearance.colors.colLayer3
+                        color: isToggled ? (root.sourceItem?.colBackgroundToggled ?? Appearance.colors.colPrimary) : Appearance.colors.colLayer3
                     }
                     
                     MaterialSymbol {
@@ -292,7 +297,15 @@ Rectangle {
                         text: (root.sourceItem && root.sourceItem.buttonIcon) ? root.sourceItem.buttonIcon : ""
                         iconSize: 20
                         property bool isToggled: root.sourceItem?.toggled ?? true
-                        color: isToggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurface
+                        
+                        // Adapt text/icon color based on source toggle's own color property if possible
+                        color: {
+                            if (root.sourceItem) {
+                                if (isToggled && root.sourceItem.colOnPrimary !== undefined) return root.sourceItem.colOnPrimary;
+                                if (isToggled && root.sourceItem.colText !== undefined) return root.sourceItem.colText;
+                            }
+                            return isToggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurface
+                        }
                     }
                 }
 

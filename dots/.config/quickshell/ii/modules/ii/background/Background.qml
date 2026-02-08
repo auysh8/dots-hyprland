@@ -174,6 +174,11 @@ Variants {
             property real frozenY: 0
             property real frozenW: 0
             property real frozenH: 0
+            property real frozenNewX: 0
+            property real frozenNewY: 0
+
+            property bool oldImageReady: true
+            property bool imageReady: false
 
             onNewSourceChanged: {
                 if (oldSource !== "" && oldSource !== newSource && newSource !== "") {
@@ -182,28 +187,52 @@ Variants {
                     frozenY = wpY;
                     frozenW = wpW;
                     frozenH = wpH;
-                    // Set old wallpaper source and mark animation as pending
-                    oldWallpaper.source = oldSource;
+
+                    frozenNewX = wpX;
+                    frozenNewY = wpY; 
+                    
+                    // Immediately mark as pending and set old source.
+                    // This ensures the old wallpaper (which is on the top layer)
+                    // stays visible while the new image loads underneath.
                     pendingAnimation = true;
-                    imageReady = false;
-                    revealProgress = 0;
                     fadeProgress = 0;
-                    // Start fade animation immediately
-                    fadeAnimation.restart();
+                    oldWallpaper.source = oldSource;
+                    
+                    if (oldWallpaper.status === Image.Ready) {
+                        oldImageReady = true;
+                        startTransition();
+                    } else {
+                        oldImageReady = false;
+                    }
+                } else {
+                    // First load or same source
+                    pendingAnimation = false;
+                    isAnimating = false;
+                    imageReady = (wallpaper.status === Image.Ready);
                 }
                 oldSource = newSource;
             }
 
-            // Track if the new image has loaded
-            property bool imageReady: false
-            
+            // Function to start the actual fade transition
+            function startTransition() {
+                // Already set pendingAnimation in onNewSourceChanged
+                imageReady = (wallpaper.status === Image.Ready);
+                revealProgress = 0;
+                fadeProgress = 0;
+                fadeAnimation.restart();
+            }
+
             // Fade animation progress (0 = old wallpaper visible, 1 = black)
             property real fadeProgress: 0
 
             // Function to try starting reveal animation (checks both conditions)
             function tryStartReveal() {
-                if (pendingAnimation && imageReady && bgRoot.zoomScaleReady && fadeProgress >= 1) {
-                    pendingAnimation = false;
+                const bothImagesReady = imageReady && (oldImageReady || oldWallpaper.status === Image.Ready);
+                if (pendingAnimation && bothImagesReady && bgRoot.zoomScaleReady && fadeProgress >= 1) {
+                    // Capture the CURRENT position right before reveal starts
+                    // This ensures no shift when animation ends
+                    frozenNewX = wpX;
+                    frozenNewY = wpY;
                     isAnimating = true;
                     revealAnimation.restart();
                 }
@@ -212,6 +241,15 @@ Variants {
             // Function called when new image is ready
             function onImageLoaded() {
                 imageReady = true;
+                tryStartReveal();
+            }
+
+            // Function called when old image is ready
+            function onOldImageLoaded() {
+                oldImageReady = true;
+                if (pendingAnimation && fadeAnimation.progress === 0 && !fadeAnimation.running) {
+                    startTransition();
+                }
                 tryStartReveal();
             }
 
@@ -232,8 +270,8 @@ Variants {
                 property: "fadeProgress"
                 from: 0
                 to: 1
-                duration: 350
-                easing.type: Easing.InOutQuint
+                duration: 800
+                easing.type: Easing.OutCubic
                 onFinished: {
                     wallpaperContainer.tryStartReveal();
                 }
@@ -246,72 +284,53 @@ Variants {
                 property: "revealProgress"
                 from: 0
                 to: 1
-                duration: 1400
+                duration: 1600
                 easing.type: Easing.OutQuint
                 onFinished: {
-                    wallpaperContainer.isAnimating = false;
-                    wallpaperContainer.fadeProgress = 0;
+                    // Check if the main wallpaper is ready before completing
+                    if (wallpaper.status === Image.Ready) {
+                        wallpaperContainer.isAnimating = false;
+                        wallpaperContainer.pendingAnimation = false;
+                    }
+                    // If not ready, the onStatusChanged handler will complete the transition
                 }
             }
 
-            // Black background (shown during fade and reveal)
-            Rectangle {
-                id: fadeToBlack
-                anchors.fill: parent
-                color: "black"
-                visible: wallpaperContainer.pendingAnimation || wallpaperContainer.isAnimating
-            }
-
-            // Old wallpaper (fades out to reveal black)
-            Image {
-                id: oldWallpaper
-                // Show during both loading phase (pendingAnimation) and animation phase
-                visible: (wallpaperContainer.pendingAnimation || wallpaperContainer.isAnimating) && !blurLoader.active
-                // Fade OUT as fadeProgress increases (1 - fadeProgress)
-                opacity: 1 - wallpaperContainer.fadeProgress
-                // Subtle scale down during fade for depth effect
-                scale: 1 - (wallpaperContainer.fadeProgress * 0.08)
-                transformOrigin: Item.Center
-                x: wallpaperContainer.frozenX
-                y: wallpaperContainer.frozenY
-                width: wallpaperContainer.frozenW
-                height: wallpaperContainer.frozenH
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: false
-                retainWhileLoading: true
-                cache: true
-                sourceSize {
-                    width: wallpaperContainer.frozenW * bgRoot.monitor.scale
-                    height: wallpaperContainer.frozenH * bgRoot.monitor.scale
+            // Helper function to complete transition when image is ready
+            function completeTransitionIfReady() {
+                if (revealAnimation.running === false && revealProgress >= 1 && wallpaper.status === Image.Ready) {
+                    isAnimating = false;
+                    pendingAnimation = false;
                 }
             }
 
-            // The new wallpaper (always exists for blur to reference)
+            // --- LAYER ORDER: BOTTOM TO TOP ---
+
+            // 1. The main wallpaper (at the bottom)
             Image {
                 id: wallpaper
-                x: wallpaperContainer.wpX
-                y: wallpaperContainer.wpY
+                x: wallpaperContainer.isAnimating ? wallpaperContainer.frozenNewX : wallpaperContainer.wpX
+                y: wallpaperContainer.isAnimating ? wallpaperContainer.frozenNewY : wallpaperContainer.wpY
                 width: wallpaperContainer.wpW
                 height: wallpaperContainer.wpH
                 source: wallpaperContainer.newSource
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 retainWhileLoading: true
-                cache: false
-                // Hide during loading phase OR when blurLoader is active (lock screen uses blur)
-                // But keep rendering for blur source
-                visible: !blurLoader.active && (!wallpaperContainer.pendingAnimation || wallpaperContainer.isAnimating)
-                // During animation, hide because the masked version is shown instead
-                opacity: wallpaperContainer.isAnimating ? 0 : 1
+                cache: true
+                // Visible only when NOT animating (static state)
+                // Visible only when NOT animating (static state)
+                visible: !blurLoader.active
                 sourceSize {
-                    width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
-                    height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
+                    width: bgRoot.screen.width * bgRoot.monitor.scale
+                    height: bgRoot.screen.height * bgRoot.monitor.scale
                 }
                 
-                // Start animation when new image is loaded
                 onStatusChanged: {
                     if (status === Image.Ready) {
                         wallpaperContainer.onImageLoaded();
+                        // Also try to complete transition if reveal animation finished waiting for this
+                        wallpaperContainer.completeTransitionIfReady();
                     }
                 }
                 
@@ -331,37 +350,25 @@ Variants {
                 }
             }
 
-            // Circle reveal mask (only during animation)
+            // 2. Black background (transition base)
+            Rectangle {
+                id: fadeToBlack
+                anchors.fill: parent
+                color: "black"
+                visible: wallpaperContainer.pendingAnimation || wallpaperContainer.isAnimating
+            }
+
+            // 3. New wallpaper fade in (above black)
             Item {
                 id: newWallpaperClip
                 anchors.fill: parent
                 visible: wallpaperContainer.isAnimating && !blurLoader.active
-                layer.enabled: true
-                layer.effect: OpacityMask {
-                    maskSource: Item {
-                        width: newWallpaperClip.width
-                        height: newWallpaperClip.height
-                        
-                        RadialGradient {
-                            anchors.fill: parent
-                            horizontalRadius: wallpaperContainer.revealProgress * wallpaperContainer.maxRadius
-                            verticalRadius: wallpaperContainer.revealProgress * wallpaperContainer.maxRadius
-                            horizontalOffset: 0
-                            verticalOffset: 0
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: "white" }
-                                GradientStop { position: 0.92; color: "white" }
-                                GradientStop { position: 1.0; color: "transparent" }
-                            }
-                        }
-                    }
-                }
+                opacity: wallpaperContainer.revealProgress
 
-                // Copy of wallpaper for the masked reveal
                 Image {
                     id: maskedWallpaper
-                    x: wallpaperContainer.wpX
-                    y: wallpaperContainer.wpY
+                    x: wallpaperContainer.frozenNewX
+                    y: wallpaperContainer.frozenNewY
                     width: wallpaperContainer.wpW
                     height: wallpaperContainer.wpH
                     source: wallpaperContainer.newSource
@@ -370,8 +377,35 @@ Variants {
                     retainWhileLoading: true
                     cache: true
                     sourceSize {
-                        width: bgRoot.screen.width * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
-                        height: bgRoot.screen.height * bgRoot.effectiveWallpaperScale * bgRoot.monitor.scale
+                        width: bgRoot.screen.width * bgRoot.monitor.scale
+                        height: bgRoot.screen.height * bgRoot.monitor.scale
+                    }
+                }
+            }
+
+            // 4. Old wallpaper fade out (AT THE VERY TOP)
+            Image {
+                id: oldWallpaper
+                visible: wallpaperContainer.pendingAnimation && !wallpaperContainer.isAnimating && !blurLoader.active
+                opacity: 1 - wallpaperContainer.fadeProgress
+                scale: 1 - (wallpaperContainer.fadeProgress * 0.08)
+                transformOrigin: Item.Center
+                x: wallpaperContainer.frozenX
+                y: wallpaperContainer.frozenY
+                width: wallpaperContainer.frozenW
+                height: wallpaperContainer.frozenH
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                retainWhileLoading: true
+                cache: true
+                sourceSize {
+                    width: bgRoot.screen.width * bgRoot.monitor.scale
+                    height: bgRoot.screen.height * bgRoot.monitor.scale
+                }
+
+                onStatusChanged: {
+                    if (status === Image.Ready) {
+                        wallpaperContainer.onOldImageLoaded();
                     }
                 }
             }
@@ -408,6 +442,13 @@ Variants {
             WidgetCanvas {
                 id: widgetCanvas
                 readonly property real parallaxFactor: Config.options.background.parallax.widgetsFactor
+                opacity: (wallpaperContainer.pendingAnimation || wallpaperContainer.isAnimating) ? 0 : 1
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 400
+                        easing.type: Easing.OutCubic
+                    }
+                }
                 anchors {
                     left: wallpaper.left
                     right: wallpaper.right
@@ -500,6 +541,8 @@ Variants {
                         scaledScreenWidth: bgRoot.screen.width / bgRoot.effectiveWallpaperScale
                         scaledScreenHeight: bgRoot.screen.height / bgRoot.effectiveWallpaperScale
                         wallpaperScale: bgRoot.effectiveWallpaperScale
+                        sidebarLeftOpen: GlobalStates.sidebarLeftOpen
+                        sidebarRightOpen: GlobalStates.sidebarRightOpen
                     }
                 }
             }

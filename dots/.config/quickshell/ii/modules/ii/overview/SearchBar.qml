@@ -105,6 +105,19 @@ RowLayout {
         Layout.topMargin: 4
         Layout.bottomMargin: 4
         onClicked: {
+            GlobalStates.appDrawerOpen = true;
+            GlobalStates.overviewOpen = false;
+        }
+        text: "apps"
+        StyledToolTip {
+            text: Translation.tr("App Drawer")
+        }
+    }
+
+    IconToolbarButton {
+        Layout.topMargin: 4
+        Layout.bottomMargin: 4
+        onClicked: {
             GlobalStates.overviewOpen = false;
             Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "search"]);
         }

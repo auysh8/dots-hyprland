@@ -22,12 +22,12 @@ AbstractQuickPanel {
 
         NetworkToggle {
             altAction: () => {
-                root.openWifiDialog();
+                root.openWifiDialog(this);
             }
         }
         BluetoothToggle {
             altAction: () => {
-                root.openBluetoothDialog();
+                root.openBluetoothDialog(this);
             }
         }
         NightLight {}

@@ -380,8 +380,10 @@ Scope {
                     property real collapsedWidth: 320 // Increased from 240
                     property real collapsedHeight: 36
                     
+
                     property bool pomodoroActive: TimerService.pomodoroRunning || (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration && TimerService.pomodoroSecondsLeft > 0)
                     property bool stopwatchActive: TimerService.stopwatchRunning || TimerService.stopwatchTime > 0
+                    property bool downloadActive: DownloadService.active
                     property bool timerActive: pomodoroActive || stopwatchActive
 
                     // Mode specific sizes
@@ -396,8 +398,17 @@ Scope {
                         if (islandContainer.mode === 3) return 64; // Popup (DoubleLine)
                         if (islandContainer.mode === 4) return 52; // Battery
                         
-                        // Single Page Height for SwipeView
-                        return (islandContainer.hasMedia || timerActive) ? 210 : 60;
+                        // Check for multiple pages to add space for pagination dots
+                        var pageCount = 0;
+                        if (islandContainer.hasMedia) pageCount++;
+                        if (pomodoroActive) pageCount++;
+                        if (stopwatchActive) pageCount++;
+                        if (downloadActive) pageCount++;
+
+                        if (pageCount > 0) {
+                             return pageCount > 1 ? 212 : 192;
+                        }
+                        return 60;
                     }
                     
                     width: (islandContainer.expanded || islandContainer.mode !== 0) ? expandedWidth : collapsedWidth
@@ -575,8 +586,29 @@ Scope {
                                 width: 1
                                 height: 16
                                 color: Appearance.colors.colOutlineVariant
-                                visible: islandContainer.hasMedia
+                                visible: islandContainer.hasMedia || islandPill.downloadActive
                             }
+
+                            // Download Indicator (Collapsed)
+                            // Priority: Show only if Media is NOT showing
+                            RowLayout {
+                                visible: islandPill.downloadActive && !islandContainer.expanded && !islandContainer.hasMedia
+                                spacing: 6
+                                
+                                MaterialSymbol {
+                                    text: "download"
+                                    iconSize: 16
+                                    color: Appearance.colors.colPrimary
+                                }
+                                
+                                Text {
+                                    text: Math.round(DownloadService.progress * 100) + "%"
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colOnLayer0
+                                }
+                            }
+                            
+                            // No second separator needed as we are mutually exclusive now
 
                             // Media indicator (collapsed)
                             RowLayout {
@@ -740,21 +772,23 @@ Scope {
                         Component { id: mediaPage; MediaPage { } }
                         Component { id: pomodoroPage; PomodoroPage { } }
                         Component { id: stopwatchPage; StopwatchPage { } }
+                        Component { id: downloadPage; DownloadPage { } }
 
                         // Dynamic Page List
                         property var activePages: [
                             islandContainer.hasMedia ? mediaPage : null,
                             islandPill.pomodoroActive ? pomodoroPage : null,
-                            islandPill.stopwatchActive ? stopwatchPage : null
+                            islandPill.stopwatchActive ? stopwatchPage : null,
+                            islandPill.downloadActive ? downloadPage : null
                         ].filter(p => p !== null)
 
                         // 4. SwipeView for Content (Horizontal & Swipeable)
+
                         SwipeView {
                             id: contentSwipe
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-                            visible: activePages.length > 0
                             
                             Repeater {
                                 model: expandedContent.activePages
@@ -788,7 +822,7 @@ Scope {
                             Layout.alignment: Qt.AlignHCenter
                             Layout.bottomMargin: 4
                             spacing: 6
-                            visible: activePages.length > 1
+                            visible: expandedContent.activePages.length > 1
                             
                             Repeater {
                                 model: contentSwipe.count
@@ -837,12 +871,12 @@ Scope {
                                 id: volumeIcon
                                 anchors.centerIn: parent
                                 text: {
-                                    if (Audio.sink.audio.muted) return "volume_off";
+                                    if (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) return "volume_off";
                                     if (Audio.value > 0.5) return "volume_up";
                                     if (Audio.value > 0) return "volume_down";
                                     return "volume_mute";
                                 }
-                                color: Audio.sink.audio.muted ? Appearance.colors.colError : Appearance.colors.colPrimary
+                                color: (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) ? Appearance.colors.colError : Appearance.colors.colPrimary
                                 iconSize: 18
                             }
                         }
@@ -866,7 +900,7 @@ Scope {
 
                                 height: parent.height
                                 radius: 7
-                                color: Audio.sink.audio.muted ? Appearance.colors.colError : Appearance.colors.colPrimary
+                                color: (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) ? Appearance.colors.colError : Appearance.colors.colPrimary
                                 Behavior on width {
                                     enabled: islandContainer.mode === 1
                                     NumberAnimation { duration: 120; easing.type: Easing.OutQuad }

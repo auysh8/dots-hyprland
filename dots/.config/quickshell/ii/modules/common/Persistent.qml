@@ -74,6 +74,10 @@ Singleton {
                 }
             }
 
+            property JsonObject appDrawer: JsonObject {
+                property list<string> recentApps: []
+            }
+
             property JsonObject booru: JsonObject {
                 property bool allowNsfw: false
                 property string provider: "yandere"

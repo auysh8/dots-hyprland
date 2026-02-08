@@ -37,6 +37,7 @@ ShellRoot {
         Cliphist.refresh()
         Wallpapers.load()
         Updates.load()
+        DownloadService.load()
     }
 
 

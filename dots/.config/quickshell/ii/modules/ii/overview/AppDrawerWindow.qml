@@ -2,26 +2,26 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import qs
 
 Scope {
     id: root
-    property bool showDrawer: false
     property bool closing: false
     
     function closeWindow() {
-        if (root.showDrawer) {
+        if (GlobalStates.appDrawerOpen) {
             root.closing = true;
-            root.showDrawer = false;
+            GlobalStates.appDrawerOpen = false;
         }
     }
 
     IpcHandler {
         target: "app-drawer"
         function toggle() { 
-            if (root.showDrawer) root.closeWindow();
-            else root.showDrawer = true;
+            if (GlobalStates.appDrawerOpen) root.closeWindow();
+            else GlobalStates.appDrawerOpen = true;
         }
-        function open() { root.showDrawer = true }
+        function open() { GlobalStates.appDrawerOpen = true }
         function close() { root.closeWindow() }
     }
 
@@ -29,9 +29,10 @@ Scope {
         model: Quickshell.screens
         PanelWindow {
             id: window
+            property var modelData
             screen: modelData
             anchors { top: true; bottom: true; left: true; right: true }
-            visible: root.showDrawer || root.closing
+            visible: GlobalStates.appDrawerOpen || root.closing
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "app-drawer"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
@@ -52,7 +53,7 @@ Scope {
             ApplicationDrawer {
                 id: drawer
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: root.showDrawer ? (parent.height - height) / 2 : -height
+                y: GlobalStates.appDrawerOpen ? (parent.height - height) / 2 : -height
                 
                 width: parent.width * 0.7
                 height: parent.height * 0.8
@@ -61,7 +62,7 @@ Scope {
                 availableHeight: window.height
                 
                 onActiveFocusChanged: {
-                    if (!activeFocus && root.showDrawer && !root.closing) {
+                    if (!activeFocus && GlobalStates.appDrawerOpen && !root.closing) {
                         root.closeWindow();
                     }
                 }
@@ -69,10 +70,10 @@ Scope {
                 Behavior on y {
                     NumberAnimation {
                         id: slideAnim
-                        duration: root.showDrawer ? 600 : 400
-                        easing.type: root.showDrawer ? Easing.OutExpo : Easing.InExpo
+                        duration: GlobalStates.appDrawerOpen ? 600 : 400
+                        easing.type: GlobalStates.appDrawerOpen ? Easing.OutExpo : Easing.InExpo
                         onRunningChanged: {
-                            if (!running && !root.showDrawer) {
+                            if (!running && !GlobalStates.appDrawerOpen) {
                                 root.closing = false;
                             }
                         }
@@ -80,7 +81,7 @@ Scope {
                 }
             }
             
-            onVisibleChanged: { if (visible) drawer.forceActiveFocus(); }
+            onVisibleChanged: { if (visible) drawer.focusSearchField(); }
         }
     }
 }

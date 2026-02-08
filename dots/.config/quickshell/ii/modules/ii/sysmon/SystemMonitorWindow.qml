@@ -29,6 +29,7 @@ Scope {
         model: Quickshell.screens
         PanelWindow {
             id: window
+            property var modelData
             screen: modelData
             anchors { top: true; bottom: true; left: true; right: true }
             visible: root.showMonitor || root.closing

@@ -1,0 +1,9 @@
+{
+    "name": "com.quickshell.downloadmonitor",
+    "description": "Quickshell Download Monitor",
+    "path": "/home/auysh/.config/quickshell/ii/browser-extension/native/download_monitor.py",
+    "type": "stdio",
+    "allowed_extensions": [
+        "download-monitor@quickshell.org"
+    ]
+}

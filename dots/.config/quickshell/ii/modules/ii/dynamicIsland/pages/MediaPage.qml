@@ -12,12 +12,12 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.modules.common.models
 
-import "pages"
+
 
 Item {
     id: root
     clip: false
-    implicitHeight: mainLayout.implicitHeight + 32 // Add margins to height
+    implicitHeight: mainLayout.implicitHeight + 20 // Add margins to height
 
     // Player switching
     readonly property var availablePlayers: MprisController.players
@@ -174,8 +174,8 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 12
-        spacing: 6
+        anchors.margins: 10
+        spacing: 2
 
         // Top Row (Title + Player Badge)
         RowLayout {
@@ -268,6 +268,14 @@ Item {
                     }
                 }
             }
+        }
+
+
+
+        // Spacer to push slider and controls down
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 10
         }
 
         // Squiggly Slider

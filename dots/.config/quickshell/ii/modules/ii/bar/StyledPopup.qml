@@ -1,10 +1,10 @@
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Wayland
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
-import QtQuick
-import QtQuick.Effects
-import Quickshell
-import Quickshell.Wayland
 
 LazyLoader {
     id: root
@@ -27,6 +27,9 @@ LazyLoader {
         implicitWidth: popupBackground.implicitWidth + Appearance.sizes.elevationMargin * 2 + root.popupBackgroundMargin
         implicitHeight: popupBackground.implicitHeight + Appearance.sizes.elevationMargin * 2 + root.popupBackgroundMargin
 
+        property bool loaded: false
+        Component.onCompleted: loaded = true
+
         mask: Region {
             item: popupBackground
         }
@@ -35,18 +38,22 @@ LazyLoader {
         exclusiveZone: 0
         margins {
             left: {
-                if (!Config.options.bar.vertical) return root.QsWindow?.mapFromItem(
-                    root.hoverTarget, 
-                    (root.hoverTarget.width - popupBackground.implicitWidth) / 2, 0
-                ).x;
+                if (!Config.options.bar.vertical) {
+                    const pos = root.QsWindow ? root.QsWindow.mapFromItem(
+                        root.hoverTarget, 
+                        (root.hoverTarget.width - popupBackground.implicitWidth) / 2, 0
+                    ) : { x: 0 };
+                    return pos.x - (Appearance.sizes.elevationMargin + root.popupBackgroundMargin * (!popupWindow.anchors.left));
+                }
                 return Appearance.sizes.verticalBarWidth
             }
             top: {
                 if (!Config.options.bar.vertical) return Appearance.sizes.barHeight;
-                return root.QsWindow?.mapFromItem(
+                const pos = root.QsWindow ? root.QsWindow.mapFromItem(
                     root.hoverTarget, 
-                    (root.hoverTarget.height - popupBackground.implicitHeight) / 2, 0
-                ).y;
+                    0, (root.hoverTarget.height - popupBackground.implicitHeight) / 2
+                ) : { y: 0 };
+                return pos.y - (Appearance.sizes.elevationMargin + root.popupBackgroundMargin * (!popupWindow.anchors.top));
             }
             right: Appearance.sizes.verticalBarWidth
             bottom: Appearance.sizes.barHeight
@@ -76,6 +83,17 @@ LazyLoader {
 
             border.width: 1
             border.color: Appearance.colors.colLayer0Border
+
+            // Transition animations
+            opacity: popupWindow.loaded ? 1 : 0
+            scale: popupWindow.loaded ? 1 : 0.95
+            
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+            }
+            Behavior on scale {
+                NumberAnimation { duration: 250; easing.type: Easing.OutBack }
+            }
         }
     }
 }

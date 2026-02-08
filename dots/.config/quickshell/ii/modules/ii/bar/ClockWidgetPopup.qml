@@ -35,35 +35,78 @@ StyledPopup {
     ColumnLayout {
         id: columnLayout
         anchors.centerIn: parent
-        spacing: 4
+        spacing: 12
+        Layout.preferredWidth: 200
 
-        StyledPopupHeaderRow {
-            icon: "calendar_month"
-            label: root.formattedDate
+        Column {
+            Layout.fillWidth: true
+            spacing: 2
+            StyledText {
+                text: {
+                    const hour = DateTime.clock.date.getHours();
+                    if (hour < 12) return Translation.tr("Good Morning");
+                    if (hour < 18) return Translation.tr("Good Afternoon");
+                    return Translation.tr("Good Evening");
+                }
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.Black
+                color: Appearance.m3colors.m3primary
+                opacity: 1.0
+            }
+            StyledText {
+                text: root.formattedDate
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.DemiBold
+                color: Appearance.colors.colOnSurface
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: Appearance.colors.colOutlineVariant
+            opacity: 0.5
         }
 
         StyledPopupValueRow {
             icon: "timelapse"
             label: Translation.tr("System uptime:")
             value: root.formattedUptime
+            bold: true
         }
 
-        // Tasks
-        Column {
-            spacing: 0
+        // Tasks Section
+        ColumnLayout {
+            spacing: 8
             Layout.fillWidth: true
+            Layout.topMargin: 4
 
-            StyledPopupValueRow {
-                icon: "checklist"
-                label: Translation.tr("To Do:")
-                value: ""
+            RowLayout {
+                spacing: 6
+                MaterialSymbol {
+                    iconSize: 20
+                    text: "checklist"
+                    color: Appearance.m3colors.m3secondary
+                }
+                StyledText {
+                    text: Translation.tr("Upcoming Tasks")
+                    font.weight: Font.Black
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnSurface
+                }
             }
 
             StyledText {
+                id: todoTextItem
+                Layout.fillWidth: true
                 horizontalAlignment: Text.AlignLeft
                 wrapMode: Text.Wrap
+                font.pixelSize: Appearance.font.pixelSize.small
                 color: Appearance.colors.colOnSurfaceVariant
                 text: root.todosSection
+                lineHeight: 1.3
             }
         }
     }

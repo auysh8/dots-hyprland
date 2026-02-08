@@ -88,13 +88,18 @@ def clean_youtube_title(title, artist):
     suffixes_to_remove = [
         " - YouTube Music", " - YouTube", " (Official Video)", " (Official Audio)",
         " (Official Music Video)", " (Lyric Video)", " (Lyrics)",
-        " [Official Video]", " [Official Audio]"
+        " [Official Video]", " [Official Audio]",
+        " (Remastered)", " [Remastered]", " - Remastered",
+        " (Remaster)", " [Remaster]", " - Remaster"
     ]
     
     clean_title = title
     for suffix in suffixes_to_remove:
         if clean_title.endswith(suffix):
             clean_title = clean_title[:-len(suffix)]
+            
+    # Remove (feat. X) / [ft. X] / (featuring X)
+    clean_title = re.sub(r'\s*[\(\[][\s]*(?:feat\.?|ft\.?|featuring)\s+.*?[\)\]]', '', clean_title, flags=re.IGNORECASE)
     
     # Extract artist from "Title - Artist" format if artist is missing
     if not artist and " - " in clean_title:
@@ -425,18 +430,54 @@ def fetch_lyrics(title, artist, album="", duration=0):
 
     # Helper to process and cache results
     def process_result(data, method="get"):
-        lrc_content = data.get("syncedLyrics") or data.get("plainLyrics")
-        if lrc_content:
-            lyrics = parse_lrc(lrc_content)
-            if lyrics:
-                with open(cache_path, 'w') as f:
-                    json.dump({
-                        "lyrics": lyrics,
-                        "source": "lrclib",
-                        "method": method,
-                        "timestamp": time.time()
-                    }, f)
-                return lyrics
+        # Prefer synced lyrics, fall back to plain
+        synced = data.get("syncedLyrics")
+        plain = data.get("plainLyrics")
+        
+        lyrics = None
+        
+        # Try synced lyrics first (has timestamps)
+        if synced:
+            lyrics = parse_lrc(synced)
+        
+        # If synced failed or empty, try parsing plain as LRC (some plain have timestamps)
+        if not lyrics and plain:
+            lyrics = parse_lrc(plain)
+        
+        # If still no lyrics but plain text exists, create unsynced entries
+        # This allows displaying lyrics without sync (static display)
+        if not lyrics and plain:
+            log_debug("No synced lyrics, falling back to plain text")
+            lines = [line.strip() for line in plain.split('\n') if line.strip()]
+            if lines:
+                # Distribute lines evenly across the song duration for rough sync
+                track_duration = data.get("duration", 180)  # Default 3 min
+                if track_duration <= 0:
+                    track_duration = 180
+                
+                # Leave 10% margin at start and end
+                start_time = track_duration * 0.05
+                end_time = track_duration * 0.95
+                interval = (end_time - start_time) / max(len(lines), 1)
+                
+                lyrics = []
+                for i, line in enumerate(lines):
+                    lyrics.append({
+                        "time": start_time + i * interval,
+                        "text": line,
+                        "words": []  # No word-level sync for plain lyrics
+                    })
+        
+        if lyrics:
+            with open(cache_path, 'w') as f:
+                json.dump({
+                    "lyrics": lyrics,
+                    "source": "lrclib",
+                    "method": method,
+                    "synced": bool(synced),  # Track if we had real sync
+                    "timestamp": time.time()
+                }, f)
+            return lyrics
         return None
 
     # 2. Try EXACT MATCH (/get endpoint)

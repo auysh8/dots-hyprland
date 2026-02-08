@@ -1,0 +1,415 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Effects
+import Quickshell
+import qs.modules.common
+import qs.modules.common.widgets
+
+Item {
+    id: root
+    
+    property bool isFullscreen: false
+    property color contentColor: "white"
+    property color secondaryContentColor: "gray"
+    property color pillColor: "white"
+    property color pillContentColor: "black"
+    
+    property var activePlayer: null
+    property var lyricsModel: null
+    property int lyricsCount: 0
+    property bool isRecognizing: false
+    property bool isPlaying: false
+    property bool lyricsLoaded: false
+    property int currentLine: -1
+    property bool isResizing: false
+    
+    signal fullscreenToggled()
+    signal closeRequested()
+    
+    // Internal scrolling logic
+    property bool manualScrollMode: false
+    
+    // Auto-scroll when currentLine changes
+    onCurrentLineChanged: {
+        if (!manualScrollMode && currentLine >= 0 && currentLine < lyricsCount && lyricsLoaded) {
+             lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+        }
+    }
+    
+    // Auto-scroll when lyrics load
+    onLyricsLoadedChanged: {
+        if (lyricsLoaded && currentLine >= 0) {
+            lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+        }
+    }
+
+    // Window Controls (Top-Right)
+    Row {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        spacing: 8
+        z: 10
+        
+        // Helper component for M3 Icon Buttons
+        component M3IconButton: Rectangle {
+            id: btnRoot
+            property string iconName: ""
+            property var action: null
+            property bool active: false
+            
+            width: 32
+            height: 32
+            radius: 16
+            
+            color: btnArea.containsMouse 
+                ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
+                : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
+            
+            Behavior on color { ColorAnimation { duration: 150 } }
+            
+            MaterialSymbol {
+                anchors.centerIn: parent
+                text: btnRoot.iconName
+                iconSize: 18
+                color: root.contentColor
+                opacity: 0.8
+            }
+            
+            MouseArea {
+                id: btnArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (btnRoot.action) btnRoot.action()
+            }
+        }
+
+        // Fullscreen / View Mode Button
+        M3IconButton {
+            iconName: root.isFullscreen ? "branding_watermark" : "crop_free"
+            action: () => root.fullscreenToggled()
+        }
+
+        // Close Button
+        M3IconButton {
+            iconName: "close"
+            action: () => root.closeRequested()
+        }
+    }
+    
+    Item {
+        anchors.fill: parent
+        anchors.topMargin: 48
+        anchors.bottomMargin: 16
+        clip: true
+
+        // VISIBLE: Only while actively waiting for data OR recognizing
+        Item {
+            id: loaderContainer
+            anchors.centerIn: parent
+            width: 64
+            height: 64
+            visible: root.lyricsCount === 0 && (root.isRecognizing || (root.isPlaying && !root.lyricsLoaded))
+            
+            MaterialCookie {
+                id: loadingCookie
+                anchors.fill: parent
+                anchors.margins: 4
+                color: root.secondaryContentColor
+                sides: 12 
+                Behavior on sides { NumberAnimation { duration: 0 } }
+            }
+
+            RotationAnimator {
+                target: loadingCookie
+                from: 0; to: 360
+                duration: 2000
+                loops: Animation.Infinite
+                running: loaderContainer.visible // Only spin if visible
+            }
+        }
+
+        Timer {
+            interval: 800
+            running: loaderContainer.visible // Only morph if visible
+            repeat: true
+            triggeredOnStart: true
+            onTriggered: {
+                const shapes = [0, 4, 5, 6, 12]
+                let next = shapes[Math.floor(Math.random() * shapes.length)]
+                while (next === loadingCookie.sides) {
+                    next = shapes[Math.floor(Math.random() * shapes.length)]
+                }
+                loadingCookie.sides = next
+            }
+        }
+
+        // 2. The Status Text
+        // VISIBLE: If we are paused OR if we finished loading and found nothing
+        Text {
+            anchors.centerIn: parent
+            
+            // Dynamic text based on state
+            text: root.isPlaying ? "No lyrics found" : "♪ Play some music ♪"
+            
+            color: root.secondaryContentColor
+            opacity: 0.6
+            font.pixelSize: 18
+            font.family: "Inter, Segoe UI, sans-serif"
+            
+            // Show if (Recognizing) OR (Lyrics Empty AND (Not Playing OR Loaded))
+            visible: (root.lyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded)) && !root.isRecognizing
+        }
+
+        // 3. The Lyrics List
+        ListView {
+            id: lyricsView
+            visible: root.lyricsCount > 0
+            anchors.fill: parent
+            anchors.margins: 16
+            model: root.lyricsModel
+            spacing: 16
+            clip: true
+            
+            // Manual scroll tracking
+            onFlickStarted: {
+                root.manualScrollMode = true
+                manualScrollTimer.restart()
+            }
+            
+            onDraggingChanged: {
+                if (dragging) {
+                    root.manualScrollMode = true
+                    manualScrollTimer.stop()
+                } else {
+                    manualScrollTimer.restart()
+                }
+            }
+            
+            // Timer to reset manual mode after inactivity
+            Timer {
+                id: manualScrollTimer
+                interval: 3000
+                onTriggered: root.manualScrollMode = false
+            }
+            
+            // Function to re-sync to current line
+            function resync() {
+                root.manualScrollMode = false
+                manualScrollTimer.stop()
+                positionViewAtIndex(root.currentLine, ListView.Center)
+            }
+            
+            // Highlight configuration
+            highlightRangeMode: root.manualScrollMode ? ListView.NoHighlightRange : ListView.ApplyRange
+            preferredHighlightBegin: height * 0.25
+            preferredHighlightEnd: height * 0.25
+            highlightMoveDuration: root.isResizing ? 0 : 600 
+            highlightResizeDuration: root.isResizing ? 0 : 600// Controls the slide speed (vertical)
+            highlightMoveVelocity: -1
+            
+            // --- NEW: The Sliding Pill ---
+            highlight: Item {
+                // This Item automatically moves to cover the current lyric line
+                
+                Rectangle {
+                    anchors.centerIn: parent
+                    // Match height of delegate minus spacing/padding
+                    height: parent.height - 12
+                    
+                    // Bind width to the specific text width of the current line
+                    width: lyricsView.currentItem ? lyricsView.currentItem.pillWidth : 0
+                    
+                    radius: height / 2
+                    color: root.pillColor
+                    opacity: 1.0
+                    border.color: Qt.rgba(1,1,1,0.1)
+                    border.width: 1
+                    
+                    // Animate the width resizing as it slides
+                    Behavior on width { 
+                        // DISABLE animation when resizing window so it stays locked to text
+                        enabled: !root.isResizing
+                        NumberAnimation { duration: 500; easing.type: Easing.OutCubic } 
+                    }
+                    Behavior on height { 
+                        NumberAnimation { duration: 500; easing.type: Easing.OutCubic } 
+                    }
+                }
+            }
+
+            currentIndex: root.manualScrollMode ? currentIndex : root.currentLine
+            
+            delegate: Item {
+                id: lyricItem
+                width: ListView.view.width
+                height: lyricText.implicitHeight + (isCurrent ? 32 : 16)
+                
+                readonly property bool isCurrent: ListView.isCurrentItem
+                readonly property int distance: Math.abs(index - ListView.view.currentIndex)
+                
+                // --- NEW: Expose width for the highlight to read ---
+                property real pillWidth: Math.min(lyricText.implicitWidth + 48, width - 16)
+                
+                // Hover and click state
+                property bool isHovered: lyricMouseArea.containsMouse
+                property bool isPressed: lyricMouseArea.pressed
+                
+                // Click feedback scale
+                property real clickScale: 1.0
+                
+                transform: Scale {
+                    origin.x: lyricItem.width / 2
+                    origin.y: lyricItem.height / 2
+                    xScale: lyricItem.clickScale
+                    yScale: lyricItem.clickScale
+                }
+                
+                Behavior on clickScale {
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                }
+
+                // Click to seek to this lyric's timestamp
+                MouseArea {
+                    id: lyricMouseArea
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: {
+                        if (root.activePlayer && model.time !== undefined) {
+                            console.log("[Lyrics] Seeking to:", model.time)
+                            // Click feedback animation
+                            lyricItem.clickScale = 0.95
+                            clickResetTimer.start()
+                            root.activePlayer.position = model.time
+                        }
+                    }
+                    
+                    Timer {
+                        id: clickResetTimer
+                        interval: 100
+                        onTriggered: lyricItem.clickScale = 1.0
+                    }
+                }
+                
+                // Hover highlight background
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: lyricText.implicitWidth + 24
+                    height: lyricText.implicitHeight + 8
+                    radius: 8
+                    color: root.contentColor
+                    opacity: lyricItem.isHovered && !lyricItem.isCurrent ? 0.1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                }
+                
+                Text {
+                    id: lyricText
+                    anchors.centerIn: parent
+                    width: parent.width - 48
+                    horizontalAlignment: Text.AlignHCenter
+                    
+                    // KARAOKE LOGIC
+                    property var wordList: {
+                        if (!model.words) return []
+                        try { return JSON.parse(model.words) } catch(e) { return [] }
+                    }
+
+                    textFormat: (lyricItem.isCurrent && wordList && wordList.length > 0) ? Text.RichText : Text.PlainText
+                    
+                    text: {
+                        if (lyricItem.isCurrent && wordList && wordList.length > 0) {
+                            // Trigger update on position change
+                            const pos = root.activePlayer ? root.activePlayer.position : 0
+                            const activeColor = root.pillContentColor.toString()
+                            const inactiveColor = Qt.rgba(root.pillContentColor.r, root.pillContentColor.g, root.pillContentColor.b, 0.5).toString()
+                            
+                            let html = ""
+                            for (let i = 0; i < wordList.length; i++) {
+                                let w = wordList[i]
+                                let c = (pos >= w.time) ? activeColor : inactiveColor
+                                html += `<font color="${c}">${w.text}</font> `
+                            }
+                            return html
+                        }
+                        return model.text
+                    }
+
+                    z:2
+                    
+                    // Color logic for plain text mode (fallback)
+                    color: lyricItem.isCurrent ? root.pillContentColor : root.secondaryContentColor
+
+                    Behavior on color { 
+                        ColorAnimation { duration: 400; easing.type: Easing.InOutQuad } 
+                    }
+                    
+                    font.pixelSize: lyricItem.isCurrent ? (root.isFullscreen ? 42 : 26) : (root.isFullscreen ? 32 : 20)
+                    font.weight: lyricItem.isCurrent ? Font.Bold : Font.Normal
+                    font.family: "Inter, Segoe UI, sans-serif"
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
+                    
+                    opacity: {
+                        if (lyricItem.isCurrent) return 1.0
+                        if (lyricItem.distance === 1) return 0.6
+                        if (lyricItem.distance === 2) return 0.35
+                        return 0.15
+                    }
+                    
+                    Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.InOutQuad } }
+                    Behavior on font.pixelSize { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+                }
+            }
+        }
+        
+        // Floating re-sync button
+        Rectangle {
+            id: resyncButton
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: root.manualScrollMode ? 20 : -60
+            width: 140
+            height: 44
+            radius: 22
+            color: root.pillColor
+            opacity: root.manualScrollMode ? 1.0 : 0
+            visible: opacity > 0
+            
+            Behavior on anchors.bottomMargin { 
+                NumberAnimation { duration: 250; easing.type: Easing.OutCubic } 
+            }
+            Behavior on opacity { 
+                NumberAnimation { duration: 200 } 
+            }
+            
+            Row {
+                anchors.centerIn: parent
+                spacing: 8
+                
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "sync"
+                    iconSize: 20
+                    color: root.pillContentColor
+                }
+                
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Re-sync"
+                    color: root.pillContentColor
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                    font.family: "Inter, Segoe UI, sans-serif"
+                }
+            }
+            
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: lyricsView.resync()
+            }
+        }
+    }
+}

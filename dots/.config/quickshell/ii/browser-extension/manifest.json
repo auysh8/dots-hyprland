@@ -1,0 +1,24 @@
+{
+    "manifest_version": 2,
+    "name": "Quickshell Download Monitor",
+    "version": "1.0",
+    "description": "Sends download progress to Quickshell Dynamic Island",
+    "icons": {
+        "48": "icons/icon-48.png"
+    },
+    "background": {
+        "scripts": [
+            "background.js"
+        ]
+    },
+    "permissions": [
+        "downloads",
+        "nativeMessaging"
+    ],
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "download-monitor@quickshell.org",
+            "strict_min_version": "50.0"
+        }
+    }
+}

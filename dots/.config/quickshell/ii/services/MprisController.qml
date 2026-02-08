@@ -77,10 +77,30 @@ Singleton {
 			}
 
 			function onPlaybackStateChanged() {
-				if (root.trackedPlayer !== modelData) root.trackedPlayer = modelData;
+				if (root.trackedPlayer !== modelData && modelData.playbackState === MprisPlaybackState.Playing) {
+                    root.trackedPlayer = modelData;
+                }
 			}
 		}
 	}
+
+    // Watchdog to catch players that start playing without emitting a proper signal (common with KDE Connect/Web browsers)
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: {
+            // If current player is NOT playing, look for one that IS
+            if (!root.trackedPlayer || root.trackedPlayer.playbackState !== MprisPlaybackState.Playing) {
+                for (const player of root.players) {
+                    if (player.playbackState === MprisPlaybackState.Playing) {
+                        root.trackedPlayer = player;
+                        return;
+                    }
+                }
+            }
+        }
+    }
 
 	Connections {
 		target: activePlayer
