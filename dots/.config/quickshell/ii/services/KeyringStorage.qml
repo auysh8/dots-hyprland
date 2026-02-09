@@ -89,8 +89,9 @@ Singleton {
 
     Process {
         id: getData
-        command: [ // We need to use echo for a newline so splitparser does parse
-            "bash", "-c", `${Directories.scriptPath}/keyring/try_lookup.sh 2> /dev/null`,
+        command: [
+            "secret-tool", "lookup",
+            ...propertiesAsArgs,
         ]
         stdout: StdioCollector {
             id: keyringDataOutputCollector

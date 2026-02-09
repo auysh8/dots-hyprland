@@ -1,2 +1,7 @@
 [Style]
+DolphinSidebarOpacity=70
+DolphinViewOpacity=70
+MenuBarOpacity=70
+MenuOpacity=70
+ToolBarOpacity=70
 WidgetDrawShadow=false
