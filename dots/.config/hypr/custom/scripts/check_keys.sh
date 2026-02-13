@@ -49,6 +49,6 @@ while true; do
         LAST_NUM="$CUR_NUM"
     fi
 
-    sleep 0.1
+    sleep 0.5
 done
 

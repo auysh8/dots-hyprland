@@ -204,7 +204,7 @@ Singleton {
                         }
                     }
                     property JsonObject weather: JsonObject {
-                        property bool enable: false
+                        property bool enable: true
                         property string placementStrategy: "free" // "free", "leastBusy", "mostBusy"
                         property real x: 400
                         property real y: 100

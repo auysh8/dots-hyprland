@@ -1,6 +1,10 @@
 import json
 import random
 import os
+import time
+
+# Wait for system to settle
+time.sleep(5)
 
 # 1. The correct path we found in your config folder
 config_path = os.path.expanduser("~/.config/illogical-impulse/config.json")

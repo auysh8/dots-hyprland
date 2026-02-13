@@ -53,30 +53,35 @@ Scope {
             ApplicationDrawer {
                 id: drawer
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: GlobalStates.appDrawerOpen ? (parent.height - height) / 2 : -height
+                y: (parent.height - height) / 2
                 
                 width: parent.width * 0.7
                 height: parent.height * 0.8
                 expanded: true
                 availableWidth: window.width
                 availableHeight: window.height
-                
-                onActiveFocusChanged: {
-                    if (!activeFocus && GlobalStates.appDrawerOpen && !root.closing) {
-                        root.closeWindow();
+
+                opacity: GlobalStates.appDrawerOpen ? 1 : 0
+                scale: GlobalStates.appDrawerOpen ? 1 : 0.9
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutQuad
+                        onRunningChanged: if (!running && !GlobalStates.appDrawerOpen) root.closing = false
+                    }
+                }
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutQuad
                     }
                 }
                 
-                Behavior on y {
-                    NumberAnimation {
-                        id: slideAnim
-                        duration: GlobalStates.appDrawerOpen ? 600 : 400
-                        easing.type: GlobalStates.appDrawerOpen ? Easing.OutExpo : Easing.InExpo
-                        onRunningChanged: {
-                            if (!running && !GlobalStates.appDrawerOpen) {
-                                root.closing = false;
-                            }
-                        }
+                onActiveFocusChanged: {
+                    if (!activeFocus && GlobalStates.appDrawerOpen) {
+                        root.closeWindow();
                     }
                 }
             }

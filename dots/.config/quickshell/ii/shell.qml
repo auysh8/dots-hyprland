@@ -12,6 +12,7 @@ import "panelFamilies"
 import "kdeConnect"
 import "modules/ii/overview"
 import "lyricsLayer"
+import "notesLayer"
 
 import QtQuick
 import QtQuick.Window
@@ -27,6 +28,7 @@ ShellRoot {
     AppDrawerWindow {}
     OtherPopup {}
     LyricsWindow {}
+    NotesWindow {}
     KDEDrawer {}
 
     Component.onCompleted: {

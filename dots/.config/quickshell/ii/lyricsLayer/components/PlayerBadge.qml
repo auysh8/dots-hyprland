@@ -8,7 +8,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 
-Row {
+Item {
     id: root
     
     property string playerName: ""
@@ -36,59 +36,95 @@ Row {
     anchors.top: parent.top
     anchors.left: parent.left
     anchors.margins: isFullscreen ? 60 : 30
-    spacing: 8
+    
+    implicitWidth: contentRow.width
+    implicitHeight: contentRow.height
+    
     z: 100
     
-    // Player indicator badge (top-left) - clickable for switching
-    Rectangle {
-        id: playerBadge
-        height: 36
-        width: playerRow.width + 24
-        radius: 18
-        color: playerBadgeArea.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
-        visible: root.playerName !== ""
-    
-        Behavior on color { ColorAnimation { duration: 150 } }
+    Row {
+        id: contentRow
+        spacing: 8
         
-        Row {
-            id: playerRow
-            anchors.centerIn: parent
+        // Player indicator badge (top-left) - clickable for switching
+        Rectangle {
+            id: playerBadge
+            height: 36
+            width: playerRow.width + 24
+            radius: 18
+            color: playerBadgeArea.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
+            visible: root.playerName !== ""
+        
+            Behavior on color { ColorAnimation { duration: 150 } }
             
-            spacing: 8
-            
-            MaterialSymbol {
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.isSpotify ? "music_note" : "headphones"
-                iconSize: 18
-                color: root.secondaryContentColor
+            Row {
+                id: playerRow
+                anchors.centerIn: parent
+                
+                spacing: 8
+                
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.isSpotify ? "music_note" : "headphones"
+                    iconSize: 18
+                    color: root.secondaryContentColor
+                }
+                
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.playerName
+                    color: root.secondaryContentColor
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                    font.family: "Inter, Segoe UI, sans-serif"
+                }
+                
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.showPlayerPicker ? "expand_less" : "expand_more"
+                    iconSize: 14
+                    color: root.secondaryContentColor
+                    visible: root.availablePlayers.length > 1
+                }
             }
             
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.playerName
-                color: root.secondaryContentColor
-                font.pixelSize: 13
-                font.weight: Font.Medium
-                font.family: "Inter, Segoe UI, sans-serif"
-            }
-            
-            MaterialSymbol {
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.showPlayerPicker ? "expand_less" : "expand_more"
-                iconSize: 14
-                color: root.secondaryContentColor
-                visible: root.availablePlayers.length > 1
+            MouseArea {
+                id: playerBadgeArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: root.availablePlayers.length > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onClicked: {
+                    if (root.availablePlayers.length > 1) {
+                       root.togglePicker()
+                    }
+                }
             }
         }
         
-        MouseArea {
-            id: playerBadgeArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: root.availablePlayers.length > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: {
-                if (root.availablePlayers.length > 1) {
-                   root.togglePicker()
+        // Lyrics visibility toggle button (fullscreen only)
+        Rectangle {
+            height: 36
+            width: 36
+            radius: 18
+            color: lyricsToggleArea.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
+            visible: root.isFullscreen
+            
+            Behavior on color { ColorAnimation { duration: 150 } }
+            
+            MaterialSymbol {
+                anchors.centerIn: parent
+                text: root.forceCenteredMode ? "lyrics" : "notes"
+                iconSize: 14
+                color: root.secondaryContentColor
+            }
+            
+            MouseArea {
+                id: lyricsToggleArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    root.modeToggled()
                 }
             }
         }
@@ -97,9 +133,9 @@ Row {
     // Player picker dropdown
     Item { // Container
         id: popupContainer
-        anchors.top: root.bottom // relative to Row
+        anchors.top: contentRow.bottom // aligned to content row
         anchors.topMargin: 4
-        anchors.left: root.left
+        anchors.left: contentRow.left
         width: 260
         height: playerPickerColumn.height + 16  // Account for 8px margins on each side
         visible: popupOpacity > 0 || root.showPlayerPicker
@@ -268,34 +304,6 @@ Row {
                         }
                     }
                 }
-            }
-        }
-    }
-    
-    // Lyrics visibility toggle button (fullscreen only)
-    Rectangle {
-        height: 36
-        width: 36
-        radius: 18
-        color: lyricsToggleArea.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
-        visible: root.isFullscreen
-        
-        Behavior on color { ColorAnimation { duration: 150 } }
-        
-        MaterialSymbol {
-            anchors.centerIn: parent
-            text: root.forceCenteredMode ? "lyrics" : "notes"
-            iconSize: 14
-            color: root.secondaryContentColor
-        }
-        
-        MouseArea {
-            id: lyricsToggleArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-                root.modeToggled()
             }
         }
     }

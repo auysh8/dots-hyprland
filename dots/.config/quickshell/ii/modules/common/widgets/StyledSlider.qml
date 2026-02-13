@@ -31,49 +31,61 @@ Slider {
     property color dotColor: Appearance.m3colors.m3onSecondaryContainer
     property color dotColorHighlighted: Appearance.m3colors.m3onPrimary
     property real unsharpenRadius: Appearance.rounding.unsharpen
-    
+
+    // Track thickness — bound directly to configuration, NO animation.
+    // Wavy=4, Sleek=6, etc. Snaps instantly on config change.
     property real trackWidth: configuration
-    
-    // [CHANGED] 1. Smoothly animate the thickness of the track when config changes
-    Behavior on trackWidth {
-        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
-    }
 
     property real trackRadius: trackWidth >= StyledSlider.Configuration.XL ? 21
         : trackWidth >= StyledSlider.Configuration.L ? 12
         : trackWidth >= StyledSlider.Configuration.M ? 9
         : trackWidth >= StyledSlider.Configuration.S ? 6
         : height / 2
-        
+
     property real handleHeight: (configuration === StyledSlider.Configuration.Wavy || configuration === StyledSlider.Configuration.Sleek) ? 24 : Math.max(33, trackWidth + 9)
-    
-    // [CHANGED] 2. Smoothly animate the handle height
-    Behavior on handleHeight {
-        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
-    }
-    
+
     property real handleWidth: root.pressed ? handlePressedWidth : handleDefaultWidth
     property real handleMargins: 4
     property real trackDotSize: 3
     property bool usePercentTooltip: true
     property string tooltipContent: usePercentTooltip ? `${Math.round(((value - from) / (to - from)) * 100)}%` : `${Math.round(value)}`
-    
+
     property bool wavy: configuration === StyledSlider.Configuration.Wavy
     property bool animateWave: true
-    
-    // [CHANGED] 3. Create an animated amplitude property
-    // This decouples the "target" state from the "visual" state
-    property real animatedAmplitudeMultiplier: wavy ? 0.5 : 0.0
-    Behavior on animatedAmplitudeMultiplier {
-        NumberAnimation { duration: 500; easing.type: Easing.OutCubic }
+
+    // Wave amplitude — set imperatively to avoid initialization races.
+    // Instant on init, animated on subsequent wavy↔straight changes.
+    property real amplitudeMultiplier: 0
+
+    // Set correct initial value after all bindings are applied
+    Component.onCompleted: amplitudeMultiplier = wavy ? 0.5 : 0.0
+
+    // Explicit animation for wavy ↔ straight transitions
+    NumberAnimation {
+        id: ampAnim
+        target: root
+        property: "amplitudeMultiplier"
+        duration: 400
+        easing.type: Easing.OutCubic
     }
-    
+
+    onWavyChanged: {
+        ampAnim.stop()
+        ampAnim.from = amplitudeMultiplier
+        ampAnim.to = wavy ? 0.5 : 0.0
+        ampAnim.restart()
+    }
+
     property real waveFrequency: 6
     property real waveFps: 60
 
     leftPadding: handleMargins
     rightPadding: handleMargins
     property real effectiveDraggingWidth: width - leftPadding - rightPadding
+
+    // Pre-computed fill widths (clamped to 0)
+    readonly property real _leftW: Math.max(0, handleMargins + (visualPosition * effectiveDraggingWidth) - (handleWidth / 2 + handleMargins))
+    readonly property real _rightW: Math.max(0, handleMargins + ((1 - visualPosition) * effectiveDraggingWidth) - (handleWidth / 2 + handleMargins))
 
     Layout.fillWidth: true
     from: 0
@@ -113,76 +125,55 @@ Slider {
     background: Item {
         anchors.verticalCenter: parent.verticalCenter
         width: parent.width
-        implicitHeight: trackWidth
-        
-        // Fill left (Solid Rectangle)
-        Loader {
-            anchors {
-                verticalCenter: parent.verticalCenter
-                left: parent.left
-            }
-            width: root.handleMargins + (root.visualPosition * root.effectiveDraggingWidth) - (root.handleWidth / 2 + root.handleMargins)
-            height: root.trackWidth
-            
-            // [CHANGED] 4. Logic Update: Only show the solid rect if we are NOT wavy AND fully flattened
-            // This prevents it from snapping in while the wave is still animating down
-            active: !root.wavy && root.animatedAmplitudeMultiplier <= 0.01
-            
-            sourceComponent: Rectangle {
-                color: root.highlightColor
-                topLeftRadius: root.trackRadius
-                bottomLeftRadius: root.trackRadius
-                topRightRadius: root.unsharpenRadius
-                bottomRightRadius: root.unsharpenRadius
-            }
-        }
+        implicitHeight: root.trackWidth
 
-        // Fill left (Wavy Line)
-        Loader {
-            anchors {
-                verticalCenter: parent.verticalCenter
-                left: parent.left
-            }
-            width: root.handleMargins + (root.visualPosition * root.effectiveDraggingWidth) - (root.handleWidth / 2 + root.handleMargins)
-            height: root.height
-            
-            // [CHANGED] 4. Logic Update: Keep this active as long as we have SOME amplitude
-            // This allows the wave to "flatten out" visibly before we unload it
-            active: root.wavy || root.animatedAmplitudeMultiplier > 0.01
-            
-            sourceComponent: WavyLine {
-                id: wavyFill
-                frequency: root.waveFrequency
-                fullLength: root.width
-                color: root.highlightColor
-                
-                amplitudeMultiplier: root.animatedAmplitudeMultiplier
-                
-                width: root.handleMargins + (root.visualPosition * root.effectiveDraggingWidth) - (root.handleWidth / 2 + root.handleMargins)
-                height: root.height
-                lineWidth: root.trackWidth
-                Connections {
-                    target: root
-                    function onValueChanged() { wavyFill.requestPaint(); }
-                    function onHighlightColorChanged() { wavyFill.requestPaint(); }
-                }
-                FrameAnimation {
-                    running: root.animateWave
-                    onTriggered: {
-                        wavyFill.requestPaint()
-                    }
-                }
-            }   
-        }
-
-        // Fill right
+        // ─── LEFT FILL: Solid Rectangle (non-wavy modes) ───
         Rectangle {
-            anchors {
-                verticalCenter: parent.verticalCenter
-                right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            width: root._leftW
+            height: root.trackWidth
+            // Only show when NOT wavy AND amplitude has fully settled to 0
+            visible: !root.wavy && root.amplitudeMultiplier <= 0.01
+            color: root.highlightColor
+            topLeftRadius: root.trackRadius
+            bottomLeftRadius: root.trackRadius
+            topRightRadius: root.unsharpenRadius
+            bottomRightRadius: root.unsharpenRadius
+        }
+
+        // ─── LEFT FILL: Wavy Canvas (wavy mode) ───
+        // Always mounted — never destroyed/recreated by a Loader.
+        // Hidden via `visible` when not in wavy mode.
+        WavyLine {
+            id: wavyFill
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            width: root._leftW
+            // Use a safe fallback if root hasn't been laid out yet
+            height: root.height > 0 ? root.height : 24
+            // Stay visible during fadeout animation (amplitude > 0)
+            visible: root.wavy || root.amplitudeMultiplier > 0.01
+
+            frequency: root.waveFrequency
+            fullLength: Math.max(root.width, 1)
+            color: root.highlightColor
+            amplitudeMultiplier: root.amplitudeMultiplier
+            lineWidth: root.trackWidth
+
+            // Animate the wave continuously (only when visible)
+            FrameAnimation {
+                running: wavyFill.visible && root.animateWave
+                onTriggered: wavyFill.requestPaint()
             }
-            width: root.handleMargins + ((1 - root.visualPosition) * root.effectiveDraggingWidth) - (root.handleWidth / 2 + root.handleMargins)
-            height: trackWidth
+        }
+
+        // ─── RIGHT FILL: Unfilled track ───
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+            width: root._rightW
+            height: root.trackWidth
             color: root.trackColor
             topRightRadius: root.trackRadius
             bottomRightRadius: root.trackRadius

@@ -281,7 +281,7 @@ Item {
         // Squiggly Slider
         StyledSlider {
             Layout.fillWidth: true
-            Layout.preferredHeight: 24 // Give it some room for the wave
+            Layout.preferredHeight: 24
             
             configuration: (activePlayer && activePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
             highlightColor: root.contentColor

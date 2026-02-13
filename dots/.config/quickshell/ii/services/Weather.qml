@@ -41,8 +41,8 @@ Singleton {
         precip: 0,
         visib: 0,
         press: 0,
-        temp: 0,
-        tempFeelsLike: 0,
+        temp: "0°C",
+        tempFeelsLike: "0°C",
         lastRefresh: 0,
     })
 
@@ -81,7 +81,7 @@ Singleton {
     }
 
     function getData() {
-        let command = "curl -s wttr.in";
+        let command = "curl --max-time 10 -s wttr.in";
 
         if (root.gpsActive && root.location.valid) {
             command += `/${root.location.lat},${root.location.long}`;
@@ -158,10 +158,10 @@ Singleton {
     }
 
     Timer {
-        running: !root.gpsActive
+        running: true
         repeat: true
         interval: root.fetchInterval
-        triggeredOnStart: !root.gpsActive
+        triggeredOnStart: true
         onTriggered: root.getData()
     }
 }

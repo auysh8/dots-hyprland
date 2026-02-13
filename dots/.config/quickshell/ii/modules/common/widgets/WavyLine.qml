@@ -9,9 +9,22 @@ Canvas {
     property real lineWidth: 4
     property real fullLength: width
 
+    // Force repaint whenever any rendering property changes
+    onAmplitudeMultiplierChanged: requestPaint()
+    onFrequencyChanged: requestPaint()
+    onColorChanged: requestPaint()
+    onLineWidthChanged: requestPaint()
+    onFullLengthChanged: requestPaint()
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
+    onVisibleChanged: if (visible) requestPaint()
+
     onPaint: {
         var ctx = getContext("2d");
         ctx.clearRect(0, 0, width, height);
+
+        // Guard against invalid dimensions
+        if (width <= 0 || height <= 0 || root.lineWidth <= 0) return;
 
         var amplitude = root.lineWidth * root.amplitudeMultiplier;
         var frequency = root.frequency;
@@ -22,9 +35,11 @@ Canvas {
         ctx.lineWidth = root.lineWidth;
         ctx.lineCap = "round";
         ctx.beginPath();
-        for (var x = ctx.lineWidth / 2; x <= root.width - ctx.lineWidth / 2; x += 1) {
+        var startX = ctx.lineWidth / 2;
+        var endX = root.width - ctx.lineWidth / 2;
+        for (var x = startX; x <= endX; x += 1) {
             var waveY = centerY + amplitude * Math.sin(frequency * 2 * Math.PI * x / root.fullLength + phase);
-            if (x === 0)
+            if (x === startX)
                 ctx.moveTo(x, waveY);
             else
                 ctx.lineTo(x, waveY);
