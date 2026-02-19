@@ -576,6 +576,7 @@ FocusScope {
                         id: appButton
                         required property int index
                         required property var modelData
+                        property bool isPinned: TaskbarApps.isPinned(root.getAppId(modelData))
                         
                         width: appGrid.cellWidth - 10
                         height: appGrid.cellHeight - 10
@@ -629,8 +630,9 @@ FocusScope {
                                 Layout.fillWidth: true
                                 text: modelData.name
                                 horizontalAlignment: Text.AlignHCenter
-                                color: Appearance.colors.colOnLayer0
+                                color: appButton.isPinned ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0
                                 font.pixelSize: 13
+                                font.weight: appButton.isPinned ? Font.DemiBold : Font.Normal
                                 elide: Text.ElideRight
                                 wrapMode: Text.WordWrap
                                 maximumLineCount: 2
@@ -728,6 +730,10 @@ FocusScope {
                             
                             console.log("Showing toast:", msg);
                             root.showToast(msg);
+
+                            const line = "neutral|Dock|" + msg + "|notification|" + (isPinnedNow ? "pinned" : "unpinned");
+                            const safeLine = StringUtils.shellSingleQuoteEscape(line);
+                            Quickshell.execDetached(["bash", "-c", "echo '" + safeLine + "' >> /tmp/qs_popup.log"]);
                         }
                         root.contextMenuVisible = false;
                     }

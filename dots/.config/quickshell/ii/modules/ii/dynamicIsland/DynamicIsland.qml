@@ -676,7 +676,7 @@ Scope {
                                             case "notification": return "notifications";
                                             case "message": return "message";
                                             case "mail": return "mail";
-                                            case "update": return "system_update";
+                                            case "update": return "arrow_circle_down";
                                             case "camera": return "videocam";
                                             case "file": return "description";
                                             default:

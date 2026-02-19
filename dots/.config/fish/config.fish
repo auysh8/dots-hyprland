@@ -29,3 +29,5 @@ end
 
 # OpenClaw Completion
 source "/home/auysh/.openclaw/completions/openclaw.fish"
+
+fish_add_path /home/auysh/.spicetify
