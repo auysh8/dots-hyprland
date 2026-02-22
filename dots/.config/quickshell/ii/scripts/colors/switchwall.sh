@@ -155,6 +155,12 @@ set_thumbnail_path() {
     fi
 }
 
+categorize_wallpaper() {
+    img_cat=$("$SCRIPT_DIR/../ai/gemini-categorize-wallpaper.sh" "$1")
+    # notify-send "Wallpaper category" "$img_cat"
+    echo "$img_cat" > "$STATE_DIR/user/generated/wallpaper/category.txt"
+}
+
 switch() {
     local lockfile="/tmp/wallpaper_switch.lock"
     
@@ -171,9 +177,16 @@ switch() {
     color_flag="$4"
     color="$5"
 
+<<<<<<< HEAD
     if [[ -z "$imgpath" && "$color_flag" != "1" ]]; then
         echo 'Aborted'
         exit 0
+=======
+    # Start Gemini auto-categorization if enabled
+    aiStylingEnabled=$(jq -r '.background.widgets.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE")
+    if [[ "$aiStylingEnabled" == "true" ]]; then
+        categorize_wallpaper "$imgpath" &
+>>>>>>> origin/main
     fi
 
     # Handle wallpaper switching immediately in main thread
