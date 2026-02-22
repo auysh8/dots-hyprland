@@ -121,9 +121,6 @@ Scope {
                 property alias popupCategory: logic.popupCategory
                 property alias popupAction: logic.popupAction
                 
-                property alias micActive: logic.micActive
-                property alias cameraActive: logic.cameraActive
-                
                 property alias bluetoothDevices: logic.bluetoothDevices
                 property alias hasBluetoothDevices: logic.hasBluetoothDevices
                 
@@ -257,10 +254,10 @@ Scope {
                         hasFullscreen = fs;
                     }
 
-                    // Poll a few times a second so property stays accurate
+                    // Poll at a lower rate to reduce background CPU usage.
                     Timer {
                         id: hyprPoll
-                        interval: 700
+                        interval: 2000
                         repeat: true
                         running: true
                         onTriggered: islandContainer.updateHasOpenWindow()
@@ -508,32 +505,6 @@ Scope {
                             }
                         }
 
-                        // Privacy Indicators
-                        Row {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            anchors.top: parent.top
-                            anchors.topMargin: 6
-                            spacing: 6
-                            z: 100
-                            
-                            // Mic Indicator (Orange)
-                            Rectangle {
-                                width: 6
-                                height: 6
-                                radius: 3
-                                color: "#FF9500"
-                                visible: islandContainer.micActive
-                            }
-                            
-                            // Camera Indicator (Green)
-                            Rectangle {
-                                width: 6
-                                height: 6
-                                radius: 3
-                                color: "#4CD964"
-                                visible: islandContainer.cameraActive
-                            }
-                        }
                     }
 
                     // Collapsed content
@@ -676,7 +647,12 @@ Scope {
                                             case "notification": return "notifications";
                                             case "message": return "message";
                                             case "mail": return "mail";
-                                            case "update": return "arrow_circle_down";
+                                            case "update": return "update";
+                                            case "keyboard": return "keyboard";
+                                            case "notification":
+                                                if (islandContainer.popupAction === "pinned") return "push_pin";
+                                                if (islandContainer.popupAction === "unpinned") return "block";
+                                                return "notifications";
                                             case "camera": return "videocam";
                                             case "file": return "description";
                                             default:

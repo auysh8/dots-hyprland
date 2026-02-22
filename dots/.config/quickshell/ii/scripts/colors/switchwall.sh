@@ -238,10 +238,10 @@ switch() {
                 cp "$color_thumb" "$thumbnail"
                 set_thumbnail_path "$thumbnail"
             else
-                # For static images: Resize to 800x600 BEFORE color extraction
-                # This reduces processing time from 2-5 seconds to 0.1 seconds!
-                nice -n 10 ionice -c3 convert "$imgpath" \
-                    -resize 800x600\> \
+                # For static images: Resize to 256x256 BEFORE color extraction
+                # This reduces processing time significantly and saves CPU/heat.
+                nice -n 19 ionice -c3 convert "$imgpath" \
+                    -resize 256x256\> \
                     -quality 85 \
                     "$color_thumb" 2>/dev/null
             fi

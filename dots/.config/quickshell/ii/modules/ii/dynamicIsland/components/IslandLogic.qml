@@ -76,9 +76,6 @@ Connections {
 
     signal batteryEvent(bool plugged)
     
-    // Privacy
-    property bool micActive: false
-    
     // Bluetooth
     // [{name: "Device", battery: 80}]
     property var bluetoothDevices: []
@@ -129,7 +126,7 @@ Connections {
                 var parts = data.trim().split("|");
                 if (parts.length >= 3) {
                     var incomingType = parts[0].toLowerCase();
-                    var allowedTypes = ["neutral", "good", "bad"];
+                    var allowedTypes = ["neutral", "good", "bad", "toggle"];
                     if (!allowedTypes.includes(incomingType)) return;
                     
                     // Pre-normalize media messages to avoid flicker & spam check misses
@@ -191,6 +188,9 @@ Connections {
                         else if (t.includes("screenshot")) cat = "screenshot";
                         else if (t.includes("clipboard")) cat = "clipboard";
                         else if (t.includes("pomodoro")) cat = "pomodoro";
+                        else if (t.includes("update")) cat = "update";
+                        else if (t.includes("caps") || t.includes("num")) cat = "keyboard";
+                        else if (t.includes("dock") || t.includes("notification")) cat = "notification";
 
                         // Action inference for legacy scripts
                         if (act === "" && m !== "") {
@@ -251,52 +251,6 @@ Connections {
         id: clipboardWatcher
         command: ["wl-paste", "--watch", "bash", "-c", "echo 'neutral|Clipboard|Copied|clipboard|copied' >> /tmp/qs_popup.log"]
         running: true
-    }
-
-    // -------------------------------------------------------------------------
-    // Privacy (Mic) Watcher
-    // -------------------------------------------------------------------------
-    Timer {
-        interval: 2000
-        running: true
-        repeat: true
-        onTriggered: privacyProc.running = true
-    }
-    
-    Process {
-        id: privacyProc
-        command: ["sh", "-c", "pactl list source-outputs short | wc -l"]
-        running: true
-        stdout: SplitParser {
-            onRead: (data) => {
-                let count = parseInt(data.trim());
-                root.micActive = !isNaN(count) && count > 0;
-            }
-        }
-    }
-    
-    // -------------------------------------------------------------------------
-    // Privacy (Camera) Watcher
-    // -------------------------------------------------------------------------
-    property bool cameraActive: false
-    
-    Timer {
-        interval: 2000
-        running: true
-        repeat: true
-        onTriggered: cameraProc.running = true
-    }
-    
-    Process {
-        id: cameraProc
-        // Check for processes using any /dev/video* device
-        command: ["sh", "-c", "ls /dev/video* 2>/dev/null | xargs -r fuser 2>/dev/null | wc -w"]
-        stdout: SplitParser {
-            onRead: (data) => {
-                let count = parseInt(data.trim());
-                root.cameraActive = !isNaN(count) && count > 0;
-            }
-        }
     }
 
     // -------------------------------------------------------------------------

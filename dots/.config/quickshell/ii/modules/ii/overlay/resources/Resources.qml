@@ -34,6 +34,11 @@ StyledOverlayWidget {
             "history": ResourceUsage.swapUsageHistory,
             "maxAvailableString": ResourceUsage.maxAvailableSwapString
         },
+        {
+            "icon": "wifi", // Ensure "wifi" icon exists in your icon set or use a standard one
+            "name": Translation.tr("Network"),
+            "type": "network"
+        },
     ]
 
     contentItem: OverlayBackground {
@@ -67,10 +72,110 @@ StyledOverlayWidget {
                 }
             }
 
-            ResourceSummary {
-                Layout.margins: 8
-                history: root.resources[tabBar.currentIndex]?.history ?? []
-                maxAvailableString: root.resources[tabBar.currentIndex]?.maxAvailableString ?? "--"
+            StackLayout {
+                currentIndex: root.resources[tabBar.currentIndex]?.type === "network" ? 1 : 0
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                ResourceSummary {
+                    Layout.margins: 8
+                    // Safe fallback for when we are on the Network tab (which has no history)
+                    history: (root.resources[tabBar.currentIndex]?.type === "network") 
+                             ? [0.0] 
+                             : (root.resources[tabBar.currentIndex]?.history ?? [0.0])
+                    maxAvailableString: root.resources[tabBar.currentIndex]?.maxAvailableString ?? "--"
+                }
+
+                NetworkSummary {
+                    Layout.margins: 8
+                }
+            }
+        }
+    }
+
+    component NetworkSummary: RowLayout {
+        spacing: 20
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        
+        // Helper to calculate percentage based on a max speed (e.g. 100 Mbps = 12.5 MB/s)
+        // Adjust maxSpeed (in bytes) as needed for your connection. 
+        // 12500000 = 100 Mbps, 125000000 = 1 Gbps
+        readonly property real maxSpeed: 12500000 
+
+        ColumnLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 8
+            
+            CircularProgress {
+                Layout.alignment: Qt.AlignHCenter
+                implicitSize: 80
+                lineWidth: 8
+                value: Math.min(ResourceUsage.networkDownloadSpeed / parent.parent.maxSpeed, 1.0)
+                colPrimary: Appearance.colors.colPrimary
+                colSecondary: Appearance.colors.colSecondaryContainer
+                
+                StyledText {
+                    anchors.centerIn: parent
+                    text: "↓"
+                    font.pixelSize: 24
+                    color: Appearance.colors.colPrimary
+                }
+            }
+            
+            ColumnLayout {
+                spacing: 0
+                Layout.alignment: Qt.AlignHCenter
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: ResourceUsage.formatSpeed(ResourceUsage.networkDownloadSpeed).value
+                    font.pixelSize: Appearance.font.pixelSize.large
+                    font.bold: true
+                }
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: ResourceUsage.formatSpeed(ResourceUsage.networkDownloadSpeed).unit
+                    color: Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.small
+                }
+            }
+        }
+
+        ColumnLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 8
+            
+            CircularProgress {
+                Layout.alignment: Qt.AlignHCenter
+                implicitSize: 80
+                lineWidth: 8
+                value: Math.min(ResourceUsage.networkUploadSpeed / parent.parent.maxSpeed, 1.0)
+                colPrimary: Appearance.colors.colError // Different color for upload? Or keep primary
+                colSecondary: Appearance.colors.colSecondaryContainer
+
+                StyledText {
+                    anchors.centerIn: parent
+                    text: "↑"
+                    font.pixelSize: 24
+                    color: Appearance.colors.colError
+                }
+            }
+            
+            ColumnLayout {
+                spacing: 0
+                Layout.alignment: Qt.AlignHCenter
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: ResourceUsage.formatSpeed(ResourceUsage.networkUploadSpeed).value
+                    font.pixelSize: Appearance.font.pixelSize.large
+                    font.bold: true
+                }
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: ResourceUsage.formatSpeed(ResourceUsage.networkUploadSpeed).unit
+                    color: Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.small
+                }
             }
         }
     }

@@ -19,19 +19,30 @@ Singleton {
 
     // Called from shell.qml to ensure singleton is instantiated
     function load() {
-        refresh();
+        ensureStatusFile.running = true;
     }
 
     function refresh() {
         fileView.reload();
     }
 
-    // Timer to periodically check for updates
+    // Ensure the runtime status file exists before we start polling it.
+    // Without this, FileView logs a warning every second when the native host is absent.
+    Process {
+        id: ensureStatusFile
+        command: ["touch", root.statusFile]
+        onExited: {
+            refreshTimer.start();
+            root.refresh();
+        }
+    }
+
+    // Timer to periodically check for updates.
     Timer {
+        id: refreshTimer
         interval: 1000
-        running: true
         repeat: true
-        triggeredOnStart: true
+        running: false
         onTriggered: root.refresh()
     }
 
@@ -59,7 +70,8 @@ Singleton {
         
         onLoadFailed: (error) => {
             if (error == FileViewError.FileNotFound) {
-                // File doesn't exist yet, that's OK
+                // Recreate the file and continue polling silently.
+                ensureStatusFile.running = true;
                 root.active = false;
             } else {
                 root.active = false;

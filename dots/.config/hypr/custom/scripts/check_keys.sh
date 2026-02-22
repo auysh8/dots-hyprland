@@ -38,14 +38,14 @@ while true; do
     if [ "$CUR_CAPS" != "$LAST_CAPS" ]; then
         if [ "$CUR_CAPS" == "1" ]; then MSG="ON"; else MSG="OFF"; fi
         # Write to log for Quickshell
-        echo "toggle|CAPS⇪|$MSG" >> "$LOG_FILE"
+        echo "toggle|CAPS⇪|$MSG|generic|caps" >> "$LOG_FILE"
         LAST_CAPS="$CUR_CAPS"
     fi
 
     # Check NUM LOCK
     if [ "$CUR_NUM" != "$LAST_NUM" ]; then
         if [ "$CUR_NUM" == "1" ]; then MSG="ON"; else MSG="OFF"; fi
-        echo "toggle|NUM ①|$MSG" >> "$LOG_FILE"
+        echo "toggle|NUM ①|$MSG|generic|num" >> "$LOG_FILE"
         LAST_NUM="$CUR_NUM"
     fi
 

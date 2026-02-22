@@ -2,149 +2,137 @@
 # Phone Mirroring Helper Script for KDE Connect Drawer
 # Uses scrcpy for screen mirroring via USB or WiFi
 
+set -u
+
 CONFIG_DIR="$HOME/.config/kdeconnect-drawer"
 CONFIG_FILE="$CONFIG_DIR/mirror_ip"
 
-# Optimized scrcpy options
-# --turn-screen-off: Keep phone screen off while mirroring (saves battery)
-# --no-audio: Disable audio for lower latency
-# --video-bit-rate=8M: Higher bitrate for quality
-# --max-fps=60: Smooth 60fps
-SCRCPY_OPTS="--window-title=PhoneMirror --stay-awake --window-borderless --turn-screen-off --no-audio --video-bit-rate=8M --max-fps=60"
+SCRCPY_OPTS=(
+  --window-title=PhoneMirror
+  --stay-awake
+  --window-borderless
+  --turn-screen-off
+  --no-audio
+  --video-bit-rate=8M
+  --max-fps=60
+)
 
-# Check if scrcpy is installed
-if ! command -v scrcpy &> /dev/null; then
-    notify-send "Phone Mirror" "scrcpy is not installed. Install with: pacman -S scrcpy" -u critical
-    exit 1
-fi
-
-# Check if adb is installed
-if ! command -v adb &> /dev/null; then
-    notify-send "Phone Mirror" "ADB is not installed. Install with: pacman -S android-tools" -u critical
-    exit 1
-fi
-
-# Start ADB server if not running
-adb start-server 2>/dev/null
-
-# Check if device is connected via USB
-USB_DEVICE=$(adb devices | grep -v "List" | grep "device$" | head -1)
-
-# Check if device is connected via USB
-USB_DEVICE=$(adb devices | grep -v "List" | grep "device$" | head -1)
-
-if [ -n "$USB_DEVICE" ]; then
-    notify-send "Phone Mirror" "USB Device Detected. Enabling Wireless Mode..." -t 2000
-    
-    # Get IP first (before restarting ADB)
-    # Matches 'src <IP>' from 'ip route' to support wlan0, rndis0, etc.
-    PHONE_IP=$(adb shell ip route | grep " src " | awk '{print $9}' | head -1)
-    
-    if [ -n "$PHONE_IP" ]; then
-        echo "Detected IP via USB: $PHONE_IP"
-        mkdir -p "$CONFIG_DIR"
-        echo "$PHONE_IP" > "$CONFIG_FILE"
-    fi
-
-    # Enable ADB over TCP/IP on port 5555
-    # This restarts the adbd daemon on the phone, dropping the USB connection briefly
-    adb tcpip 5555 || true
-    
-    # Wait for adbd to restart
-    sleep 2
-    
-    # Connect wirelessly immediately if we have an IP
-    if [ -n "$PHONE_IP" ]; then
-        adb connect "$PHONE_IP:5555" || true
-    fi
-    
-    notify-send "Phone Mirror" "Starting mirror..." -t 2000
-    scrcpy $SCRCPY_OPTS &
-    exit 0
-fi
-
-# Wireless mode - try multiple methods to find phone IP
-
-try_connect() {
-    local ip=$1
-    if [ -z "$ip" ]; then
-        return 1
-    fi
-    
-    local out
-    out=$(adb connect "$ip:5555" 2>&1)
-    
-    if echo "$out" | grep -q "connected"; then
-        return 0
-    else
-        # If we found the IP but connection refused, return specific error code 2
-        if echo "$out" | grep -q "refused"; then
-            return 2
-        fi
-        return 1
-    fi
+notify() {
+  notify-send "Phone Mirror" "$1" "${@:2}"
 }
 
-# Method 1A: Detect from active KDE Connect connection (Most Reliable for WiFi)
-DETECTED_IP=$(ss -tunp state established | grep kdeconnect | grep ":1716" | awk '{print $5}' | sed 's/\[::ffff://;s/\]:.*//' | head -1)
+fail() {
+  notify "$1" -u critical
+  exit 1
+}
+
+save_ip() {
+  local ip="$1"
+  [ -n "$ip" ] || return 0
+  mkdir -p "$CONFIG_DIR"
+  printf '%s\n' "$ip" > "$CONFIG_FILE"
+}
+
+start_mirror() {
+  notify "Starting mirror..." -t 1600
+  scrcpy "${SCRCPY_OPTS[@]}" &
+  exit 0
+}
+
+try_connect() {
+  local ip="$1"
+  [ -n "$ip" ] || return 1
+
+  local out
+  out="$(adb connect "$ip:5555" 2>&1)"
+  if echo "$out" | grep -qi "connected\|already connected"; then
+    return 0
+  fi
+  if echo "$out" | grep -qi "refused"; then
+    return 2
+  fi
+  return 1
+}
+
+if ! command -v scrcpy >/dev/null 2>&1; then
+  fail "scrcpy is not installed."
+fi
+
+if ! command -v adb >/dev/null 2>&1; then
+  fail "adb is not installed."
+fi
+
+adb start-server >/dev/null 2>&1 || fail "Failed to start adb server."
+
+USB_DEVICE="$(adb devices | awk 'NR>1 && $2==\"device\" {print $1; exit}')"
+if [ -n "$USB_DEVICE" ]; then
+  notify "USB device detected. Enabling wireless mode..." -t 2000
+
+  PHONE_IP="$(adb shell ip route 2>/dev/null | grep " src " | awk '{print $9}' | head -1)"
+  save_ip "$PHONE_IP"
+
+  if ! adb tcpip 5555 >/dev/null 2>&1; then
+    fail "Unable to enable adb tcpip mode on the USB device."
+  fi
+
+  sleep 2
+  if [ -n "$PHONE_IP" ]; then
+    adb connect "$PHONE_IP:5555" >/dev/null 2>&1 || true
+  fi
+  start_mirror
+fi
+
+# Wireless mode: try active KDE Connect session IP first.
+DETECTED_IP=""
+if command -v ss >/dev/null 2>&1; then
+  DETECTED_IP="$(ss -tunp state established 2>/dev/null | grep kdeconnect | grep ":1716" | awk '{print $5}' | sed 's/\[::ffff://;s/\]:.*//' | head -1)"
+fi
 
 if [ -n "$DETECTED_IP" ]; then
-    echo "Detected IP via KDE Connect: $DETECTED_IP"
-    try_connect "$DETECTED_IP"
-    res=$?
-    
-    if [ $res -eq 0 ]; then
-        mkdir -p "$CONFIG_DIR"
-        echo "$DETECTED_IP" > "$CONFIG_FILE"
-        notify-send "Phone Mirror" "Connected via active session: $DETECTED_IP" -t 2000
-        scrcpy $SCRCPY_OPTS &
-        exit 0
-    elif [ $res -eq 2 ]; then
-        notify-send "Phone Mirror" "Found phone at $DETECTED_IP but ADB port is closed.\n\nPlease connect via USB cable once and click this button again to enable wireless mirroring." -u critical
-        exit 1
-    fi
+  try_connect "$DETECTED_IP"
+  res=$?
+  if [ "$res" -eq 0 ]; then
+    save_ip "$DETECTED_IP"
+    notify "Connected via active KDE Connect session: $DETECTED_IP" -t 1800
+    start_mirror
+  elif [ "$res" -eq 2 ]; then
+    fail "Found phone at $DETECTED_IP but adb port 5555 is closed. Connect via USB once to enable wireless mirroring."
+  fi
 fi
 
-# Method 1B: Try saved IP from previous connection
 if [ -f "$CONFIG_FILE" ]; then
-    SAVED_IP=$(cat "$CONFIG_FILE")
-    if try_connect "$SAVED_IP"; then
-        notify-send "Phone Mirror" "Connected via saved IP" -t 2000
-        scrcpy $SCRCPY_OPTS &
-        exit 0
-    fi
+  SAVED_IP="$(cat "$CONFIG_FILE")"
+  if try_connect "$SAVED_IP"; then
+    notify "Connected via saved IP: $SAVED_IP" -t 1800
+    start_mirror
+  fi
 fi
 
-# Method 2: Try default gateway (works when PC is on phone's hotspot)
-GATEWAY_IP=$(ip route | grep default | awk '{print $3}' | head -1)
+GATEWAY_IP="$(ip route | awk '/default/ {print $3; exit}')"
 if try_connect "$GATEWAY_IP"; then
-    mkdir -p "$CONFIG_DIR"
-    echo "$GATEWAY_IP" > "$CONFIG_FILE"
-    notify-send "Phone Mirror" "Connected via hotspot gateway" -t 2000
-    scrcpy $SCRCPY_OPTS &
-    exit 0
+  save_ip "$GATEWAY_IP"
+  notify "Connected via hotspot gateway: $GATEWAY_IP" -t 1800
+  start_mirror
 fi
 
-# Method 3: Prompt user for IP as last resort
-notify-send "Phone Mirror" "Auto-detect failed, prompting for IP..." -t 2000
+notify "Auto-detect failed. Prompting for phone IP..." -t 1800
+if command -v zenity >/dev/null 2>&1; then
+  PHONE_IP="$(zenity --entry --title="Phone Mirror Setup" --text="Enter your phone IP address (Settings > Wi-Fi > network details)." --width=420)"
+  [ -n "$PHONE_IP" ] || fail "No IP address provided."
 
-if command -v zenity &> /dev/null; then
-    PHONE_IP=$(zenity --entry --title="Phone Mirror Setup" --text="Enter your phone's IP address:\n(Find it in Settings → Wi-Fi → Your Network → IP Address)" --width=400)
-    if [ -z "$PHONE_IP" ]; then
-        notify-send "Phone Mirror" "No IP address provided" -u critical
-        exit 1
-    fi
-    
-    if try_connect "$PHONE_IP"; then
-        mkdir -p "$CONFIG_DIR"
-        echo "$PHONE_IP" > "$CONFIG_FILE"
-        scrcpy $SCRCPY_OPTS &
-        exit 0
-    else
-        notify-send "Phone Mirror" "Could not connect to $PHONE_IP:5555\n\nMake sure:\n1. Phone and PC are on same network\n2. Run 'adb tcpip 5555' via USB first" -u critical
-        exit 1
-    fi
+  try_connect "$PHONE_IP"
+  case "$?" in
+    0)
+      save_ip "$PHONE_IP"
+      start_mirror
+      ;;
+    2)
+      fail "Phone found at $PHONE_IP but adb port 5555 is closed. Enable wireless adb once via USB."
+      ;;
+    *)
+      fail "Could not connect to $PHONE_IP:5555. Ensure phone and PC are on the same network."
+      ;;
+  esac
 else
-    notify-send "Phone Mirror" "Could not auto-detect phone.\n\nConnect via USB first to enable wireless, or install zenity for manual IP entry." -u critical
-    exit 1
+  fail "Could not auto-detect phone IP. Connect via USB once, or install zenity for manual IP prompt."
 fi

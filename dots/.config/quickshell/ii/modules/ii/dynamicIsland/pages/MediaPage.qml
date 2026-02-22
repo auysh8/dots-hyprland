@@ -145,7 +145,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             color: "black"
-            opacity: 0.6
+            opacity: 0.68
             radius: Appearance.rounding.normal
         }
         

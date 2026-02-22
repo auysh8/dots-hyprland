@@ -19,6 +19,7 @@ Singleton {
 	property real swapFree: 0
 	property real swapUsed: swapTotal - swapFree
     property real swapUsedPercentage: swapTotal > 0 ? (swapUsed / swapTotal) : 0
+    property real temperature: 0
     property real networkDownloadSpeed: 0
     property real networkUploadSpeed: 0
     property real lastRx: 0
@@ -37,6 +38,12 @@ Singleton {
 
     function kbToGbString(kb) {
         return (kb / (1024 * 1024)).toFixed(1) + " GB";
+    }
+
+    function formatSpeed(bytes) {
+        if (bytes < 1024) return bytes.toFixed(0) + " B/s";
+        else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB/s";
+        else return (bytes / (1024 * 1024)).toFixed(1) + " MB/s";
     }
 
     function updateMemoryUsageHistory() {
@@ -64,7 +71,7 @@ Singleton {
     }
 
 	Timer {
-		interval: 1
+		interval: 1000
         running: true 
         repeat: true
 		onTriggered: {
@@ -111,24 +118,53 @@ Singleton {
                      }
                 }
             }
+            
             if (lastRx > 0) {
-                 networkDownloadSpeed = rx - lastRx; networkUploadSpeed = tx - lastTx;
+                 const timeSec = interval / 1000
+                 networkDownloadSpeed = (rx - lastRx) / timeSec
+                 networkUploadSpeed = (tx - lastTx) / timeSec
+                 
                  if (networkDownloadSpeed < 0) networkDownloadSpeed = 0;
                  if (networkUploadSpeed < 0) networkUploadSpeed = 0;
             }
             lastRx = rx; lastTx = tx;
+
+            // Temperature
+            fileTemp.reload()
+            const tempText = fileTemp.text().trim()
+            if (tempText) {
+                temperature = Number(tempText) / 1000
+            }
 
             root.updateHistories()
             interval = Config.options?.resources?.updateInterval ?? 3000
         }
 	}
 
-	FileView { id: fileMeminfo; path: "/proc/meminfo" }
-    FileView { id: fileStat; path: "/proc/stat" }
-    FileView { id: fileNetDev; path: "/proc/net/dev" }
-
-    Process {
-        id: findCpuMaxFreqProc
+	    FileView { id: fileMeminfo; path: "/proc/meminfo" }
+	    FileView { id: fileStat; path: "/proc/stat" }
+	    FileView { id: fileNetDev; path: "/proc/net/dev" }
+	    FileView { 
+	        id: fileTemp
+	        path: "/sys/class/thermal/thermal_zone0/temp" 
+	    }
+	
+	    Process {
+	        id: findThermalZoneProc
+	        environment: ({ LANG: "C" })
+	        command: ["bash", "-c", "grep -l 'x86_pkg_temp\\|TCPU' /sys/class/thermal/thermal_zone*/type | head -n1 | sed 's/type/temp/'"]
+	        running: true
+	        stdout: StdioCollector {
+	            onStreamFinished: {
+	                const newPath = text.trim()
+	                if (newPath) {
+	                    fileTemp.path = newPath
+	                }
+	            }
+	        }
+	    }
+	
+	    Process {        id: findCpuMaxFreqProc
         environment: ({
             LANG: "C",
             LC_ALL: "C"

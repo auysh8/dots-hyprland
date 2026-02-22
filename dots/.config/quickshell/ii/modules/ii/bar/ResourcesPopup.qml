@@ -91,5 +91,22 @@ StyledPopup {
             detail: `${Math.round(ResourceUsage.cpuUsage * 100)}%`
             highlightColor: Appearance.m3colors.m3secondary
         }
+
+        ResourceCircle {
+            icon: "device_thermostat"
+            label: "TEMP"
+            value: ResourceUsage.temperature / 100
+            detail: `${Math.round(ResourceUsage.temperature)}°C`
+            highlightColor: Appearance.m3colors.m3error
+        }
+
+        ResourceCircle {
+            icon: "network_check"
+            label: "NET"
+            // Cap ring at ~15 MB/s (15 * 1024 * 1024 bytes)
+            value: Math.min(ResourceUsage.networkDownloadSpeed / 15728640, 1.0)
+            detail: ResourceUsage.formatSpeed(ResourceUsage.networkDownloadSpeed)
+            highlightColor: Appearance.m3colors.m3primary
+        }
     }
 }

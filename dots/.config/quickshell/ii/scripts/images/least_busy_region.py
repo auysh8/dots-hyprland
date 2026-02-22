@@ -22,93 +22,139 @@ def find_least_busy_region(image_path, region_width=300, region_height=200, scre
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         raise FileNotFoundError(f"Image not found: {image_path}")
+    
+    # --- OPTIMIZATION START ---
+    # We perform the heavy processing on a smaller version of the image (max dimension 512px)
+    # This drastically reduces CPU usage for large wallpapers (4K+).
+    PROCESSING_MAX_DIM = 512
+    
+    # 1. Determine the target "screen" size we would normally scale to
     orig_h, orig_w = img.shape
-    scale = 1.0
+    target_w, target_h = orig_w, orig_h # Default to image size
+    
     if screen_width is not None and screen_height is not None:
-        scale_w = screen_width / orig_w
-        scale_h = screen_height / orig_h
-        if screen_mode == "fill":
-            scale = max(scale_w, scale_h)
-        else:
-            scale = min(scale_w, scale_h)
-        new_w = int(orig_w * scale)
-        new_h = int(orig_h * scale)
-        if verbose:
-            print(f"Scaling image from {orig_w}x{orig_h} to {new_w}x{new_h} (scale: {scale:.3f}, mode: {screen_mode})")
-        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-        img = center_crop(img, screen_width, screen_height)
-        if verbose:
-            print(f"Cropped image to {screen_width}x{screen_height}")
+        target_w = screen_width
+        target_h = screen_height
+
+    # 2. Calculate a processing scale factor
+    # We want the processing buffer to have the same aspect ratio as the target, 
+    # but fit within PROCESSING_MAX_DIM.
+    scale_factor = 1.0
+    if max(target_w, target_h) > PROCESSING_MAX_DIM:
+        scale_factor = PROCESSING_MAX_DIM / max(target_w, target_h)
+    
+    proc_w = int(target_w * scale_factor)
+    proc_h = int(target_h * scale_factor)
+    
+    # 3. Scale the input arguments (region size, padding) down to processing space
+    proc_region_w = max(1, int(region_width * scale_factor))
+    proc_region_h = max(1, int(region_height * scale_factor))
+    proc_h_padding = int(horizontal_padding * scale_factor)
+    proc_v_padding = int(vertical_padding * scale_factor)
+    proc_stride = max(1, int(stride * scale_factor)) # Stride can also be smaller
+    
+    if verbose:
+        print(f"Optimization: Processing at {proc_w}x{proc_h} (Factor: {scale_factor:.4f})")
+
+    # 4. Resize and Crop the Image to the *Processing* Target Size
+    # Logic copied from original but adapted for proc_w/proc_h
+    scale = 1.0
+    # Determine how much to scale the ORIGINAL image to cover the PROCESSING target
+    scale_w_img = proc_w / orig_w
+    scale_h_img = proc_h / orig_h
+    
+    if screen_mode == "fill":
+        scale = max(scale_w_img, scale_h_img)
     else:
-        if verbose:
-            print(f"Using original image size: {orig_w}x{orig_h}")
+        scale = min(scale_w_img, scale_h_img)
+        
+    temp_w = int(orig_w * scale)
+    temp_h = int(orig_h * scale)
+    
+    # Use INTER_LINEAR for speed (LANCZOS4 is overkill for this)
+    img = cv2.resize(img, (temp_w, temp_h), interpolation=cv2.INTER_LINEAR)
+    img = center_crop(img, proc_w, proc_h)
+    
+    # --- END OPTIMIZATION PREP ---
+
     arr = img.astype(np.float64)
     h, w = arr.shape
-    # Validate & adjust stride
-    stride = max(1, int(stride) if stride else 1)
+    
     # Adjust region size if it does not fit given padding
-    if horizontal_padding * 2 >= w or vertical_padding * 2 >= h:
-        # Reduce padding to fit at least a 1x1 region
-        horizontal_padding = max(0, min(horizontal_padding, (w - 1) // 2))
-        vertical_padding = max(0, min(vertical_padding, (h - 1) // 2))
-    max_region_w = w - 2 * horizontal_padding
-    max_region_h = h - 2 * vertical_padding
+    if proc_h_padding * 2 >= w or proc_v_padding * 2 >= h:
+        proc_h_padding = max(0, min(proc_h_padding, (w - 1) // 2))
+        proc_v_padding = max(0, min(proc_v_padding, (h - 1) // 2))
+        
+    max_region_w = w - 2 * proc_h_padding
+    max_region_h = h - 2 * proc_v_padding
+    
     if max_region_w <= 0 or max_region_h <= 0:
-        raise ValueError("Image too small for the specified padding.")
-    if region_width > max_region_w:
-        if verbose:
-            print(f"Requested region_width {region_width} too large; clamping to {max_region_w}")
-        region_width = max_region_w
-    if region_height > max_region_h:
-        if verbose:
-            print(f"Requested region_height {region_height} too large; clamping to {max_region_h}")
-        region_height = max_region_h
+        # Fallback if image is too small even for 1x1
+        return (0,0), 0
+
+    if proc_region_w > max_region_w:
+        proc_region_w = max_region_w
+    if proc_region_h > max_region_h:
+        proc_region_h = max_region_h
+
     # Use OpenCV's integral for fast computation
     integral = cv2.integral(arr, sdepth=cv2.CV_64F)[1:,1:]
     integral_sq = cv2.integral(arr**2, sdepth=cv2.CV_64F)[1:,1:]
+    
     def region_sum(ii, x1, y1, x2, y2):
-        # Assume bounds have been checked before calling
         total = ii[y2, x2]
-        if x1 > 0:
-            total -= ii[y2, x1-1]
-        if y1 > 0:
-            total -= ii[y1-1, x2]
-        if x1 > 0 and y1 > 0:
-            total += ii[y1-1, x1-1]
+        if x1 > 0: total -= ii[y2, x1-1]
+        if y1 > 0: total -= ii[y1-1, x2]
+        if x1 > 0 and y1 > 0: total += ii[y1-1, x1-1]
         return total
+
     min_var = None
     max_var = None
-    min_coords = (horizontal_padding, vertical_padding)
-    max_coords = (horizontal_padding, vertical_padding)
-    area = region_width * region_height
-    x_start = horizontal_padding
-    y_start = vertical_padding
-    x_end = w - region_width - horizontal_padding + 1
-    y_end = h - region_height - vertical_padding + 1
-    if x_end < x_start:
-        x_end = x_start
-    if y_end < y_start:
-        y_end = y_start
-    for y in range(y_start, y_end + 1, stride):
-        for x in range(x_start, x_end + 1, stride):
+    min_coords = (proc_h_padding, proc_v_padding)
+    max_coords = (proc_h_padding, proc_v_padding)
+    area = proc_region_w * proc_region_h
+    
+    x_start = proc_h_padding
+    y_start = proc_v_padding
+    x_end = w - proc_region_w - proc_h_padding + 1
+    y_end = h - proc_region_h - proc_v_padding + 1
+    
+    if x_end < x_start: x_end = x_start
+    if y_end < y_start: y_end = y_start
+
+    for y in range(y_start, y_end + 1, proc_stride):
+        for x in range(x_start, x_end + 1, proc_stride):
             x1, y1 = x, y
-            x2, y2 = x + region_width - 1, y + region_height - 1
-            if x2 >= w or y2 >= h:
-                continue  # Skip out-of-bounds window
+            x2, y2 = x + proc_region_w - 1, y + proc_region_h - 1
+            
+            if x2 >= w or y2 >= h: continue
+            
             s = region_sum(integral, x1, y1, x2, y2)
             s2 = region_sum(integral_sq, x1, y1, x2, y2)
+            
             mean = s / area
             var = (s2 / area) - (mean ** 2)
+            
             if (min_var is None) or (var < min_var):
                 min_var = var
                 min_coords = (x, y)
             if (max_var is None) or (var > max_var):
                 max_var = var
                 max_coords = (x, y)
+
+    # --- OPTIMIZATION POST-PROCESSING ---
+    # Scale result coordinates back up to original requested dimensions
     if busiest:
-        return max_coords, max_var
+        res_x, res_y = max_coords
+        res_var = max_var
     else:
-        return min_coords, min_var
+        res_x, res_y = min_coords
+        res_var = min_var
+        
+    final_x = int(res_x / scale_factor)
+    final_y = int(res_y / scale_factor)
+    
+    return (final_x, final_y), res_var
 
 def find_largest_region(image_path, screen_width=None, screen_height=None, verbose=False, stride=2, screen_mode="fill", threshold=100.0, aspect_ratio=1.0, horizontal_padding=50, vertical_padding=50):
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)

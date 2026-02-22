@@ -18,14 +18,26 @@ Item {
     property var activePlayer: null
     property var lyricsModel: null
     property int lyricsCount: 0
-    property bool isRecognizing: false
     property bool isPlaying: false
     property bool lyricsLoaded: false
     property int currentLine: -1
     property bool isResizing: false
+    property real position: 0
+    property string lyricsSource: ""
     
     signal fullscreenToggled()
     signal closeRequested()
+    
+    // Prettify provider names for display
+    function providerDisplayName(source) {
+        if (!source) return ""
+        var names = {
+            "betterlyrics": "Better Lyrics",
+            "lrclib": "LRCLIB",
+            "kugou": "KuGou",
+        }
+        return names[source] || source
+    }
     
     // Internal scrolling logic
     property bool manualScrollMode: false
@@ -98,9 +110,53 @@ Item {
         }
     }
     
+    // Detect if lyrics have word-level sync
+    property bool hasWordSync: {
+        if (!lyricsModel || lyricsModel.count === 0) return false
+        // Check all lines: some tracks have intros with no word timings.
+        for (var i = 0; i < lyricsModel.count; i++) {
+            var item = lyricsModel.get(i)
+            if (item && item.words) {
+                try {
+                    var w = JSON.parse(item.words)
+                    if (w && w.length > 0) return true
+                } catch(e) {}
+            }
+        }
+        return false
+    }
+    
+    // Lyrics provider label — always visible when lyrics are loaded
+    Row {
+        id: providerLabel
+        anchors.top: parent.top
+        anchors.topMargin: 48
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: 6
+        opacity: 0.4
+        visible: root.lyricsSource !== "" && root.lyricsCount > 0
+        
+        MaterialSymbol {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.hasWordSync ? "lyrics" : "music_note"
+            iconSize: 16
+            color: root.secondaryContentColor
+        }
+        
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.providerDisplayName(root.lyricsSource) + "  ·  " + (root.hasWordSync ? "Word Sync" : "Line Sync")
+            color: root.secondaryContentColor
+            font.pixelSize: 14
+            font.weight: Font.Medium
+            font.family: "Inter, Segoe UI, sans-serif"
+            font.letterSpacing: 0.5
+        }
+    }
+    
     Item {
         anchors.fill: parent
-        anchors.topMargin: 48
+        anchors.topMargin: root.lyricsSource !== "" && root.lyricsCount > 0 ? 68 : 48
         anchors.bottomMargin: 16
         clip: true
 
@@ -110,7 +166,7 @@ Item {
             anchors.centerIn: parent
             width: 64
             height: 64
-            visible: root.lyricsCount === 0 && (root.isRecognizing || (root.isPlaying && !root.lyricsLoaded))
+            visible: root.lyricsCount === 0 && (root.isPlaying && !root.lyricsLoaded)
             
             MaterialCookie {
                 id: loadingCookie
@@ -159,7 +215,7 @@ Item {
             font.family: "Inter, Segoe UI, sans-serif"
             
             // Show if (Recognizing) OR (Lyrics Empty AND (Not Playing OR Loaded))
-            visible: (root.lyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded)) && !root.isRecognizing
+            visible: (root.lyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded))
         }
 
         // 3. The Lyrics List
@@ -239,7 +295,7 @@ Item {
                 }
             }
 
-            currentIndex: root.manualScrollMode ? currentIndex : root.currentLine
+            currentIndex: root.currentLine
             
             delegate: Item {
                 id: lyricItem
@@ -315,30 +371,51 @@ Item {
                         if (!model.words) return []
                         try { return JSON.parse(model.words) } catch(e) { return [] }
                     }
+                    
+                    property bool hasWords: wordList && wordList.length > 0
 
-                    textFormat: (lyricItem.isCurrent && wordList && wordList.length > 0) ? Text.RichText : Text.PlainText
+                    textFormat: (lyricItem.isCurrent && hasWords) ? Text.RichText : Text.PlainText
+                    
+                    // Helper: convert 0-255 int to 2-digit hex
+                    function toHex2(val) {
+                        var h = Math.round(Math.max(0, Math.min(255, val))).toString(16)
+                        return h.length < 2 ? "0" + h : h
+                    }
                     
                     text: {
-                        if (lyricItem.isCurrent && wordList && wordList.length > 0) {
-                            // Trigger update on position change
-                            const pos = root.activePlayer ? root.activePlayer.position : 0
-                            const activeColor = root.pillContentColor.toString()
-                            const inactiveColor = Qt.rgba(root.pillContentColor.r, root.pillContentColor.g, root.pillContentColor.b, 0.5).toString()
+                        if (lyricItem.isCurrent && hasWords) {
+                            const pos = root.position
+                            const c = root.pillContentColor
+                            const r = toHex2(c.r * 255)
+                            const g = toHex2(c.g * 255)
+                            const b = toHex2(c.b * 255)
                             
                             let html = ""
                             for (let i = 0; i < wordList.length; i++) {
                                 let w = wordList[i]
-                                let c = (pos >= w.time) ? activeColor : inactiveColor
-                                html += `<font color="${c}">${w.text}</font> `
+                                let alpha
+                                
+                                if (pos + 0.03 >= w.time) {
+                                    // Make activation snappy even for long words in slow songs.
+                                    let endTime = w.end || (w.time + 0.3)
+                                    let dur = Math.max(0.06, endTime - w.time)
+                                    let fadeInDur = Math.min(0.22, dur * 0.45)
+                                    let progress = Math.min(1.0, Math.max(0.0, (pos - w.time) / fadeInDur))
+                                    alpha = 0.55 + 0.45 * progress
+                                } else {
+                                    alpha = 0.25
+                                }
+                                
+                                let a = toHex2(alpha * 255)
+                                html += `<font color="#${a}${r}${g}${b}">${w.text} </font>`
                             }
                             return html
                         }
                         return model.text
                     }
 
-                    z:2
+                    z: 2
                     
-                    // Color logic for plain text mode (fallback)
                     color: lyricItem.isCurrent ? root.pillContentColor : root.secondaryContentColor
 
                     Behavior on color { 

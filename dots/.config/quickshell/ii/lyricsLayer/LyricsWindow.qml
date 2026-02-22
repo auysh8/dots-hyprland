@@ -19,11 +19,12 @@ Scope {
     id: root
     property bool showLyrics: LyricsService.open
     property bool closing: false
+    onShowLyricsChanged: if (showLyrics) closing = false // Reset closing state on re-open
     property bool isFullscreen: false
     property bool isResizing: false
 
     property bool lyricsLoaded: false
-    property bool isRecognizing: false
+    property string lyricsSource: ""
     
     // Use native MPRIS for UI updates only (art, progress)
     readonly property var availablePlayers: MprisController.players
@@ -31,27 +32,82 @@ Scope {
     readonly property MprisPlayer activePlayer: selectedPlayer ? selectedPlayer : MprisController.activePlayer
 
     property real position: 0
-    
+    property real maxPositionDrift: 0.12
+    property real lastPositionTickMs: 0
+
     Connections {
         target: root.activePlayer || null
         ignoreUnknownSignals: true
         function onPositionChanged() {
-            var diff = Math.abs(root.position - root.activePlayer.position)
-            // Fix: Tighter sync threshold (0.5s instead of 1.5s) to correct drift sooner
-            if (diff > 0.5 || !root.isPlaying) {
-                root.position = root.activePlayer.position
+            if (!root.activePlayer) return
+            var realPos = root.activePlayer.position
+            var diff = Math.abs(root.position - realPos)
+            if (diff > root.maxPositionDrift || !root.isPlaying) {
+                root.position = realPos
             }
         }
     }
-    
+
     Timer {
+        id: smoothPositionTimer
         running: root.isPlaying
-        interval: 50 // Fix: 50ms interval matches 0.05 increment for smoother, more accurate updates
+        interval: 50
         repeat: true
-        onTriggered: root.position += 0.05
+        onTriggered: {
+            if (!root.activePlayer) return
+
+            var nowMs = Date.now()
+            if (root.lastPositionTickMs <= 0) {
+                root.lastPositionTickMs = nowMs
+                root.position = root.activePlayer.position
+                return
+            }
+
+            var dt = (nowMs - root.lastPositionTickMs) / 1000.0
+            root.lastPositionTickMs = nowMs
+
+            // Timer jitter guard: fall back to player position when we miss frames.
+            if (dt <= 0 || dt > 0.25) {
+                root.position = root.activePlayer.position
+                return
+            }
+
+            root.position += dt
+            if (root.duration > 0 && root.position > root.duration) {
+                root.position = root.duration
+            }
+        }
+    }
+
+    Timer {
+        id: hardResyncTimer
+        running: root.isPlaying
+        interval: 250
+        repeat: true
+        onTriggered: {
+            if (!root.activePlayer) return
+            var realPos = root.activePlayer.position
+            if (Math.abs(root.position - realPos) > root.maxPositionDrift) {
+                root.position = realPos
+            }
+        }
     }
     readonly property real duration: activePlayer ? activePlayer.length : 0
     readonly property bool isPlaying: activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing
+
+    onIsPlayingChanged: {
+        root.lastPositionTickMs = 0
+        if (root.activePlayer) {
+            root.position = root.activePlayer.position
+        }
+    }
+
+    onActivePlayerChanged: {
+        root.lastPositionTickMs = 0
+        if (root.activePlayer) {
+            root.position = root.activePlayer.position
+        }
+    }
 
     
     // Player switching
@@ -273,7 +329,7 @@ Scope {
         property string artFilePath: root.artFilePath
         
         // EXACT command from MediaPage - simple and reliable
-        command: [ "bash", "-c", `[ -f '${artFilePath}' ] || curl -sSL '${targetFile}' -o '${artFilePath}'` ]
+        command: [ "bash", "-c", '[ -f "$1" ] || curl -sSL "$2" -o "$1"', "_", artFilePath, targetFile ]
         
         onExited: (exitCode, exitStatus) => {
             console.log("[Lyrics] Download process exited. Code:", exitCode)
@@ -283,9 +339,6 @@ Scope {
     
     function parseUpdate(data) {
         if (!data) return
-        
-        // Update parsing status
-        isRecognizing = !!data.recognizing
         
         // Update lyrics if changed
         if (data.lyrics) {
@@ -300,22 +353,33 @@ Scope {
                      lyricsCount = 0
                  }
             } else {
-                // Update if count changed or first/last line different (simple checksum-ish)
+                // Update if any line fields changed (text/time/word payload/source).
                 var currentCount = lyricsModel.count
-                var needsUpdate = (newLyrics.length !== currentCount)
-                
-                if (!needsUpdate && newLyrics.length > 0 && currentCount > 0) {
-                    // Check first and middle line text to ensure content is same
-                    if (lyricsModel.get(0).text !== newLyrics[0].text) needsUpdate = true
+                var needsUpdate = (newLyrics.length !== currentCount) ||
+                                  ((data.lyricsSource || "") !== (root.lyricsSource || ""))
+
+                if (!needsUpdate) {
+                    for (var i = 0; i < newLyrics.length; i++) {
+                        var oldLine = lyricsModel.get(i)
+                        var newLine = newLyrics[i] || {}
+                        var newWordsJsonCmp = newLine.words ? JSON.stringify(newLine.words) : "[]"
+                        var newText = newLine.text || ""
+                        var newTime = Number(newLine.time || 0)
+
+                        if (!oldLine ||
+                            oldLine.text !== newText ||
+                            Math.abs(Number(oldLine.time || 0) - newTime) > 0.001 ||
+                            (oldLine.words || "[]") !== newWordsJsonCmp) {
+                            needsUpdate = true
+                            break
+                        }
+                    }
                 }
-                
+
                 if (needsUpdate) {
-                    // console.log("[LyricsWindow] Updating lyrics model with", newLyrics.length, "lines")
-                    
-                    // FIX: Set state flags FIRST to prevent UI flicker
                     lyricsCount = newLyrics.length
                     lyricsLoaded = true
-                    
+
                     lyricsModel.clear()
                     for (var i = 0; i < newLyrics.length; i++) {
                         var line = newLyrics[i]
@@ -326,14 +390,9 @@ Scope {
                             "words": wordsJson
                         })
                     }
-                    
-                    // If we just loaded lyrics, scroll to current line immediately
-                    if (typeof lyricsView !== "undefined" && lyricsView && currentLine >= 0 && currentLine < lyricsCount) {
-                        // handled by component but we can't access lyricsView directly here by ID if it's inside Component
-                        // Actually, I gave LyricsView id 'lyricsViewComponent' or similar in below code
-                        // But I can't access children easily.
-                        // However, I added binding to onLyricsLoadedChanged inside LyricsView.
-                    }
+                } else {
+                    lyricsCount = newLyrics.length
+                    lyricsLoaded = true
                 }
             }
         }
@@ -347,6 +406,11 @@ Scope {
         // Update tracked info
         cleanedTitle = data.song || ""
         artist = data.artist || ""
+        
+        // Update lyrics source provider
+        if (data.lyricsSource !== undefined) {
+            lyricsSource = data.lyricsSource || ""
+        }
     }
     
     property ListModel lyricsModel: ListModel { id: lyricsModel }
@@ -417,22 +481,22 @@ Scope {
                             let data = JSON.parse(json)
                             
                             // Get active player identity for matching
-                            // MprisPlayer.identity is the display name like "Spotify"
-                            // playerctl uses names like "spotify" or "kdeconnect.mpris_xxx"
                             let activeIdentity = (root.activePlayer?.identity || "").toLowerCase()
                             let backendIdentity = identity.toLowerCase()
                             
-                            // Match by player identity (primary method when multiple players)
+                            // Match by player identity (primary method)
                             let isIdentityMatch = (
                                 backendIdentity === activeIdentity ||
                                 backendIdentity.includes(activeIdentity) ||
-                                activeIdentity.includes(backendIdentity) ||
-                                // Handle KDE Connect: "kdeconnect.mpris_xxx" vs "Metrolist - RMX3771"
-                                (backendIdentity.includes("kdeconnect") && activeIdentity.includes("metrolist")) ||
-                                (backendIdentity.includes("kdeconnect") && activeIdentity.includes("rmx")) ||
-                                // Handle common cases
-                                (backendIdentity.includes("spotify") && activeIdentity.includes("spotify"))
+                                activeIdentity.includes(backendIdentity)
                             )
+                            
+                            // Handle KDE Connect: playerctl sees "kdeconnect.mpris_xxx"
+                            // but MPRIS identity shows the device/app name
+                            if (!isIdentityMatch && backendIdentity.includes("kdeconnect")) {
+                                let knownDesktop = ["spotify", "firefox", "chrome", "chromium", "vlc", "mpv", "brave", "edge", "opera", "vivaldi"]
+                                isIdentityMatch = !knownDesktop.some(p => activeIdentity.includes(p))
+                            }
                             
                             // Fallback: Match by song info if identity matching fails
                             if (!isIdentityMatch) {
@@ -500,57 +564,7 @@ Scope {
                 window: window
             }
             
-            // Keyboard shortcuts (only work in fullscreen when focused)
-            Keys.onPressed: (event) => {
-                if (!root.isFullscreen) return
-                
-                switch (event.key) {
-                    case Qt.Key_Space:
-                        // Toggle play/pause
-                        root.activePlayer?.togglePlaying()
-                        event.accepted = true
-                        break
-                    case Qt.Key_Left:
-                        // Seek backward 5 seconds
-                        if (root.activePlayer) {
-                            root.activePlayer.position = Math.max(0, root.position - 5)
-                        }
-                        event.accepted = true
-                        break
-                    case Qt.Key_Right:
-                        // Seek forward 5 seconds
-                        if (root.activePlayer) {
-                            root.activePlayer.position = Math.min(root.duration, root.position + 5)
-                        }
-                        event.accepted = true
-                        break
-                    case Qt.Key_Up:
-                    case Qt.Key_P:
-                        // Previous track
-                        root.activePlayer?.previous()
-                        event.accepted = true
-                        break
-                    case Qt.Key_Down:
-                    case Qt.Key_N:
-                        // Next track
-                        root.activePlayer?.next()
-                        event.accepted = true
-                        break
-                    case Qt.Key_Escape:
-                    case Qt.Key_Super_L:
-                    case Qt.Key_Super_R:
-                        // Close the layer
-                        root.closeWindow()
-                        event.accepted = true
-                        break
-                    case Qt.Key_F:
-                        // Toggle fullscreen
-                        root.toggleFullscreen()
-                        event.accepted = true
-                        break
-                }
-            }
-            
+            // Keyboard shortcuts handled via Shortcut items in keyboardFocus Item below
             // Focus item for keyboard input
             Item {
                 id: keyboardFocus
@@ -795,11 +809,12 @@ Scope {
                         activePlayer: root.activePlayer
                         lyricsModel: root.lyricsModel
                         lyricsCount: root.lyricsCount
-                        isRecognizing: root.isRecognizing
                         isPlaying: root.isPlaying
                         lyricsLoaded: root.lyricsLoaded
+                        lyricsSource: root.lyricsSource
                         currentLine: root.currentLine
                         isResizing: root.isResizing
+                        position: root.position
                         
                         onFullscreenToggled: root.toggleFullscreen()
                         onCloseRequested: root.closeWindow()

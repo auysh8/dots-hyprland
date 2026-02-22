@@ -31,7 +31,7 @@ def main():
                     continue
                 
                 print(f"New download: {f}")
-                log_popup("good", "Download", f"Completed: {f}")
+                log_popup("good", "Download", f"Completed: {f}|download|complete")
                 
         before = after
 

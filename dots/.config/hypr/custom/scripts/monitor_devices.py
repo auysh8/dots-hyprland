@@ -18,11 +18,11 @@ state = {
     'song': '',
 }
 
-def log(category, title, message):
+def log(category, title, message, cat="generic", act=""):
     """Writes to the log file in the format expected by Quickshell."""
     try:
         with open(LOG_FILE, "a") as f:
-            f.write(f"{category}|{title}|{message}\n")
+            f.write(f"{category}|{title}|{message}|{cat}|{act}\n")
     except Exception as e:
         print(f"Error writing to log: {e}", file=sys.stderr)
 
@@ -51,9 +51,9 @@ def bt_handler(interface, changed, invalidated, path):
                         device_name = dev.get('Alias', dev.get('Name', 'Device'))
 
         if connected_devices > state['bt_count']:
-            log("good", "BLUETOOTH", f"Connected: {device_name}")
+            log("good", "BLUETOOTH", f"Connected: {device_name}", "bluetooth", "connected")
         elif connected_devices < state['bt_count']:
-            log("bad", "BLUETOOTH", "Disconnected")
+            log("bad", "BLUETOOTH", "Disconnected", "bluetooth", "disconnected")
             
         state['bt_count'] = connected_devices
 
@@ -73,7 +73,7 @@ def mpris_handler(interface, changed, invalidated, path):
             if song_str != state['song']:
                 # Only log if it's a new song and we aren't in initial state
                 if state['song'] != "": 
-                    log("neutral", "Now Playing", song_str)
+                    log("neutral", "Now Playing", song_str, "media", "playing")
                 state['song'] = song_str
 
 # --- UDev Monitoring (Power) ---
@@ -112,9 +112,9 @@ def check_power_status():
                 
             if status != state['ac']:
                 if status == "1":
-                    log("good", "POWER", "Plugged In")
+                    log("good", "POWER", "Plugged In", "battery", "charging")
                 else:
-                    log("bad", "POWER", "Unplugged")
+                    log("bad", "POWER", "Unplugged", "battery", "unplugged")
                 state['ac'] = status
     except Exception as e:
         print(f"Error checking power: {e}", file=sys.stderr)
@@ -131,7 +131,7 @@ def check_disk_space():
         usage_pct = int(usage_line.replace('%', '').strip())
         
         if usage_pct >= 90:
-            log("bad", "SYSTEM", f"Low Disk Space ({usage_pct}%)")
+            log("bad", "SYSTEM", f"Low Disk Space ({usage_pct}%)", "generic", "low")
             
     except Exception as e:
         print(f"Error checking disk: {e}", file=sys.stderr)
@@ -208,12 +208,12 @@ def main():
     # Reusing the logic from the bash script but cleaner in python?
     # Actually let's just listen to NM state changed signal. It's 'StateChanged' on 'org.freedesktop.NetworkManager'
     
-    def nm_handler(state):
+    def nm_handler(state_val):
         # 70 = Connected
-        if state == 70:
-            log("good", "WIFI", "Connected")
-        elif state == 20 or state == 10: # Disconnected
-            log("bad", "WIFI", "Disconnected")
+        if state_val == 70:
+            log("good", "WIFI", "Connected", "wifi", "connected")
+        elif state_val == 20 or state_val == 10: # Disconnected
+            log("bad", "WIFI", "Disconnected", "wifi", "disconnected")
             
     try:
         bus.add_signal_receiver(

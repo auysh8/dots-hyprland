@@ -8,13 +8,13 @@ check_updates() {
     if command -v checkupdates &> /dev/null; then
         count=$(checkupdates | wc -l)
         if [ "$count" -gt 0 ]; then
-             echo "neutral|System Update|$count updates available" >> "$LOG_FILE"
+             echo "neutral|System Update|$count updates available|update|available" >> "$LOG_FILE"
         fi
     elif command -v apt &> /dev/null; then
          # Allow non-interactive update check
          count=$(apt list --upgradable 2>/dev/null | grep -v "Listing" | wc -l)
          if [ "$count" -gt 0 ]; then
-             echo "neutral|System Update|$count updates available" >> "$LOG_FILE"
+             echo "neutral|System Update|$count updates available|update|available" >> "$LOG_FILE"
          fi
     fi
 }
