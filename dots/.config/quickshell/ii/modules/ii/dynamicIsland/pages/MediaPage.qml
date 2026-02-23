@@ -12,6 +12,7 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.modules.common.models
 
+import "media_color_cache.js" as MediaColorCache
 
 
 Item {
@@ -22,8 +23,36 @@ Item {
     // Player switching
     readonly property var availablePlayers: MprisController.players
     property MprisPlayer selectedPlayer: null
-    readonly property MprisPlayer activePlayer: selectedPlayer ? selectedPlayer : MprisController.activePlayer
+    readonly property MprisPlayer spotifyPlayer: {
+        for (let i = 0; i < availablePlayers.length; ++i) {
+            const p = availablePlayers[i]
+            const id = (p?.identity || "").toLowerCase()
+            if (id.includes("spotify")) return p
+        }
+        return null
+    }
+    readonly property MprisPlayer activePlayer: {
+        if (selectedPlayer && availablePlayers.indexOf(selectedPlayer) >= 0) return selectedPlayer
+        if (spotifyPlayer && spotifyPlayer.isPlaying) return spotifyPlayer
+        return MprisController.activePlayer ? MprisController.activePlayer : spotifyPlayer
+    }
     property bool showPlayerPicker: false
+
+    function splitTrackMeta(rawTitle, rawArtist) {
+        const title = rawTitle || ""
+        const artist = rawArtist || ""
+        if (artist.length > 0) return { title: title, artist: artist }
+
+        const dotSep = title.indexOf(" • ")
+        if (dotSep > 0 && dotSep < title.length - 3)
+            return { title: title.slice(0, dotSep), artist: title.slice(dotSep + 3) }
+
+        const dashSep = title.indexOf(" - ")
+        if (dashSep > 0 && dashSep < title.length - 3)
+            return { title: title.slice(0, dashSep), artist: title.slice(dashSep + 3) }
+
+        return { title: title, artist: "" }
+    }
     
     // Art Handling
     property string artUrl: (activePlayer && activePlayer.trackArtUrl) ? activePlayer.trackArtUrl : ""
@@ -65,12 +94,25 @@ Item {
     }
 
     // Extract dominant color or use default
+    readonly property color cachedExtractedColor: MediaColorCache.getColor(root.artFileName, Appearance.colors.colPrimary)
     readonly property color extractedColor: {
         if (!downloaded || displayedArtFilePath.length === 0) {
-            return Appearance.colors.colPrimary
+            return cachedExtractedColor
         }
-        let c = colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary
-        return c
+
+        let c = (colorQuantizer && colorQuantizer.colors && colorQuantizer.colors.length > 0)
+            ? colorQuantizer.colors[0]
+            : null
+        return (c !== undefined && c !== null) ? c : cachedExtractedColor
+    }
+
+    Connections {
+        target: colorQuantizer
+        function onColorsChanged() {
+            if (colorQuantizer.colors && colorQuantizer.colors.length > 0) {
+                MediaColorCache.setColor(root.artFileName, colorQuantizer.colors[0])
+            }
+        }
     }
 
     property QtObject blendedColors: AdaptedMaterialScheme {
@@ -189,7 +231,10 @@ Item {
 
                 Text {
                     Layout.fillWidth: true
-                    text: activePlayer?.trackTitle || "No Media"
+                    text: {
+                        const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
+                        return meta.title || "No Media"
+                    }
                     font.pixelSize: 16
                     font.weight: Font.Bold
                     color: root.contentColor
@@ -199,7 +244,10 @@ Item {
 
                 Text {
                     Layout.fillWidth: true
-                    text: activePlayer?.trackArtist || "Unknown Artist"
+                    text: {
+                        const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
+                        return meta.artist || "Unknown Artist"
+                    }
                     font.pixelSize: 13
                     color: root.secondaryContentColor
                     elide: Text.ElideRight

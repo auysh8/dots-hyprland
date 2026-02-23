@@ -17,7 +17,6 @@ import Quickshell.Hyprland
 import qs.modules.ii.background.widgets
 import qs.modules.ii.background.widgets.clock
 import qs.modules.ii.background.widgets.weather
-import qs.modules.ii.background.widgets.particles
 
 Variants {
     id: root
@@ -532,19 +531,6 @@ Variants {
                     }
                 }
 
-                FadeLoader {
-                    shown: Config.options.background.widgets.particles.enable
-                    sourceComponent: ParticleWidget {
-                        monitor: bgRoot.monitor
-                        screenWidth: bgRoot.screen.width
-                        screenHeight: bgRoot.screen.height
-                        scaledScreenWidth: bgRoot.screen.width / bgRoot.effectiveWallpaperScale
-                        scaledScreenHeight: bgRoot.screen.height / bgRoot.effectiveWallpaperScale
-                        wallpaperScale: bgRoot.effectiveWallpaperScale
-                        sidebarLeftOpen: GlobalStates.sidebarLeftOpen
-                        sidebarRightOpen: GlobalStates.sidebarRightOpen
-                    }
-                }
             }
         }
     }

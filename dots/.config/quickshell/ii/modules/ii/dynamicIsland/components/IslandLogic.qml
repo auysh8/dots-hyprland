@@ -138,6 +138,11 @@ Connections {
                     var m = parts.length > 2 ? parts[2].trim().toLowerCase() : "";
                     
                     print("DynamicIsland Log: " + data.trim());
+
+                    // Suppress Caps Lock Popups
+                    if (t.includes("caps")) {
+                         return;
+                    }
                     
                     if (t.includes("battery") || t.includes("plugged") || t.includes("unplugged") ||
                         m.includes("battery") || m.includes("plugged") || m.includes("unplugged")) {

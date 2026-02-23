@@ -7,21 +7,24 @@ sys.path.append(os.path.expanduser("~/.config/quickshell/ii/lyricsLayer"))
 
 # Mocking some things if needed, but let's try direct import
 try:
-    from lyrics_backend import fetch_lyrics
+    import lyrics_backend
 except ImportError as e:
     print(f"Import Error: {e}")
     sys.exit(1)
 
 print("Starting fetch test...")
 # Clear cache for this test to ensure we hit the network
-cache_path = os.path.expanduser("~/.cache/lyrics-layer/James Arthur - Naked.json")
-if os.path.exists(cache_path):
-    print("Removing cache...")
-    os.remove(cache_path)
+try:
+    cache_path = lyrics_backend.get_cache_path("James Arthur", "Naked")
+    if cache_path.exists():
+        print(f"Removing cache: {cache_path}")
+        cache_path.unlink()
+except Exception as e:
+    print(f"Error clearing cache: {e}")
 
 # Try fetching
 print("Fetching 'Naked' by 'James Arthur'...")
-res = fetch_lyrics("Naked", "James Arthur")
+res = lyrics_backend.fetch_lyrics("Naked", "James Arthur")
 
 if res:
     print("SUCCESS: Got lyrics!")

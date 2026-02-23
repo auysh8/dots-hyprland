@@ -30,6 +30,15 @@ import shlex
 POLL_INTERVAL = 0.3  # seconds between updates
 NEGATIVE_CACHE_TTL = 3600  # 1 hour before retrying failed searches
 MAX_CACHE_AGE_DAYS = 30  # Delete cache files older than this
+TIMEOUT = 20  # increased timeout for high latency connections
+BETTER_LYRICS_TIMEOUT = float(os.getenv("BETTER_LYRICS_TIMEOUT", "8"))
+BETTER_LYRICS_RETRIES = max(0, int(os.getenv("BETTER_LYRICS_RETRIES", "1")))
+
+# Common headers for requests
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "application/json",
+}
 
 # Try importing optional dependencies
 try:
@@ -40,6 +49,10 @@ except ImportError:
     print("[Backend] Warning: PIL not installed, color extraction disabled", file=sys.stderr)
 
 CACHE_DIR = Path.home() / ".cache/lyrics-layer"
+
+
+class TransientLyricsError(RuntimeError):
+    """Raised when a provider fails due to transient network/server issues."""
 
 def ensure_cache_dir():
     """Create cache directory if it doesn't exist"""
@@ -102,6 +115,34 @@ def clean_youtube_title(title, artist):
             artist = parts[1].strip()
     
     return clean_title.strip(), artist.strip()
+
+
+def build_track_key(title, artist):
+    """
+    Build a stable comparison key for track changes.
+    This avoids false "song changed" events caused by metadata jitter
+    such as "Song • Artist" vs "Song".
+    """
+    clean_title, clean_artist = clean_youtube_title(title or "", artist or "")
+    clean_title = re.sub(r"\s+", " ", clean_title).strip()
+    clean_artist = re.sub(r"\s+", " ", clean_artist).strip()
+
+    title_norm = clean_title.lower()
+    artist_norm = clean_artist.lower()
+
+    if artist_norm:
+        for sep in (" • ", " - ", " · "):
+            suffix = f"{sep}{artist_norm}"
+            if title_norm.endswith(suffix):
+                title_norm = title_norm[: -len(suffix)].strip()
+                break
+
+    title_norm = re.sub(r"\s*-\s*youtube music$", "", title_norm)
+    title_norm = re.sub(r"\s*-\s*youtube$", "", title_norm)
+    title_norm = re.sub(r"\s+", " ", title_norm).strip()
+    artist_norm = re.sub(r"\s+", " ", artist_norm).strip()
+
+    return f"{title_norm}||{artist_norm}"
 
 def extract_dominant_color(image_url):
     """Extract dominant vibrant color from image URL"""
@@ -406,9 +447,15 @@ def fetch_from_lrclib(title, artist, album="", duration=0):
             params["duration"] = int(duration)
         
         url = f"https://lrclib.net/api/get?{urllib.parse.urlencode(params)}"
-        req = urllib.request.Request(url, headers={"User-Agent": "LyricsLayer/1.0"})
+        req = urllib.request.Request(url, headers=HEADERS)
         
-        with urllib.request.urlopen(req, timeout=5) as response:
+        # Create relaxed SSL context to handle potential handshake issues
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE  # Risky but needed for debugging connection issues
+        
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as response:
             data = json.loads(response.read().decode())
             lyrics, synced = process_lrclib_result(data)
             if lyrics:
@@ -421,12 +468,19 @@ def fetch_from_lrclib(title, artist, album="", duration=0):
         log_debug(f"[LRCLIB] /get failed: {e}")
 
     # 2. FALLBACK: SEARCH (/search endpoint)
+    # ... (rest of function)
     try:
         params = {"q": f"{title} {artist}"}
         url = f"https://lrclib.net/api/search?{urllib.parse.urlencode(params)}"
-        req = urllib.request.Request(url, headers={"User-Agent": "LyricsLayer/1.0"})
+        req = urllib.request.Request(url, headers=HEADERS)
         
-        with urllib.request.urlopen(req, timeout=5) as response:
+        # Create relaxed SSL context here too
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=ctx) as response:
             results = json.loads(response.read().decode())
             log_debug(f"[LRCLIB] /search returned {len(results)} results")
             
@@ -487,7 +541,9 @@ def fetch_from_kugou(title, artist, album="", duration=0):
     if not keyword:
         return None, False
     
-    headers = {"User-Agent": "LyricsLayer/1.0"}
+    # Headers merged
+    req_headers = HEADERS.copy()
+    
     duration_ms = int(duration * 1000) if duration > 0 else 0
     
     try:
@@ -499,9 +555,9 @@ def fetch_from_kugou(title, artist, album="", duration=0):
             "platform": "WebFilter",
         }
         search_url = f"http://mobileservice.kugou.com/api/v3/search/song?{urllib.parse.urlencode(search_params)}"
-        req = urllib.request.Request(search_url, headers=headers)
+        req = urllib.request.Request(search_url, headers=req_headers)
         
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
             search_data = json.loads(response.read().decode())
         
         songs = search_data.get("data", {}).get("info", [])
@@ -558,9 +614,9 @@ def fetch_from_kugou(title, artist, album="", duration=0):
             "duration": duration_ms,
         }
         lyrics_search_url = f"http://krcs.kugou.com/search?{urllib.parse.urlencode(lyrics_search_params)}"
-        req = urllib.request.Request(lyrics_search_url, headers=headers)
+        req = urllib.request.Request(lyrics_search_url, headers=req_headers)
         
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
             lyrics_search_data = json.loads(response.read().decode())
         
         candidates = lyrics_search_data.get("candidates", [])
@@ -589,9 +645,9 @@ def fetch_from_kugou(title, artist, album="", duration=0):
             "charset": "utf8",
         }
         download_url = f"http://lyrics.kugou.com/download?{urllib.parse.urlencode(download_params)}"
-        req = urllib.request.Request(download_url, headers=headers)
+        req = urllib.request.Request(download_url, headers=req_headers)
         
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
             download_data = json.loads(response.read().decode())
         
         # The content is base64 encoded
@@ -711,6 +767,217 @@ def _parse_ttml(ttml_xml):
 
     return lyrics if lyrics else None
 
+
+def _parse_structured_time(value):
+    """Parse structured timestamp fields used by non-TTML responses."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+        # Heuristic: large integers are usually milliseconds.
+        return numeric / 1000.0 if numeric > 1000 else numeric
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+    if raw.endswith("ms"):
+        try:
+            return float(raw[:-2]) / 1000.0
+        except ValueError:
+            return None
+    try:
+        return _parse_ttml_time(raw)
+    except Exception:
+        return None
+
+
+def _parse_plain_text_lyrics(text, duration=0):
+    """Create line-synced fallback from plain text."""
+    if not isinstance(text, str):
+        return None
+
+    lines = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        lines.append(line)
+    if not lines:
+        return None
+
+    if duration and duration > 0:
+        step = max(float(duration) / max(len(lines), 1), 1.5)
+    else:
+        step = 3.0
+
+    return [
+        {"time": round(index * step, 3), "text": line, "words": []}
+        for index, line in enumerate(lines)
+    ]
+
+
+def _parse_structured_lyrics_list(items, duration=0):
+    """
+    Parse list-based lyric payloads from BetterLyrics-compatible APIs.
+    Supported shapes include:
+    - [{time/start/timestamp: <value>, text/lyric/line/words: "..."}]
+    - ["plain line 1", "plain line 2"]
+    """
+    if not isinstance(items, list):
+        return None
+
+    timed_entries = []
+    plain_lines = []
+    text_keys = ("text", "lyric", "lyrics", "line", "words", "content", "value")
+    time_keys = ("time", "timestamp", "start", "startTime", "begin", "seconds", "t", "offset")
+
+    for item in items:
+        if isinstance(item, str):
+            line = item.strip()
+            if line:
+                plain_lines.append(line)
+            continue
+        if not isinstance(item, dict):
+            continue
+
+        text_value = ""
+        for key in text_keys:
+            value = item.get(key)
+            if isinstance(value, str) and value.strip():
+                text_value = value.strip()
+                break
+        if not text_value:
+            continue
+
+        line_time = None
+        for key in time_keys:
+            if key in item:
+                line_time = _parse_structured_time(item.get(key))
+                break
+
+        if line_time is None:
+            plain_lines.append(text_value)
+            continue
+
+        timed_entries.append({
+            "time": round(max(float(line_time), 0.0), 3),
+            "text": text_value,
+            "words": [],
+        })
+
+    if timed_entries:
+        timed_entries.sort(key=lambda line: line.get("time", 0))
+        return timed_entries
+
+    if plain_lines:
+        return _parse_plain_text_lyrics("\n".join(plain_lines), duration=duration)
+
+    return None
+
+
+def _extract_betterlyrics_payload(payload, duration=0):
+    """
+    Decode BetterLyrics response payloads.
+    Handles TTML, LRC/plain text, and structured list formats.
+    Returns (lyrics, has_word_sync).
+    """
+    if isinstance(payload, list):
+        parsed = _parse_structured_lyrics_list(payload, duration=duration)
+        if parsed:
+            return parsed, count_word_timestamps(parsed) > 0
+        return None, False
+
+    if isinstance(payload, str):
+        text = payload.strip()
+        if not text:
+            return None, False
+        if text.startswith("<"):
+            parsed = _parse_ttml(text)
+            if parsed:
+                return parsed, True
+        parsed = parse_lrc(text)
+        if parsed:
+            return parsed, count_word_timestamps(parsed) > 0
+        parsed = _parse_plain_text_lyrics(text, duration=duration)
+        if parsed:
+            return parsed, False
+        return None, False
+
+    if not isinstance(payload, dict):
+        return None, False
+
+    # Try direct structured collections first.
+    for key in ("lyrics", "lyric", "lines", "items"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            parsed = _parse_structured_lyrics_list(value, duration=duration)
+            if parsed:
+                return parsed, count_word_timestamps(parsed) > 0
+
+    # Try common string fields.
+    for key in ("ttml", "richSyncLyrics", "syncedLyrics", "plainLyrics", "plainLyric", "lyrics", "lyric"):
+        value = payload.get(key)
+        parsed, has_word_sync = _extract_betterlyrics_payload(value, duration=duration)
+        if parsed:
+            return parsed, has_word_sync
+
+    # Try nested objects.
+    for key in ("data", "result"):
+        value = payload.get(key)
+        parsed, has_word_sync = _extract_betterlyrics_payload(value, duration=duration)
+        if parsed:
+            return parsed, has_word_sync
+
+    return None, False
+
+
+def _build_betterlyrics_query_variants(title, artist, album="", duration=0):
+    """Generate resilient BetterLyrics query variants."""
+    base_title = (title or "").strip()
+    base_artist = (artist or "").strip()
+    base_album = (album or "").strip()
+
+    clean_title, clean_artist = clean_youtube_title(base_title, base_artist)
+    primary_artist = clean_artist.split(" & ")[0].split(",")[0].strip() if clean_artist else ""
+
+    title_candidates = [base_title, clean_title]
+    artist_candidates = [base_artist, clean_artist, primary_artist]
+    album_candidates = [base_album, ""]
+    include_duration_flags = [True, False] if duration and duration > 0 else [False]
+
+    variants = []
+    seen = set()
+    for candidate_title in title_candidates:
+        for candidate_artist in artist_candidates:
+            for candidate_album in album_candidates:
+                for include_duration in include_duration_flags:
+                    query_title = re.sub(r"\s+", " ", (candidate_title or "")).strip()
+                    query_artist = re.sub(r"\s+", " ", (candidate_artist or "")).strip()
+                    query_album = re.sub(r"\s+", " ", (candidate_album or "")).strip()
+                    if not query_title or not query_artist:
+                        continue
+
+                    params = {"s": query_title, "a": query_artist}
+                    if include_duration:
+                        params["d"] = int(duration)
+                    if query_album:
+                        params["al"] = query_album
+
+                    key = tuple(sorted(params.items()))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    variants.append(params)
+
+    if not variants:
+        fallback = {"s": base_title, "a": base_artist}
+        if duration and duration > 0:
+            fallback["d"] = int(duration)
+        if base_album:
+            fallback["al"] = base_album
+        variants.append(fallback)
+    return variants
+
 def fetch_from_better_lyrics(title, artist, album="", duration=0):
     """
     Fetch lyrics from BetterLyrics API.
@@ -721,47 +988,86 @@ def fetch_from_better_lyrics(title, artist, album="", duration=0):
     if not title or not artist:
         return None, False
 
-    try:
-        params = {"s": title, "a": artist}
-        if duration and duration > 0:
-            params["d"] = int(duration)
-        if album:
-            params["al"] = album
+    import ssl
 
+    query_variants = _build_betterlyrics_query_variants(
+        title=title,
+        artist=artist,
+        album=album,
+        duration=duration,
+    )
+    had_transient_failure = False
+
+    for params in query_variants:
         url = f"{BETTER_LYRICS_API}/getLyrics?{urllib.parse.urlencode(params)}"
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "LyricsLayer/1.0",
-            "Accept": "application/json",
-        })
 
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
+        for attempt in range(BETTER_LYRICS_RETRIES + 1):
+            try:
+                req_headers = HEADERS.copy()
+                req_headers.update({"Accept": "application/json"})
+                req = urllib.request.Request(url, headers=req_headers)
 
-        # Response: { "ttml": "<xml>...</xml>" }
-        ttml_content = data.get("ttml")
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
 
-        if not ttml_content or ttml_content == "null":
-            log_debug("[BetterLyrics] No TTML in response")
-            return None, False
+                with urllib.request.urlopen(req, timeout=BETTER_LYRICS_TIMEOUT, context=ctx) as response:
+                    data = json.loads(response.read().decode())
 
-        lyrics = _parse_ttml(ttml_content)
+                lyrics, has_word_sync = _extract_betterlyrics_payload(data, duration=duration)
+                if lyrics:
+                    word_count = sum(len(line.get("words", [])) for line in lyrics)
+                    log_debug(
+                        f"[BetterLyrics] Got {len(lyrics)} lines, {word_count} words "
+                        f"(attempt={attempt + 1}, params={params})"
+                    )
+                    print(
+                        f"[Backend] BetterLyrics: {len(lyrics)} lines, {word_count} word timestamps for {title}",
+                        file=sys.stderr,
+                    )
+                    return lyrics, has_word_sync
+                break
 
-        if lyrics:
-            word_count = sum(len(l.get("words", [])) for l in lyrics)
-            log_debug(f"[BetterLyrics] Got {len(lyrics)} lines, {word_count} words!")
-            print(f"[Backend] BetterLyrics: {len(lyrics)} lines, {word_count} word timestamps for {title}", file=sys.stderr)
-            return lyrics, True
+            except urllib.error.HTTPError as e:
+                transient_http = e.code in (429, 500, 502, 503, 504)
+                if transient_http:
+                    had_transient_failure = True
+                    log_debug(
+                        f"[BetterLyrics] transient HTTP {e.code} "
+                        f"(attempt={attempt + 1}, params={params})"
+                    )
+                    if attempt < BETTER_LYRICS_RETRIES:
+                        time.sleep(0.35 * (attempt + 1))
+                        continue
+                else:
+                    log_debug(f"[BetterLyrics] HTTP error {e.code} (params={params})")
+                break
 
-        log_debug("[BetterLyrics] TTML parsing returned empty")
-        return None, False
+            except Exception as e:
+                error_text = str(e).lower()
+                is_transient = (
+                    "timed out" in error_text
+                    or "temporary failure" in error_text
+                    or "connection reset" in error_text
+                    or "name resolution" in error_text
+                )
+                if is_transient:
+                    had_transient_failure = True
+                    log_debug(
+                        f"[BetterLyrics] transient error: {e} "
+                        f"(attempt={attempt + 1}, params={params})"
+                    )
+                    if attempt < BETTER_LYRICS_RETRIES:
+                        time.sleep(0.35 * (attempt + 1))
+                        continue
+                else:
+                    log_debug(f"[BetterLyrics] Error: {e} (params={params})")
+                    print(f"[Backend] BetterLyrics error: {e}", file=sys.stderr)
+                break
 
-    except urllib.error.HTTPError as e:
-        log_debug(f"[BetterLyrics] HTTP error {e.code}")
-        return None, False
-    except Exception as e:
-        log_debug(f"[BetterLyrics] Error: {e}")
-        print(f"[Backend] BetterLyrics error: {e}", file=sys.stderr)
-        return None, False
+    if had_transient_failure:
+        raise TransientLyricsError("betterlyrics transient failure")
+    return None, False
 
 # ─── Provider Chain ──────────────────────────────────────────────────
 
@@ -778,7 +1084,7 @@ def _call_provider_with_retry(provider_fn, title, artist, album, duration, retri
     for attempt in range(retries + 1):
         try:
             return provider_fn(title, artist, album, duration)
-        except (ConnectionError, OSError) as e:
+        except (TransientLyricsError, ConnectionError, OSError) as e:
             if attempt < retries:
                 log_debug(f"Retry {attempt+1} after transient error: {e}")
                 time.sleep(0.5)
@@ -800,6 +1106,7 @@ def fetch_lyrics(title, artist, album="", duration=0):
     cached_lyrics_fallback = None
     cached_source_fallback = ""
     cached_word_count_fallback = 0
+    had_transient_provider_error = False
     if is_cache_valid(cache_path):
         try:
             with open(cache_path, 'r') as f:
@@ -849,6 +1156,10 @@ def fetch_lyrics(title, artist, album="", duration=0):
 
                 cache_lyrics(cache_path, lyrics, source=provider_name, synced=synced)
                 return lyrics, provider_name
+        except TransientLyricsError as e:
+            had_transient_provider_error = True
+            log_debug(f"[{provider_name}] transient error: {e}")
+            print(f"[Backend] {provider_name} transient error: {e}", file=sys.stderr)
         except Exception as e:
             log_debug(f"[{provider_name}] Uncaught error: {e}")
             print(f"[Backend] {provider_name} error: {e}", file=sys.stderr)
@@ -863,6 +1174,11 @@ def fetch_lyrics(title, artist, album="", duration=0):
     # 4. Store negative result to prevent spamming
     if cached_lyrics_fallback is not None:
         return cached_lyrics_fallback, cached_source_fallback
+
+    if had_transient_provider_error:
+        # Avoid caching "not found" when providers likely failed due temporary outages.
+        log_debug("Skipping negative cache due transient provider error")
+        return None, ""
 
     try:
         log_debug(f"Writing negative cache to {cache_path}")
@@ -957,6 +1273,7 @@ class LyricsMonitor:
                     "artist": "",
                     "raw_song": "",    # Store raw playerctl title
                     "raw_artist": "",  # Store raw playerctl artist
+                    "track_key": "",
                     "artUrl": "",
                     "bgColor": "#f5f5f0",
                     "lyrics": [],
@@ -966,15 +1283,18 @@ class LyricsMonitor:
                 }
             
             player_state = self.players[identity]
+
+            track_key = build_track_key(title, artist)
             
-            # Check if song changed (compare against RAW values)
-            if title != player_state["raw_song"] or artist != player_state["raw_artist"]:
+            # Check if song changed (compare using normalized key to avoid metadata jitter).
+            if track_key != player_state.get("track_key", ""):
                 print(f"[Monitor] Song changed on {identity}: {title} - {artist}", file=sys.stderr)
                 log_debug(f"Song changed: {title}")
                 
                 # Update RAW and EFFECTIVE values
                 player_state["raw_song"] = title
                 player_state["raw_artist"] = artist
+                player_state["track_key"] = track_key
                 player_state["song"] = title
                 player_state["artist"] = artist
                 

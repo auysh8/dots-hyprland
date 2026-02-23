@@ -379,8 +379,8 @@ Scope {
 
             // Only exist as a surface while open or actively in use
             // This prevents it from blocking clicks when the drawer is "closed"
-            // Always visible if device is online (pill mode), or if active/open
-            visible: true // We manage opacity/visibility of inner items now
+            // Unmap the layer when idle to avoid constant compositor work.
+            visible: isOpen || isPillVisible
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "kde-connect-drawer"

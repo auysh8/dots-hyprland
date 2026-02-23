@@ -21,13 +21,15 @@ AbstractQuickPanel {
         color: Appearance.colors.colLayer1
 
         NetworkToggle {
+            id: networkToggle
             altAction: () => {
-                root.openWifiDialog(this);
+                root.openWifiDialog(networkToggle);
             }
         }
         BluetoothToggle {
+            id: bluetoothToggle
             altAction: () => {
-                root.openBluetoothDialog(this);
+                root.openBluetoothDialog(bluetoothToggle);
             }
         }
         NightLight {}

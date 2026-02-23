@@ -144,8 +144,9 @@ Item {
         onShownChanged: {
             if (!shown) {
                 bluetoothStartTimer.stop();
-                Bluetooth.defaultAdapter.discovering = false;
+                bluetoothStopTimer.start();
             } else {
+                bluetoothStopTimer.stop();
                 bluetoothStartTimer.start();
             }
         }
@@ -155,6 +156,16 @@ Item {
             onTriggered: {
                 Bluetooth.defaultAdapter.enabled = true;
                 Bluetooth.defaultAdapter.discovering = true;
+            }
+        }
+        Timer {
+            id: bluetoothStopTimer
+            // Let the close morph finish before touching bluetooth state.
+            interval: 450
+            onTriggered: {
+                if (!shown && Bluetooth.defaultAdapter) {
+                    Bluetooth.defaultAdapter.discovering = false;
+                }
             }
         }
     }

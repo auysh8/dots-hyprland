@@ -138,17 +138,6 @@ Scope {
         }
     }
 
-    Timer {
-        id: lyricsLoadTimeout
-        interval: 3000 // 3 seconds timeout
-        running: root.isPlaying && root.lyricsCount === 0 && !root.lyricsLoaded
-        onTriggered: {
-            console.log("[Lyrics] Load timed out, forcing loaded state")
-            root.lyricsLoaded = true
-        }
-    }
-    
-
     
     // FIX: Auto-open when Spotify is playing
     readonly property string playerName: activePlayer?.identity || ""
@@ -167,29 +156,56 @@ Scope {
     property string artUrl: (activePlayer && activePlayer.trackArtUrl) ? activePlayer.trackArtUrl : ""
     property string artFileName: Qt.md5(artUrl)
     property string artFilePath: `${Directories.coverArt}/${artFileName}`
-    property string lastProcessedTitle: "" // Track last title for song change detection
-    
-    // FIX: Watch displayTitle changes to detect song changes (works for player switching too)
-    onDisplayTitleChanged: {
-        if (displayTitle.length > 0 && displayTitle !== lastProcessedTitle) {
-            console.log("[Lyrics] Track changed to:", displayTitle)
-            lastProcessedTitle = displayTitle
-            lyricsLoaded = false
-            
-            // Set track changing state to prevent layout flash
-            trackChanging = true
-            trackChangeTimer.restart()
-            
-            // Clear lyrics for new song
-            lyricsModel.clear()
-            lyricsCount = 0
-            currentLine = -1
-            currentSongTitle = ""
-            
-            // Trigger art download if artUrl is valid
-            // Art download handled by onArtUrlChanged now to prevent race conditions
-        }
+    property string lastProcessedTrackKey: "" // Stable key to avoid false track-change clears
+
+    function normalizeTrackPart(value) {
+        var text = (value || "").toLowerCase().trim()
+        text = text.replace(/\s+/g, " ")
+        text = text.replace(/\s*-\s*youtube music$/, "")
+        text = text.replace(/\s*-\s*youtube$/, "")
+        return text
     }
+
+    function buildFrontendTrackKey(title, artist) {
+        var normalizedArtist = normalizeTrackPart(artist)
+        var normalizedTitle = normalizeTrackPart(title)
+
+        if (normalizedArtist.length > 0) {
+            var suffixes = [" • " + normalizedArtist, " - " + normalizedArtist, " · " + normalizedArtist]
+            for (var i = 0; i < suffixes.length; i++) {
+                if (normalizedTitle.endsWith(suffixes[i])) {
+                    normalizedTitle = normalizedTitle.slice(0, normalizedTitle.length - suffixes[i].length).trim()
+                    break
+                }
+            }
+        }
+        return normalizedTitle + "||" + normalizedArtist
+    }
+
+    function handleTrackMetadataChange() {
+        var trackKey = buildFrontendTrackKey(root.displayTitle, root.displayArtist)
+        if (trackKey.length <= 2 || trackKey === root.lastProcessedTrackKey) {
+            return
+        }
+
+        console.log("[Lyrics] Track changed to:", root.displayTitle)
+        root.lastProcessedTrackKey = trackKey
+        lyricsLoaded = false
+
+        // Set track changing state to prevent layout flash
+        trackChanging = true
+        trackChangeTimer.restart()
+
+        // Clear lyrics for new track
+        lyricsModel.clear()
+        lyricsCount = 0
+        currentLine = -1
+        currentSongTitle = ""
+    }
+    
+    // Watch both title and artist; compare via stable key to avoid flicker from metadata jitter.
+    onDisplayTitleChanged: handleTrackMetadataChange()
+    onDisplayArtistChanged: handleTrackMetadataChange()
     
     property string artDownloadLocation: Directories.coverArt // Compat
     
@@ -339,6 +355,11 @@ Scope {
     
     function parseUpdate(data) {
         if (!data) return
+
+        var incomingSong = data.song || ""
+        var incomingArtist = data.artist || ""
+        var incomingTrackKey = buildFrontendTrackKey(incomingSong, incomingArtist)
+        var currentBackendTrackKey = buildFrontendTrackKey(cleanedTitle, artist)
         
         // Update lyrics if changed
         if (data.lyrics) {
@@ -347,8 +368,14 @@ Scope {
             // Handle explicitly empty lyrics (backend confirms no lyrics found)
             if (newLyrics.length === 0) {
                  lyricsLoaded = true
-                 // Only clear if we had lyrics before
-                 if (lyricsModel.count > 0) {
+
+                 // Ignore transient empty updates for the same backend track
+                 // to avoid visible flicker when backend/player identity jitters.
+                 var isSameBackendTrack = (
+                     incomingTrackKey.length > 2 &&
+                     incomingTrackKey === currentBackendTrackKey
+                 )
+                 if (!isSameBackendTrack && lyricsModel.count > 0) {
                      lyricsModel.clear()
                      lyricsCount = 0
                  }
@@ -404,8 +431,8 @@ Scope {
         }
         
         // Update tracked info
-        cleanedTitle = data.song || ""
-        artist = data.artist || ""
+        cleanedTitle = incomingSong
+        artist = incomingArtist
         
         // Update lyrics source provider
         if (data.lyricsSource !== undefined) {
@@ -504,12 +531,21 @@ Scope {
                                 let updateArtist = (data.artist || "").toLowerCase().trim()
                                 let frontendSong = root.cleanDisplayTitle.toLowerCase().trim()
                                 let frontendArtist = root.displayArtist.toLowerCase().trim()
-                                
-                                isIdentityMatch = (
-                                    (updateSong === frontendSong && updateSong !== "") ||
-                                    (updateSong && frontendSong && (updateSong.includes(frontendSong) || frontendSong.includes(updateSong))) ||
-                                    (updateArtist === frontendArtist && updateArtist !== "" && updateSong !== "" && frontendSong !== "")
-                                )
+                                let hasLyricsPayload = Array.isArray(data.lyrics) && data.lyrics.length > 0
+
+                                if (hasLyricsPayload && updateSong && frontendSong && updateArtist && frontendArtist) {
+                                    let songMatch = (
+                                        updateSong === frontendSong ||
+                                        updateSong.includes(frontendSong) ||
+                                        frontendSong.includes(updateSong)
+                                    )
+                                    let artistMatch = (
+                                        updateArtist === frontendArtist ||
+                                        updateArtist.includes(frontendArtist) ||
+                                        frontendArtist.includes(updateArtist)
+                                    )
+                                    isIdentityMatch = songMatch && artistMatch
+                                }
                             }
                             
                             if (isIdentityMatch) {

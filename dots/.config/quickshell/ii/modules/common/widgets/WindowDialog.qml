@@ -120,7 +120,7 @@ Rectangle {
             enabled: root.animationsEnabled
             NumberAnimation {
                 duration: root.show ? root.openDuration : root.closeDuration
-                easing.type: root.show ? Easing.OutCubic : Easing.InCubic
+                easing.type: root.show ? Easing.OutCubic : Easing.OutCubic
             }
         }
         
@@ -155,7 +155,7 @@ Rectangle {
             enabled: root.animationsEnabled
             ColorAnimation {
                 duration: root.show ? root.openDuration : root.closeDuration
-                easing.type: root.show ? Easing.OutCubic : Easing.InCubic
+                easing.type: root.show ? Easing.OutCubic : Easing.OutCubic
             }
         }
         
@@ -184,40 +184,33 @@ Rectangle {
             enabled: root.animationsEnabled
             NumberAnimation {
                 duration: root.show ? root.openDuration : root.closeDuration
-                easing.type: root.show ? Easing.OutCubic : Easing.InCubic
+                easing.type: root.show ? Easing.OutCubic : Easing.OutCubic
             }
         }
         Behavior on y {
             enabled: root.animationsEnabled
             NumberAnimation {
                 duration: root.show ? root.openDuration : root.closeDuration
-                easing.type: root.show ? Easing.OutCubic : Easing.InCubic
+                easing.type: root.show ? Easing.OutCubic : Easing.OutCubic
             }
         }
         Behavior on width {
             enabled: root.animationsEnabled
             NumberAnimation {
                 duration: root.show ? root.openDuration : root.closeDuration
-                easing.type: root.show ? Easing.OutCubic : Easing.InCubic
+                easing.type: root.show ? Easing.OutCubic : Easing.OutCubic
             }
         }
         Behavior on height {
             enabled: root.animationsEnabled
             NumberAnimation {
                 duration: root.show ? root.openDuration : root.closeDuration
-                easing.type: root.show ? Easing.OutCubic : Easing.InCubic
+                easing.type: root.show ? Easing.OutCubic : Easing.OutCubic
             }
         }
         
         opacity: 0
-        
-        Behavior on opacity {
-            enabled: root.animationsEnabled && !root.show  // Only animate when closing
-            NumberAnimation {
-                duration: 150
-                easing.type: Easing.OutCubic
-            }
-        }
+        // TEMP: No opacity animation at all - just geometry morph
         
         Timer {
             id: closeTimer
@@ -242,11 +235,13 @@ Rectangle {
             opacity: root.show ? 0 : 1
             visible: opacity > 0
             
+            // Snap instantly on close — no animated crossfade
+            // Only animate (fade out) when hiding on open
             Behavior on opacity {
-                enabled: root.animationsEnabled
+                enabled: root.animationsEnabled && root.show  // Only animate on OPEN (hide fake toggle)
                 NumberAnimation { 
-                    duration: root.show ? 100 : root.closeDuration 
-                    easing.type: root.show ? Easing.OutCubic : Easing.Linear
+                    duration: 100
+                    easing.type: Easing.OutCubic
                 }
             }
             
@@ -349,29 +344,28 @@ Rectangle {
                 margins: dialogBackground.targetRadius
             }
             // Explicitly set width to target width so content layout doesn't jump during resize
-            width: root.targetRect.width - (margins * 2)
+            width: root.targetRect.width - (anchors.margins * 2)
             
             spacing: 16
             
-            // Scale content during open/close to simulate shrinking
+            // Scale content during open/close
             scale: root.show ? 1.0 : 0.8
-            transformOrigin: Item.Top // Shrink towards top (or center depending on visual preference)
+            transformOrigin: Item.Top
             Behavior on scale {
-                 enabled: root.animationsEnabled
+                 enabled: root.animationsEnabled && root.show  // Only animate on OPEN
                  NumberAnimation { 
-                     duration: root.show ? root.openDuration : root.closeDuration
-                     easing.type: root.show ? Easing.OutCubic : Easing.InCubic
+                     duration: root.openDuration
+                     easing.type: Easing.OutCubic
                  }
             }
 
-            // Material-style content fade (staggered from container)
+            // Content fade: snap invisible on close, animate on open
             opacity: root.show ? 1 : 0
             Behavior on opacity {
-                 enabled: root.animationsEnabled
+                 enabled: root.animationsEnabled && root.show  // Only animate on OPEN
                  NumberAnimation { 
-                     // Increase closing fade duration to keep content visible longer during shrink
-                     duration: root.show ? 150 : root.closeDuration
-                     easing.type: root.show ? Easing.OutCubic : Easing.InCubic
+                     duration: 150
+                     easing.type: Easing.OutCubic
                  }
             }
         }

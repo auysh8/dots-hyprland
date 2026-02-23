@@ -139,6 +139,7 @@ Scope {
                 // Modes: 0=Idle/Media, 1=Volume, 2=Brightness, 3=CustomPopup, 4=Battery
                 property int modeOverride: 0
                 property int mode: modeOverride > 0 ? modeOverride : (hasPopup ? 3 : 0)
+                property string expandedPageKey: "media"
                 
                 property real lastVolume: Audio.value
                 property real lastBrightness: Brightness.monitors.length > 0 ? Brightness.monitors[0].brightness : 0
@@ -265,7 +266,7 @@ Scope {
                     
                     IdleMonitor {
                         id: idleMon
-                        timeout: 2.5 // 2.5 seconds
+                        timeout: 8.0 // Stay hidden longer before showing on idle
                         enabled: true
                     }
                     property bool islandVisible: !GlobalStates.overviewOpen && (
@@ -294,7 +295,7 @@ Scope {
                         repeat: false
                     }
 
-                    property bool expanded: (islandMouseArea.containsMouse || expandTimer.running) && !triggerArea.containsMouse && mode === 0 && !hasPopup
+                    property bool expanded: (islandHoverTracker.hovered || expandTimer.running) && mode === 0 && !hasPopup
 
                     // The Island Pill
                     Item {
@@ -303,6 +304,29 @@ Scope {
                         anchors.topMargin: 0 // Attached to top edge (Notch style)
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.horizontalCenterOffset: 0 // For Shake Animation
+                        property int renderMode: islandContainer.mode
+                        readonly property bool renderActive: islandContainer.islandVisible
+                            || pillScaleAnim.running
+                            || pillWidthAnim.running
+                            || pillHeightAnim.running
+                            || scale > 0.01
+                        visible: renderActive
+                        enabled: renderActive
+
+                        Connections {
+                            target: islandContainer
+                            function onModeChanged() {
+                                // Keep the currently shown mode while closing, then sync when visible again.
+                                if (islandContainer.islandVisible || !islandPill.renderActive) {
+                                    islandPill.renderMode = islandContainer.mode
+                                }
+                            }
+                            function onIslandVisibleChanged() {
+                                if (islandContainer.islandVisible) {
+                                    islandPill.renderMode = islandContainer.mode
+                                }
+                            }
+                        }
 
                         SequentialAnimation {
                             id: shakeAnimation
@@ -358,18 +382,19 @@ Scope {
                         }
                         
 
-                        // Opacity Logic
+                        // Scale Logic
                         // Controlled centrally by islandContainer.islandVisible
                         
                         scale: islandContainer.islandVisible ? 1 : 0
                         transformOrigin: Item.Top
-                        
-                        Behavior on scale { 
-                            NumberAnimation { 
+
+                        Behavior on scale {
+                            NumberAnimation {
+                                id: pillScaleAnim
                                 duration: 400
                                 easing.type: Easing.OutBack
                                 easing.overshoot: 0.8
-                            } 
+                            }
                         }
 
 
@@ -385,15 +410,15 @@ Scope {
 
                     // Mode specific sizes
                      property real expandedWidth: {
-                        if (islandContainer.mode === 1 || islandContainer.mode === 2) return 220; // Volume/Brightness
-                        if (islandContainer.mode === 3) return 320; // Notification (Match collapsed width roughly)
-                        if (islandContainer.mode === 4) return 260; // Battery
+                        if (islandPill.renderMode === 1 || islandPill.renderMode === 2) return 220; // Volume/Brightness
+                        if (islandPill.renderMode === 3) return 320; // Notification (Match collapsed width roughly)
+                        if (islandPill.renderMode === 4) return 260; // Battery
                         return 420;
                     }
                     property real expandedHeight: {
-                        if (islandContainer.mode === 1 || islandContainer.mode === 2) return 48; // M3 Pill height
-                        if (islandContainer.mode === 3) return 64; // Popup (DoubleLine)
-                        if (islandContainer.mode === 4) return 52; // Battery
+                        if (islandPill.renderMode === 1 || islandPill.renderMode === 2) return 48; // M3 Pill height
+                        if (islandPill.renderMode === 3) return 64; // Popup (DoubleLine)
+                        if (islandPill.renderMode === 4) return 52; // Battery
                         
                         // Check for multiple pages to add space for pagination dots
                         var pageCount = 0;
@@ -408,38 +433,25 @@ Scope {
                         return 60;
                     }
                     
-                    width: (islandContainer.expanded || islandContainer.mode !== 0) ? expandedWidth : collapsedWidth
-                    height: (islandContainer.expanded || islandContainer.mode !== 0) ? expandedHeight : collapsedHeight
+                    width: (islandContainer.expanded || islandPill.renderMode !== 0) ? expandedWidth : collapsedWidth
+                    height: (islandContainer.expanded || islandPill.renderMode !== 0) ? expandedHeight : collapsedHeight
                     
                     Behavior on width {
                         SpringAnimation {
-                            spring: 2.5  // Slower/Softer
-                            damping: 0.4 // Still very bouncy
+                            id: pillWidthAnim
+                            spring: 2.5
+                            damping: 0.4
                             epsilon: 0.5
                             mass: 1.0
                         }
                     }
                     Behavior on height {
                         SpringAnimation {
-                            spring: 2.5  // Slower/Softer
+                            id: pillHeightAnim
+                            spring: 2.5
                             damping: 0.4
                             epsilon: 0.5
                             mass: 1
-                        }
-                    }
-
-                    MouseArea {
-                        id: islandMouseArea
-                        anchors.fill: parent
-                        anchors.margins: -40
-                        hoverEnabled: true
-                        onEntered: {
-                            expandTimer.stop()
-                            islandContainer.isHovered = true
-                        }
-                        onExited: {
-                            expandTimer.start()
-                            islandContainer.isHovered = false
                         }
                     }
 
@@ -519,309 +531,337 @@ Scope {
 
 
                         // Standard Mode Content
-                        RowLayout {
-                            visible: islandContainer.mode !== 3
-                            // width: parent.width - 24 // Removed to allow true centering
-                            spacing: 12
+                        Loader {
+                            active: islandPill.renderActive && islandPill.renderMode === 0 && !islandContainer.expanded
                             anchors.centerIn: parent
+                            sourceComponent: RowLayout {
+                                // width: parent.width - 24 // Removed to allow true centering
+                                spacing: 12
+                                anchors.centerIn: parent
 
-                            // Time / Timer / Stopwatch
-                            Text {
                                 // Time / Timer / Stopwatch
-                                text: {
-                                    if (TimerService.pomodoroRunning || (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration && TimerService.pomodoroSecondsLeft > 0)) {
-                                        let m = Math.floor(TimerService.pomodoroSecondsLeft / 60).toString().padStart(2, '0');
-                                        let s = Math.floor(TimerService.pomodoroSecondsLeft % 60).toString().padStart(2, '0');
-                                        return "🍅 " + m + ":" + s;
-                                    }
-                                    if (TimerService.stopwatchRunning) {
-                                        let t = TimerService.stopwatchTime / 100;
-                                        let m = Math.floor(t / 60).toString().padStart(2, '0');
-                                        let s = Math.floor(t % 60).toString().padStart(2, '0');
-                                        return "⏱️ " + m + ":" + s;
-                                    }
-                                    return islandContainer.currentTime;
-                                }
-                                color: {
-                                    if (TimerService.pomodoroRunning || (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration && TimerService.pomodoroSecondsLeft > 0)) return Appearance.colors.colError;
-                                    if (TimerService.stopwatchRunning) return Appearance.colors.colPrimary;
-                                    return Appearance.colors.colOnLayer0;
-                                }
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                font.weight: Font.Medium
-
-                            }
-
-                            // Separator
-                            Rectangle {
-                                width: 1
-                                height: 16
-                                color: Appearance.colors.colOutlineVariant
-                                visible: islandContainer.hasMedia || islandPill.downloadActive
-                            }
-
-                            // Download Indicator (Collapsed)
-                            // Priority: Show only if Media is NOT showing
-                            RowLayout {
-                                visible: islandPill.downloadActive && !islandContainer.expanded && !islandContainer.hasMedia
-                                spacing: 6
-                                
-                                MaterialSymbol {
-                                    text: "download"
-                                    iconSize: 16
-                                    color: Appearance.colors.colPrimary
-                                }
-                                
                                 Text {
-                                    text: Math.round(DownloadService.progress * 100) + "%"
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    color: Appearance.colors.colOnLayer0
-                                }
-                            }
-                            
-                            // No second separator needed as we are mutually exclusive now
-
-                            // Media indicator (collapsed)
-                            RowLayout {
-                                visible: islandContainer.hasMedia
-                                spacing: 6
-                                
-                                AudioVisualizer {
-                                    playing: MprisController.isPlaying
-                                    barColor: Appearance.colors.colPrimary
-                                    barCount: 4
-                                    maxBarHeight: 14
-                                }
-                                
-                                Text {
+                                    // Time / Timer / Stopwatch
                                     text: {
-                                        const title = MprisController.activeTrack.title;
-                                        return title.length > 15 ? title.substring(0, 15) + "..." : title;
+                                        if (TimerService.pomodoroRunning || (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration && TimerService.pomodoroSecondsLeft > 0)) {
+                                            let m = Math.floor(TimerService.pomodoroSecondsLeft / 60).toString().padStart(2, '0');
+                                            let s = Math.floor(TimerService.pomodoroSecondsLeft % 60).toString().padStart(2, '0');
+                                            return "🍅 " + m + ":" + s;
+                                        }
+                                        if (TimerService.stopwatchRunning) {
+                                            let t = TimerService.stopwatchTime / 100;
+                                            let m = Math.floor(t / 60).toString().padStart(2, '0');
+                                            let s = Math.floor(t % 60).toString().padStart(2, '0');
+                                            return "⏱️ " + m + ":" + s;
+                                        }
+                                        return islandContainer.currentTime;
                                     }
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    color: Appearance.colors.colOnLayer0
+                                    color: {
+                                        if (TimerService.pomodoroRunning || (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration && TimerService.pomodoroSecondsLeft > 0)) return Appearance.colors.colError;
+                                        if (TimerService.stopwatchRunning) return Appearance.colors.colPrimary;
+                                        return Appearance.colors.colOnLayer0;
+                                    }
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    font.weight: Font.Medium
+
+                                }
+
+                                // Separator
+                                Rectangle {
+                                    width: 1
+                                    height: 16
+                                    color: Appearance.colors.colOutlineVariant
+                                    visible: islandContainer.hasMedia || islandPill.downloadActive
+                                }
+
+                                // Download Indicator (Collapsed)
+                                // Priority: Show only if Media is NOT showing
+                                RowLayout {
+                                    visible: islandPill.downloadActive && !islandContainer.hasMedia
+                                    spacing: 6
+
+                                    MaterialSymbol {
+                                        text: "download"
+                                        iconSize: 16
+                                        color: Appearance.colors.colPrimary
+                                    }
+
+                                    Text {
+                                        text: Math.round(DownloadService.progress * 100) + "%"
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        color: Appearance.colors.colOnLayer0
+                                    }
+                                }
+
+                                // No second separator needed as we are mutually exclusive now
+
+                                // Media indicator (collapsed)
+                                RowLayout {
+                                    visible: islandContainer.hasMedia
+                                    spacing: 6
+
+                                    AudioVisualizer {
+                                        playing: MprisController.isPlaying
+                                        barColor: Appearance.colors.colPrimary
+                                        barCount: 4
+                                        maxBarHeight: 14
+                                    }
+
+                                    Text {
+                                        text: {
+                                            const title = MprisController.activeTrack.title;
+                                            return title.length > 15 ? title.substring(0, 15) + "..." : title;
+                                        }
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        color: Appearance.colors.colOnLayer0
+                                    }
                                 }
                             }
                         }
 
                         // Popup Mode Content (Styled like Battery Mode)
-                        RowLayout {
-                            visible: islandContainer.mode === 3
+                        Loader {
+                            active: islandPill.renderActive && islandPill.renderMode === 3
                             anchors.fill: parent
                             anchors.margins: 8
-                            spacing: 8
-                            
-                            // Tonal Container for Icon (M3 Style)
-                            Rectangle {
-                                id: popupIconContainer
-                                width: 34
-                                height: 34
-                                radius: 10
-                                color: Qt.rgba(popupIcon.color.r, popupIcon.color.g, popupIcon.color.b, 0.15)
-                                
-                                MaterialSymbol {
-                                    id: popupIcon
-                                    anchors.centerIn: parent
-                                    text: {
-                                        switch (islandContainer.popupCategory) {
-                                            case "screenshot": return "screenshot";
-                                            case "download": return islandContainer.popupAction === "complete" ? "download_done" : "download";
-                                            case "clipboard": return "content_paste";
-                                            case "media": return "music_note";
-                                            case "microphone": return islandContainer.popupAction === "muted" ? "mic_off" : "mic";
-                                            case "volume": return islandContainer.popupAction === "muted" ? "volume_off" : "volume_up";
-                                            case "wifi": return islandContainer.popupAction === "disconnected" ? "wifi_off" : "wifi";
-                                            case "bluetooth":
-                                                if (islandContainer.popupAction === "connected") return "bluetooth_connected";
-                                                if (islandContainer.popupAction === "disconnected") return "bluetooth_disabled";
-                                                return "bluetooth";
-                                            case "battery":
-                                                if (islandContainer.popupAction === "charging") return "battery_charging_full";
-                                                if (islandContainer.popupAction === "low") return "battery_alert";
-                                                return "battery_std";
-                                            case "pomodoro":
-                                                if (islandContainer.popupAction === "break") return "coffee";
-                                                if (islandContainer.popupAction === "complete") return "check_circle";
-                                                return "timer";
-                                            case "brightness": return "brightness_6";
-                                            case "notification": return "notifications";
-                                            case "message": return "message";
-                                            case "mail": return "mail";
-                                            case "update": return "update";
-                                            case "keyboard": return "keyboard";
-                                            case "notification":
-                                                if (islandContainer.popupAction === "pinned") return "push_pin";
-                                                if (islandContainer.popupAction === "unpinned") return "block";
-                                                return "notifications";
-                                            case "camera": return "videocam";
-                                            case "file": return "description";
-                                            default:
-                                                if (islandContainer.popupType === "bad") return "warning";
-                                                if (islandContainer.popupType === "good") return "check_circle";
-                                                return "info";
+                            sourceComponent: RowLayout {
+                                spacing: 8
+
+                                // Tonal Container for Icon (M3 Style)
+                                Rectangle {
+                                    id: popupIconContainer
+                                    width: 34
+                                    height: 34
+                                    radius: 10
+                                    color: Qt.rgba(popupIcon.color.r, popupIcon.color.g, popupIcon.color.b, 0.15)
+
+                                    MaterialSymbol {
+                                        id: popupIcon
+                                        anchors.centerIn: parent
+                                        text: {
+                                            switch (islandContainer.popupCategory) {
+                                                case "screenshot": return "screenshot";
+                                                case "download": return islandContainer.popupAction === "complete" ? "download_done" : "download";
+                                                case "clipboard": return "content_paste";
+                                                case "media": return "music_note";
+                                                case "microphone": return islandContainer.popupAction === "muted" ? "mic_off" : "mic";
+                                                case "volume": return islandContainer.popupAction === "muted" ? "volume_off" : "volume_up";
+                                                case "wifi": return islandContainer.popupAction === "disconnected" ? "wifi_off" : "wifi";
+                                                case "bluetooth":
+                                                    if (islandContainer.popupAction === "connected") return "bluetooth_connected";
+                                                    if (islandContainer.popupAction === "disconnected") return "bluetooth_disabled";
+                                                    return "bluetooth";
+                                                case "battery":
+                                                    if (islandContainer.popupAction === "charging") return "battery_charging_full";
+                                                    if (islandContainer.popupAction === "low") return "battery_alert";
+                                                    return "battery_std";
+                                                case "pomodoro":
+                                                    if (islandContainer.popupAction === "break") return "coffee";
+                                                    if (islandContainer.popupAction === "complete") return "check_circle";
+                                                    return "timer";
+                                                case "brightness": return "brightness_6";
+                                                case "notification": return "notifications";
+                                                case "message": return "message";
+                                                case "mail": return "mail";
+                                                case "update": return "update";
+                                                case "keyboard": return "keyboard";
+                                                case "notification":
+                                                    if (islandContainer.popupAction === "pinned") return "push_pin";
+                                                    if (islandContainer.popupAction === "unpinned") return "block";
+                                                    return "notifications";
+                                                case "camera": return "videocam";
+                                                case "file": return "description";
+                                                default:
+                                                    if (islandContainer.popupType === "bad") return "warning";
+                                                    if (islandContainer.popupType === "good") return "check_circle";
+                                                    return "info";
+                                            }
                                         }
-                                    }
-                                    color: {
-                                        if (islandContainer.popupType === "bad")
-                                            return Appearance.colors.colError;
+                                        color: {
+                                            if (islandContainer.popupType === "bad")
+                                                return Appearance.colors.colError;
 
-                                        switch (islandContainer.popupCategory) {
-                                            case "battery":
-                                                if (islandContainer.popupAction === "low") return Appearance.colors.colError;
-                                                if (islandContainer.popupAction === "charging") return Appearance.colors.colPrimary;
-                                                return Appearance.colors.colOnLayer0;
+                                            switch (islandContainer.popupCategory) {
+                                                case "battery":
+                                                    if (islandContainer.popupAction === "low") return Appearance.colors.colError;
+                                                    if (islandContainer.popupAction === "charging") return Appearance.colors.colPrimary;
+                                                    return Appearance.colors.colOnLayer0;
 
-                                            case "wifi":
-                                            case "bluetooth":
-                                            case "microphone":
-                                                if (islandContainer.popupAction === "disconnected" ||
-                                                    islandContainer.popupAction === "muted")
-                                                    return Appearance.colors.colError;
-                                                return Appearance.colors.colPrimary;
+                                                case "wifi":
+                                                case "bluetooth":
+                                                case "microphone":
+                                                    if (islandContainer.popupAction === "disconnected" ||
+                                                        islandContainer.popupAction === "muted")
+                                                        return Appearance.colors.colError;
+                                                    return Appearance.colors.colPrimary;
 
-                                            default:
-                                                return Appearance.colors.colPrimary;
+                                                default:
+                                                    return Appearance.colors.colPrimary;
+                                            }
                                         }
+                                        iconSize: 24
                                     }
-                                    iconSize: 24
                                 }
-                            }
-                            
-                            // Double Line Layout for ALL Popups
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 0
-                                
-                                Text {
-                                    text: islandContainer.popupTitle
-                                    color: Appearance.colors.colOnLayer0
-                                    font.pixelSize: Appearance.font.pixelSize.normal
-                                    font.weight: Font.Bold
-                                    elide: Text.ElideRight
+
+                                // Double Line Layout for ALL Popups
+                                ColumnLayout {
                                     Layout.fillWidth: true
-                                }
-                                
-                                Text {
-                                    text: islandContainer.popupMessage
-                                    color: Appearance.colors.colOnLayer0
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    opacity: 0.7
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
+                                    spacing: 0
+
+                                    Text {
+                                        text: islandContainer.popupTitle
+                                        color: Appearance.colors.colOnLayer0
+                                        font.pixelSize: Appearance.font.pixelSize.normal
+                                        font.weight: Font.Bold
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Text {
+                                        text: islandContainer.popupMessage
+                                        color: Appearance.colors.colOnLayer0
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        opacity: 0.7
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
                                 }
                             }
                         }
                     }
 
                     // Expanded content
-                    ColumnLayout {
-                        id: expandedContent
+                    Loader {
+                        id: expandedContentLoader
+                        active: islandPill.renderActive && islandContainer.expanded && islandPill.renderMode === 0
+                        visible: islandContainer.expanded && islandContainer.mode === 0
                         anchors.fill: parent
                         anchors.margins: 12
-                        spacing: 8
-                        opacity: islandContainer.expanded && islandContainer.mode === 0 ? 1 : 0
-                        visible: opacity > 0
-                        
-                        // Top row - Time and Date
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 12
+                        sourceComponent: ColumnLayout {
+                            id: expandedContent
+                            spacing: 8
 
-                            Text {
-                                text: islandContainer.currentTimeWithSeconds
-                                font.pixelSize: Appearance.font.pixelSize.larger
-                                font.weight: Font.Bold
-                                color: Appearance.colors.colOnLayer0
-                            }
-                            
-                            Item { Layout.fillWidth: true }
-                            
-                            Text {
-                                text: islandContainer.currentDate
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                font.weight: Font.Medium
-                                color: Appearance.colors.colOnLayer0
-                            }
-                        }
+                            // Top row - Time and Date
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
 
-                        // Page Components
-                        Component { id: mediaPage; MediaPage { } }
-                        Component { id: pomodoroPage; PomodoroPage { } }
-                        Component { id: stopwatchPage; StopwatchPage { } }
-                        Component { id: downloadPage; DownloadPage { } }
-
-                        // Dynamic Page List
-                        property var activePages: [
-                            islandContainer.hasMedia ? mediaPage : null,
-                            islandPill.pomodoroActive ? pomodoroPage : null,
-                            islandPill.stopwatchActive ? stopwatchPage : null,
-                            islandPill.downloadActive ? downloadPage : null
-                        ].filter(p => p !== null)
-
-                        // 4. SwipeView for Content (Horizontal & Swipeable)
-
-                        SwipeView {
-                            id: contentSwipe
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            
-                            Repeater {
-                                model: expandedContent.activePages
-                                Loader {
-                                    id: pageLoader
-                                    sourceComponent: modelData
-                                    active: true
-                                    visible: true
-                                    
-                                    // Animated Entry
-                                    opacity: 0
-                                    scale: 0.95
-                                    transformOrigin: Item.Center
-                                    
-                                    Component.onCompleted: {
-                                        // Slight delay to ensure layout is ready
-                                        entryAnim.restart()
-                                    }
-                                    
-                                    ParallelAnimation {
-                                        id: entryAnim
-                                        NumberAnimation { target: pageLoader; property: "opacity"; to: 1; duration: 400; easing.type: Easing.OutQuart }
-                                        NumberAnimation { target: pageLoader; property: "scale"; to: 1; duration: 400; easing.type: Easing.OutBack; easing.overshoot: 0.6 }
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Page Indicator
-                        Row {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.bottomMargin: 4
-                            spacing: 6
-                            visible: expandedContent.activePages.length > 1
-                            
-                            Repeater {
-                                model: contentSwipe.count
-                                Rectangle {
-                                    width: 6
-                                    height: 6
-                                    radius: 3
+                                Text {
+                                    text: islandContainer.currentTimeWithSeconds
+                                    font.pixelSize: Appearance.font.pixelSize.larger
+                                    font.weight: Font.Bold
                                     color: Appearance.colors.colOnLayer0
-                                    opacity: contentSwipe.currentIndex === index ? 1 : 0.3
-                                    
-                                    Behavior on opacity { NumberAnimation { duration: 200 } }
-                                    
-                                    // Scale animation for fun
-                                    scale: contentSwipe.currentIndex === index ? 1.2 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: 200 } }
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                Text {
+                                    text: islandContainer.currentDate
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    font.weight: Font.Medium
+                                    color: Appearance.colors.colOnLayer0
+                                }
+                            }
+
+                            // Page Components
+                            Component { id: mediaPage; MediaPage { } }
+                            Component { id: pomodoroPage; PomodoroPage { } }
+                            Component { id: stopwatchPage; StopwatchPage { } }
+                            Component { id: downloadPage; DownloadPage { } }
+
+                            // Dynamic Page List
+                            property var activePages: {
+                                var pages = [];
+                                if (islandContainer.hasMedia) pages.push({ key: "media", component: mediaPage });
+                                if (islandPill.pomodoroActive) pages.push({ key: "pomodoro", component: pomodoroPage });
+                                if (islandPill.stopwatchActive) pages.push({ key: "stopwatch", component: stopwatchPage });
+                                if (islandPill.downloadActive) pages.push({ key: "download", component: downloadPage });
+                                return pages;
+                            }
+
+                            function pageIndexForKey(key) {
+                                for (var i = 0; i < activePages.length; ++i) {
+                                    if (activePages[i].key === key) return i;
+                                }
+                                return -1;
+                            }
+
+                            function syncSwipeToSavedPage() {
+                                if (activePages.length === 0) {
+                                    islandContainer.expandedPageKey = "media";
+                                    return;
+                                }
+
+                                var targetIndex = pageIndexForKey(islandContainer.expandedPageKey);
+                                if (targetIndex < 0) targetIndex = 0;
+
+                                if (contentSwipe.currentIndex !== targetIndex)
+                                    contentSwipe.currentIndex = targetIndex;
+
+                                var resolvedKey = activePages[targetIndex].key;
+                                if (resolvedKey !== islandContainer.expandedPageKey)
+                                    islandContainer.expandedPageKey = resolvedKey;
+                            }
+
+                            onActivePagesChanged: Qt.callLater(syncSwipeToSavedPage)
+
+                            // 4. SwipeView for Content (Horizontal & Swipeable)
+
+                            SwipeView {
+                                id: contentSwipe
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+                                interactive: expandedContent.activePages.length > 1
+
+                                Component.onCompleted: expandedContent.syncSwipeToSavedPage()
+                                onCountChanged: expandedContent.syncSwipeToSavedPage()
+                                onCurrentIndexChanged: {
+                                    if (currentIndex < 0 || currentIndex >= expandedContent.activePages.length) return;
+                                    var nextKey = expandedContent.activePages[currentIndex].key;
+                                    if (nextKey !== islandContainer.expandedPageKey)
+                                        islandContainer.expandedPageKey = nextKey;
+                                }
+
+                                Repeater {
+                                    model: expandedContent.activePages
+                                    Loader {
+                                        id: pageLoader
+                                        sourceComponent: modelData.component
+                                        active: true
+                                        visible: true
+
+                                        opacity: 1
+                                        scale: 1
+                                    }
+                                }
+                            }
+
+                            // Page Indicator
+                            Row {
+                                Layout.alignment: Qt.AlignHCenter
+                                Layout.bottomMargin: 4
+                                spacing: 6
+                                visible: expandedContent.activePages.length > 1
+
+                                Repeater {
+                                    model: contentSwipe.count
+                                    Rectangle {
+                                        width: 6
+                                        height: 6
+                                        radius: 3
+                                        color: Appearance.colors.colOnLayer0
+                                        opacity: contentSwipe.currentIndex === index ? 1 : 0.3
+
+                                        Behavior on opacity { NumberAnimation { duration: 200 } }
+
+                                        // Scale animation for fun
+                                        scale: contentSwipe.currentIndex === index ? 1.2 : 1.0
+                                        Behavior on scale { NumberAnimation { duration: 200 } }
+                                    }
                                 }
                             }
                         }
-
-
-
-                        
-
                     }
 
                     
@@ -829,225 +869,236 @@ Scope {
                     
                     // Volume Content
                     // Volume Content (M3 Pill Slider)
-                    RowLayout {
+                    Loader {
+                        active: islandPill.renderActive && islandPill.renderMode === 1
                         anchors.fill: parent
                         anchors.margins: 10
-                        visible: islandContainer.mode === 1
-                        opacity: visible ? 1 : 0
-                        spacing: 10
-                        
-                        // Tonal Container for Icon
-                        Rectangle {
-                            width: 28
-                            height: 28
-                            radius: 8
-                            color: Qt.rgba(volumeIcon.color.r, volumeIcon.color.g, volumeIcon.color.b, 0.15)
-                            
-                            MaterialSymbol {
-                                id: volumeIcon
-                                anchors.centerIn: parent
-                                text: {
-                                    if (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) return "volume_off";
-                                    if (Audio.value > 0.5) return "volume_up";
-                                    if (Audio.value > 0) return "volume_down";
-                                    return "volume_mute";
-                                }
-                                color: (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) ? Appearance.colors.colError : Appearance.colors.colPrimary
-                                iconSize: 18
-                            }
-                        }
-                        
-                        // M3 Thick Pill Slider
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 14
-                            radius: 7
-                            color: Qt.rgba(Appearance.colors.colOnLayer0.r, Appearance.colors.colOnLayer0.g, Appearance.colors.colOnLayer0.b, 0.12)
-                            clip: true
-                            
-                            // Filled portion
-                            Rectangle {
-                                id: volumeFill
-                                // Use pill's *target* expandedWidth MINUS layout overhead (margins + icon + spacing + text)
-                                // Layout: 20(marg) + 28(icon) + 20(space) + 36(text) = 104px overhead
-                                width: islandContainer.mode === 1
-                                    ? ((islandPill.expandedWidth - 104) * islandContainer.lastVolume)
-                                    : (parent.width * islandContainer.lastVolume)
+                        sourceComponent: RowLayout {
+                            spacing: 10
 
-                                height: parent.height
+                            // Tonal Container for Icon
+                            Rectangle {
+                                width: 28
+                                height: 28
+                                radius: 8
+                                color: Qt.rgba(volumeIcon.color.r, volumeIcon.color.g, volumeIcon.color.b, 0.15)
+
+                                MaterialSymbol {
+                                    id: volumeIcon
+                                    anchors.centerIn: parent
+                                    text: {
+                                        if (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) return "volume_off";
+                                        if (Audio.value > 0.5) return "volume_up";
+                                        if (Audio.value > 0) return "volume_down";
+                                        return "volume_mute";
+                                    }
+                                    color: (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) ? Appearance.colors.colError : Appearance.colors.colPrimary
+                                    iconSize: 18
+                                }
+                            }
+
+                            // M3 Thick Pill Slider
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 14
                                 radius: 7
-                                color: (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) ? Appearance.colors.colError : Appearance.colors.colPrimary
-                                Behavior on width {
-                                    enabled: islandContainer.mode === 1
-                                    NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
-                                }
-                                
-                                // Integrated handle (subtle glow at end)
+                                color: Qt.rgba(Appearance.colors.colOnLayer0.r, Appearance.colors.colOnLayer0.g, Appearance.colors.colOnLayer0.b, 0.12)
+                                clip: true
+
+                                // Filled portion
                                 Rectangle {
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 4
+                                    id: volumeFill
+                                    // Use pill's *target* expandedWidth MINUS layout overhead (margins + icon + spacing + text)
+                                    // Layout: 20(marg) + 28(icon) + 20(space) + 36(text) = 104px overhead
+                                    width: (islandPill.expandedWidth - 104) * islandContainer.lastVolume
                                     height: parent.height
-                                    radius: 2
-                                    color: Qt.lighter(parent.color, 1.3)
-                                    visible: Audio.value > 0.02
+                                    radius: 7
+                                    color: (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) ? Appearance.colors.colError : Appearance.colors.colPrimary
+                                    Behavior on width {
+                                        NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+                                    }
+
+                                    // Integrated handle (subtle glow at end)
+                                    Rectangle {
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 4
+                                        height: parent.height
+                                        radius: 2
+                                        color: Qt.lighter(parent.color, 1.3)
+                                        visible: Audio.value > 0.02
+                                    }
                                 }
                             }
-                        }
-                        
-                        Text {
-                            text: {
-                                var v = Audio.value;
-                                return (isNaN(v) || v === undefined ? 0 : Math.round(v * 100)) + "%";
+
+                            Text {
+                                text: {
+                                    var v = Audio.value;
+                                    return (isNaN(v) || v === undefined ? 0 : Math.round(v * 100)) + "%";
+                                }
+                                color: Appearance.colors.colOnLayer0
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.Bold
+                                Layout.preferredWidth: 36
+                                horizontalAlignment: Text.AlignRight
                             }
-                            color: Appearance.colors.colOnLayer0
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.Bold
-                            Layout.preferredWidth: 36
-                            horizontalAlignment: Text.AlignRight
                         }
                     }
 
                     // Brightness Content (M3 Pill Slider)
-                    RowLayout {
+                    Loader {
+                        active: islandPill.renderActive && islandPill.renderMode === 2
                         anchors.fill: parent
                         anchors.margins: 10
-                        visible: islandContainer.mode === 2
-                        opacity: visible ? 1 : 0
-                        spacing: 10
-                        
-                        // Tonal Container for Icon
-                        Rectangle {
-                            width: 28
-                            height: 28
-                            radius: 8
-                            color: Qt.rgba(brightnessIcon.color.r, brightnessIcon.color.g, brightnessIcon.color.b, 0.15)
-                            
-                            MaterialSymbol {
-                                id: brightnessIcon
-                                anchors.centerIn: parent
-                                text: {
-                                    var val = 0;
-                                    if (Brightness.monitors.length > 0) val = Brightness.monitors[0].brightness;
-                                    
-                                    if (val > 0.6) return "brightness_high";
-                                    if (val > 0.3) return "brightness_medium";
-                                    return "brightness_low";
-                                }
-                                color: Appearance.colors.colPrimary
-                                iconSize: 18
-                            }
-                        }
-                        
-                        // M3 Thick Pill Slider
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 14
-                            radius: 7
-                            color: Qt.rgba(Appearance.colors.colOnLayer0.r, Appearance.colors.colOnLayer0.g, Appearance.colors.colOnLayer0.b, 0.12)
-                            clip: true
-                            
-                            // Filled portion
-                            Rectangle {
-                                id: brightnessFill
-                                // Use pill's *target* expandedWidth MINUS layout overhead (104px)
-                                width: islandContainer.mode === 2
-                                    ? ((islandPill.expandedWidth - 104) * islandContainer.lastBrightness)
-                                    : (parent.width * islandContainer.lastBrightness)
+                        sourceComponent: RowLayout {
+                            spacing: 10
 
-                                height: parent.height
+                            // Tonal Container for Icon
+                            Rectangle {
+                                width: 28
+                                height: 28
+                                radius: 8
+                                color: Qt.rgba(brightnessIcon.color.r, brightnessIcon.color.g, brightnessIcon.color.b, 0.15)
+
+                                MaterialSymbol {
+                                    id: brightnessIcon
+                                    anchors.centerIn: parent
+                                    text: {
+                                        var val = 0;
+                                        if (Brightness.monitors.length > 0) val = Brightness.monitors[0].brightness;
+
+                                        if (val > 0.6) return "brightness_high";
+                                        if (val > 0.3) return "brightness_medium";
+                                        return "brightness_low";
+                                    }
+                                    color: Appearance.colors.colPrimary
+                                    iconSize: 18
+                                }
+                            }
+
+                            // M3 Thick Pill Slider
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 14
                                 radius: 7
-                                color: Appearance.colors.colPrimary
-                                
-                                Behavior on width {
-                                    enabled: islandContainer.mode === 2
-                                    NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
-                                }
-                                
-                                // Integrated handle (subtle glow at end)
+                                color: Qt.rgba(Appearance.colors.colOnLayer0.r, Appearance.colors.colOnLayer0.g, Appearance.colors.colOnLayer0.b, 0.12)
+                                clip: true
+
+                                // Filled portion
                                 Rectangle {
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 4
+                                    id: brightnessFill
+                                    // Use pill's *target* expandedWidth MINUS layout overhead (104px)
+                                    width: (islandPill.expandedWidth - 104) * islandContainer.lastBrightness
                                     height: parent.height
-                                    radius: 2
-                                    color: Qt.lighter(parent.color, 1.3)
-                                    visible: brightnessFill.width > 4
+                                    radius: 7
+                                    color: Appearance.colors.colPrimary
+
+                                    Behavior on width {
+                                        NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+                                    }
+
+                                    // Integrated handle (subtle glow at end)
+                                    Rectangle {
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 4
+                                        height: parent.height
+                                        radius: 2
+                                        color: Qt.lighter(parent.color, 1.3)
+                                        visible: brightnessFill.width > 4
+                                    }
                                 }
                             }
-                        }
-                        
-                        Text {
-                            text: {
-                                if (Brightness.monitors.length > 0)
-                                    return Math.round(Brightness.monitors[0].brightness * 100) + "%";
-                                return "0%";
+
+                            Text {
+                                text: {
+                                    if (Brightness.monitors.length > 0)
+                                        return Math.round(Brightness.monitors[0].brightness * 100) + "%";
+                                    return "0%";
+                                }
+                                color: Appearance.colors.colOnLayer0
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.Bold
+                                Layout.preferredWidth: 36
+                                horizontalAlignment: Text.AlignRight
                             }
-                            color: Appearance.colors.colOnLayer0
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.Bold
-                            Layout.preferredWidth: 36
-                            horizontalAlignment: Text.AlignRight
                         }
                     }
 
 
 
                     // Battery Content
-                    RowLayout {
+                    Loader {
+                        active: islandPill.renderActive && islandPill.renderMode === 4
                         anchors.fill: parent
                         anchors.margins: 8
-                        visible: islandContainer.mode === 4
-                        opacity: visible ? 1 : 0
+                        sourceComponent: RowLayout {
+                            spacing: 8
 
-                        spacing: 8
-                        
-                        // Tonal Container for Battery Icon (M3 Style)
-                        Rectangle {
-                            id: batteryIconContainer
-                            width: 34
-                            height: 34
-                            radius: 10
-                            color: Qt.rgba(batteryIcon.color.r, batteryIcon.color.g, batteryIcon.color.b, 0.15)
-                            
-                            MaterialSymbol {
-                                id: batteryIcon
-                                anchors.centerIn: parent
-                                text: {
-                                    if (islandContainer.isCharging) return "battery_charging_full";
-                                    var p = islandContainer.batteryPercent;
-                                    if (p >= 0.95) return "battery_full";
-                                    if (p >= 0.85) return "battery_6_bar";
-                                    if (p >= 0.70) return "battery_5_bar";
-                                    if (p >= 0.55) return "battery_4_bar";
-                                    if (p >= 0.40) return "battery_3_bar";
-                                    if (p >= 0.25) return "battery_2_bar";
-                                    if (p >= 0.10) return "battery_1_bar";
-                                    return "battery_0_bar";
-                                } 
-                                color: islandContainer.isCharging ? Appearance.colors.colPrimary : (islandContainer.batteryPercent < 0.2 ? Appearance.colors.colError : Appearance.colors.colOnLayer0)
-                                iconSize: 24
+                            // Tonal Container for Battery Icon (M3 Style)
+                            Rectangle {
+                                id: batteryIconContainer
+                                width: 34
+                                height: 34
+                                radius: 10
+                                color: Qt.rgba(batteryIcon.color.r, batteryIcon.color.g, batteryIcon.color.b, 0.15)
+
+                                MaterialSymbol {
+                                    id: batteryIcon
+                                    anchors.centerIn: parent
+                                    text: {
+                                        if (islandContainer.isCharging) return "battery_charging_full";
+                                        var p = islandContainer.batteryPercent;
+                                        if (p >= 0.95) return "battery_full";
+                                        if (p >= 0.85) return "battery_6_bar";
+                                        if (p >= 0.70) return "battery_5_bar";
+                                        if (p >= 0.55) return "battery_4_bar";
+                                        if (p >= 0.40) return "battery_3_bar";
+                                        if (p >= 0.25) return "battery_2_bar";
+                                        if (p >= 0.10) return "battery_1_bar";
+                                        return "battery_0_bar";
+                                    }
+                                    color: islandContainer.isCharging ? Appearance.colors.colPrimary : (islandContainer.batteryPercent < 0.2 ? Appearance.colors.colError : Appearance.colors.colOnLayer0)
+                                    iconSize: 24
+                                }
+                            }
+
+                            Text {
+                                text: Math.round(islandContainer.batteryPercent * 100) + "%"
+                                color: Appearance.colors.colOnLayer0
+                                font.weight: Font.Bold
+                                font.pixelSize: Appearance.font.pixelSize.normal
+                                horizontalAlignment: Text.AlignLeft
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Text {
+                                text: islandContainer.batterySource === "custom" ? islandContainer.customBatteryName : (islandContainer.isCharging ? "Charging" : "Not Charging")
+                                color: Appearance.colors.colOnLayer0
+                                font.weight: Font.Bold
+                                font.pixelSize: Appearance.font.pixelSize.normal
+                                horizontalAlignment: Text.AlignRight
+                                verticalAlignment: Text.AlignVCenter
                             }
                         }
-                        
-                        Text {
-                            text: Math.round(islandContainer.batteryPercent * 100) + "%"
-                            color: Appearance.colors.colOnLayer0
-                            font.weight: Font.Bold
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            horizontalAlignment: Text.AlignLeft
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                    }
 
-                        Item { Layout.fillWidth: true }
+                    // Passive hover tracker (non-grabbing) for stable expand/collapse behavior.
+                    HoverHandler {
+                        id: islandHoverTracker
+                        margin: 40
+                        blocking: false
 
-                        Text {
-                            text: islandContainer.batterySource === "custom" ? islandContainer.customBatteryName : (islandContainer.isCharging ? "Charging" : "Not Charging")
-                            color: Appearance.colors.colOnLayer0
-                            font.weight: Font.Bold
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            horizontalAlignment: Text.AlignRight
-                            verticalAlignment: Text.AlignVCenter
+                        onHoveredChanged: {
+                            if (hovered) {
+                                expandTimer.stop()
+                                islandContainer.isHovered = true
+                            } else {
+                                expandTimer.start()
+                                islandContainer.isHovered = false
+                            }
                         }
                     }
                 }

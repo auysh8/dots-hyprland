@@ -55,6 +55,7 @@ DelegateChooser {
     } }
 
     DelegateChoice { roleValue: "bluetooth"; AndroidBluetoothToggle {
+        id: bluetoothToggle
         required property int index
         required property var modelData
         buttonIndex: root.startingIndex + index
@@ -66,7 +67,7 @@ DelegateChooser {
         cellSpacing: root.spacing
         cellSize: modelData.size
         onOpenMenu: {
-            root.openBluetoothDialog(this)
+            root.openBluetoothDialog(bluetoothToggle)
         }
     } }
 
