@@ -61,6 +61,7 @@ Scope {
     property int searchSongPrefetchLimit: 20
     property bool searchSongsHasMore: false
     property var cachedSongResults: []
+    property bool suppressSuggestionResponses: false
     
     function sendCommand(cmdObject) {
         backend.write(JSON.stringify(cmdObject) + "\n")
@@ -85,6 +86,7 @@ Scope {
         if (trimmed === "") return
         root.lastSearchQuery = trimmed
         root.searchVisibleSongCount = 5
+        root.suppressSuggestionResponses = true
 
         isLoading = true
         artistResults.clear()
@@ -292,6 +294,9 @@ Scope {
                     if (data.type === "ready") {
                         root.getHome()
                     } else if (data.type === "suggestions") {
+                        if (root.suppressSuggestionResponses) {
+                            return
+                        }
                         root.searchSuggestions.clear()
                         let results = data.results || []
                         for (let i = 0; i < results.length; i++) {
@@ -611,6 +616,7 @@ Scope {
                                         }
                                         
                                         onTextEdited: {
+                                            root.suppressSuggestionResponses = false
                                             root.artistResults.clear()
                                             root.songResults.clear()
                                             root.albumResults.clear()

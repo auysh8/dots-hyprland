@@ -510,6 +510,276 @@ class MusicBackend:
             self.log(f"Art download failed: {e}")
             return False
 
+    def _item_video_id(self, item):
+        return item.get("videoId") or item.get("browseId")
+
+    def _append_unique(self, target, source, cap=96):
+        if not source:
+            return
+        seen_local = {self._item_video_id(i) for i in target if self._item_video_id(i)}
+        for item in source:
+            vid = self._item_video_id(item)
+            if not vid or vid in seen_local:
+                continue
+            target.append(item)
+            seen_local.add(vid)
+            if len(target) >= cap:
+                break
+
+    def _to_section_items(self, raw_items, limit, index_offset, sent_ids):
+        out = []
+        for item in raw_items:
+            vid = self._item_video_id(item)
+            if not vid or vid in sent_ids:
+                continue
+            fmt = self.format_track_item(item, index_offset + len(out))
+            if not fmt:
+                continue
+            out.append(fmt)
+            sent_ids.add(vid)
+            if len(out) >= limit:
+                break
+        return out
+
+    def _search_songs_for_home(self, query, limit=16):
+        try:
+            return self.ytm.search(query, filter="songs", limit=limit)
+        except Exception as e:
+            self.log(f"Personalized search failed for '{query}': {e}")
+            return []
+
+    def _pick_artists(self, items, limit=3):
+        scores = {}
+        for item in items:
+            name = ""
+            artists = item.get("artists")
+            if isinstance(artists, list) and artists:
+                name = artists[0].get("name", "")
+            if not name:
+                name = item.get("artist", "")
+            if not name:
+                continue
+            scores[name] = scores.get(name, 0) + 1
+        ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
+        return [name for name, _ in ranked[:limit]]
+
+    def _build_history_track_pools(self, recent_history):
+        history_quick_tracks = []
+        history_discover_tracks = []
+        history_seed_ids = recent_history[:6]  # 3 most recent + older history seeds
+        for idx, vid in enumerate(history_seed_ids):
+            tracks = self.fetch_playlist(vid)
+            if idx < 3:
+                self._append_unique(history_quick_tracks, tracks, cap=96)
+            else:
+                self._append_unique(history_discover_tracks, tracks, cap=96)
+        if not history_discover_tracks:
+            self._append_unique(history_discover_tracks, history_quick_tracks, cap=96)
+
+        history_seed_tracks = []
+        self._append_unique(history_seed_tracks, history_quick_tracks, cap=128)
+        self._append_unique(history_seed_tracks, history_discover_tracks, cap=128)
+        return history_quick_tracks, history_discover_tracks, history_seed_tracks
+
+    def _collect_home_section_candidates(
+        self, home_data, rec_keywords, pick_keywords, discover_keywords
+    ):
+        picks_raw = []
+        recs_raw = []
+        discover_raw = []
+        discover_title = "Discover Music"
+        discover_playlist_candidates = []
+
+        for section in home_data:
+            title = section.get("title", "")
+            t_lower = title.lower()
+            contents = section.get("contents", [])
+            playable = [c for c in contents if c.get("videoId")]
+
+            if any(k in t_lower for k in pick_keywords):
+                self._append_unique(picks_raw, playable, cap=64)
+                continue
+
+            if any(k in t_lower for k in rec_keywords):
+                self._append_unique(recs_raw, playable, cap=64)
+                continue
+
+            if any(k in t_lower for k in discover_keywords):
+                self._append_unique(discover_raw, playable, cap=64)
+                if playable and discover_title == "Discover Music":
+                    discover_title = title or discover_title
+
+            for c in contents:
+                pid = c.get("playlistId") or c.get("browseId")
+                if pid and pid.startswith("VL"):
+                    pid = pid[2:]
+                if pid:
+                    discover_playlist_candidates.append((pid, c.get("title", title) or title))
+                    break
+
+        return picks_raw, recs_raw, discover_raw, discover_title, discover_playlist_candidates
+
+    def _seed_discover_from_playlists(
+        self, discover_raw, history_discover_tracks, discover_playlist_candidates, discover_title
+    ):
+        if discover_raw or history_discover_tracks or not discover_playlist_candidates:
+            return discover_raw, discover_title
+
+        for pid, candidate_title in discover_playlist_candidates[:2]:
+            try:
+                tracks = self.ytm.get_playlist(pid, limit=24).get("tracks", [])
+                if tracks:
+                    self._append_unique(discover_raw, tracks, cap=64)
+                    discover_title = candidate_title or discover_title
+                    break
+            except Exception:
+                pass
+
+        return discover_raw, discover_title
+
+    def _build_recommendations_section(self, recs_raw, artist_profile, sent_ids):
+        rec_pool = []
+        self._append_unique(rec_pool, recs_raw, cap=96)
+        if len(rec_pool) < 24:
+            for artist in artist_profile[:2]:
+                self._append_unique(rec_pool, self._search_songs_for_home(artist, limit=12), cap=96)
+                if len(rec_pool) >= 24:
+                    break
+        if not rec_pool:
+            self._append_unique(rec_pool, self._search_songs_for_home("New Music", limit=24), cap=96)
+
+        return self._to_section_items(rec_pool, limit=16, index_offset=0, sent_ids=sent_ids)
+
+    def _build_quick_picks_section(self, history_quick_tracks, artist_profile, picks_raw, sent_ids):
+        pick_pool = []
+        self._append_unique(pick_pool, history_quick_tracks, cap=96)
+        if len(pick_pool) < 24:
+            for artist in artist_profile[:3]:
+                self._append_unique(
+                    pick_pool,
+                    self._search_songs_for_home(f"{artist} popular songs", limit=10),
+                    cap=96,
+                )
+                if len(pick_pool) >= 24:
+                    break
+        if len(pick_pool) < 24:
+            self._append_unique(pick_pool, picks_raw, cap=96)
+        if not pick_pool:
+            try:
+                fallback = self.ytm.get_watch_playlist(
+                    playlistId="RDTMAK5uy_kset8DisdE7LSD4TNjEVvrKRTmG7a56sY", limit=24
+                ).get("tracks", [])
+                self._append_unique(pick_pool, fallback, cap=96)
+            except Exception:
+                pass
+
+        # Keep quick picks responsive: avoid blocking on per-item duration lookups.
+        return self._to_section_items(pick_pool, limit=16, index_offset=100, sent_ids=sent_ids)
+
+    def _build_discover_section(
+        self, history_discover_tracks, discover_raw, artist_profile, sent_ids, discover_title
+    ):
+        discover_pool = []
+        self._append_unique(discover_pool, history_discover_tracks, cap=96)
+        if discover_pool and discover_title == "Discover Music":
+            discover_title = "From Your History"
+        self._append_unique(discover_pool, discover_raw, cap=96)
+        if len(discover_pool) < 20:
+            for artist in artist_profile[:3]:
+                self._append_unique(
+                    discover_pool,
+                    self._search_songs_for_home(f"{artist} new release", limit=10),
+                    cap=96,
+                )
+                self._append_unique(
+                    discover_pool,
+                    self._search_songs_for_home(f"{artist} latest songs", limit=10),
+                    cap=96,
+                )
+                if len(discover_pool) >= 20:
+                    break
+        if not discover_pool:
+            self._append_unique(
+                discover_pool,
+                self._search_songs_for_home("Trending Songs", limit=40),
+                cap=96,
+            )
+            discover_title = "Trending Songs"
+
+        shorts = []
+        for item in discover_pool:
+            vid = self._item_video_id(item)
+            if not vid or vid in sent_ids:
+                continue
+            fmt = self.format_track_item(item, 200 + len(shorts))
+            if not fmt:
+                continue
+            dur = fmt.get("duration", "")
+            is_normal_song = True
+            if "Trending" in discover_title and dur and dur.count(":") == 1:
+                try:
+                    mins = int(dur.split(":")[0])
+                    if mins >= 10:
+                        is_normal_song = False
+                except Exception:
+                    pass
+            if is_normal_song:
+                shorts.append(fmt)
+                sent_ids.add(vid)
+            if len(shorts) >= 16:
+                break
+
+        return shorts, discover_title
+
+    def _append_search_songs(self, songs, song_ids, items, song_limit, allowed_types=None):
+        for item in items:
+            if allowed_types and item.get("resultType") not in allowed_types:
+                continue
+            fmt = self.format_track_item(item, len(songs))
+            if not fmt:
+                continue
+            vid = fmt.get("videoId")
+            if not vid or vid in song_ids:
+                continue
+            songs.append(fmt)
+            song_ids.add(vid)
+            if len(songs) >= song_limit:
+                break
+
+    def _collect_search_cards(self, items):
+        artists = []
+        albums = []
+        for i, item in enumerate(items):
+            fmt = self.format_track_item(item, i)
+            if not fmt:
+                continue
+            rt = item.get("resultType")
+            if rt == "artist":
+                artists.append(fmt)
+            elif rt == "album":
+                albums.append(fmt)
+        return artists, albums
+
+    def _backfill_missing_song_durations(self, songs_to_send):
+        missing_duration = [s for s in songs_to_send if not s.get("duration") and s.get("videoId")]
+        if not missing_duration:
+            return songs_to_send
+
+        from concurrent.futures import ThreadPoolExecutor
+
+        def fill_duration(song_item):
+            try:
+                data = self.ytm.get_song(song_item["videoId"])
+                sec = int(data.get("videoDetails", {}).get("lengthSeconds", 0))
+                if sec > 0:
+                    song_item["duration"] = self._seconds_to_duration(sec)
+            except Exception:
+                pass
+            return song_item
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            return list(executor.map(fill_duration, songs_to_send))
+
     # ── playback ──────────────────────────────────────────────────────────────
     def play(self, video_id, title, artist, art_url):
         self.log(f"Playing: {title} by {artist}")
@@ -745,59 +1015,6 @@ class MusicBackend:
         history = self.load_history()
         recent_history = list(reversed(history[-8:]))
 
-        def item_video_id(item):
-            return item.get("videoId") or item.get("browseId")
-
-        def append_unique(target, source, cap=96):
-            if not source:
-                return
-            seen_local = {item_video_id(i) for i in target if item_video_id(i)}
-            for item in source:
-                vid = item_video_id(item)
-                if not vid or vid in seen_local:
-                    continue
-                target.append(item)
-                seen_local.add(vid)
-                if len(target) >= cap:
-                    break
-
-        def to_section_items(raw_items, limit, index_offset):
-            out = []
-            for item in raw_items:
-                vid = item_video_id(item)
-                if not vid or vid in sent_ids:
-                    continue
-                fmt = self.format_track_item(item, index_offset + len(out))
-                if not fmt:
-                    continue
-                out.append(fmt)
-                sent_ids.add(vid)
-                if len(out) >= limit:
-                    break
-            return out
-
-        def search_songs(query, limit=16):
-            try:
-                return self.ytm.search(query, filter="songs", limit=limit)
-            except Exception as e:
-                self.log(f"Personalized search failed for '{query}': {e}")
-                return []
-
-        def pick_artists(items, limit=3):
-            scores = {}
-            for item in items:
-                name = ""
-                artists = item.get("artists")
-                if isinstance(artists, list) and artists:
-                    name = artists[0].get("name", "")
-                if not name:
-                    name = item.get("artist", "")
-                if not name:
-                    continue
-                scores[name] = scores.get(name, 0) + 1
-            ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
-            return [name for name, _ in ranked[:limit]]
-
         home_data = self._get_home_data()
 
         rec_keywords = (
@@ -820,146 +1037,51 @@ class MusicBackend:
             "genre",
         )
 
-        picks_raw = []
-        recs_raw = []
-        discover_raw = []
-        discover_title = "Discover Music"
-        discover_playlist_candidates = []
+        picks_raw, recs_raw, discover_raw, discover_title, discover_playlist_candidates = (
+            self._collect_home_section_candidates(
+                home_data,
+                rec_keywords,
+                pick_keywords,
+                discover_keywords,
+            )
+        )
 
-        for section in home_data:
-            title = section.get("title", "")
-            t_lower = title.lower()
-            contents = section.get("contents", [])
-            playable = [c for c in contents if c.get("videoId")]
+        history_quick_tracks, history_discover_tracks, history_seed_tracks = (
+            self._build_history_track_pools(recent_history)
+        )
 
-            if any(k in t_lower for k in pick_keywords):
-                append_unique(picks_raw, playable, cap=64)
-                continue
+        discover_raw, discover_title = self._seed_discover_from_playlists(
+            discover_raw,
+            history_discover_tracks,
+            discover_playlist_candidates,
+            discover_title,
+        )
 
-            if any(k in t_lower for k in rec_keywords):
-                append_unique(recs_raw, playable, cap=64)
-                continue
-
-            if any(k in t_lower for k in discover_keywords):
-                append_unique(discover_raw, playable, cap=64)
-                if playable and discover_title == "Discover Music":
-                    discover_title = title or discover_title
-
-            for c in contents:
-                pid = c.get("playlistId") or c.get("browseId")
-                if pid and pid.startswith("VL"):
-                    pid = pid[2:]
-                if pid:
-                    discover_playlist_candidates.append((pid, c.get("title", title) or title))
-                    break
-
-        history_quick_tracks = []
-        history_discover_tracks = []
-        history_seed_ids = recent_history[:6]  # 3 most recent + older history seeds
-        for idx, vid in enumerate(history_seed_ids):
-            tracks = self.fetch_playlist(vid)
-            if idx < 3:
-                append_unique(history_quick_tracks, tracks, cap=96)
-            else:
-                append_unique(history_discover_tracks, tracks, cap=96)
-        if not history_discover_tracks:
-            append_unique(history_discover_tracks, history_quick_tracks, cap=96)
-
-        history_seed_tracks = []
-        append_unique(history_seed_tracks, history_quick_tracks, cap=128)
-        append_unique(history_seed_tracks, history_discover_tracks, cap=128)
-
-        if not discover_raw and not history_discover_tracks and discover_playlist_candidates:
-            for pid, candidate_title in discover_playlist_candidates[:2]:
-                try:
-                    tracks = self.ytm.get_playlist(pid, limit=24).get("tracks", [])
-                    if tracks:
-                        append_unique(discover_raw, tracks, cap=64)
-                        discover_title = candidate_title or discover_title
-                        break
-                except Exception:
-                    pass
-
-        artist_profile = pick_artists(history_seed_tracks + recs_raw + picks_raw, limit=4)
+        artist_profile = self._pick_artists(history_seed_tracks + recs_raw + picks_raw, limit=4)
 
         # --- STREAM RECOMMENDATIONS ---
-        rec_pool = []
-        append_unique(rec_pool, recs_raw, cap=96)
-        if len(rec_pool) < 24:
-            for artist in artist_profile[:2]:
-                append_unique(rec_pool, search_songs(artist, limit=12), cap=96)
-                if len(rec_pool) >= 24:
-                    break
-        if not rec_pool:
-            append_unique(rec_pool, search_songs("New Music", limit=24), cap=96)
-
-        recs = to_section_items(rec_pool, limit=16, index_offset=0)
+        recs = self._build_recommendations_section(recs_raw, artist_profile, sent_ids)
         self.send_response({"type": "home_section", "section": "recommendations", "items": recs})
         self.log(f"Streamed {len(recs)} Recommendations")
 
         # --- STREAM QUICK PICKS ---
-        pick_pool = []
-        append_unique(pick_pool, history_quick_tracks, cap=96)
-        if len(pick_pool) < 24:
-            for artist in artist_profile[:3]:
-                append_unique(pick_pool, search_songs(f"{artist} popular songs", limit=10), cap=96)
-                if len(pick_pool) >= 24:
-                    break
-        if len(pick_pool) < 24:
-            append_unique(pick_pool, picks_raw, cap=96)
-        if not pick_pool:
-            try:
-                fallback = self.ytm.get_watch_playlist(
-                    playlistId="RDTMAK5uy_kset8DisdE7LSD4TNjEVvrKRTmG7a56sY", limit=24
-                ).get("tracks", [])
-                append_unique(pick_pool, fallback, cap=96)
-            except Exception:
-                pass
-
-        # Keep quick picks responsive: avoid blocking on per-item duration lookups.
-        picks = to_section_items(pick_pool, limit=16, index_offset=100)
-
+        picks = self._build_quick_picks_section(
+            history_quick_tracks,
+            artist_profile,
+            picks_raw,
+            sent_ids,
+        )
         self.send_response({"type": "home_section", "section": "quick_picks", "items": picks})
         self.log(f"Streamed {len(picks)} Quick Picks")
 
         # --- STREAM DISCOVER ---
-        discover_pool = []
-        append_unique(discover_pool, history_discover_tracks, cap=96)
-        if discover_pool and discover_title == "Discover Music":
-            discover_title = "From Your History"
-        append_unique(discover_pool, discover_raw, cap=96)
-        if len(discover_pool) < 20:
-            for artist in artist_profile[:3]:
-                append_unique(discover_pool, search_songs(f"{artist} new release", limit=10), cap=96)
-                append_unique(discover_pool, search_songs(f"{artist} latest songs", limit=10), cap=96)
-                if len(discover_pool) >= 20:
-                    break
-        if not discover_pool:
-            append_unique(discover_pool, search_songs("Trending Songs", limit=40), cap=96)
-            discover_title = "Trending Songs"
-
-        shorts = []
-        for item in discover_pool:
-            vid = item_video_id(item)
-            if not vid or vid in sent_ids:
-                continue
-            fmt = self.format_track_item(item, 200 + len(shorts))
-            if not fmt:
-                continue
-            dur = fmt.get("duration", "")
-            is_normal_song = True
-            if "Trending" in discover_title and dur and dur.count(":") == 1:
-                try:
-                    mins = int(dur.split(":")[0])
-                    if mins >= 10:
-                        is_normal_song = False
-                except Exception:
-                    pass
-            if is_normal_song:
-                shorts.append(fmt)
-                sent_ids.add(vid)
-            if len(shorts) >= 16:
-                break
+        shorts, discover_title = self._build_discover_section(
+            history_discover_tracks,
+            discover_raw,
+            artist_profile,
+            sent_ids,
+            discover_title,
+        )
 
         self.send_response(
             {"type": "home_section", "section": "shorts", "items": shorts, "title": discover_title}
@@ -979,69 +1101,43 @@ class MusicBackend:
             artists, songs, albums = [], [], []
             song_ids = set()
 
-            def append_songs(items, allowed_types=None):
-                for item in items:
-                    if allowed_types and item.get("resultType") not in allowed_types:
-                        continue
-                    fmt = self.format_track_item(item, len(songs))
-                    if not fmt:
-                        continue
-                    vid = fmt.get("videoId")
-                    if not vid or vid in song_ids:
-                        continue
-                    songs.append(fmt)
-                    song_ids.add(vid)
-                    if len(songs) >= song_limit:
-                        break
-
             # Keep artist/album cards from mixed search.
             general_limit = max(30, song_limit + 10)
             general_results = self.ytm.search(query, limit=general_limit)
-            for i, item in enumerate(general_results):
-                fmt = self.format_track_item(item, i)
-                if not fmt:
-                    continue
-                rt = item.get("resultType")
-                if rt == "artist":
-                    artists.append(fmt)
-                elif rt == "album":
-                    albums.append(fmt)
+            artists, albums = self._collect_search_cards(general_results)
 
             # Fill songs from dedicated endpoints first so we actually get ~song_limit tracks.
             try:
-                append_songs(self.ytm.search(query, filter="songs", limit=song_limit))
+                self._append_search_songs(
+                    songs, song_ids, self.ytm.search(query, filter="songs", limit=song_limit), song_limit
+                )
             except Exception as e:
                 self.log(f"Song search fallback (songs) failed: {e}")
 
             if len(songs) < song_limit:
                 try:
-                    append_songs(self.ytm.search(query, filter="videos", limit=song_limit))
+                    self._append_search_songs(
+                        songs,
+                        song_ids,
+                        self.ytm.search(query, filter="videos", limit=song_limit),
+                        song_limit,
+                    )
                 except Exception as e:
                     self.log(f"Song search fallback (videos) failed: {e}")
 
             if len(songs) < song_limit:
-                append_songs(general_results, allowed_types={"song", "video"})
+                self._append_search_songs(
+                    songs,
+                    song_ids,
+                    general_results,
+                    song_limit,
+                    allowed_types={"song", "video"},
+                )
 
             songs_to_send = songs[:song_limit]
             songs_has_more = len(songs_to_send) > 5
 
-            # Backfill missing timestamps for prefetched songs.
-            missing_duration = [s for s in songs_to_send if not s.get("duration") and s.get("videoId")]
-            if missing_duration:
-                from concurrent.futures import ThreadPoolExecutor
-
-                def fill_duration(song_item):
-                    try:
-                        data = self.ytm.get_song(song_item["videoId"])
-                        sec = int(data.get("videoDetails", {}).get("lengthSeconds", 0))
-                        if sec > 0:
-                            song_item["duration"] = self._seconds_to_duration(sec)
-                    except Exception:
-                        pass
-                    return song_item
-
-                with ThreadPoolExecutor(max_workers=4) as executor:
-                    songs_to_send = list(executor.map(fill_duration, songs_to_send))
+            songs_to_send = self._backfill_missing_song_durations(songs_to_send)
 
             self.send_response(
                 {
