@@ -177,16 +177,15 @@ switch() {
     color_flag="$4"
     color="$5"
 
-<<<<<<< HEAD
     if [[ -z "$imgpath" && "$color_flag" != "1" ]]; then
         echo 'Aborted'
         exit 0
-=======
+    fi
+
     # Start Gemini auto-categorization if enabled
-    aiStylingEnabled=$(jq -r '.background.widgets.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE")
+    aiStylingEnabled=$(jq -r '.background.widgets.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE" 2>/dev/null)
     if [[ "$aiStylingEnabled" == "true" ]]; then
         categorize_wallpaper "$imgpath" &
->>>>>>> origin/main
     fi
 
     # Handle wallpaper switching immediately in main thread

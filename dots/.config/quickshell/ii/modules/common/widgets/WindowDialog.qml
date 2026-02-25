@@ -44,8 +44,8 @@ Rectangle {
     property real toggleRadius: Appearance.rounding.small  // Toggle button corner radius
     
     // Store the start rect when sourceItem is set (so it persists during close)
-    // Use fixed initial value - NOT a binding to root.width/height
-    property rect storedStartRect: Qt.rect(175, 300, toggleWidth, toggleHeight)
+    // Default to a 100x100 rect in the center of the screen if no sourceItem is provided
+    property rect storedStartRect: root.sourceItem ? Qt.rect(175, 300, toggleWidth, toggleHeight) : Qt.rect((root.width - 100) / 2, (root.height - 100) / 2, 100, 100)
     
     onSourceItemChanged: {
         if (sourceItem && sourceItem.parent) {
@@ -113,7 +113,8 @@ Rectangle {
         
         // Corner radius animation (Material Container Transform)
         property real targetRadius: Appearance.rounding.large
-        property real startRadius: root.toggleRadius
+        // Start from round for center expanding, else from toggle radius
+        property real startRadius: root.sourceItem ? root.toggleRadius : targetRadius
         radius: root.show ? targetRadius : startRadius
         
         Behavior on radius {
@@ -233,7 +234,7 @@ Rectangle {
             
             // Cross-fade logic: Inverse of contentColumn
             opacity: root.show ? 0 : 1
-            visible: opacity > 0
+            visible: opacity > 0 && root.sourceItem != null
             
             // Snap instantly on close — no animated crossfade
             // Only animate (fade out) when hiding on open

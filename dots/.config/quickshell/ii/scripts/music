@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+quickshell ipc -c ii call music "$1"
