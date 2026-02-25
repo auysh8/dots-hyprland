@@ -104,22 +104,6 @@ StyledFlickable {
                 }
 
                 Item { Layout.fillWidth: true }
-
-                Rectangle {
-                    width: 80
-                    height: 32
-                    radius: 16
-                    color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
-                    border.width: 1
-                    border.color: ColorUtils.transparentize(rootContext.contentColor, 0.2)
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: "See all"
-                        font.pixelSize: 12
-                        color: rootContext.contentColor
-                    }
-                }
             }
 
             GridView {

@@ -16,6 +16,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import urllib.request
 
 from ytmusicapi import YTMusic
@@ -272,21 +273,24 @@ class MprisServer:
 
 class MusicBackend:
     _DURATION_RE = re.compile(r"^(?:\d{1,2}:)?[0-5]?\d:[0-5]\d$")
+    _HTTP_TIMEOUT = (4, 12)  # connect/read timeout for YTMusic requests
+    _HOME_CACHE_TTL_SEC = 60
 
     def __init__(self):
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        oauth_path = os.path.join(script_dir, "oauth.json")
-        headers_path = os.path.join(script_dir, "headers_auth.json")
+        self.oauth_path = os.path.join(script_dir, "oauth.json")
+        self.headers_path = os.path.join(script_dir, "headers_auth.json")
 
-        if os.path.exists(oauth_path):
-            self.ytm = YTMusic(oauth_path)
+        if os.path.exists(self.oauth_path):
+            self.ytm = YTMusic(self.oauth_path)
             self.log("Authenticated using oauth.json")
-        elif os.path.exists(headers_path):
-            self.ytm = YTMusic(headers_path)
+        elif os.path.exists(self.headers_path):
+            self.ytm = YTMusic(self.headers_path)
             self.log("Authenticated using headers_auth.json")
         else:
             self.ytm = YTMusic()
             self.log("Running in anonymous mode")
+        self._set_default_timeout(self.ytm)
 
         self.mpv_process = None
         self.history_file = os.path.join(script_dir, "history.json")
@@ -297,6 +301,9 @@ class MusicBackend:
         self._playback_token = 0
         self.cache_dir = os.path.expanduser("~/.cache/quickshell/media/coverart")
         os.makedirs(self.cache_dir, exist_ok=True)
+        self._home_cache = []
+        self._home_cache_ts = 0.0
+        self._home_cache_lock = threading.Lock()
 
         # Track metadata state
         self._current_title = ""
@@ -322,6 +329,38 @@ class MusicBackend:
                 f.write(f"{msg}\n")
         except Exception:
             pass
+
+    def _set_default_timeout(self, ytm_client):
+        session = getattr(ytm_client, "_session", None)
+        if session is None or getattr(session, "_ii_timeout_patched", False):
+            return
+
+        original_request = session.request
+        timeout = self._HTTP_TIMEOUT
+
+        def request_with_timeout(method, url, **kwargs):
+            kwargs.setdefault("timeout", timeout)
+            return original_request(method, url, **kwargs)
+
+        session.request = request_with_timeout
+        session._ii_timeout_patched = True
+
+    def _get_home_data(self):
+        now = time.monotonic()
+        with self._home_cache_lock:
+            if self._home_cache and (now - self._home_cache_ts) < self._HOME_CACHE_TTL_SEC:
+                return self._home_cache
+
+        try:
+            home_data = self.ytm.get_home()
+            with self._home_cache_lock:
+                self._home_cache = home_data
+                self._home_cache_ts = now
+            return home_data
+        except Exception as e:
+            self.log(f"Failed to fetch home: {e}")
+            with self._home_cache_lock:
+                return self._home_cache or []
 
     # ── helpers ───────────────────────────────────────────────────────────────
     def _seconds_to_duration(self, total_seconds):
@@ -703,142 +742,230 @@ class MusicBackend:
     def _fetch_home_task(self):
         self.log("Executing fully personalized home fetch...")
         sent_ids = set()
-        
-        try:
-            home_data = self.ytm.get_home()
-        except Exception as e:
-            self.log(f"Failed to fetch home: {e}")
-            home_data = []
+        history = self.load_history()
+        recent_history = list(reversed(history[-8:]))
+
+        def item_video_id(item):
+            return item.get("videoId") or item.get("browseId")
+
+        def append_unique(target, source, cap=96):
+            if not source:
+                return
+            seen_local = {item_video_id(i) for i in target if item_video_id(i)}
+            for item in source:
+                vid = item_video_id(item)
+                if not vid or vid in seen_local:
+                    continue
+                target.append(item)
+                seen_local.add(vid)
+                if len(target) >= cap:
+                    break
+
+        def to_section_items(raw_items, limit, index_offset):
+            out = []
+            for item in raw_items:
+                vid = item_video_id(item)
+                if not vid or vid in sent_ids:
+                    continue
+                fmt = self.format_track_item(item, index_offset + len(out))
+                if not fmt:
+                    continue
+                out.append(fmt)
+                sent_ids.add(vid)
+                if len(out) >= limit:
+                    break
+            return out
+
+        def search_songs(query, limit=16):
+            try:
+                return self.ytm.search(query, filter="songs", limit=limit)
+            except Exception as e:
+                self.log(f"Personalized search failed for '{query}': {e}")
+                return []
+
+        def pick_artists(items, limit=3):
+            scores = {}
+            for item in items:
+                name = ""
+                artists = item.get("artists")
+                if isinstance(artists, list) and artists:
+                    name = artists[0].get("name", "")
+                if not name:
+                    name = item.get("artist", "")
+                if not name:
+                    continue
+                scores[name] = scores.get(name, 0) + 1
+            ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
+            return [name for name, _ in ranked[:limit]]
+
+        home_data = self._get_home_data()
+
+        rec_keywords = (
+            "listen again",
+            "mixed for you",
+            "similar to",
+            "recommendations",
+            "recommended",
+            "for you",
+            "because you listened",
+        )
+        pick_keywords = ("quick pick", "quick picks", "top picks", "picked for you")
+        discover_keywords = (
+            "discover",
+            "new releases",
+            "charts",
+            "trending",
+            "radio",
+            "mood",
+            "genre",
+        )
 
         picks_raw = []
         recs_raw = []
         discover_raw = []
         discover_title = "Discover Music"
+        discover_playlist_candidates = []
 
-        # 1. Parse Home Data
         for section in home_data:
             title = section.get("title", "")
             t_lower = title.lower()
             contents = section.get("contents", [])
-            
-            playable = [c for c in contents if "videoId" in c]
-            
-            # Quick picks
-            if "pick" in t_lower and not picks_raw:
-                picks_raw.extend(playable)
+            playable = [c for c in contents if c.get("videoId")]
+
+            if any(k in t_lower for k in pick_keywords):
+                append_unique(picks_raw, playable, cap=64)
                 continue
-                
-            # Recommendations
-            if any(k in t_lower for k in ("listen again", "mixed for you", "similar to", "recommendations")) and not recs_raw:
-                recs_raw.extend(playable)
+
+            if any(k in t_lower for k in rec_keywords):
+                append_unique(recs_raw, playable, cap=64)
                 continue
-                
-            # Discover (find the first playlist or album)
-            if not discover_raw and "pick" not in t_lower:
-                for c in contents:
-                    pid = c.get("playlistId") or c.get("browseId")
-                    if pid and pid.startswith("VL"): pid = pid[2:]
-                    if pid:
-                        try:
-                            res = self.ytm.get_playlist(pid, limit=16)
-                            tracks = res.get("tracks", [])
-                            if tracks:
-                                discover_raw.extend(tracks)
-                                discover_title = c.get("title", title)
-                                break
-                        except:
-                            pass
-                if discover_raw:
-                    continue
+
+            if any(k in t_lower for k in discover_keywords):
+                append_unique(discover_raw, playable, cap=64)
+                if playable and discover_title == "Discover Music":
+                    discover_title = title or discover_title
+
+            for c in contents:
+                pid = c.get("playlistId") or c.get("browseId")
+                if pid and pid.startswith("VL"):
+                    pid = pid[2:]
+                if pid:
+                    discover_playlist_candidates.append((pid, c.get("title", title) or title))
+                    break
+
+        history_quick_tracks = []
+        history_discover_tracks = []
+        history_seed_ids = recent_history[:6]  # 3 most recent + older history seeds
+        for idx, vid in enumerate(history_seed_ids):
+            tracks = self.fetch_playlist(vid)
+            if idx < 3:
+                append_unique(history_quick_tracks, tracks, cap=96)
+            else:
+                append_unique(history_discover_tracks, tracks, cap=96)
+        if not history_discover_tracks:
+            append_unique(history_discover_tracks, history_quick_tracks, cap=96)
+
+        history_seed_tracks = []
+        append_unique(history_seed_tracks, history_quick_tracks, cap=128)
+        append_unique(history_seed_tracks, history_discover_tracks, cap=128)
+
+        if not discover_raw and not history_discover_tracks and discover_playlist_candidates:
+            for pid, candidate_title in discover_playlist_candidates[:2]:
+                try:
+                    tracks = self.ytm.get_playlist(pid, limit=24).get("tracks", [])
+                    if tracks:
+                        append_unique(discover_raw, tracks, cap=64)
+                        discover_title = candidate_title or discover_title
+                        break
+                except Exception:
+                    pass
+
+        artist_profile = pick_artists(history_seed_tracks + recs_raw + picks_raw, limit=4)
 
         # --- STREAM RECOMMENDATIONS ---
-        recs = []
-        if not recs_raw:
-            # Fallback to history
-            history = self.load_history()
-            if history:
-                try:
-                    recs_raw = self.ytm.get_watch_playlist(videoId=history[-1], limit=24).get("tracks", [])
-                except: pass
-            if not recs_raw:
-                try:
-                    recs_raw = self.ytm.search("New Music", filter="songs", limit=24)
-                except: pass
+        rec_pool = []
+        append_unique(rec_pool, recs_raw, cap=96)
+        if len(rec_pool) < 24:
+            for artist in artist_profile[:2]:
+                append_unique(rec_pool, search_songs(artist, limit=12), cap=96)
+                if len(rec_pool) >= 24:
+                    break
+        if not rec_pool:
+            append_unique(rec_pool, search_songs("New Music", limit=24), cap=96)
 
-        for i, item in enumerate(recs_raw):
-            fmt = self.format_track_item(item, i)
-            if fmt and fmt["videoId"] not in sent_ids and len(recs) < 16:
-                recs.append(fmt)
-                sent_ids.add(fmt["videoId"])
-        
+        recs = to_section_items(rec_pool, limit=16, index_offset=0)
         self.send_response({"type": "home_section", "section": "recommendations", "items": recs})
         self.log(f"Streamed {len(recs)} Recommendations")
 
-        # --- STREAM DISCOVER ---
-        shorts = []
-        if not discover_raw:
+        # --- STREAM QUICK PICKS ---
+        pick_pool = []
+        append_unique(pick_pool, history_quick_tracks, cap=96)
+        if len(pick_pool) < 24:
+            for artist in artist_profile[:3]:
+                append_unique(pick_pool, search_songs(f"{artist} popular songs", limit=10), cap=96)
+                if len(pick_pool) >= 24:
+                    break
+        if len(pick_pool) < 24:
+            append_unique(pick_pool, picks_raw, cap=96)
+        if not pick_pool:
             try:
-                fallback_res = self.ytm.search("Trending Songs", filter="songs", limit=40)
-                discover_raw = fallback_res
-                discover_title = "Trending Songs"
-            except:
+                fallback = self.ytm.get_watch_playlist(
+                    playlistId="RDTMAK5uy_kset8DisdE7LSD4TNjEVvrKRTmG7a56sY", limit=24
+                ).get("tracks", [])
+                append_unique(pick_pool, fallback, cap=96)
+            except Exception:
                 pass
-                
-        for i, item in enumerate(discover_raw):
-            vid = item.get("videoId")
-            if vid and vid not in sent_ids:
-                fmt = self.format_track_item(item, 200 + len(shorts))
-                if not fmt: continue
-                dur = fmt.get("duration", "")
-                is_normal_song = True
-                if "Trending" in discover_title and dur and dur.count(":") == 1:
-                    try:
-                        mins = int(dur.split(":")[0])
-                        if mins >= 10:
-                            is_normal_song = False
-                    except: pass
-                if is_normal_song and len(shorts) < 16:
-                    shorts.append(fmt)
-                    sent_ids.add(vid)
-        
-        self.send_response({"type": "home_section", "section": "shorts", "items": shorts, "title": discover_title})
+
+        # Keep quick picks responsive: avoid blocking on per-item duration lookups.
+        picks = to_section_items(pick_pool, limit=16, index_offset=100)
+
+        self.send_response({"type": "home_section", "section": "quick_picks", "items": picks})
+        self.log(f"Streamed {len(picks)} Quick Picks")
+
+        # --- STREAM DISCOVER ---
+        discover_pool = []
+        append_unique(discover_pool, history_discover_tracks, cap=96)
+        if discover_pool and discover_title == "Discover Music":
+            discover_title = "From Your History"
+        append_unique(discover_pool, discover_raw, cap=96)
+        if len(discover_pool) < 20:
+            for artist in artist_profile[:3]:
+                append_unique(discover_pool, search_songs(f"{artist} new release", limit=10), cap=96)
+                append_unique(discover_pool, search_songs(f"{artist} latest songs", limit=10), cap=96)
+                if len(discover_pool) >= 20:
+                    break
+        if not discover_pool:
+            append_unique(discover_pool, search_songs("Trending Songs", limit=40), cap=96)
+            discover_title = "Trending Songs"
+
+        shorts = []
+        for item in discover_pool:
+            vid = item_video_id(item)
+            if not vid or vid in sent_ids:
+                continue
+            fmt = self.format_track_item(item, 200 + len(shorts))
+            if not fmt:
+                continue
+            dur = fmt.get("duration", "")
+            is_normal_song = True
+            if "Trending" in discover_title and dur and dur.count(":") == 1:
+                try:
+                    mins = int(dur.split(":")[0])
+                    if mins >= 10:
+                        is_normal_song = False
+                except Exception:
+                    pass
+            if is_normal_song:
+                shorts.append(fmt)
+                sent_ids.add(vid)
+            if len(shorts) >= 16:
+                break
+
+        self.send_response(
+            {"type": "home_section", "section": "shorts", "items": shorts, "title": discover_title}
+        )
         self.log(f"Streamed {len(shorts)} Discover items ({discover_title})")
 
-        # --- STREAM QUICK PICKS ---
-        picks = []
-        picks_to_process = []
-        if not picks_raw:
-            try:
-                # My Supermix fallback
-                picks_raw = self.ytm.get_watch_playlist(playlistId="RDTMAK5uy_kset8DisdE7LSD4TNjEVvrKRTmG7a56sY", limit=24).get("tracks", [])
-            except:
-                pass
-
-        for i, item in enumerate(picks_raw):
-            vid = item.get("videoId")
-            if vid and vid not in sent_ids:
-                fmt = self.format_track_item(item, 100 + len(picks_to_process))
-                if fmt and len(picks_to_process) < 16:
-                    picks_to_process.append(fmt)
-                    sent_ids.add(vid)
-                    
-        if picks_to_process:
-            from concurrent.futures import ThreadPoolExecutor
-            def fetch_duration(fmt_item):
-                if not fmt_item.get("duration"):
-                    try:
-                        tmp_ytm = YTMusic()
-                        song_data = tmp_ytm.get_song(fmt_item["videoId"])
-                        sec = int(song_data.get("videoDetails", {}).get("lengthSeconds", 0))
-                        if sec > 0: fmt_item["duration"] = self._seconds_to_duration(sec)
-                    except: pass
-                return fmt_item
-
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                picks = list(executor.map(fetch_duration, picks_to_process))
-                
-            self.send_response({"type": "home_section", "section": "quick_picks", "items": picks})
-            self.log(f"Streamed {len(picks)} Quick Picks")
     def search(self, query):
         threading.Thread(target=self._search_task, args=(query,), daemon=True).start()
 
