@@ -93,19 +93,58 @@ StyledFlickable {
             spacing: 16
             visible: rootContext.songResults.count > 0
 
-            StyledText {
-                text: "Songs"
-                font.pixelSize: 20
-                font.weight: 700
-                color: rootContext.contentColor
+            RowLayout {
+                Layout.fillWidth: true
+
+                StyledText {
+                    text: "Songs"
+                    font.pixelSize: 20
+                    font.weight: 700
+                    color: rootContext.contentColor
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Rectangle {
+                    visible: rootContext.searchSongsHasMore
+                    width: 84
+                    height: 32
+                    radius: 16
+                    color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                    border.width: 1
+                    border.color: ColorUtils.transparentize(rootContext.contentColor, 0.2)
+
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "Load more"
+                        font.pixelSize: 12
+                        color: rootContext.contentColor
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: rootContext.loadMoreSongs()
+                    }
+                }
             }
 
             Rectangle {
+                id: songsContainer
                 Layout.fillWidth: true
                 implicitHeight: songResultsColumn.height + 32
                 Layout.preferredHeight: implicitHeight
                 radius: 24
                 color: ColorUtils.transparentize(rootContext.contentColor, 0.9)
+                clip: true
+
+                Behavior on Layout.preferredHeight {
+                    NumberAnimation {
+                        duration: 260
+                        easing.type: Easing.OutCubic
+                    }
+                }
 
                 ColumnLayout {
                     id: songResultsColumn
@@ -181,7 +220,7 @@ StyledFlickable {
                                 }
 
                                 StyledText {
-                                    text: model.duration
+                                    text: (model.duration && model.duration.length > 0) ? model.duration : "--:--"
                                     color: rootContext.secondaryContentColor
                                     font.pixelSize: 12
                                     Layout.alignment: Qt.AlignVCenter

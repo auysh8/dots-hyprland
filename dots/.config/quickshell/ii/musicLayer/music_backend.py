@@ -966,29 +966,91 @@ class MusicBackend:
         )
         self.log(f"Streamed {len(shorts)} Discover items ({discover_title})")
 
-    def search(self, query):
-        threading.Thread(target=self._search_task, args=(query,), daemon=True).start()
+    def search(self, query, song_limit=20):
+        threading.Thread(target=self._search_task, args=(query, song_limit), daemon=True).start()
 
-    def _search_task(self, query):
+    def _search_task(self, query, song_limit=20):
         try:
+            try:
+                song_limit = max(10, min(20, int(song_limit)))
+            except Exception:
+                song_limit = 20
+
             artists, songs, albums = [], [], []
-            for i, item in enumerate(self.ytm.search(query)):
+            song_ids = set()
+
+            def append_songs(items, allowed_types=None):
+                for item in items:
+                    if allowed_types and item.get("resultType") not in allowed_types:
+                        continue
+                    fmt = self.format_track_item(item, len(songs))
+                    if not fmt:
+                        continue
+                    vid = fmt.get("videoId")
+                    if not vid or vid in song_ids:
+                        continue
+                    songs.append(fmt)
+                    song_ids.add(vid)
+                    if len(songs) >= song_limit:
+                        break
+
+            # Keep artist/album cards from mixed search.
+            general_limit = max(30, song_limit + 10)
+            general_results = self.ytm.search(query, limit=general_limit)
+            for i, item in enumerate(general_results):
                 fmt = self.format_track_item(item, i)
                 if not fmt:
                     continue
                 rt = item.get("resultType")
                 if rt == "artist":
                     artists.append(fmt)
-                elif rt in ("song", "video"):
-                    songs.append(fmt)
                 elif rt == "album":
                     albums.append(fmt)
+
+            # Fill songs from dedicated endpoints first so we actually get ~song_limit tracks.
+            try:
+                append_songs(self.ytm.search(query, filter="songs", limit=song_limit))
+            except Exception as e:
+                self.log(f"Song search fallback (songs) failed: {e}")
+
+            if len(songs) < song_limit:
+                try:
+                    append_songs(self.ytm.search(query, filter="videos", limit=song_limit))
+                except Exception as e:
+                    self.log(f"Song search fallback (videos) failed: {e}")
+
+            if len(songs) < song_limit:
+                append_songs(general_results, allowed_types={"song", "video"})
+
+            songs_to_send = songs[:song_limit]
+            songs_has_more = len(songs_to_send) > 5
+
+            # Backfill missing timestamps for prefetched songs.
+            missing_duration = [s for s in songs_to_send if not s.get("duration") and s.get("videoId")]
+            if missing_duration:
+                from concurrent.futures import ThreadPoolExecutor
+
+                def fill_duration(song_item):
+                    try:
+                        data = self.ytm.get_song(song_item["videoId"])
+                        sec = int(data.get("videoDetails", {}).get("lengthSeconds", 0))
+                        if sec > 0:
+                            song_item["duration"] = self._seconds_to_duration(sec)
+                    except Exception:
+                        pass
+                    return song_item
+
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    songs_to_send = list(executor.map(fill_duration, songs_to_send))
+
             self.send_response(
                 {
                     "type": "search_results",
                     "query": query,
                     "artists": artists[:5],
-                    "songs": songs[:5],
+                    "songs": songs_to_send,
+                    "songLimit": song_limit,
+                    "songsHasMore": songs_has_more,
                     "albums": albums[:5],
                 }
             )
@@ -1026,7 +1088,7 @@ class MusicBackend:
                     c = json.loads(line)
                     t = c.get("command")
                     if t == "search":
-                        self.search(c.get("query", ""))
+                        self.search(c.get("query", ""), c.get("songLimit", 20))
                     elif t == "get_suggestions":
                         try:
                             self.send_response(

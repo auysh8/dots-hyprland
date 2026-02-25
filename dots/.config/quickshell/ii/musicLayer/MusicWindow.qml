@@ -56,6 +56,11 @@ Scope {
     property bool isTrackLoading: false
     property bool playbackPaused: false
     property string currentView: "home"
+    property string lastSearchQuery: ""
+    property int searchVisibleSongCount: 5
+    property int searchSongPrefetchLimit: 20
+    property bool searchSongsHasMore: false
+    property var cachedSongResults: []
     
     function sendCommand(cmdObject) {
         backend.write(JSON.stringify(cmdObject) + "\n")
@@ -66,16 +71,41 @@ Scope {
         sendCommand({ "command": "get_home" })
     }
     
+    function applyVisibleSongResults() {
+        root.songResults.clear()
+        const visibleCount = Math.min(root.searchVisibleSongCount, root.cachedSongResults.length)
+        for (let i = 0; i < visibleCount; i++) {
+            root.songResults.append(root.cachedSongResults[i])
+        }
+        root.searchSongsHasMore = root.cachedSongResults.length > visibleCount
+    }
+
     function search(query) {
-        if (query.trim() === "") return
+        const trimmed = query.trim()
+        if (trimmed === "") return
+        root.lastSearchQuery = trimmed
+        root.searchVisibleSongCount = 5
+
         isLoading = true
         artistResults.clear()
         songResults.clear()
         albumResults.clear()
+        cachedSongResults = []
+        searchSongsHasMore = false
         searchSuggestions.clear() // Clear suggestions on search
-        sendCommand({ "command": "search", "query": query })
+        sendCommand({
+            "command": "search",
+            "query": trimmed,
+            "songLimit": root.searchSongPrefetchLimit
+        })
     }
-    
+
+    function loadMoreSongs() {
+        if (root.cachedSongResults.length === 0) return
+        root.searchVisibleSongCount = Math.min(root.cachedSongResults.length, root.searchVisibleSongCount + 10)
+        root.applyVisibleSongResults()
+    }
+
     function playTrack(videoId, title, artist, artUrl) {
         root.currentTrack = {
             videoId: videoId,
@@ -273,14 +303,16 @@ Scope {
                         root.artistResults.clear()
                         root.songResults.clear()
                         root.albumResults.clear()
+                        root.lastSearchQuery = data.query || root.lastSearchQuery
                         
                         let artists = data.artists || []
                         let songs = data.songs || []
                         let albums = data.albums || []
+                        root.cachedSongResults = songs
                         
                         for (let i = 0; i < artists.length; i++) root.artistResults.append(artists[i])
-                        for (let i = 0; i < songs.length; i++) root.songResults.append(songs[i])
                         for (let i = 0; i < albums.length; i++) root.albumResults.append(albums[i])
+                        root.applyVisibleSongResults()
                         
                     } else if (data.type === "home_section") {
                         root.isLoading = false
@@ -582,6 +614,9 @@ Scope {
                                             root.artistResults.clear()
                                             root.songResults.clear()
                                             root.albumResults.clear()
+                                            root.cachedSongResults = []
+                                            root.searchVisibleSongCount = 5
+                                            root.searchSongsHasMore = false
                                             root.sendCommand({ "command": "get_suggestions", "query": text })
                                         }
                                         
@@ -595,7 +630,7 @@ Scope {
                                                 hideSuggsTimer.stop()
                                             }
                                         }
-                                        
+
                                         Timer {
                                             id: hideSuggsTimer
                                             interval: 150 // Small delay allows onClicked in the menu to register before disappearing
