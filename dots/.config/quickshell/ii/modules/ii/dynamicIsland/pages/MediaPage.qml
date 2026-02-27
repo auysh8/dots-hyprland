@@ -55,16 +55,19 @@ Item {
     }
     
     // Art Handling
-    property string artUrl: (activePlayer && activePlayer.trackArtUrl) ? activePlayer.trackArtUrl : ""
+    // Art Handling
+    property var artUrl: activePlayer ? activePlayer.trackArtUrl : ""
+    property bool isLocalArt: artUrl ? (String(artUrl).startsWith("file://") || String(artUrl).startsWith("/")) : false
+    
     property string artDownloadLocation: Directories.coverArt
-    property string artFileName: Qt.md5(artUrl)
-    property string artFilePath: `${artDownloadLocation}/${artFileName}`
+    property string artFileName: isLocalArt ? String(artUrl).split('/').pop() : Qt.md5(String(artUrl))
+    property string artFilePath: isLocalArt ? String(artUrl).replace("file://", "") : `${artDownloadLocation}/${artFileName}`
 
-    property bool downloaded: false
-    property string displayedArtFilePath: downloaded ? Qt.resolvedUrl(artFilePath) : ""
+    property bool downloaded: isLocalArt
+    property string displayedArtFilePath: downloaded ? (isLocalArt ? artUrl : Qt.resolvedUrl(artFilePath)) : ""
     
     onArtFilePathChanged: {
-        if (root.artUrl.length == 0) return
+        if (root.artUrl.length == 0 || root.isLocalArt) return
 
         // Binding does not work in Process
         coverArtDownloader.targetFile = root.artUrl 

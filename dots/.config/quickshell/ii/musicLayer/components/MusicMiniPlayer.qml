@@ -29,8 +29,6 @@ Rectangle {
     }
 
     color: root.elevatedPanelColor
-    border.width: 1
-    border.color: rootContext ? ColorUtils.transparentize(rootContext.contentColor, 0.82) : "transparent"
 
     visible: rootContext.currentTrack !== null
     z: 100
@@ -67,9 +65,9 @@ Rectangle {
 
             RoundedImage {
                 anchors.fill: parent
-                source: rootContext.currentTrack ? rootContext.currentTrack.artUrl : ""
+                source: rootContext.displayedArtFilePath
                 fillMode: Image.PreserveAspectCrop
-                visible: rootContext.currentTrack && rootContext.currentTrack.artUrl !== ""
+                visible: rootContext.displayedArtFilePath !== ""
                 radius: 12
             }
         }

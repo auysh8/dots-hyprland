@@ -16,9 +16,27 @@ import qs.modules.common
  */
 Singleton {
         id: root;
-        property list<MprisPlayer> players: Mpris.players.values.filter(player => isRealPlayer(player));
+        property var players: {
+                // Ensure dependency on Mpris.players.values
+                let rawPlayers = Mpris.players.values;
+                let arr = rawPlayers.filter(player => {
+                        if (!isRealPlayer(player)) return false;
+                        // Hide music-backend when it has nothing playing
+                        if (player.dbusName === "org.mpris.MediaPlayer2.music-backend"
+                            && !player.trackTitle
+                            && player.playbackState === MprisPlaybackState.Stopped) {
+                                return false;
+                        }
+                        return true;
+                });
+                return arr.sort((a, b) => {
+                        if (a.dbusName === "org.mpris.MediaPlayer2.music-backend") return -1;
+                        if (b.dbusName === "org.mpris.MediaPlayer2.music-backend") return 1;
+                        return 0;
+                });
+        }
         property MprisPlayer trackedPlayer: null;
-        property MprisPlayer activePlayer: trackedPlayer ?? Mpris.players.values[0] ?? null;
+        property MprisPlayer activePlayer: trackedPlayer ?? players[0] ?? null;
         signal trackChanged(reverse: bool);
 
         property bool __reverse: false;
@@ -43,7 +61,7 @@ Singleton {
 
         // Original stuff from fox below
         Instantiator {
-                model: Mpris.players;
+                model: root.players;
 
                 Connections {
                         required property MprisPlayer modelData;
@@ -57,15 +75,15 @@ Singleton {
 
                         Component.onDestruction: {
                                 if (root.trackedPlayer == null || !root.trackedPlayer.isPlaying) {
-                                        for (const player of Mpris.players.values) {
+                                        for (const player of root.players) {
                                                 if (player.playbackState.isPlaying) {
                                                         root.trackedPlayer = player;
                                                         break;
                                                 }
                                         }
 
-                                        if (trackedPlayer == null && Mpris.players.values.length != 0) {
-                                                trackedPlayer = Mpris.players.values[0];
+                                        if (trackedPlayer == null && root.players.length != 0) {
+                                                trackedPlayer = root.players[0];
                                         }
                                 }
                         }
@@ -174,11 +192,11 @@ Singleton {
         }
 
         function setActivePlayer(player: MprisPlayer) {
-                const targetPlayer = player ?? Mpris.players[0];
+                const targetPlayer = player ?? root.players[0];
                 console.log(`[Mpris] Active player ${targetPlayer} << ${activePlayer}`)
 
                 if (targetPlayer && this.activePlayer) {
-                        this.__reverse = Mpris.players.indexOf(targetPlayer) < Mpris.players.indexOf(this.activePlayer);
+                        this.__reverse = root.players.indexOf(targetPlayer) < root.players.indexOf(this.activePlayer);
                 } else {
                         // always animate forward if going to null
                         this.__reverse = false;
@@ -191,7 +209,7 @@ Singleton {
                 target: "mpris"
 
                 function pauseAll(): void {
-                        for (const player of Mpris.players.values) {
+                        for (const player of root.players) {
                                 if (player.canPause) player.pause();
                         }
                 }

@@ -16,17 +16,19 @@ Item { // Player instance
     id: root
     required property MprisPlayer player
     property var artUrl: player?.trackArtUrl
+    property bool isLocalArt: artUrl ? (String(artUrl).startsWith("file://") || String(artUrl).startsWith("/")) : false
+    
     property string artDownloadLocation: Directories.coverArt
-    property string artFileName: Qt.md5(artUrl)
-    property string artFilePath: `${artDownloadLocation}/${artFileName}`
+    property string artFileName: isLocalArt ? String(artUrl).split('/').pop() : Qt.md5(String(artUrl))
+    property string artFilePath: isLocalArt ? String(artUrl).replace("file://", "") : `${artDownloadLocation}/${artFileName}`
     property color artDominantColor: ColorUtils.mix((colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary), Appearance.colors.colPrimaryContainer, 0.8) || Appearance.m3colors.m3secondaryContainer
-    property bool downloaded: false
+    property bool downloaded: isLocalArt
     property list<real> visualizerPoints: []
     property real maxVisualizerValue: 1000 // Max value in the data points
     property int visualizerSmoothing: 2 // Number of points to average for smoothing
     property real radius
 
-    property string displayedArtFilePath: root.downloaded ? Qt.resolvedUrl(artFilePath) : ""
+    property string displayedArtFilePath: root.downloaded ? (isLocalArt ? artUrl : Qt.resolvedUrl(artFilePath)) : ""
 
     component TrackChangeButton: Rectangle {
         property var iconName
@@ -67,8 +69,11 @@ Item { // Player instance
     }
 
     onArtFilePathChanged: {
-        if (root.artUrl.length == 0) {
+        if (!root.artUrl || root.artUrl.length == 0) {
             root.artDominantColor = Appearance.m3colors.m3secondaryContainer
+            return;
+        }
+        if (root.isLocalArt) {
             return;
         }
 

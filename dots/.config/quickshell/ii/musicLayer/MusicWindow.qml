@@ -48,6 +48,17 @@ Scope {
     property ListModel homeContent: ListModel {}
     property ListModel quickPicks: ListModel {}
     property ListModel shortsContent: ListModel {}
+    
+    property ListModel exploreNewReleases: ListModel {}
+    property ListModel exploreTrending: ListModel {}
+    
+    // Library View Models
+    property ListModel libraryPlaylists: ListModel {}
+    property ListModel libraryRecentTracks: ListModel {}
+    property ListModel libraryCommunityPlaylists: ListModel {}
+    property int libraryLikedSongCount: 0
+    property string libraryLikedSongArt: ""
+    
     // Shared layer transition offset for both panel and background.
     readonly property real panelHiddenOffset: -(musicPanel.y + musicPanel.height + 100)
     property bool isLoading: true
@@ -70,6 +81,11 @@ Scope {
     function getHome() {
         isLoading = true
         sendCommand({ "command": "get_home" })
+    }
+
+    function getExplore() {
+        isLoading = true
+        sendCommand({ "command": "get_explore" })
     }
     
     function applyVisibleSongResults() {
@@ -139,6 +155,8 @@ Scope {
     function activeContentFlickable() {
         if (searchInput.text.length > 0 && searchView.visible)
             return searchView.flickable
+        if (root.currentView === "explore" && exploreView.visible)
+            return exploreView.flickable
         if (root.currentView === "home" && homeView.visible)
             return homeView.flickable
         return null
@@ -179,36 +197,14 @@ Scope {
     }
     
     property string artUrl: currentTrack ? currentTrack.artUrl : ""
-    property string artFileName: Qt.md5(artUrl)
-    property string artFilePath: `${Directories.coverArt}/${artFileName}`
+    property string artLocalPath: (currentTrack && currentTrack.artLocalPath) ? currentTrack.artLocalPath : ""
     
-    // Trigger download when path changes
-    property bool downloaded: false
-    property string displayedArtFilePath: (downloaded && artUrl.length > 0) ? Qt.resolvedUrl(artFilePath).toString() : ""
+    // Use the backend-provided local path if available, fallback to remote URL otherwise.
+    property string displayedArtFilePath: artLocalPath !== "" ? "file://" + artLocalPath : artUrl
     
-    onArtFilePathChanged: {
-        if (root.artUrl.length == 0) return
-        
-        console.log("[MusicWindow] artFilePath changed, triggering download for ColorQuantizer")
-        
-        coverArtDownloader.targetFile = root.artUrl 
-        coverArtDownloader.artFilePath = root.artFilePath
-        
-        root.downloaded = false
-        coverArtDownloader.running = true
-    }
-    
-    Process {
-        id: coverArtDownloader
-        property string targetFile: root.artUrl
-        property string artFilePath: root.artFilePath
-        
-        command: [ "bash", "-c", '[ -f "$1" ] || curl -sSL "$2" -o "$1"', "_", artFilePath, targetFile ]
-        
-        onExited: (exitCode, exitStatus) => {
-            console.log("[MusicWindow] Art Download process exited. Code:", exitCode)
-            root.downloaded = true
-        }
+    // Ensure ColorQuantizer triggers properly when art changes
+    onDisplayedArtFilePathChanged: {
+        console.log("[MusicWindow] Displayed art file path changed:", displayedArtFilePath)
     }
     
     ColorQuantizer {
@@ -355,6 +351,17 @@ Scope {
                         for (let i = 0; i < shorts.length; i++) {
                             root.shortsContent.append(shorts[i])
                         }
+                    } else if (data.type === "explore_section") {
+                        root.isLoading = false
+                        root.refreshing = false
+                        let items = data.items || []
+                        if (data.section === "trending") {
+                            root.exploreTrending.clear()
+                            for (let i = 0; i < items.length; i++) root.exploreTrending.append(items[i])
+                        } else if (data.section === "new_releases") {
+                            root.exploreNewReleases.clear()
+                            for (let i = 0; i < items.length; i++) root.exploreNewReleases.append(items[i])
+                        }
                     } else if (data.type === "error") {
                         root.isLoading = false
                         root.refreshing = false
@@ -411,7 +418,7 @@ Scope {
             
             BackgroundBlur {
                 anchors.fill: musicPanel
-                albumArt: root.currentTrack ? root.currentTrack.artUrl : ""
+                albumArt: root.displayedArtFilePath
                 showLyrics: root.showMusic
                 backgroundColor: root.backgroundColor
                 cornerRadius: musicPanel.radius
@@ -524,6 +531,8 @@ Scope {
                                     currentIndex: root.currentView === "home" ? 0 : root.currentView === "explore" ? 1 : 2
                                     expanded: navRail.expanded
                                     Layout.topMargin: 0
+                                    useOverrideColors: true
+                                    overridePillColor: root.pillColor
                                     
                                     NavigationRailButton {
                                         toggled: root.currentView === "home"
@@ -531,15 +540,30 @@ Scope {
                                         expanded: navRail.expanded
                                         buttonIcon: "home"
                                         buttonText: "Home"
-                                        showToggledHighlight: false
+                                        showToggledHighlight: true
+                                        useOverrideColors: true
+                                        overrideActiveColor: root.pillColor
+                                        overrideActiveHoverColor: Qt.lighter(root.pillColor, 1.15)
+                                        overrideIconColor: root.pillContentColor
+                                        overrideTextColor: root.contentColor
                                     }
                                     NavigationRailButton {
                                         toggled: root.currentView === "explore"
-                                        onPressed: root.currentView = "explore"
+                                        onPressed: {
+                                            root.currentView = "explore"
+                                            if (root.exploreNewReleases.count === 0 && root.exploreTrending.count === 0) {
+                                                root.getExplore()
+                                            }
+                                        }
                                         expanded: navRail.expanded
                                         buttonIcon: "explore"
                                         buttonText: "Explore"
-                                        showToggledHighlight: false
+                                        showToggledHighlight: true
+                                        useOverrideColors: true
+                                        overrideActiveColor: root.pillColor
+                                        overrideActiveHoverColor: Qt.lighter(root.pillColor, 1.15)
+                                        overrideIconColor: root.pillContentColor
+                                        overrideTextColor: root.contentColor
                                     }
                                     NavigationRailButton {
                                         toggled: root.currentView === "library"
@@ -547,7 +571,12 @@ Scope {
                                         expanded: navRail.expanded
                                         buttonIcon: "library_music"
                                         buttonText: "Library"
-                                        showToggledHighlight: false
+                                        showToggledHighlight: true
+                                        useOverrideColors: true
+                                        overrideActiveColor: root.pillColor
+                                        overrideActiveHoverColor: Qt.lighter(root.pillColor, 1.15)
+                                        overrideIconColor: root.pillContentColor
+                                        overrideTextColor: root.contentColor
                                     }
                                 }
                                 
@@ -719,8 +748,22 @@ Scope {
                                 queryText: searchInput.text
                             }
 
+                            MusicExploreView {
+                                id: exploreView
+                                anchors.fill: parent
+                                rootContext: root
+                                queryText: searchInput.text
+                            }
+
                             MusicHomeView {
                                 id: homeView
+                                anchors.fill: parent
+                                rootContext: root
+                                queryText: searchInput.text
+                            }
+
+                            MusicLibraryView {
+                                id: libraryView
                                 anchors.fill: parent
                                 rootContext: root
                                 queryText: searchInput.text

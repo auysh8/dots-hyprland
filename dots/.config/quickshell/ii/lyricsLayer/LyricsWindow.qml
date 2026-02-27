@@ -152,10 +152,10 @@ Scope {
     property string artist: ""
     
     // FIX: Track artUrl separately as string to avoid null/undefined issues
-    // FIX: Track artUrl separately as string
     property string artUrl: (activePlayer && activePlayer.trackArtUrl) ? activePlayer.trackArtUrl : ""
-    property string artFileName: Qt.md5(artUrl)
-    property string artFilePath: `${Directories.coverArt}/${artFileName}`
+    property bool isLocalArt: artUrl ? (String(artUrl).startsWith("file://") || String(artUrl).startsWith("/")) : false
+    property string artFileName: isLocalArt ? String(artUrl).split('/').pop() : Qt.md5(String(artUrl))
+    property string artFilePath: isLocalArt ? String(artUrl).replace("file://", "") : `${Directories.coverArt}/${artFileName}`
     property string lastProcessedTrackKey: "" // Stable key to avoid false track-change clears
 
     function normalizeTrackPart(value) {
@@ -211,8 +211,8 @@ Scope {
     
     // MediaPage Logic
 
-    property bool downloaded: false
-    property string displayedArtFilePath: downloaded ? Qt.resolvedUrl(artFilePath) : ""
+    property bool downloaded: isLocalArt
+    property string displayedArtFilePath: downloaded ? (isLocalArt ? artUrl : Qt.resolvedUrl(artFilePath)) : ""
     
     // UI Compatibility Aliases
     readonly property string albumArt: displayedArtFilePath
@@ -221,7 +221,7 @@ Scope {
     
     // Trigger download when path changes (MediaPage Logic)
     onArtFilePathChanged: {
-        if (root.artUrl.length == 0) return
+        if (!root.artUrl || root.artUrl.length == 0 || root.isLocalArt) return
         
         console.log("[Lyrics] artFilePath changed, triggering download")
         

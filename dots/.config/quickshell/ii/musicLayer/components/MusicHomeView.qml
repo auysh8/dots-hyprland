@@ -11,8 +11,6 @@ StyledFlickable {
     property var rootContext
     property string queryText: ""
     readonly property var flickable: root
-    readonly property color listContainerColor: rootContext ? ColorUtils.mix(Appearance.m3colors.m3surfaceContainerHighest, Appearance.m3colors.m3onSurface, 0.78) : "#5a5760"
-    readonly property color listContainerBorderColor: rootContext ? ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.78) : "#38ffffff"
     readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : "#2f3239"
 
     anchors.fill: parent
@@ -109,9 +107,9 @@ StyledFlickable {
             GridView {
                 id: recGrid
                 Layout.fillWidth: true
-                Layout.preferredHeight: rootContext.homeContent.count > 1 ? 520 : 260
+                Layout.preferredHeight: rootContext.homeContent.count > 1 ? 560 : 280
                 cellWidth: Math.max(1, (width - 20) / 4)
-                cellHeight: 260
+                cellHeight: 280
                 flow: GridView.FlowTopToBottom
                 clip: true
                 flickableDirection: Flickable.HorizontalFlick
@@ -126,21 +124,24 @@ StyledFlickable {
                             id: recCard
                             anchors.fill: parent
                             anchors.margins: 8
-                            radius: 16
-                            color: recHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.8) : "transparent"
+                            radius: 20
+                            color: recHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
                             
                             Behavior on color { ColorAnimation { duration: 200 } }
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 12
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                anchors.topMargin: 12
+                                anchors.bottomMargin: 16
                                 spacing: 12
 
                                 Rectangle {
                                     id: artContainer
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: width
-                                    radius: 12
+                                    radius: 20
                                     color: root.artPlaceholderColor
                                     
                                     // Mask the entire container layer to keep corners sharp during child animations
@@ -149,7 +150,7 @@ StyledFlickable {
                                         maskSource: Rectangle {
                                             width: artContainer.width
                                             height: artContainer.height
-                                            radius: 12
+                                            radius: 20
                                         }
                                     }
 
@@ -245,7 +246,7 @@ StyledFlickable {
                 implicitHeight: quickPicksColumn.height + 32
                 Layout.preferredHeight: implicitHeight
                 radius: 24
-                color: ColorUtils.transparentize(rootContext.contentColor, 0.9)
+                color: ColorUtils.transparentize(rootContext.pillColor, 0.7)
 
                 ColumnLayout {
                     id: quickPicksColumn
@@ -262,7 +263,7 @@ StyledFlickable {
                             Layout.fillWidth: true
                             height: 64
                             radius: 12
-                            color: pickHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.8) : "transparent"
+                            color: pickHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
 
                             RowLayout {
                                 anchors.fill: parent
@@ -391,9 +392,9 @@ StyledFlickable {
             GridView {
                 id: shortGrid
                 Layout.fillWidth: true
-                Layout.preferredHeight: rootContext.shortsContent.count > 1 ? 520 : 260
+                Layout.preferredHeight: rootContext.shortsContent.count > 1 ? 560 : 280
                 cellWidth: Math.max(1, (width - 20) / 4)
-                cellHeight: 260
+                cellHeight: 280
                 flow: GridView.FlowTopToBottom
                 clip: true
                 flickableDirection: Flickable.HorizontalFlick
@@ -409,21 +410,24 @@ StyledFlickable {
                             id: shortCard
                             anchors.fill: parent
                             anchors.margins: 8
-                            radius: 16
-                            color: shortHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.8) : "transparent"
+                            radius: 20
+                            color: shortHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
                             
                             Behavior on color { ColorAnimation { duration: 200 } }
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 12
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                anchors.topMargin: 12
+                                anchors.bottomMargin: 16
                                 spacing: 12
 
                                 Rectangle {
                                     id: shortArtContainer
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: width
-                                    radius: 12
+                                    radius: 20
                                     color: root.artPlaceholderColor
                                     
                                     // Mask the entire container layer to keep corners sharp during child animations
@@ -432,7 +436,7 @@ StyledFlickable {
                                         maskSource: Rectangle {
                                             width: shortArtContainer.width
                                             height: shortArtContainer.height
-                                            radius: 12
+                                            radius: 20
                                         }
                                     }
 
@@ -454,7 +458,7 @@ StyledFlickable {
                                         anchors.fill: parent
                                         color: "#60000000"
                                         opacity: shortHover.containsMouse ? 1.0 : 0.0
-                                        radius: 12
+                                        radius: 20
                                         
                                         Behavior on opacity { NumberAnimation { duration: 200 } }
 

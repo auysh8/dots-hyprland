@@ -6,6 +6,7 @@ Music backend using:
 Install deps: pip install pydbus ytmusicapi
 """
 
+import atexit
 import hashlib
 import json
 import os
@@ -63,7 +64,6 @@ MPRIS_XML = """
     <method name="Stop"/>
     <method name="Next"/>
     <method name="Previous"/>
-    <signal name="Seeked"><arg type="x" name="Position"/></signal>
   </interface>
 </node>
 """
@@ -85,6 +85,11 @@ class MprisServer:
         self._meta = {}
         self._loop = None
         self._pub = None
+        self._bus = None
+        self._bus_con = None  # raw Gio.DBusConnection for signal emission
+        self._cached_position = 0
+        self._cached_duration = 0
+        self._published = False
 
     # ── org.mpris.MediaPlayer2 properties ────────────────────────────────────
     @property
@@ -146,7 +151,11 @@ class MprisServer:
 
     @property
     def Metadata(self):
-        return self._meta
+        from gi.repository import GLib as _GLib
+        meta = dict(self._meta)
+        if self._cached_duration > 0:
+            meta["mpris:length"] = _GLib.Variant("x", self._cached_duration)
+        return meta
 
     @property
     def Volume(self):
@@ -158,7 +167,7 @@ class MprisServer:
 
     @property
     def Position(self):
-        return 0
+        return self._cached_position
 
     @property
     def MinimumRate(self):
@@ -215,55 +224,132 @@ class MprisServer:
         self._backend.prev_track()
 
     # ── metadata update (called from backend) ────────────────────────────────
-    def update(self, status, title="", artist="", art_local_path="", video_id=""):
+    def update(self, status, title="", artist="", art_local_path="", video_id="", art_url=""):
         from gi.repository import GLib as _GLib
 
         self._status = status
 
-        # DBus object paths only allow [A-Za-z0-9_/]. YouTube IDs often have hyphens.
+        if status == "Stopped":
+            self._cached_position = 0
+            self._cached_duration = 0
+
         safe_id = re.sub(r"[^A-Za-z0-9]", "_", video_id or "0")
+        if video_id:
+            tid = f"/org/mpris/MediaPlayer2/music_backend/track_{safe_id}"
+        else:
+            tid = "/org/mpris/MediaPlayer2/TrackList/NoTrack"
         meta = {
-            "mpris:trackid": _GLib.Variant("o", f"/org/musicbackend/track/{safe_id}"),
+            "mpris:trackid": _GLib.Variant("o", tid),
+            "mpris:length": _GLib.Variant("x", self._cached_duration),
             "xesam:title": _GLib.Variant("s", title),
             "xesam:artist": _GLib.Variant("as", [artist] if artist else []),
+            "xesam:url": _GLib.Variant("s", ""),
         }
         if art_local_path and os.path.exists(art_local_path):
             meta["mpris:artUrl"] = _GLib.Variant("s", f"file://{art_local_path}")
+        elif art_url:
+            meta["mpris:artUrl"] = _GLib.Variant("s", art_url)
 
         self._meta = meta
 
         # Emit PropertiesChanged so widgets update immediately
-        if self._pub:
-            try:
-                self._pub["org.mpris.MediaPlayer2.Player"].PropertiesChanged(
+        self._emit_properties_changed({
+            "PlaybackStatus": _GLib.Variant("s", self._status),
+            "Metadata": _GLib.Variant("a{sv}", self._meta),
+        })
+
+    def _emit_properties_changed(self, changed_props):
+        """Emit org.freedesktop.DBus.Properties.PropertiesChanged via raw GDBus."""
+        from gi.repository import GLib as _GLib, Gio
+        con = self._bus_con
+        if con is None:
+            return
+        try:
+            con.emit_signal(
+                None,  # broadcast
+                "/org/mpris/MediaPlayer2",
+                "org.freedesktop.DBus.Properties",
+                "PropertiesChanged",
+                _GLib.Variant("(sa{sv}as)", (
                     "org.mpris.MediaPlayer2.Player",
-                    {
-                        "PlaybackStatus": _GLib.Variant("s", self._status),
-                        "Metadata": _GLib.Variant("a{sv}", self._meta),
-                    },
+                    changed_props,
                     [],
-                )
-            except Exception:
-                pass
+                )),
+            )
+        except Exception as e:
+            self._backend.log(f"[MPRIS] Signal emission error: {e}")
 
     def start(self):
-        """Start the GLib loop in a daemon thread."""
+        """Start the GLib loop in a daemon thread (but don't publish yet)."""
         if not PYDBUS_AVAILABLE:
             return
 
         def _run():
             try:
-                bus = SessionBus()
-                self._pub = bus.publish("org.mpris.MediaPlayer2.music-backend", self)
+                self._bus = SessionBus()
+                self._bus_con = self._bus.con
                 self._loop = GLib.MainLoop()
                 self._loop.run()
             except Exception as e:
-                print(f"[MPRIS] Failed to start: {e}", file=sys.stderr)
+                self._backend.log(f"[MPRIS] Failed to start: {e}")
 
         t = threading.Thread(target=_run, daemon=True)
         t.start()
 
+        # Background poller for position/duration — avoids blocking GLib thread
+        def _poll_playback():
+            while True:
+                time.sleep(1)
+                try:
+                    if self._status != "Playing":
+                        continue
+                    pos = self._backend._ipc_get("time-pos")
+                    if pos is not None:
+                        self._cached_position = int(float(pos) * 1_000_000)
+                    dur = self._backend._ipc_get("duration")
+                    if dur is not None:
+                        new_dur = int(float(dur) * 1_000_000)
+                        if new_dur != self._cached_duration:
+                            self._cached_duration = new_dur
+                            # Re-emit metadata with correct duration
+                            from gi.repository import GLib as _GLib
+                            self._emit_properties_changed({
+                                "Metadata": _GLib.Variant("a{sv}", self.Metadata),
+                            })
+                except Exception:
+                    pass
+
+        poller = threading.Thread(target=_poll_playback, daemon=True)
+        poller.start()
+
+    def publish(self):
+        """Publish the MPRIS service on D-Bus (called when playback starts)."""
+        if self._published or not self._bus:
+            return
+        try:
+            self._pub = self._bus.publish(
+                "org.mpris.MediaPlayer2.music-backend",
+                ("/org/mpris/MediaPlayer2", self),
+            )
+            self._published = True
+            self._backend.log("[MPRIS] Published on D-Bus")
+        except Exception as e:
+            self._backend.log(f"[MPRIS] Publish failed: {e}")
+
+    def unpublish(self):
+        """Remove the MPRIS service from D-Bus (called when playback stops)."""
+        if not self._published or not self._pub:
+            return
+        try:
+            self._pub.unpublish()
+            self._pub = None
+            self._published = False
+            self._backend.log("[MPRIS] Unpublished from D-Bus")
+        except Exception as e:
+            self._backend.log(f"[MPRIS] Unpublish failed: {e}")
+
     def stop_loop(self):
+        self.unpublish()
         if self._loop:
             self._loop.quit()
 
@@ -319,6 +405,29 @@ class MusicBackend:
             self.log(
                 "pydbus not found — MPRIS metadata won't be published. Install: pip install pydbus"
             )
+
+        # Ensure mpv is killed when backend exits (e.g. quickshell restart)
+        atexit.register(self._cleanup_on_exit)
+        signal.signal(signal.SIGTERM, self._sigterm_handler)
+        signal.signal(signal.SIGHUP, self._sigterm_handler)
+
+    def _sigterm_handler(self, signum, frame):
+        """Handle SIGTERM/SIGHUP — clean up mpv and exit."""
+        self._cleanup_on_exit()
+        sys.exit(0)
+
+
+    def _cleanup_on_exit(self):
+        try:
+            if self.mpv_process:
+                self.mpv_process.terminate()
+                self.mpv_process.wait(timeout=2)
+        except Exception:
+            try:
+                if self.mpv_process:
+                    self.mpv_process.kill()
+            except Exception:
+                pass
 
     # ── logging ───────────────────────────────────────────────────────────────
     def log(self, msg):
@@ -564,15 +673,30 @@ class MusicBackend:
         return [name for name, _ in ranked[:limit]]
 
     def _build_history_track_pools(self, recent_history):
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         history_quick_tracks = []
         history_discover_tracks = []
-        history_seed_ids = recent_history[:6]  # 3 most recent + older history seeds
-        for idx, vid in enumerate(history_seed_ids):
-            tracks = self.fetch_playlist(vid)
+        history_seed_ids = recent_history[:6]
+
+        # Fetch all 6 history playlists in parallel
+        results = {}
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            futures = {pool.submit(self.fetch_playlist, vid): idx for idx, vid in enumerate(history_seed_ids)}
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    results[idx] = future.result()
+                except Exception:
+                    results[idx] = []
+
+        # Distribute results in order: first 3 → quick picks, rest → discover
+        for idx in sorted(results.keys()):
             if idx < 3:
-                self._append_unique(history_quick_tracks, tracks, cap=96)
+                self._append_unique(history_quick_tracks, results[idx], cap=96)
             else:
-                self._append_unique(history_discover_tracks, tracks, cap=96)
+                self._append_unique(history_discover_tracks, results[idx], cap=96)
+
         if not history_discover_tracks:
             self._append_unique(history_discover_tracks, history_quick_tracks, cap=96)
 
@@ -826,6 +950,7 @@ class MusicBackend:
             self._current_title = title
             self._current_artist = artist
             self._current_art = art_file_path
+            self._current_art_url = art_url
 
             # 3. Build mpv command — pure subprocess, no libmpv
             self._cleanup_socket()
@@ -834,7 +959,8 @@ class MusicBackend:
                 "--no-video",  # audio only
                 "--no-terminal",  # no terminal output
                 "--really-quiet",  # suppress mpv stderr noise
-                "--script-opts=mpris-disable=yes",  # Disable mpv internal MPRIS
+                "--no-config",  # don't load user mpv config
+                "--load-scripts=no",  # disable all scripts including MPRIS
                 f"--input-ipc-server={self.ipc_socket}",  # for pause/resume/stop
                 f"--force-media-title={title} \u2022 {artist}",
                 stream_url,
@@ -855,14 +981,37 @@ class MusicBackend:
 
             self.log("mpv launched — playback started")
 
-            # 4. Update MPRIS metadata NOW (our own server, no mpv involvement)
+            # 4. Publish MPRIS on D-Bus and update metadata
+            self.mpris.publish()
             self.mpris.update(
                 status="Playing",
                 title=title,
                 artist=artist,
                 art_local_path=art_file_path,
                 video_id=video_id,
+                art_url=art_url,
             )
+
+            # Wait for mpv to resolve duration, then update metadata again to push length to clients
+            def _wait_for_duration():
+                for _ in range(20):
+                    time.sleep(0.5)
+                    if not self.mpv_process: break
+                    dur = self._ipc_get("duration")
+                    if dur is not None:
+                        self.log(f"Resolved duration: {dur}s, updating mpris")
+                        # Set cached duration BEFORE calling update so it's included in the signal
+                        self.mpris._cached_duration = int(float(dur) * 1_000_000)
+                        self.mpris.update(
+                            status="Playing",
+                            title=title,
+                            artist=artist,
+                            art_local_path=art_file_path,
+                            video_id=video_id,
+                            art_url=art_url,
+                        )
+                        break
+            threading.Thread(target=_wait_for_duration, daemon=True).start()
 
             # 5. Monitor process exit in a thread
             def _monitor():
@@ -916,6 +1065,25 @@ class MusicBackend:
         except Exception:
             return False
 
+    def _ipc_get(self, prop_name):
+        """Get a property from mpv via IPC socket."""
+        if not os.path.exists(self.ipc_socket):
+            return None
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(0.5)
+            s.connect(self.ipc_socket)
+            s.sendall((json.dumps({"command": ["get_property", prop_name]}) + "\n").encode())
+            f = s.makefile()
+            for line in f:
+                data = json.loads(line)
+                if "data" in data or "error" in data:
+                    return data.get("data")
+            s.close()
+            return None
+        except Exception:
+            return None
+
     def stop(self, notify=True):
         with self._state_lock:
             process = self.mpv_process
@@ -933,6 +1101,7 @@ class MusicBackend:
                     pass
         self._cleanup_socket()
         self.mpris.update("Stopped")
+        self.mpris.unpublish()
         if notify:
             self.send_response({"type": "playback_stopped"})
 
@@ -944,6 +1113,7 @@ class MusicBackend:
                 artist=self._current_artist,
                 art_local_path=self._current_art,
                 video_id=self.current_video_id or "",
+                art_url=getattr(self, "_current_art_url", ""),
             )
             self.send_response({"type": "playback_paused"})
 
@@ -955,6 +1125,7 @@ class MusicBackend:
                 artist=self._current_artist,
                 art_local_path=self._current_art,
                 video_id=self.current_video_id or "",
+                art_url=getattr(self, "_current_art_url", ""),
             )
             self.send_response({"type": "playback_resumed"})
 
@@ -1059,10 +1230,14 @@ class MusicBackend:
 
         artist_profile = self._pick_artists(history_seed_tracks + recs_raw + picks_raw, limit=4)
 
+        import time
+
         # --- STREAM RECOMMENDATIONS ---
         recs = self._build_recommendations_section(recs_raw, artist_profile, sent_ids)
         self.send_response({"type": "home_section", "section": "recommendations", "items": recs})
         self.log(f"Streamed {len(recs)} Recommendations")
+
+        time.sleep(0.4)
 
         # --- STREAM QUICK PICKS ---
         picks = self._build_quick_picks_section(
@@ -1073,6 +1248,8 @@ class MusicBackend:
         )
         self.send_response({"type": "home_section", "section": "quick_picks", "items": picks})
         self.log(f"Streamed {len(picks)} Quick Picks")
+
+        time.sleep(0.4)
 
         # --- STREAM DISCOVER ---
         shorts, discover_title = self._build_discover_section(
@@ -1087,6 +1264,108 @@ class MusicBackend:
             {"type": "home_section", "section": "shorts", "items": shorts, "title": discover_title}
         )
         self.log(f"Streamed {len(shorts)} Discover items ({discover_title})")
+
+    def get_explore(self):
+        self.log("UI requested get_explore")
+        threading.Thread(target=self._fetch_explore_task, daemon=True).start()
+
+    def _fetch_explore_task(self):
+        self.log("Fetching explore data...")
+        sent_ids = set()
+
+        # --- STREAM TRENDING: Fetch "Top 100 Songs India" playlist (actual songs) ---
+        trending_items = []
+        try:
+            trending_playlist_id = "PL4fGSI1pDJn4pTWyM3t61lOyZ6_4jcNOw"
+            self.log("Fetching trending songs playlist...")
+            trending_raw = self.ytm.get_watch_playlist(
+                playlistId=trending_playlist_id, limit=25
+            ).get("tracks", [])
+
+            for item in trending_raw:
+                vid = self._item_video_id(item)
+                if not vid or vid in sent_ids:
+                    continue
+                vtype = item.get("videoType", "")
+                if "PODCAST" in vtype:
+                    continue
+                fmt = self.format_track_item(item, len(trending_items))
+                if fmt:
+                    trending_items.append(fmt)
+                    sent_ids.add(vid)
+                if len(trending_items) >= 12:
+                    break
+        except Exception as e:
+            self.log(f"Trending fetch failed: {e}")
+
+        self.send_response({"type": "explore_section", "section": "trending", "items": trending_items})
+        self.log(f"Streamed {len(trending_items)} trending songs")
+
+        # --- STREAM NEW RELEASES: Use get_explore() for real album/single releases ---
+        new_releases_items = []
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            self.log("Fetching new releases from explore page...")
+            explore_data = self.ytm.get_explore()
+            releases = explore_data.get("new_releases", [])
+
+            # Filter releases that have audioPlaylistId
+            valid_releases = [r for r in releases if r.get("audioPlaylistId")][:16]
+
+            def _fetch_lead_track(playlist_id):
+                try:
+                    return self.ytm.get_watch_playlist(playlistId=playlist_id, limit=1).get("tracks", [])
+                except Exception:
+                    return []
+
+            # Fetch all lead tracks in parallel
+            lead_tracks = {}
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                futures = {pool.submit(_fetch_lead_track, r["audioPlaylistId"]): i for i, r in enumerate(valid_releases)}
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    lead_tracks[idx] = future.result()
+
+            # Process results in order
+            for i, release in enumerate(valid_releases):
+                tracks = lead_tracks.get(i, [])
+                if not tracks:
+                    continue
+                track = tracks[0]
+                vid = self._item_video_id(track)
+                if not vid or vid in sent_ids:
+                    continue
+
+                release_thumbs = release.get("thumbnails", [])
+                art_url = release_thumbs[-1].get("url", "") if release_thumbs else ""
+                if art_url:
+                    if "=w" in art_url and "-h" in art_url:
+                        art_url = re.sub(r"=w\d+-h\d+", "=w544-h544", art_url)
+                    elif "googleusercontent.com" in art_url and "=s" in art_url:
+                        art_url = re.sub(r"=s\d+", "=s544", art_url)
+
+                artist_name = ""
+                artists_list = release.get("artists", [])
+                if isinstance(artists_list, list) and artists_list:
+                    artist_name = artists_list[0].get("name", "")
+                if not artist_name:
+                    artist_name = "Unknown Artist"
+
+                new_releases_items.append({
+                    "id": str(100 + len(new_releases_items)),
+                    "videoId": vid,
+                    "title": release.get("title", track.get("title", "Unknown")),
+                    "artist": artist_name,
+                    "duration": self._extract_duration(track),
+                    "artUrl": art_url,
+                })
+                sent_ids.add(vid)
+        except Exception as e:
+            self.log(f"New releases fetch failed: {e}")
+
+        self.send_response({"type": "explore_section", "section": "new_releases", "items": new_releases_items})
+        self.log(f"Streamed {len(new_releases_items)} new releases — explore complete")
 
     def search(self, query, song_limit=20):
         threading.Thread(target=self._search_task, args=(query, song_limit), daemon=True).start()
@@ -1162,6 +1441,7 @@ class MusicBackend:
     _current_title = ""
     _current_artist = ""
     _current_art = ""
+    _current_art_url = ""
 
     def run(self):
         self.log("Music backend started.")
@@ -1199,6 +1479,8 @@ class MusicBackend:
                             pass
                     elif t == "get_home":
                         self.get_home()
+                    elif t == "get_explore":
+                        self.get_explore()
                     elif t == "play":
                         if c.get("videoId"):
                             self._current_title = c.get("title", "")

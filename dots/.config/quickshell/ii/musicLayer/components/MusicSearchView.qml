@@ -10,8 +10,7 @@ StyledFlickable {
     property var rootContext
     property string queryText: ""
     readonly property var flickable: root
-    readonly property color listContainerColor: rootContext ? ColorUtils.mix(Appearance.m3colors.m3surfaceContainerHighest, Appearance.m3colors.m3onSurface, 0.78) : "#5a5760"
-    readonly property color listContainerBorderColor: rootContext ? ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.78) : "#38ffffff"
+
 
     anchors.fill: parent
     contentHeight: resultsColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
@@ -108,20 +107,21 @@ StyledFlickable {
                 Rectangle {
                     visible: rootContext.searchSongsHasMore
                     width: 84
-                    height: 32
-                    radius: 16
-                    color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
-                    border.width: 1
-                    border.color: ColorUtils.transparentize(rootContext.contentColor, 0.2)
+                    height: 34
+                    radius: 17
+                    color: loadMoreMouse.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : ColorUtils.transparentize(rootContext.pillColor, 0.6)
+
+                    Behavior on color { ColorAnimation { duration: 150 } }
 
                     StyledText {
                         anchors.centerIn: parent
                         text: "Load more"
-                        font.pixelSize: 12
+                        font.pixelSize: 13
                         color: rootContext.contentColor
                     }
 
                     MouseArea {
+                        id: loadMoreMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
@@ -136,7 +136,7 @@ StyledFlickable {
                 implicitHeight: songResultsColumn.height + 32
                 Layout.preferredHeight: implicitHeight
                 radius: 24
-                color: ColorUtils.transparentize(rootContext.contentColor, 0.9)
+                color: ColorUtils.transparentize(rootContext.pillColor, 0.7)
                 clip: true
 
                 Behavior on Layout.preferredHeight {
@@ -161,7 +161,7 @@ StyledFlickable {
                             Layout.fillWidth: true
                             height: 64
                             radius: 12
-                            color: songHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.8) : "transparent"
+                            color: songHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
 
                             RowLayout {
                                 anchors.fill: parent

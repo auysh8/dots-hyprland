@@ -33,16 +33,20 @@ Singleton {
     property string wifiStatus: "disconnected"
 
     property string networkName: ""
-    property int networkStrength
+    property int networkStrength: 0
+    readonly property int effectiveNetworkStrength: {
+        if (root.active && Number.isFinite(root.active.strength))
+            return root.active.strength;
+        return Number.isFinite(root.networkStrength) ? root.networkStrength : 0;
+    }
     property string materialSymbol: root.ethernet
     ? "lan"
     : (root.wifi && root.networkName !== "")
     ? (
-        Network.networkStrength > 83 ? "signal_wifi_4_bar" :
-        Network.networkStrength > 67 ? "network_wifi" :
-        Network.networkStrength > 50 ? "network_wifi_3_bar" :
-        Network.networkStrength > 33 ? "network_wifi_2_bar" :
-        Network.networkStrength > 17 ? "network_wifi_1_bar" :
+        root.effectiveNetworkStrength > 80 ? "signal_wifi_4_bar" :
+        root.effectiveNetworkStrength > 60 ? "network_wifi_3_bar" :
+        root.effectiveNetworkStrength > 40 ? "network_wifi_2_bar" :
+        root.effectiveNetworkStrength > 20 ? "network_wifi_1_bar" :
         "signal_wifi_0_bar"
     )
     : (root.wifiStatus === "connecting")
@@ -235,10 +239,17 @@ Singleton {
     Process {
         id: updateNetworkStrength
         running: true
-        command: ["sh", "-c", "nmcli -f IN-USE,SIGNAL,SSID device wifi | awk '/^\*/{if (NR!=1) {print $2}}'"]
-        stdout: SplitParser {
-            onRead: data => {
-                root.networkStrength = parseInt(data);
+        command: ["sh", "-c", "nmcli -t -f IN-USE,SIGNAL device wifi | awk -F: '$1 == \"*\" {print $2; exit}'"]
+        environment: ({
+            LANG: "C",
+            LC_ALL: "C"
+        })
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const parsedStrength = parseInt(text.trim(), 10);
+                root.networkStrength = Number.isFinite(parsedStrength)
+                    ? parsedStrength
+                    : (root.active?.strength ?? 0);
             }
         }
     }
