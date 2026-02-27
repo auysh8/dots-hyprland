@@ -19,12 +19,6 @@ DockButton {
 
     readonly property bool isSeparator: appToplevel.appId === "SEPARATOR"
     property var desktopEntry: DesktopEntries.heuristicLookup(appToplevel.appId)
-    Connections {
-        target: DesktopEntries
-        function onApplicationsChanged() {
-            root.desktopEntry = DesktopEntries.heuristicLookup(appToplevel.appId);
-        }
-    }
     enabled: !isSeparator
     implicitWidth: isSeparator ? 1 : implicitHeight - topInset - bottomInset
 
@@ -66,6 +60,25 @@ DockButton {
         }
         lastFocused = (lastFocused + 1) % appToplevel.toplevels.length
         appToplevel.toplevels[lastFocused].activate()
+    }
+
+    Connections {
+        target: DesktopEntries
+        function onApplicationsChanged() {
+            root.desktopEntry = DesktopEntries.heuristicLookup(root.appToplevel.appId);
+        }
+    }
+
+    Timer {
+        // Retry looking up the desktop entry if it failed (e.g. database not loaded yet)
+        property int retryCount: 5
+        interval: 1000
+        running: !root.isSeparator && root.desktopEntry === null && retryCount > 0
+        repeat: true
+        onTriggered: {
+            retryCount--;
+            root.desktopEntry = DesktopEntries.heuristicLookup(root.appToplevel.appId);
+        }
     }
 
     middleClickAction: () => {
