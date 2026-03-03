@@ -16,7 +16,7 @@ Button {
     property real buttonRadius: Appearance?.rounding?.small ?? 4
     property real buttonRadiusPressed: buttonRadius
     property real buttonEffectiveRadius: root.down ? root.buttonRadiusPressed : root.buttonRadius
-    property int rippleDuration: 1200
+    property int rippleDuration: 800
     property bool rippleEnabled: true
     property var downAction // When left clicking (down)
     property var releaseAction // When left clicking (release)
@@ -24,11 +24,11 @@ Button {
     property var middleClickAction // When middle clicking
 
     property color colBackground: ColorUtils.transparentize(Appearance?.colors.colLayer1Hover, 1) || "transparent"
-    property color colBackgroundHover: Appearance?.colors.colLayer1Hover ?? "#E5DFED"
+    property color colBackgroundHover: colBackground
     property color colBackgroundToggled: Appearance?.colors.colPrimary ?? "#65558F"
-    property color colBackgroundToggledHover: Appearance?.colors.colPrimaryHover ?? "#77699C"
-    property color colRipple: Appearance?.colors.colLayer1Active ?? "#D6CEE2"
-    property color colRippleToggled: Appearance?.colors.colPrimaryActive ?? "#D6CEE2"
+    property color colBackgroundToggledHover: colBackgroundToggled
+    property color colRipple: ColorUtils.transparentize(Appearance?.colors.colOnSurface ?? "#FFFFFF", 0.85)
+    property color colRippleToggled: ColorUtils.transparentize(Appearance?.colors.colOnPrimary ?? "#FFFFFF", 0.85)
 
     opacity: root.enabled ? 1 : 0.4
     property color buttonColor: ColorUtils.transparentize(root.toggled ? 
@@ -119,7 +119,7 @@ Button {
         PropertyAction {
             target: ripple
             property: "opacity"
-            value: 1
+            value: 1.0
         }
         ParallelAnimation {
             RippleAnim {
@@ -146,8 +146,8 @@ Button {
             id: stateLayer
             anchors.fill: parent
             radius: parent.radius
-            color: root.toggled ? Appearance?.colors.colOnPrimary ?? "#FFFFFF" : Appearance?.colors.colPrimary ?? "#65558F"
-            opacity: root.down ? 0.12 : (root.hovered ? 0.08 : 0)
+            color: root.rippleColor
+            opacity: root.down ? 0.1 : (root.hovered ? 0.04 : 0)
             
             Behavior on opacity {
                 NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
@@ -180,9 +180,9 @@ Button {
             RadialGradient {
                 anchors.fill: parent
                 gradient: Gradient {
-                    GradientStop { position: 0.0; color: root.rippleColor }
-                    GradientStop { position: 0.3; color: root.rippleColor }
-                    GradientStop { position: 0.5; color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0) }
+                    GradientStop { position: 0.0; color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0.20) }
+                    GradientStop { position: 0.6; color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0.20) }
+                    GradientStop { position: 1.0; color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0) }
                 }
             }
 

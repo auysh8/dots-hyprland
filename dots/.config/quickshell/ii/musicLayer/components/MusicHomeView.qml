@@ -88,14 +88,14 @@ StyledFlickable {
                     spacing: 4
 
                     StyledText {
-                        text: "Recommendations"
+                        text: "Listen Again"
                         font.pixelSize: 24
                         font.weight: 700
                         color: rootContext.contentColor
                     }
 
                     StyledText {
-                        text: "Based on your recent listening"
+                        text: "Jump back into your favorites"
                         font.pixelSize: 14
                         color: rootContext.secondaryContentColor
                     }
@@ -375,14 +375,14 @@ StyledFlickable {
                     spacing: 4
 
                     StyledText {
-                        text: "Discover Music"
+                        text: "Forgotten favourites"
                         font.pixelSize: 24
                         font.weight: 700
                         color: rootContext.contentColor
                     }
 
                     StyledText {
-                        text: rootContext.shortsContent.count > 0 ? "Trending videos and shorts" : "No discover items right now."
+                        text: rootContext.shortsContent.count > 0 ? "Rediscover tracks you love" : "No forgotten favorites right now."
                         font.pixelSize: 14
                         color: rootContext.secondaryContentColor
                     }

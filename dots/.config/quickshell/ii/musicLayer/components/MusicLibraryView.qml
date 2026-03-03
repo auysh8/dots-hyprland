@@ -22,14 +22,7 @@ StyledFlickable {
     clip: true
     contentHeight: libraryLayout.implicitHeight + (rootContext.currentTrack ? 120 : 32)
     
-    // Add dummy content till I add backend data if you want to preview UI
-    property var dummyRecent: [
-        {"title": "Dawn FM", "artist": "The Weeknd", "cover": "https://lh3.googleusercontent.com/9nF_aBqL1Q12Ie1eGjG7VzB9JIfqE2EbxF6Fz0Q8o7F15pM-m-w7gKQK1X0D6oO5_S012tZ2gZ=w544-h544-l90-rj"},
-        {"title": "Optimist", "artist": "FINNEAS", "cover": "https://lh3.googleusercontent.com/4SjA6T1T6mJ3CjGmV5D_O7zQ3aC8C2qL3F0Z7A6F15pM-m-w7gKQK1X0D6oO5=w544-h544-l90-rj"},
-        {"title": "Planet Her", "artist": "Doja Cat", "cover": "https://lh3.googleusercontent.com/F2w8Z8Z9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9A9=w544-h544-l90-rj"},
-        {"title": "Justice", "artist": "Justin Bieber", "cover": "https://lh3.googleusercontent.com/A6F15pM-m-w7gKQK1X0D6oO5_S012tZ2gZ=w544-h544-l90-rj"},
-        {"title": "Nectar", "artist": "Joji", "cover": "https://lh3.googleusercontent.com/9nF_aBqL1Q12Ie1eGjG7VzB9JIfqE2EbxF6Fz0Q8o7F15pM-m-w7gKQK1X0D6oO5_S012tZ2gZ=w544-h544-l90-rj"}
-    ]
+    // The dummy array was removed.
 
     ColumnLayout {
         id: libraryLayout
@@ -51,48 +44,103 @@ StyledFlickable {
                 font.weight: 800
                 color: rootContext.contentColor
             }
+            Item { Layout.fillWidth: true }
+            RippleButton {
+                Layout.preferredWidth: signInRow.implicitWidth + 32
+                Layout.preferredHeight: 36
+                buttonRadius: 18
+                colBackground: Appearance.colors.colLayer2
+                
+                contentItem: RowLayout {
+                    id: signInRow
+                    anchors.centerIn: parent
+                    spacing: 8
+                    
+                    MaterialSymbol {
+                        text: rootContext.isAuthenticated ? "sync" : "account_circle"
+                        font.pixelSize: 18
+                        color: rootContext.contentColor
+                    }
+                    StyledText {
+                        text: rootContext.isAuthenticated ? "Refresh" : "Sign In"
+                        font.pixelSize: 14
+                        font.weight: 600
+                        color: rootContext.contentColor
+                    }
+                }
+                
+                onClicked: {
+                    rootContext.refreshAuth()
+                }
+            }
         }
 
-        // Filters Row
-        RowLayout {
+
+        // Auth Setup Instruction (when not authenticated)
+        Rectangle {
             Layout.fillWidth: true
-            spacing: 12
+            Layout.preferredHeight: authInstructionLayout.implicitHeight + 32
+            radius: 16
+            color: root.sectionCardColor
+            visible: !rootContext.isAuthenticated
             
-            // Reusing basic pill concept
-            Repeater {
-                model: ["Playlists", "Albums", "Artists"]
-                delegate: Rectangle {
-                    height: 36
-                    width: filterText.implicitWidth + 32
-                    radius: 18
-                    color: filterHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
-                    border.width: 1
-                    border.color: ColorUtils.transparentize(rootContext.contentColor, 0.7)
+            ColumnLayout {
+                id: authInstructionLayout
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 12
+                
+                RowLayout {
+                    spacing: 10
+                    MaterialSymbol {
+                        text: "music_note"
+                        font.pixelSize: 28
+                        color: rootContext.extractedColor || rootContext.pillContentColor
+                    }
+                    StyledText {
+                        text: "Connect YouTube Music"
+                        font.pixelSize: 18
+                        font.weight: 700
+                        color: rootContext.contentColor
+                    }
+                }
+                
+                StyledText {
+                    Layout.fillWidth: true
+                    text: "Sign in to your YouTube Music account to see your liked songs, playlists, and listening history. Make sure you're logged into YouTube Music in your browser first."
+                    font.pixelSize: 13
+                    font.weight: 400
+                    color: rootContext.subtextColor
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.4
+                }
+                
+                RippleButton {
+                    Layout.preferredWidth: connectRow.implicitWidth + 28
+                    Layout.preferredHeight: 38
+                    buttonRadius: 19
                     
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    
-                    RowLayout {
+                    contentItem: RowLayout {
+                        id: connectRow
                         anchors.centerIn: parent
                         spacing: 8
+                        
+                        property color btnColor: rootContext.extractedColor || rootContext.pillColor
+                        
                         MaterialSymbol {
-                            text: index === 0 ? "queue_music" : index === 1 ? "album" : "mic"
-                            color: rootContext.contentColor
-                            iconSize: 18
+                            text: "link"
+                            font.pixelSize: 18
+                            color: ColorUtils.overlayForeground(connectRow.btnColor, "primary")
                         }
                         StyledText {
-                            id: filterText
-                            text: modelData
+                            text: "Connect Account"
                             font.pixelSize: 14
-                            font.weight: 600
-                            color: rootContext.contentColor
+                            font.weight: 700
+                            color: ColorUtils.overlayForeground(connectRow.btnColor, "primary")
                         }
                     }
-                    MouseArea {
-                        id: filterHover
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                    }
+                    
+                    onClicked: rootContext.refreshAuth()
                 }
             }
         }
@@ -101,6 +149,7 @@ StyledFlickable {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 16
+            visible: rootContext.libraryRecentTracks.count > 0
 
             StyledText {
                 text: "Recently Played"
@@ -112,37 +161,36 @@ StyledFlickable {
             ListView {
                 id: recentRow
                 Layout.fillWidth: true
-                Layout.preferredHeight: 180
+                Layout.preferredHeight: 220
                 orientation: ListView.Horizontal
                 spacing: 16
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                
-                // using dummy for now
-                model: root.dummyRecent
+                model: rootContext.libraryRecentTracks
 
                 delegate: Item {
-                    width: 120
-                    height: 180
+                    width: 160
+                    height: 220
 
                     ColumnLayout {
                         anchors.fill: parent
                         spacing: 8
 
                         Rectangle {
+                            id: recentArtContainer
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 120
+                            Layout.preferredHeight: 160
                             radius: 14
                             color: root.artPlaceholderColor
                             
                             layer.enabled: true
                             layer.effect: OpacityMask {
-                                maskSource: Rectangle { width: parent.width; height: parent.height; radius: 14 }
+                                maskSource: Rectangle { width: recentArtContainer.width; height: recentArtContainer.height; radius: 14 }
                             }
 
                             Image {
                                 anchors.fill: parent
-                                source: modelData.cover
+                                source: model.cover || ""
                                 fillMode: Image.PreserveAspectCrop
                             }
                             
@@ -150,11 +198,14 @@ StyledFlickable {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.cover)
+                                }
                             }
                         }
 
                         StyledText {
-                            text: modelData.title
+                            text: model.title
                             Layout.fillWidth: true
                             font.pixelSize: 14
                             font.weight: 600
@@ -163,7 +214,7 @@ StyledFlickable {
                         }
                         
                         StyledText {
-                            text: modelData.artist
+                            text: model.artist
                             Layout.fillWidth: true
                             font.pixelSize: 12
                             color: rootContext.secondaryContentColor
@@ -184,9 +235,32 @@ StyledFlickable {
                 width: Math.max(260, (parent.width - 16) / 2) // takes more space
                 height: 180
                 radius: 20
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: "#6A11CB" }
-                    GradientStop { position: 1.0; color: "#2575FC" }
+                clip: true
+                color: "#2575FC" // solid fallback
+                
+                // Background image (with heavy blur/darkening to act as gradient)
+                Image {
+                    id: likedSongsBg
+                    anchors.fill: parent
+                    source: rootContext.libraryLikedSongArt || ""
+                    fillMode: Image.PreserveAspectCrop
+                    opacity: 0.8
+                    visible: source !== ""
+                    
+                    layer.enabled: true
+                    layer.effect: OpacityMask {
+                        maskSource: Rectangle { width: likedSongsBg.width; height: likedSongsBg.height; radius: 20 }
+                    }
+                }
+                
+                // Overlay gradient to blend text
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 20
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "#aa6A11CB" }
+                        GradientStop { position: 1.0; color: "#dd2575FC" }
+                    }
                 }
 
                 ColumnLayout {
@@ -209,7 +283,7 @@ StyledFlickable {
                         color: "white"
                     }
                     StyledText {
-                        text: "356 Songs"  // Will use libraryLikedSongCount later
+                        text: rootContext.libraryLikedSongCount + " Songs"
                         font.pixelSize: 14
                         color: ColorUtils.transparentize("white", 0.8)
                     }
@@ -224,43 +298,140 @@ StyledFlickable {
                 }
             }
             
-            // Regular Playlists (Dummy for now)
+            // Regular Playlists
             Repeater {
-                model: [
-                    {"name": "Workout Mix", "count": 60, "color": "#1A1A1D"},
-                    {"name": "Chill Vibes", "count": 120, "color": "#232b2b"},
-                    {"name": "Late Night Jazz", "count": 45, "color": "#1f1d24"}
-                ]
+                model: rootContext.libraryPlaylists
                 
                 delegate: Rectangle {
                     width: Math.max(180, (parent.width - 16 * 4) / 4)
                     height: 180
                     radius: 20
-                    color: root.sectionCardColor
+                    color: playlistHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : root.sectionCardColor
                     border.width: 1
                     border.color: ColorUtils.transparentize("white", 0.9)
+                    
+                    Behavior on color { ColorAnimation { duration: 150 } }
                     
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 16
                         
                         Rectangle {
+                            id: playlistArtContainer
                             width: 60; height: 60; radius: 10
-                            color: modelData.color
-                            // placeholder image goes here later
+                            color: root.artPlaceholderColor
+                            layer.enabled: true
+                            layer.effect: OpacityMask {
+                                maskSource: Rectangle { width: playlistArtContainer.width; height: playlistArtContainer.height; radius: 10 }
+                            }
+
+                            Image {
+                                anchors.fill: parent
+                                source: model.cover || ""
+                                fillMode: Image.PreserveAspectCrop
+                            }
                         }
                         Item { Layout.fillHeight: true }
                         
                         StyledText {
-                            text: modelData.name
+                            text: model.title
                             font.pixelSize: 18
                             font.weight: 700
                             color: rootContext.contentColor
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                            maximumLineCount: 2
+                            wrapMode: Text.WordWrap
                         }
                         StyledText {
-                            text: modelData.count + " songs"
+                            text: model.count + " songs"
                             font.pixelSize: 13
                             color: rootContext.secondaryContentColor
+                            visible: model.count !== "0" && model.count !== undefined
+                        }
+                    }
+
+                    MouseArea {
+                        id: playlistHover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+            }
+        }
+
+        // Community Playlists (Based on History)
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 16
+            visible: rootContext.libraryCommunityPlaylists.count > 0
+
+            StyledText {
+                text: "Discover from History"
+                font.pixelSize: 22
+                font.weight: 700
+                color: rootContext.contentColor
+            }
+
+            ListView {
+                id: communityRow
+                Layout.fillWidth: true
+                Layout.preferredHeight: 220
+                orientation: ListView.Horizontal
+                spacing: 16
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                model: rootContext.libraryCommunityPlaylists
+
+                delegate: Item {
+                    width: 160
+                    height: 220
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 8
+
+                        Rectangle {
+                            id: commArtContainer
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 160
+                            radius: 14
+                            color: root.artPlaceholderColor
+                            
+                            layer.enabled: true
+                            layer.effect: OpacityMask {
+                                maskSource: Rectangle { width: commArtContainer.width; height: commArtContainer.height; radius: 14 }
+                            }
+
+                            Image {
+                                anchors.fill: parent
+                                source: model.cover || ""
+                                fillMode: Image.PreserveAspectCrop
+                            }
+                            
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                            }
+                        }
+
+                        StyledText {
+                            text: model.title
+                            Layout.fillWidth: true
+                            font.pixelSize: 14
+                            font.weight: 600
+                            color: rootContext.contentColor
+                            elide: Text.ElideRight
+                        }
+                        
+                        StyledText {
+                            text: model.artist
+                            Layout.fillWidth: true
+                            font.pixelSize: 12
+                            color: rootContext.secondaryContentColor
+                            elide: Text.ElideRight
                         }
                     }
                 }

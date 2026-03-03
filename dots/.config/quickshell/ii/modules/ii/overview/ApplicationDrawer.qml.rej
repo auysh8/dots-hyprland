@@ -1,0 +1,10 @@
+--- ApplicationDrawer.qml
++++ ApplicationDrawer.qml
+@@ -590,6 +590,7 @@
+                             color: Appearance.colors.colPrimary
+                         }
+                     }
++                }
+             }
+         }
+     }

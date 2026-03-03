@@ -14,19 +14,24 @@ Rectangle {
         ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.05)
         : Appearance.m3colors.m3surfaceBright
 
+    property bool isExpanding: rootContext && rootContext.currentView === "player"
+
+
     anchors.bottom: parent.bottom
     anchors.left: parent.left
     anchors.right: parent.right
-    anchors.bottomMargin: 24
-    anchors.leftMargin: (navRailExpanded ? 150 : 80) + 32
-    anchors.rightMargin: 24
+    anchors.bottomMargin: isExpanding ? 0 : 24
+    anchors.leftMargin: isExpanding ? 0 : ((navRailExpanded ? 150 : 80) + 32)
+    anchors.rightMargin: isExpanding ? 0 : 24
 
-    height: 80
-    radius: 20
+    height: isExpanding ? parent.height : 80
+    radius: isExpanding ? 32 : 20
 
-    Behavior on anchors.leftMargin {
-        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-    }
+    Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.6 } }
+    Behavior on anchors.bottomMargin { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+    Behavior on anchors.leftMargin { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
+    Behavior on anchors.rightMargin { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
+    Behavior on radius { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
 
     color: root.elevatedPanelColor
 
@@ -51,10 +56,24 @@ Rectangle {
         }
     }
 
+    MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        enabled: !root.isExpanding
+        onClicked: {
+            if (rootContext && rootContext.currentTrack) {
+                rootContext.currentView = "player"
+            }
+        }
+    }
+
     RowLayout {
         anchors.fill: parent
         anchors.margins: 12
         spacing: 16
+        
+        opacity: root.isExpanding ? 0.0 : 1.0
+        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
 
         Rectangle {
             width: 56

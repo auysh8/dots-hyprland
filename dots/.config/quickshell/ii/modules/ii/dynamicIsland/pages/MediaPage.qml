@@ -171,19 +171,32 @@ Item {
             source: root.displayedArtFilePath
             fillMode: Image.PreserveAspectCrop
             visible: false
+            asynchronous: true
         }
-        
+
+        // Apply rounding natively via layer.effect instead of manual masks
         Rectangle {
-            id: bgMask
+            id: roundedBg
             anchors.fill: parent
             radius: Appearance.rounding.normal
-            visible: false
-        }
-        
-        OpacityMask {
-            anchors.fill: parent
-            source: bgArt
-            maskSource: bgMask
+            color: "transparent"
+            clip: true
+
+            layer.enabled: true
+            layer.effect: OpacityMask {
+                maskSource: Rectangle {
+                    width: bgArt.width
+                    height: bgArt.height
+                    radius: Appearance.rounding.normal
+                }
+            }
+
+            Image {
+                anchors.fill: parent
+                source: bgArt.source
+                fillMode: Image.PreserveAspectCrop
+                visible: true
+            }
         }
         
         // Dark Overlay for readability
@@ -232,7 +245,7 @@ Item {
                 Layout.fillWidth: true
                 spacing: 0
 
-                Text {
+                StyledText {
                     Layout.fillWidth: true
                     text: {
                         const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
@@ -245,7 +258,7 @@ Item {
                     horizontalAlignment: Text.AlignLeft
                 }
 
-                Text {
+                StyledText {
                     Layout.fillWidth: true
                     text: {
                         const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
@@ -259,62 +272,172 @@ Item {
             }
 
             // Player Badge (right)
-            Rectangle {
+            RippleButton {
                 id: playerBadge
+
                 Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                Layout.preferredHeight: 28
-                Layout.preferredWidth: playerRow.width + 16
-                radius: 14
-                color: playerBadgeArea.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.3) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.15)
-                border.color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
-                border.width: 1
+                implicitHeight: 28
+                implicitWidth: playerRow.implicitWidth + 24
+                buttonRadius: 14
+                pointingHandCursor: root.availablePlayers.length > 1
+
+                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.15)
+                colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.3)
+                colRipple: root.contentColor
+
                 visible: root.availablePlayers.length > 0
-                
-                Behavior on color { ColorAnimation { duration: 150 } }
-                
-                Row {
+
+                onClicked: {
+                    if (root.availablePlayers.length > 1) {
+                        if (playerPickerPopup.opened) playerPickerPopup.close()
+                        else playerPickerPopup.open()
+                    }
+                }
+
+                contentItem: Row {
                     id: playerRow
-                    anchors.centerIn: parent
                     spacing: 6
-                    
+
                     MaterialSymbol {
                         anchors.verticalCenter: parent.verticalCenter
                         text: {
-                            let name = (activePlayer?.identity || "").toLowerCase()
-                            if (name.includes("spotify")) return "music_note"
-                            if (name.includes("firefox") || name.includes("chrome")) return "language"
-                            if (name.includes("vlc") || name.includes("mpv")) return "movie"
-                            return "headphones"
+                            let name = (activePlayer?.identity || "").toLowerCase();
+                            if (name.includes("spotify"))
+                                return "music_note";
+
+                            if (name.includes("firefox") || name.includes("chrome"))
+                                return "language";
+
+                            if (name.includes("vlc") || name.includes("mpv"))
+                                return "movie";
+
+                            return "headphones";
                         }
                         iconSize: 14
                         color: root.secondaryContentColor
                     }
-                    
-                    Text {
+
+                    StyledText {
                         anchors.verticalCenter: parent.verticalCenter
                         text: activePlayer?.identity || "No Player"
                         color: root.secondaryContentColor
                         font.pixelSize: 11
                         font.weight: Font.Medium
                     }
-                    
+
                     MaterialSymbol {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: root.showPlayerPicker ? "expand_less" : "expand_more"
+                        text: playerPickerPopup.opened ? "expand_less" : "expand_more"
                         iconSize: 12
                         color: root.secondaryContentColor
                         visible: root.availablePlayers.length > 1
                     }
+
                 }
-                
-                MouseArea {
-                    id: playerBadgeArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: root.availablePlayers.length > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: {
-                        if (root.availablePlayers.length > 1) {
-                            root.showPlayerPicker = !root.showPlayerPicker
+
+                Popup {
+                    id: playerPickerPopup
+                    y: playerBadge.height + 4
+                    x: playerBadge.width - width
+                    width: 200
+                    padding: 6
+
+                    enter: Transition {
+                        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
+                        NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.5 }
+                    }
+                    exit: Transition {
+                        NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 150; easing.type: Easing.InCubic }
+                        NumberAnimation { property: "scale"; from: 1.0; to: 0.92; duration: 150; easing.type: Easing.InCubic }
+                    }
+                    
+                    transformOrigin: Item.TopRight
+
+                    background: Item {
+                        Rectangle {
+                            id: popupBg
+                            anchors.fill: parent
+                            radius: 12
+                            color: ColorUtils.mix(root.backgroundColor, "#000000", 0.4)
+                            opacity: 0.95
+                            layer.enabled: true
+                            layer.effect: StyledDropShadow { target: popupBg }
+                        }
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 12
+                            color: "transparent"
+                            border.color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.25)
+                            border.width: 1
+                        }
+                    }
+
+                    contentItem: Column {
+                        spacing: 0
+                        Repeater {
+                            model: root.availablePlayers
+
+                            RippleButton {
+                                id: playerItem
+                                width: parent.width
+                                implicitHeight: 36
+                                buttonRadius: 8
+                                toggled: root.activePlayer === modelData
+
+                                colBackground: "transparent"
+                                colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
+                                colBackgroundToggled: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.08)
+                                colRipple: root.contentColor
+
+                                onClicked: {
+                                    root.selectedPlayer = modelData
+                                    playerPickerPopup.close()
+                                }
+
+                                contentItem: Item {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+
+                                    StyledText {
+                                        anchors.left: parent.left
+                                        anchors.right: playerIcon.left
+                                        anchors.rightMargin: 8
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: modelData.identity || "Unknown Player"
+                                        color: root.contentColor
+                                        font.pixelSize: 12
+                                        font.weight: root.activePlayer === modelData ? Font.DemiBold : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+
+                                    MaterialSymbol {
+                                        id: playerIcon
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: {
+                                            let id = (modelData.identity || "").toLowerCase();
+                                            if (id.includes("spotify")) return "music_note";
+                                            if (id.includes("firefox") || id.includes("chrome")) return "language";
+                                            if (id.includes("vlc") || id.includes("mpv")) return "movie";
+                                            return "headphones";
+                                        }
+                                        iconSize: 16
+                                        color: root.activePlayer === modelData ? root.contentColor : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.7)
+                                    }
+                                }
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 2
+                                    height: 16
+                                    radius: 1
+                                    color: root.pillContentColor
+                                    visible: root.activePlayer === modelData
+                                }
+                            }
                         }
                     }
                 }
@@ -357,139 +480,104 @@ Item {
             spacing: 8
 
             // Lyrics Toggle (Keep small and simple)
-             Item {
+            RippleButton {
+                id: lyricsToggle
+
                 implicitWidth: 32
                 implicitHeight: 32
-                
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: LyricsService.open ? root.pillColor : (hover.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1))
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "lyrics"
-                        iconSize: 18
-                        color: LyricsService.open ? root.pillContentColor : root.contentColor
-                    }
-                }
-                
-                MouseArea {
-                    id: hover
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: LyricsService.toggle()
-                }
-             }
+                buttonRadius: height / 2
+                toggled: LyricsService.open
 
+                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
+                colBackgroundHover: colBackground
+                colBackgroundToggled: root.pillColor
+                colBackgroundToggledHover: colBackgroundToggled
+                colRipple: root.contentColor
+                colRippleToggled: root.pillContentColor
+
+                onClicked: LyricsService.toggle()
+
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "lyrics"
+                    iconSize: 18
+                    color: lyricsToggle.toggled ? root.pillContentColor : root.contentColor
+                }
+            }
             Item { Layout.fillWidth: true }
 
             // Previous Button (Oval/Pill with bounce)
-            Item {
+            RippleButton {
                 id: prevBtn
-                property bool isPressed: prevArea.pressed
-                
-                implicitWidth: 40 + (isPressed ? 8 : (playBtn.isPressed ? -6 : 0))
+
+                implicitWidth: 40 + (down ? 8 : (playBtn.down ? -6 : 0))
                 implicitHeight: 40
-                
-                Behavior on implicitWidth { 
+                buttonRadius: height / 2
+
+                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
+                colRipple: root.contentColor
+
+                onClicked: activePlayer?.previous()
+
+                Behavior on implicitWidth {
                     animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
                 }
-                
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: prevArea.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
-                    Behavior on color { ColorAnimation { duration: 150 } }
 
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "skip_previous"
-                        iconSize: 24
-                        color: root.contentColor
-                    }
-                }
-                
-                MouseArea {
-                    id: prevArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: activePlayer?.previous()
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "skip_previous"
+                    iconSize: 24
+                    color: root.contentColor
                 }
             }
 
             // Play/Pause Button (Squircle with bounce)
-            Item {
+            RippleButton {
                 id: playBtn
-                property bool isPressed: playArea.pressed
-                
-                implicitWidth: 60 + (isPressed ? 12 : (prevBtn.isPressed || nextBtn.isPressed ? -8 : 0))
+
+                implicitWidth: 60 + (down ? 12 : (prevBtn.down || nextBtn.down ? -8 : 0))
                 implicitHeight: 40
-                
-                Behavior on implicitWidth { 
+                buttonRadius: height / 2
+
+                colBackground: root.pillColor
+                colRipple: root.pillContentColor
+
+                onClicked: activePlayer?.togglePlaying()
+
+                Behavior on implicitWidth {
                     animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
                 }
-                
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: playArea.containsMouse ? Qt.darker(root.pillColor, 1.05) : root.pillColor
-                    
-                    Behavior on radius { NumberAnimation { duration: 200 } }
-                    Behavior on color { ColorAnimation { duration: 150 } }
 
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: (activePlayer && activePlayer.isPlaying) ? "pause" : "play_arrow"
-                        iconSize: 28
-                        color: root.pillContentColor
-                    }
-                }
-                
-                MouseArea {
-                    id: playArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: activePlayer?.togglePlaying()
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: (activePlayer && activePlayer.isPlaying) ? "pause" : "play_arrow"
+                    iconSize: 28
+                    color: root.pillContentColor
                 }
             }
 
             // Next Button (Oval/Pill with bounce)
-            Item {
+            RippleButton {
                 id: nextBtn
-                property bool isPressed: nextArea.pressed
-                
-                implicitWidth: 40 + (isPressed ? 8 : (playBtn.isPressed ? -6 : 0))
+
+                implicitWidth: 40 + (down ? 8 : (playBtn.down ? -6 : 0))
                 implicitHeight: 40
-                
-                Behavior on implicitWidth { 
+                buttonRadius: height / 2
+
+                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
+                colRipple: root.contentColor
+
+                onClicked: activePlayer?.next()
+
+                Behavior on implicitWidth {
                     animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
                 }
-                
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: nextArea.containsMouse ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2) : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
-                    Behavior on color { ColorAnimation { duration: 150 } }
 
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "skip_next"
-                        iconSize: 24
-                        color: root.contentColor
-                    }
-                }
-                
-                MouseArea {
-                    id: nextArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: activePlayer?.next()
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "skip_next"
+                    iconSize: 24
+                    color: root.contentColor
                 }
             }
 
@@ -497,157 +585,6 @@ Item {
             
              // Empty space
              Item { width: 28 }
-        }
-    }
-    // Player Picker Overlay (Floating)
-    Item {
-        id: playerPickerOverlay
-        anchors.fill: parent
-        z: 999
-        visible: true
-        enabled: root.showPlayerPicker
-        opacity: root.showPlayerPicker ? 1 : 0
-        
-        Behavior on opacity { 
-            NumberAnimation { duration: 150; easing.type: Easing.OutCubic } 
-        }
-        
-        // Background click catcher to close dropdown
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.showPlayerPicker = false
-        }
-
-        // Floating Popup Container
-        Item {
-            id: popupContainer
-            width: 200
-            height: playerPickerColumn.implicitHeight + 12
-            
-            // Absolute positioning using mapToItem to avoid layout shifting
-            x: playerBadge.mapToItem(root, 0, 0).x + playerBadge.width - width
-            y: playerBadge.mapToItem(root, 0, 0).y + playerBadge.height + 4
-            
-            // Visual animate-only properties
-            scale: root.showPlayerPicker ? 1 : 0.92
-            transformOrigin: Item.TopRight
-            
-            Behavior on y {
-                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
-            }
-            Behavior on scale { 
-                NumberAnimation { duration: root.showPlayerPicker ? 250 : 150; easing.type: Easing.OutBack; easing.overshoot: 1.5 } 
-            }
-            
-            Rectangle {
-                anchors.fill: parent
-                radius: 12
-                color: ColorUtils.mix(root.backgroundColor, "#000000", 0.4)
-                opacity: 0.95
-                
-                layer.enabled: true
-                layer.effect: DropShadow {
-                    horizontalOffset: 0
-                    verticalOffset: 6
-                    radius: 12
-                    samples: 24
-                    color: Qt.rgba(0, 0, 0, 0.6)
-                }
-            }
-            
-            Rectangle {
-                anchors.fill: parent
-                radius: 12
-                color: "transparent"
-                border.color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.25)
-                border.width: 1
-            }
-            
-            Column {
-                id: playerPickerColumn
-                anchors.fill: parent
-                anchors.margins: 6
-                spacing: 0
-                
-                Repeater {
-                    model: root.availablePlayers
-                    
-                    Item {
-                        width: parent.width
-                        height: 36
-                        
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: 2
-                            radius: 8
-                            color: playerItemArea.containsMouse 
-                                ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
-                                : (root.activePlayer === modelData 
-                                    ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.08)
-                                    : "transparent")
-                            
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                        }
-                        
-                        Item {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            
-                            Text {
-                                anchors.left: parent.left
-                                anchors.right: playerIcon.left
-                                anchors.rightMargin: 8
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.identity || "Unknown Player"
-                                color: root.contentColor
-                                font.pixelSize: 12
-                                font.weight: root.activePlayer === modelData ? Font.DemiBold : Font.Normal
-                                elide: Text.ElideRight
-                            }
-                            
-                            MaterialSymbol {
-                                id: playerIcon
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: {
-                                    let id = (modelData.identity || "").toLowerCase()
-                                    if (id.includes("spotify")) return "music_note"
-                                    if (id.includes("firefox") || id.includes("chrome")) return "language"
-                                    if (id.includes("vlc") || id.includes("mpv")) return "movie"
-                                    return "headphones"
-                                }
-                                iconSize: 16
-                                color: root.activePlayer === modelData 
-                                    ? root.contentColor
-                                    : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.7)
-                            }
-                        }
-                        
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 4
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 2
-                            height: 16
-                            radius: 1
-                            color: root.pillContentColor
-                            visible: root.activePlayer === modelData
-                        }
-                        
-                        MouseArea {
-                            id: playerItemArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.selectedPlayer = modelData
-                                root.showPlayerPicker = false
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }

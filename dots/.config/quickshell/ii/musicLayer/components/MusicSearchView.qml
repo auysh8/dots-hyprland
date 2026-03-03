@@ -104,29 +104,25 @@ StyledFlickable {
 
                 Item { Layout.fillWidth: true }
 
-                Rectangle {
+                RippleButton {
                     visible: rootContext.searchSongsHasMore
-                    width: 84
-                    height: 34
-                    radius: 17
-                    color: loadMoreMouse.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : ColorUtils.transparentize(rootContext.pillColor, 0.6)
-
-                    Behavior on color { ColorAnimation { duration: 150 } }
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: "Load more"
-                        font.pixelSize: 13
-                        color: rootContext.contentColor
-                    }
-
-                    MouseArea {
-                        id: loadMoreMouse
+                    Layout.preferredWidth: 84
+                    Layout.preferredHeight: 34
+                    buttonRadius: 17
+                    colBackground: Appearance.colors.colLayer2
+                    
+                    contentItem: Item {
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: rootContext.loadMoreSongs()
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: "Load more"
+                            font.pixelSize: 13
+                            font.weight: 600
+                            color: rootContext.contentColor
+                        }
                     }
+
+                    onClicked: rootContext.loadMoreSongs()
                 }
             }
 

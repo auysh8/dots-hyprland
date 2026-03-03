@@ -64,6 +64,13 @@ MPRIS_XML = """
     <method name="Stop"/>
     <method name="Next"/>
     <method name="Previous"/>
+    <method name="Seek">
+      <arg direction="in" name="Offset" type="x"/>
+    </method>
+    <method name="SetPosition">
+      <arg direction="in" name="TrackId" type="o"/>
+      <arg direction="in" name="Position" type="x"/>
+    </method>
   </interface>
 </node>
 """
@@ -195,7 +202,7 @@ class MprisServer:
 
     @property
     def CanSeek(self):
-        return False
+        return True
 
     @property
     def CanControl(self):
@@ -222,6 +229,14 @@ class MprisServer:
 
     def Previous(self):
         self._backend.prev_track()
+
+    def Seek(self, Offset: 'x'):
+        current = getattr(self, "_cached_position", 0)
+        new_pos = max(0, current + Offset)
+        self._backend.seek(new_pos / 1_000_000.0)
+
+    def SetPosition(self, TrackId: 'o', Position: 'x'):
+        self._backend.seek(Position / 1_000_000.0)
 
     # ── metadata update (called from backend) ────────────────────────────────
     def update(self, status, title="", artist="", art_local_path="", video_id="", art_url=""):
@@ -359,16 +374,19 @@ class MprisServer:
 
 class MusicBackend:
     _DURATION_RE = re.compile(r"^(?:\d{1,2}:)?[0-5]?\d:[0-5]\d$")
-    _HTTP_TIMEOUT = (4, 12)  # connect/read timeout for YTMusic requests
+    _HTTP_TIMEOUT = (8, 20)  # connect/read timeout for YTMusic requests
     _HOME_CACHE_TTL_SEC = 60
 
-    def __init__(self):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.oauth_path = os.path.join(script_dir, "oauth.json")
-        self.headers_path = os.path.join(script_dir, "headers_auth.json")
+    _OAUTH_CLIENT_ID = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
+    _OAUTH_CLIENT_SECRET = "SboVhoG9s0rNafixCSGGKXAT"
 
+    def _make_oauth_credentials(self):
+        from ytmusicapi.auth.oauth.credentials import OAuthCredentials
+        return OAuthCredentials(self._OAUTH_CLIENT_ID, self._OAUTH_CLIENT_SECRET)
+
+    def _init_ytm(self):
         if os.path.exists(self.oauth_path):
-            self.ytm = YTMusic(self.oauth_path)
+            self.ytm = YTMusic(self.oauth_path, oauth_credentials=self._make_oauth_credentials())
             self.log("Authenticated using oauth.json")
         elif os.path.exists(self.headers_path):
             self.ytm = YTMusic(self.headers_path)
@@ -378,8 +396,23 @@ class MusicBackend:
             self.log("Running in anonymous mode")
         self._set_default_timeout(self.ytm)
 
+    def __init__(self):
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.oauth_path = os.path.join(script_dir, "oauth.json")
+        self.headers_path = os.path.join(script_dir, "headers_auth.json")
+
+        self.ytm = None
+        try:
+            self._init_ytm()
+        except Exception as e:
+            self.log(f"YTMusic init failed (network issue?): {e}. Will retry dynamically.")
+            # Explicitly keep self.ytm as None so that _fetch_explore_task or _fetch_home_task
+            # cleanly retries _init_ytm() later instead of permanently running anonymously.
+
         self.mpv_process = None
-        self.history_file = os.path.join(script_dir, "history.json")
+        self._play_stack = []  # in-memory playback stack for prev_track
+        self._current_queue = []  # upcoming tracks (radio queue)
+        self.repeat_mode = 0 # 0: Off, 1: All, 2: One
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
         self.ipc_socket = os.path.join(runtime_dir, f"mpv_music_{os.getuid()}.sock")
         self.current_video_id = None
@@ -443,6 +476,15 @@ class MusicBackend:
         session = getattr(ytm_client, "_session", None)
         if session is None or getattr(session, "_ii_timeout_patched", False):
             return
+
+        import requests.adapters
+        from urllib3.util.retry import Retry
+
+        # Add connection retries to workaround typical SSL drop / timeouts
+        retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[ 500, 502, 503, 504 ])
+        adapter = requests.adapters.HTTPAdapter(max_retries=retries)
+        session.mount('https://', adapter)
+        session.mount('http://', adapter)
 
         original_request = session.request
         timeout = self._HTTP_TIMEOUT
@@ -542,25 +584,13 @@ class MusicBackend:
             except OSError:
                 pass
 
-    def load_history(self):
-        try:
-            if os.path.exists(self.history_file):
-                with open(self.history_file) as f:
-                    return json.load(f)
-        except Exception:
-            pass
-        return []
-
-    def save_history(self, video_id):
-        try:
-            h = self.load_history()
-            if video_id in h:
-                h.remove(video_id)
-            h.append(video_id)
-            with open(self.history_file, "w") as f:
-                json.dump(h[-20:], f)
-        except Exception:
-            pass
+    def _push_play_stack(self, video_id):
+        """Track played video IDs in-memory for prev_track navigation."""
+        if video_id in self._play_stack:
+            self._play_stack.remove(video_id)
+        self._play_stack.append(video_id)
+        if len(self._play_stack) > 20:
+            self._play_stack = self._play_stack[-20:]
 
     def format_track_item(self, item, index_offset=0):
         try:
@@ -711,8 +741,9 @@ class MusicBackend:
         picks_raw = []
         recs_raw = []
         discover_raw = []
-        discover_title = "Discover Music"
+        discover_title = "Forgotten favourites"
         discover_playlist_candidates = []
+        other_playable = []
 
         for section in home_data:
             title = section.get("title", "")
@@ -720,18 +751,21 @@ class MusicBackend:
             contents = section.get("contents", [])
             playable = [c for c in contents if c.get("videoId")]
 
+            matched = False
             if any(k in t_lower for k in pick_keywords):
                 self._append_unique(picks_raw, playable, cap=64)
-                continue
-
-            if any(k in t_lower for k in rec_keywords):
+                matched = True
+            elif any(k in t_lower for k in rec_keywords):
                 self._append_unique(recs_raw, playable, cap=64)
-                continue
-
-            if any(k in t_lower for k in discover_keywords):
+                matched = True
+            elif any(k in t_lower for k in discover_keywords):
                 self._append_unique(discover_raw, playable, cap=64)
-                if playable and discover_title == "Discover Music":
+                if playable and discover_title == "Forgotten favourites":
                     discover_title = title or discover_title
+                matched = True
+                
+            if not matched and playable:
+                other_playable.append(playable)
 
             for c in contents:
                 pid = c.get("playlistId") or c.get("browseId")
@@ -740,6 +774,14 @@ class MusicBackend:
                 if pid:
                     discover_playlist_candidates.append((pid, c.get("title", title) or title))
                     break
+                    
+        # Fallback for unauthenticated case where keywords might not match
+        if not picks_raw and other_playable:
+            self._append_unique(picks_raw, other_playable.pop(0), cap=64)
+        if not recs_raw and other_playable:
+            self._append_unique(recs_raw, other_playable.pop(0), cap=64)
+        if not discover_raw and other_playable:
+            self._append_unique(discover_raw, other_playable.pop(0), cap=64)
 
         return picks_raw, recs_raw, discover_raw, discover_title, discover_playlist_candidates
 
@@ -761,33 +803,17 @@ class MusicBackend:
 
         return discover_raw, discover_title
 
-    def _build_recommendations_section(self, recs_raw, artist_profile, sent_ids):
+    def _build_recommendations_section(self, recs_raw, sent_ids):
         rec_pool = []
         self._append_unique(rec_pool, recs_raw, cap=96)
-        if len(rec_pool) < 24:
-            for artist in artist_profile[:2]:
-                self._append_unique(rec_pool, self._search_songs_for_home(artist, limit=12), cap=96)
-                if len(rec_pool) >= 24:
-                    break
         if not rec_pool:
-            self._append_unique(rec_pool, self._search_songs_for_home("New Music", limit=24), cap=96)
-
+            pass # Fallback to empty if 'listen again' isn't found, rather than injecting random searches
+            
         return self._to_section_items(rec_pool, limit=16, index_offset=0, sent_ids=sent_ids)
 
-    def _build_quick_picks_section(self, history_quick_tracks, artist_profile, picks_raw, sent_ids):
+    def _build_quick_picks_section(self, picks_raw, sent_ids):
         pick_pool = []
-        self._append_unique(pick_pool, history_quick_tracks, cap=96)
-        if len(pick_pool) < 24:
-            for artist in artist_profile[:3]:
-                self._append_unique(
-                    pick_pool,
-                    self._search_songs_for_home(f"{artist} popular songs", limit=10),
-                    cap=96,
-                )
-                if len(pick_pool) >= 24:
-                    break
-        if len(pick_pool) < 24:
-            self._append_unique(pick_pool, picks_raw, cap=96)
+        self._append_unique(pick_pool, picks_raw, cap=96)
         if not pick_pool:
             try:
                 fallback = self.ytm.get_watch_playlist(
@@ -804,10 +830,17 @@ class MusicBackend:
         self, history_discover_tracks, discover_raw, artist_profile, sent_ids, discover_title
     ):
         discover_pool = []
-        self._append_unique(discover_pool, history_discover_tracks, cap=96)
-        if discover_pool and discover_title == "Discover Music":
-            discover_title = "From Your History"
+        
+        # Prioritize real YouTube Music authentic discovery feeds (discover_raw) FIRST
         self._append_unique(discover_pool, discover_raw, cap=96)
+        
+        # Only fallback to local "listening history" if YTM returned absolutely no discovery data
+        if not discover_pool and history_discover_tracks:
+            self._append_unique(discover_pool, history_discover_tracks, cap=96)
+            if discover_title == "Forgotten favourites":
+                discover_title = "From Your History"
+                
+
         if len(discover_pool) < 20:
             for artist in artist_profile[:3]:
                 self._append_unique(
@@ -907,16 +940,39 @@ class MusicBackend:
     # ── playback ──────────────────────────────────────────────────────────────
     def play(self, video_id, title, artist, art_url):
         self.log(f"Playing: {title} by {artist}")
-        self.save_history(video_id)
+        self._push_play_stack(video_id)
+        
         self.stop(notify=False)
+        
+        with self._state_lock:
+            self._playback_token += 1
+            token = self._playback_token
+            
         threading.Thread(
             target=self._play_task,
-            args=(video_id, title, artist, art_url),
+            args=(video_id, title, artist, art_url, token),
             daemon=True,
         ).start()
 
-    def _play_task(self, video_id, title, artist, art_url):
+    def _play_task(self, video_id, title, artist, art_url, token):
         try:
+            # Check if this is a playlist/album ID (deferred from explore section)
+            if video_id and (video_id.startswith("OLAK") or video_id.startswith("PL") or video_id.startswith("VL")):
+                self.log(f"Resolving playlist/album lead track for: {video_id}")
+                try:
+                    p_data = self.ytm.get_watch_playlist(playlistId=video_id, limit=1).get("tracks", [])
+                    if p_data and p_data[0].get("videoId"):
+                        video_id = p_data[0].get("videoId")
+                        with self._state_lock:
+                            if self._playback_token == token:
+                                self.current_video_id = video_id
+                except Exception as e:
+                    self.log(f"Failed to resolve playlist videoId: {e}")
+
+            with self._state_lock:
+                if self._playback_token != token:
+                    return
+
             # 1. Get stream URL
             self.log("Fetching stream URL...")
             ytdlp = self._resolve_ytdlp_path()
@@ -952,6 +1008,17 @@ class MusicBackend:
             self._current_art = art_file_path
             self._current_art_url = art_url
 
+            # Also use this as our queue
+            # Make sure we only populate queue if we didn't just pop from it explicitly
+            if not getattr(self, "_is_auto_advancing", False):
+                threading.Thread(target=self._fetch_queue_task, args=(video_id,), daemon=True).start()
+            self._is_auto_advancing = False
+
+            with self._state_lock:
+                if self._playback_token != token:
+                    self.log("Playback task aborted, another play command was issued.")
+                    return
+
             # 3. Build mpv command — pure subprocess, no libmpv
             self._cleanup_socket()
             cmd = [
@@ -974,14 +1041,33 @@ class MusicBackend:
             )
 
             with self._state_lock:
-                self._playback_token += 1
-                token = self._playback_token
+                # Re-check just in case, though we checked right before Popen
+                if self._playback_token != token:
+                    process.kill()
+                    return
                 self.mpv_process = process
                 self.current_video_id = video_id
 
             self.log("mpv launched — playback started")
 
-            # 4. Publish MPRIS on D-Bus and update metadata
+            # 4. Sync playback to YouTube Music history if authenticated
+            is_liked = False
+            try:
+                if os.path.exists(self.oauth_path) or os.path.exists(self.headers_path):
+                    self.log(f"Syncing '{title}' to YouTube Music history...")
+                    # We need the full song dictionary (playbackTracking data) for the API
+                    song_data = self.ytm.get_song(video_id)
+                    
+                    if song_data and song_data.get('videoDetails', {}).get('likeStatus') == 'LIKE':
+                        is_liked = True
+                        
+                    if song_data and getattr(self.ytm, 'add_history_item', None):
+                        self.ytm.add_history_item(song_data)
+                        self.log("History sync successful.")
+            except Exception as e:
+                self.log(f"Failed to sync history to YouTube Music: {e}")
+
+            # 5. Publish MPRIS on D-Bus and update metadata
             self.mpris.publish()
             self.mpris.update(
                 status="Playing",
@@ -999,7 +1085,8 @@ class MusicBackend:
                     if not self.mpv_process: break
                     dur = self._ipc_get("duration")
                     if dur is not None:
-                        self.log(f"Resolved duration: {dur}s, updating mpris")
+                        dur_sec = int(float(dur))
+                        self.log(f"Resolved duration: {dur_sec}s, updating mpris")
                         # Set cached duration BEFORE calling update so it's included in the signal
                         self.mpris._cached_duration = int(float(dur) * 1_000_000)
                         self.mpris.update(
@@ -1010,8 +1097,32 @@ class MusicBackend:
                             video_id=video_id,
                             art_url=art_url,
                         )
+                        # Send duration to QML
+                        self.send_response({
+                            "type": "playback_duration",
+                            "durationSec": dur_sec,
+                        })
                         break
             threading.Thread(target=_wait_for_duration, daemon=True).start()
+
+            # 5b. Periodic position updates to QML
+            def _poll_position():
+                while True:
+                    time.sleep(1)
+                    with self._state_lock:
+                        if self._playback_token != token:
+                            break
+                    if not self.mpv_process:
+                        break
+                    pos = self._ipc_get("time-pos")
+                    dur = self._ipc_get("duration")
+                    if pos is not None:
+                        self.send_response({
+                            "type": "playback_progress",
+                            "positionSec": int(float(pos)),
+                            "durationSec": int(float(dur)) if dur else 0,
+                        })
+            threading.Thread(target=_poll_position, daemon=True).start()
 
             # 5. Monitor process exit in a thread
             def _monitor():
@@ -1022,10 +1133,42 @@ class MusicBackend:
                     if is_current:
                         self.mpv_process = None
                         self.current_video_id = None
+                        
                 self._cleanup_socket()
                 if is_current:
-                    self.mpris.update("Stopped")
-                    self.send_response({"type": "playback_stopped"})
+                    # 1. Repeat One
+                    if self.repeat_mode == 2:
+                        self.log(f"Repeat One: Replaying {title}")
+                        self.play(video_id, title, artist, art_url)
+                        return
+
+                    # 2. Auto-advance queue
+                    if self._current_queue:
+                        next_track = self._current_queue[0]
+                        if self.repeat_mode == 1:
+                            # Repeat All: Push current track to the back of the queue
+                            self._current_queue.append({
+                                "videoId": video_id,
+                                "title": title,
+                                "artist": artist,
+                                "artUrl": art_url
+                            })
+                            self._current_queue.pop(0)
+                        else:
+                            self._current_queue.pop(0)
+                            
+                        self.send_response({"type": "queue_updated", "queue": self._current_queue})
+                        self.log(f"Auto-advancing to: {next_track['title']}")
+                        self._is_auto_advancing = True
+                        self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"])
+                    else:
+                        if self.repeat_mode == 1:
+                            # Repeat All but queue is empty -> replay track
+                            self.log(f"Repeat All (Empty Queue): Replaying {title}")
+                            self.play(video_id, title, artist, art_url)
+                        else:
+                            self.mpris.update("Stopped")
+                            self.send_response({"type": "playback_stopped"})
 
             threading.Thread(target=_monitor, daemon=True).start()
 
@@ -1038,6 +1181,7 @@ class MusicBackend:
                     "artist": artist,
                     "artUrl": art_url,
                     "artLocalPath": art_file_path,
+                    "isLiked": is_liked,
                 }
             )
 
@@ -1129,7 +1273,54 @@ class MusicBackend:
             )
             self.send_response({"type": "playback_resumed"})
 
-    # ── track navigation ──────────────────────────────────────────────────────
+    def seek(self, position_sec):
+        if self.mpv_process:
+            self._ipc(["set_property", "time-pos", position_sec])
+
+    def _fetch_queue_task(self, video_id):
+        try:
+            self.send_response({"type": "queue_fetching"})
+            self.log(f"Fetching radio queue for: {video_id}")
+            data = self.ytm.get_watch_playlist(videoId=video_id, limit=20)
+            tracks = data.get("tracks", [])
+            queue = []
+            
+            # Skip the currently playing track (usually first)
+            for item in tracks:
+                vid = self._item_video_id(item)
+                if not vid or vid == video_id:
+                    continue
+                    
+                art = ""
+                thumbnails = item.get("thumbnail") or item.get("thumbnails") or []
+                if isinstance(thumbnails, dict):
+                    thumbnails = thumbnails.get("thumbnails", [])
+                if isinstance(thumbnails, list) and len(thumbnails) > 0:
+                    last_thumb = thumbnails[-1]
+                    if isinstance(last_thumb, dict):
+                        art = last_thumb.get("url", "")
+                    
+                artist_name = "Unknown"
+                artists_list = item.get("artists", [])
+                if isinstance(artists_list, list) and artists_list:
+                    artist_name = artists_list[0].get("name", "Unknown")
+                    
+                queue.append({
+                    "videoId": vid,
+                    "title": item.get("title", "Unknown"),
+                    "artist": artist_name,
+                    "artUrl": art,
+                    "duration": self._extract_duration(item) or ""
+                })
+                
+            with self._state_lock:
+                self._current_queue = queue
+                
+            self.send_response({"type": "queue_updated", "queue": self._current_queue})
+            self.log(f"Queue updated with {len(self._current_queue)} tracks")
+        except Exception as e:
+            self.log(f"Failed to fetch radio queue: {e}")
+
     def fetch_playlist(self, video_id):
         try:
             data = self.ytm.get_watch_playlist(videoId=video_id, limit=20)
@@ -1140,6 +1331,18 @@ class MusicBackend:
     def next_track(self):
         with self._state_lock:
             vid = self.current_video_id
+            q = list(self._current_queue)
+            
+        # 1. Use existing queue if we have one
+        if q:
+            next_track = q[0]
+            self._current_queue = q[1:]
+            self.send_response({"type": "queue_updated", "queue": self._current_queue})
+            self._is_auto_advancing = True
+            self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"])
+            return
+
+        # 2. Fallback to inline fetch (if queue was empty)
         if not vid:
             return
         tracks = self.fetch_playlist(vid)
@@ -1157,12 +1360,9 @@ class MusicBackend:
             vid = self.current_video_id
         if not vid:
             return
-        h = self.load_history()
-        if len(h) >= 2:
-            prev_id = h[-2]
-            h.pop()
-            with open(self.history_file, "w") as f:
-                json.dump(h, f)
+        if len(self._play_stack) >= 2:
+            self._play_stack.pop()  # remove current
+            prev_id = self._play_stack[-1]
             try:
                 s = self.ytm.get_song(prev_id)
                 d = s.get("videoDetails", {})
@@ -1181,31 +1381,28 @@ class MusicBackend:
         threading.Thread(target=self._fetch_home_task, daemon=True).start()
 
     def _fetch_home_task(self):
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                self.send_response({"type": "error", "message": "Failed to connect to YouTube Music."})
+                return
+
         self.log("Executing fully personalized home fetch...")
         sent_ids = set()
-        history = self.load_history()
-        recent_history = list(reversed(history[-8:]))
+        recent_history = list(reversed(self._play_stack[-8:]))
 
         home_data = self._get_home_data()
 
-        rec_keywords = (
-            "listen again",
-            "mixed for you",
-            "similar to",
-            "recommendations",
-            "recommended",
-            "for you",
-            "because you listened",
-        )
+        rec_keywords = ("listen again",)
         pick_keywords = ("quick pick", "quick picks", "top picks", "picked for you")
         discover_keywords = (
+            "forgotten",
+            "favourite",
+            "favorite",
+            "listen again",
             "discover",
-            "new releases",
-            "charts",
-            "trending",
-            "radio",
-            "mood",
-            "genre",
         )
 
         picks_raw, recs_raw, discover_raw, discover_title, discover_playlist_candidates = (
@@ -1232,17 +1429,15 @@ class MusicBackend:
 
         import time
 
-        # --- STREAM RECOMMENDATIONS ---
-        recs = self._build_recommendations_section(recs_raw, artist_profile, sent_ids)
+        # --- STREAM RECOMMENDATIONS (Listen Again) ---
+        recs = self._build_recommendations_section(recs_raw, sent_ids)
         self.send_response({"type": "home_section", "section": "recommendations", "items": recs})
-        self.log(f"Streamed {len(recs)} Recommendations")
+        self.log(f"Streamed {len(recs)} Listen Again (Recommendations)")
 
         time.sleep(0.4)
 
         # --- STREAM QUICK PICKS ---
         picks = self._build_quick_picks_section(
-            history_quick_tracks,
-            artist_profile,
             picks_raw,
             sent_ids,
         )
@@ -1269,71 +1464,93 @@ class MusicBackend:
         self.log("UI requested get_explore")
         threading.Thread(target=self._fetch_explore_task, daemon=True).start()
 
+    def _toggle_like_task(self, video_id, is_liked):
+        if not video_id:
+            return
+        try:
+            if os.path.exists(self.oauth_path) or os.path.exists(self.headers_path):
+                status = "LIKE" if is_liked else "INDIFFERENT"
+                self.ytm.rate_song(video_id, status)
+                self.log(f"Successfully rated song {video_id} as {status}")
+        except Exception as e:
+            self.log(f"Failed to rate song on YouTube Music: {e}")
+
     def _fetch_explore_task(self):
-        self.log("Fetching explore data...")
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                return
+
+        self.log("Fetching explore data via get_charts(IN)...")
         sent_ids = set()
 
-        # --- STREAM TRENDING: Fetch "Top 100 Songs India" playlist (actual songs) ---
+        # --- STREAM TRENDING: Fetch Dynamic Charts via API --
         trending_items = []
         try:
-            trending_playlist_id = "PL4fGSI1pDJn4pTWyM3t61lOyZ6_4jcNOw"
-            self.log("Fetching trending songs playlist...")
-            trending_raw = self.ytm.get_watch_playlist(
-                playlistId=trending_playlist_id, limit=25
-            ).get("tracks", [])
-
-            for item in trending_raw:
-                vid = self._item_video_id(item)
-                if not vid or vid in sent_ids:
-                    continue
-                vtype = item.get("videoType", "")
-                if "PODCAST" in vtype:
-                    continue
-                fmt = self.format_track_item(item, len(trending_items))
-                if fmt:
-                    trending_items.append(fmt)
-                    sent_ids.add(vid)
-                if len(trending_items) >= 12:
+            self.log("Fetching real-time trending charts for IN...")
+            charts = self.ytm.get_charts(country="IN")
+            
+            # We will merge two charts: "Trending 20 India" (Mainstream/Eng) and "Top Weekly Videos Hindi" (Hindi)
+            playlist_ids = []
+            
+            # 1. Grab Mainstream/Eng (Trending 20 India)
+            for item in charts.get("daily", []):
+                if "Trending" in item.get("title", "") or "Videos" in item.get("title", ""):
+                    playlist_ids.append(item.get("playlistId"))
                     break
+                    
+            # 2. Grab Hindi (Top Weekly Videos Hindi)
+            for item in charts.get("weekly", []):
+                if "Hindi" in item.get("title", ""):
+                    playlist_ids.append(item.get("playlistId"))
+                    break
+                    
+            # Process the fetched dynamic playlists
+            for pid in playlist_ids:
+                if not pid: continue
+                raw_tracks = self.ytm.get_watch_playlist(playlistId=pid, limit=25).get("tracks", [])
+                
+                for item in raw_tracks:
+                    vid = self._item_video_id(item)
+                    if not vid or vid in sent_ids:
+                        continue
+                        
+                    # CRITICAL FILTER: Enforce strictly "Songs" (Audio Track, or Official Music)
+                    # Exclude "UGC" (User Generated Content) and "PODCAST" videos completely
+                    vtype = item.get("videoType", "")
+                    if vtype in ("MUSIC_VIDEO_TYPE_UGC", "MUSIC_VIDEO_TYPE_PODCAST_EPISODE"):
+                        continue
+                        
+                    fmt = self.format_track_item(item, len(trending_items))
+                    if fmt:
+                        trending_items.append(fmt)
+                        sent_ids.add(vid)
+                    
+                    # Stop if we've accumulated enough high quality songs
+                    if len(trending_items) >= 16:
+                        break
+                
+                if len(trending_items) >= 16:
+                    break
+                    
         except Exception as e:
-            self.log(f"Trending fetch failed: {e}")
+            self.log(f"Dynamic Trending fetch failed: {e}")
 
         self.send_response({"type": "explore_section", "section": "trending", "items": trending_items})
         self.log(f"Streamed {len(trending_items)} trending songs")
 
-        # --- STREAM NEW RELEASES: Use get_explore() for real album/single releases ---
+        # --- STREAM NEW RELEASES: Use get_explore() directly ---
         new_releases_items = []
         try:
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-
             self.log("Fetching new releases from explore page...")
             explore_data = self.ytm.get_explore()
-            releases = explore_data.get("new_releases", [])
+            releases = explore_data.get("new_releases", [])[:16]
 
-            # Filter releases that have audioPlaylistId
-            valid_releases = [r for r in releases if r.get("audioPlaylistId")][:16]
-
-            def _fetch_lead_track(playlist_id):
-                try:
-                    return self.ytm.get_watch_playlist(playlistId=playlist_id, limit=1).get("tracks", [])
-                except Exception:
-                    return []
-
-            # Fetch all lead tracks in parallel
-            lead_tracks = {}
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                futures = {pool.submit(_fetch_lead_track, r["audioPlaylistId"]): i for i, r in enumerate(valid_releases)}
-                for future in as_completed(futures):
-                    idx = futures[future]
-                    lead_tracks[idx] = future.result()
-
-            # Process results in order
-            for i, release in enumerate(valid_releases):
-                tracks = lead_tracks.get(i, [])
-                if not tracks:
-                    continue
-                track = tracks[0]
-                vid = self._item_video_id(track)
+            for release in releases:
+                # API returns videoId for singles, audioPlaylistId/playlistId for albums
+                vid = release.get("videoId") or release.get("audioPlaylistId") or release.get("playlistId")
                 if not vid or vid in sent_ids:
                     continue
 
@@ -1345,19 +1562,20 @@ class MusicBackend:
                     elif "googleusercontent.com" in art_url and "=s" in art_url:
                         art_url = re.sub(r"=s\d+", "=s544", art_url)
 
-                artist_name = ""
+                artist_name = "Unknown Artist"
                 artists_list = release.get("artists", [])
                 if isinstance(artists_list, list) and artists_list:
                     artist_name = artists_list[0].get("name", "")
-                if not artist_name:
-                    artist_name = "Unknown Artist"
+                elif isinstance(artists_list, str):
+                    artist_name = artists_list
 
                 new_releases_items.append({
                     "id": str(100 + len(new_releases_items)),
+                    # Explicitly prefix playlists so the player can resolve them correctly if needed
                     "videoId": vid,
-                    "title": release.get("title", track.get("title", "Unknown")),
+                    "title": release.get("title", "Unknown"),
                     "artist": artist_name,
-                    "duration": self._extract_duration(track),
+                    "duration": self._extract_duration(release) or "",
                     "artUrl": art_url,
                 })
                 sent_ids.add(vid)
@@ -1367,10 +1585,163 @@ class MusicBackend:
         self.send_response({"type": "explore_section", "section": "new_releases", "items": new_releases_items})
         self.log(f"Streamed {len(new_releases_items)} new releases — explore complete")
 
+    def get_library(self):
+        self.log("UI requested get_library")
+        threading.Thread(target=self._fetch_library_task, daemon=True).start()
+
+    def _fetch_library_task(self):
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                return
+
+        self.log("Fetching library data...")
+        
+        # --- RECENT TRACKS ---
+        recent_tracks = []
+        history_item = None
+        
+        # First attempt: Sync from YouTube Music account if authenticated
+        try:
+            if (os.path.exists(self.oauth_path) or os.path.exists(self.headers_path)) and getattr(self.ytm, 'get_history', None):
+                self.log("Fetching account play history from YouTube Music...")
+                account_history = self.ytm.get_history()
+                
+                # Take up to 10 unique tracks (sometimes get_history has duplicate plays)
+                seen_vids = set()
+                index = 0
+                for item in account_history:
+                    vid = item.get("videoId")
+                    if not vid or vid in seen_vids:
+                        continue
+                    
+                    art = ""
+                    thumbs = item.get("thumbnails", [])
+                    if thumbs:
+                        art = thumbs[-1].get("url", "")
+                        if "=w" in art and "-h" in art:
+                            art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                    
+                    artist_name = "Unknown Artist"
+                    artists = item.get("artists", [])
+                    if isinstance(artists, list) and artists:
+                        artist_name = artists[0].get("name", "Unknown Artist")
+                        
+                    track_item = {
+                        "id": str(index),
+                        "videoId": vid,
+                        "title": item.get("title", ""),
+                        "artist": artist_name,
+                        "cover": art,
+                    }
+                    recent_tracks.append(track_item)
+                    if index == 0:
+                        history_item = track_item
+                    
+                    seen_vids.add(vid)
+                    index += 1
+                    if len(recent_tracks) >= 10:
+                        break
+                        
+                if recent_tracks:
+                    self.log("Successfully fetched recent tracks from account.")
+        except Exception as e:
+            self.log(f"Account history fetch failed (will fallback): {e}")
+
+        # No local history fallback — if not authenticated, recent_tracks stays empty
+        
+        self.send_response({"type": "library_section", "section": "recent_tracks", "items": recent_tracks})
+
+        # --- PLAYLISTS & LIKED SONGS ---
+        playlists = []
+        liked_song_count = 0
+        liked_song_art = ""
+        try:
+            # Note: We fetch 25 but could be more. YTM puts 'Liked Music' first if you have likes.
+            lib_playlists = self.ytm.get_library_playlists(limit=25)
+            for p in lib_playlists:
+                title = p.get("title", "")
+                count = str(p.get("count", "0"))
+                art = ""
+                thumbs = p.get("thumbnails", [])
+                if thumbs:
+                    art = thumbs[-1].get("url", "")
+                    if "=w" in art and "-h" in art:
+                        art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                        
+                if title in ["Your Likes", "Liked Music"]:
+                    try: liked_song_count = int(count)
+                    except: liked_song_count = 0
+                    liked_song_art = art
+                else:
+                    playlists.append({
+                        "id": p.get("playlistId", ""),
+                        "title": title,
+                        "count": count,
+                        "cover": art
+                    })
+        except Exception as e:
+            self.log(f"Failed to fetch library playlists: {e}")
+
+        # if liked songs wasn't found in playlists list (sometimes it isn't), try to fetch directly
+        if liked_song_count == 0:
+             try:
+                 liked = self.ytm.get_liked_songs(limit=1)
+                 if liked and "trackCount" in liked:
+                     liked_song_count = int(liked["trackCount"])
+                     if liked.get("thumbnails"):
+                         liked_song_art = liked["thumbnails"][-1].get("url", "")
+             except: pass
+
+        self.send_response({
+            "type": "library_section", 
+            "section": "playlists", 
+            "items": playlists,
+            "likedCount": liked_song_count,
+            "likedArt": liked_song_art
+        })
+
+        # --- COMMUNITY PLAYLISTS (Based on History) ---
+        community_playlists = []
+        if history_item:
+            try:
+                artist = history_item.get("artist", "")
+                title = history_item.get("title", "")
+                query = f"{artist} {title} community playlists" if artist and title else "popular community playlists"
+                results = self.ytm.search(query, filter="playlists", limit=6)
+                
+                for r in results:
+                    thumbs = r.get("thumbnails", [])
+                    art = thumbs[-1].get("url", "") if thumbs else ""
+                    if art and "=w" in art and "-h" in art:
+                        art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                    
+                    community_playlists.append({
+                        "id": r.get("browseId", ""),
+                        "title": r.get("title", ""),
+                        "artist": r.get("author", ""),
+                        "cover": art
+                    })
+            except Exception as e:
+                self.log(f"Failed to fetch community playlists: {e}")
+        
+        self.send_response({"type": "library_section", "section": "community_playlists", "items": community_playlists})
+        self.log("Streamed library data complete.")
+
     def search(self, query, song_limit=20):
         threading.Thread(target=self._search_task, args=(query, song_limit), daemon=True).start()
 
     def _search_task(self, query, song_limit=20):
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                self.send_response({"type": "error", "message": "Connection error."})
+                return
+
         try:
             try:
                 song_limit = max(10, min(20, int(song_limit)))
@@ -1432,6 +1803,100 @@ class MusicBackend:
         except Exception as e:
             self.log(f"Search error: {e}")
 
+    # ── Auth ──────────────────────────────────────────────────────────────────
+
+    def refresh_auth(self):
+        """Extract fresh cookies from browser and re-init YTMusic client."""
+        threading.Thread(target=self._refresh_auth_task, daemon=True).start()
+
+    def _refresh_auth_task(self):
+        self.log("Refreshing auth from browser cookies...")
+        try:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            extract_module = os.path.join(script_dir, "extract_cookies.py")
+
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("extract_cookies", extract_module)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+
+            result = mod.extract(self.headers_path)
+
+            if result.get("success"):
+                self.log(f"Cookie extraction OK ({result.get('cookies_found', 0)} cookies)")
+                from ytmusicapi import YTMusic
+                self.ytm = YTMusic(self.headers_path)
+                self._set_default_timeout(self.ytm)
+                self._home_cache_ts = 0.0
+                self.send_response({"type": "auth_refreshed", "success": True})
+            else:
+                error = result.get("error", "Unknown error")
+                self.log(f"Cookie extraction failed: {error}")
+                self.send_response({"type": "auth_refreshed", "success": False, "error": error})
+        except Exception as e:
+            self.log(f"Refresh auth error: {e}")
+            self.send_response({"type": "auth_refreshed", "success": False, "error": str(e)})
+
+    # ── OAuth ────────────────────────────────────────────────────────────────
+
+    def start_oauth(self):
+        self._oauth_cancel = False
+        threading.Thread(target=self._oauth_task, daemon=True).start()
+        
+    def cancel_oauth(self):
+        self._oauth_cancel = True
+        
+    def _oauth_task(self):
+        self.log("Starting seamless OAuth flow")
+        try:
+            import requests
+            from ytmusicapi.auth.oauth.credentials import OAuthCredentials
+            from ytmusicapi.auth.oauth.token import RefreshingToken
+            
+            client_id = self._OAUTH_CLIENT_ID
+            client_secret = self._OAUTH_CLIENT_SECRET
+            
+            creds = OAuthCredentials(client_id, client_secret)
+            code = creds.get_code()
+            
+            self.send_response({
+                "type": "oauth_code",
+                "url": code["verification_url"],
+                "user_code": code["user_code"]
+            })
+            
+            interval = code.get("interval", 5)
+            expires_in = code.get("expires_in", 1800)
+            device_code = code["device_code"]
+            
+            for _ in range(expires_in // interval):
+                if getattr(self, "_oauth_cancel", False):
+                    self.log("OAuth cancelled by user")
+                    return
+                time.sleep(interval)
+                try:
+                    raw_token = creds.token_from_code(device_code)
+                    if raw_token and "access_token" in raw_token:
+                        # SUCCESS!
+                        token = RefreshingToken(credentials=creds, **raw_token)
+                        token.update(token.as_dict())
+                        
+                        import json
+                        with open(self.oauth_path, "w") as f:
+                            json.dump(token.as_dict(), f)
+                            
+                        self.log("OAuth flow successful, re-initializing ytmusic client")
+                        from ytmusicapi import YTMusic
+                        self._set_default_timeout(YTMusic)
+                        self.ytm = YTMusic(self.oauth_path, oauth_credentials=self._make_oauth_credentials())
+                        self._home_cache_ts = 0.0 # reset home cache
+                        self.send_response({"type": "oauth_success"})
+                        return
+                except Exception:
+                    pass
+        except Exception as e:
+            self.log(f"OAuth flow error: {e}")
+
     # ── I/O ───────────────────────────────────────────────────────────────────
     def send_response(self, data):
         print(json.dumps(data))
@@ -1444,8 +1909,18 @@ class MusicBackend:
     _current_art_url = ""
 
     def run(self):
+        # Bind process lifecycle to parent (Quickshell) using PR_SET_PDEATHSIG.
+        # This guarantees the music backend and mpv die cleanly even if Quickshell crashes or forcefully restarts.
+        try:
+            import ctypes
+            libc = ctypes.CDLL("libc.so.6")
+            libc.prctl(1, signal.SIGTERM)  # 1 is PR_SET_PDEATHSIG
+        except Exception as e:
+            self.log(f"Failed to set PR_SET_PDEATHSIG: {e}")
+
         self.log("Music backend started.")
-        self.send_response({"type": "ready"})
+        is_authed = os.path.exists(self.oauth_path) or os.path.exists(self.headers_path)
+        self.send_response({"type": "ready", "authenticated": is_authed})
 
         def handle_sig(signum, frame):
             self.stop()
@@ -1481,6 +1956,8 @@ class MusicBackend:
                         self.get_home()
                     elif t == "get_explore":
                         self.get_explore()
+                    elif t == "get_library":
+                        self.get_library()
                     elif t == "play":
                         if c.get("videoId"):
                             self._current_title = c.get("title", "")
@@ -1504,6 +1981,46 @@ class MusicBackend:
                         self.next_track()
                     elif t == "previous":
                         self.prev_track()
+                    elif t == "reorder_queue":
+                        with self._state_lock:
+                            try:
+                                src = int(c.get("from", -1))
+                                dst = int(c.get("to", -1))
+                                if 0 <= src < len(self._current_queue) and 0 <= dst < len(self._current_queue):
+                                    item = self._current_queue.pop(src)
+                                    self._current_queue.insert(dst, item)
+                                    # No need to broadcast since the UI already updated visually
+                            except Exception:
+                                pass
+                    elif t == "sync_queue":
+                        with self._state_lock:
+                            try:
+                                q = c.get("queue")
+                                if isinstance(q, list):
+                                    self._current_queue = q
+                            except Exception:
+                                pass
+                    elif t == "set_repeat":
+                        try:
+                            self.repeat_mode = int(c.get("mode", 0))
+                            self.log(f"Repeat mode set to: {self.repeat_mode}")
+                        except Exception:
+                            pass
+                    elif t == "toggle_like":
+                        target_id = c.get("videoId") or self.current_video_id
+                        threading.Thread(target=self._toggle_like_task, args=(target_id, c.get("liked")), daemon=True).start()
+                    elif t == "oauth_start":
+                        self.start_oauth()
+                    elif t == "oauth_cancel":
+                        self.cancel_oauth()
+                    elif t == "refresh_auth":
+                        self.refresh_auth()
+                    elif t == "copy_clipboard":
+                        txt = c.get("text", "")
+                        try:
+                            subprocess.run(["wl-copy"], input=txt.encode(), check=True)
+                        except Exception as e:
+                            self.log(f"Clipboard copy failed: {e}")
                     elif t == "stop":
                         self.stop()
                     elif t == "quit":

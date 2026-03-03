@@ -1,23 +1,23 @@
-import QtQuick
-import QtQuick.Layouts
-import QtQuick.Controls
 import Qt5Compat.GraphicalEffects
-
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 import Quickshell
-import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.modules.common.models
+import qs.modules.common.widgets
+import qs.services
 
 Item {
     id: root
-    implicitHeight: Math.max(infoLayout.implicitHeight + 32, 112)
 
     // Properties
     readonly property bool isRunning: TimerService.stopwatchRunning
     readonly property color accentColor: Appearance.colors.colTertiary
     readonly property color onAccentColor: Appearance.colors.colOnTertiary
+
+    implicitHeight: Math.max(infoLayout.implicitHeight + 32, 112)
 
     // Background
     Rectangle {
@@ -25,11 +25,12 @@ Item {
         color: Appearance.colors.colLayer0
         radius: Appearance.rounding.normal
         border.width: 1
-        border.color: Qt.rgba(1,1,1,0.05)
+        border.color: Qt.rgba(1, 1, 1, 0.05)
     }
 
     Item {
         id: mainContainer
+
         anchors.fill: parent
         anchors.leftMargin: 16
         anchors.rightMargin: 16
@@ -37,11 +38,12 @@ Item {
         // 1. Right: Play/Pause Button (Centered Vertically)
         Item {
             id: playContainer
+
             width: 80
             height: 80
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            
+
             // Main Play Button
             RippleButton {
                 anchors.centerIn: parent
@@ -49,20 +51,24 @@ Item {
                 implicitHeight: 56
                 buttonRadius: 28
                 colBackground: root.isRunning ? Appearance.colors.colSecondaryContainer : root.accentColor
+                colRipple: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
                 onClicked: TimerService.toggleStopwatch()
-                
+
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: root.isRunning ? "pause" : "play_arrow"
                     iconSize: 32
                     color: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
                 }
+
             }
+
         }
 
         // Left Side: Time & Info
         ColumnLayout {
             id: infoLayout
+
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: buttonsRow.left
@@ -72,12 +78,13 @@ Item {
             // Time Display Group
             ColumnLayout {
                 spacing: 0
-                
+
                 Row {
                     spacing: 2
-                    
-                    Text {
+
+                    StyledText {
                         id: mainTime
+
                         text: {
                             let t = Math.floor(TimerService.stopwatchTime / 100);
                             let m = Math.floor(t / 60).toString().padStart(2, '0');
@@ -86,22 +93,21 @@ Item {
                         }
                         font.pixelSize: 48
                         font.weight: Font.Bold
-                        font.family: Appearance.font.family.numbers
                         color: root.accentColor
                     }
-                    
-                    Text {
+
+                    StyledText {
                         anchors.baseline: mainTime.baseline
-                        text: "." + Math.floor((TimerService.stopwatchTime % 100)).toString().padStart(2,'0')
+                        text: "." + Math.floor((TimerService.stopwatchTime % 100)).toString().padStart(2, '0')
                         font.pixelSize: 24
                         font.weight: Font.DemiBold
-                        font.family: Appearance.font.family.numbers
                         color: root.accentColor
                         opacity: 0.6
                     }
+
                 }
-                
-                Text {
+
+                StyledText {
                     text: "Lap " + (TimerService.stopwatchLaps ? (TimerService.stopwatchLaps.length + 1) : 1)
                     Layout.leftMargin: 3
                     visible: root.isRunning || TimerService.stopwatchTime > 0
@@ -111,12 +117,15 @@ Item {
                     font.letterSpacing: 2
                     color: Appearance.colors.colSubtext
                 }
+
             }
+
         }
 
         // Secondary Buttons Row (Reset & Lap)
         Row {
             id: buttonsRow
+
             anchors.verticalCenter: playContainer.verticalCenter
             anchors.right: playContainer.left
             anchors.rightMargin: 12
@@ -129,15 +138,16 @@ Item {
                 implicitHeight: 36
                 buttonRadius: 18
                 colBackground: Appearance.colors.colSecondaryContainer
-                
+                colRipple: Appearance.colors.colOnSecondaryContainer
                 onClicked: TimerService.stopwatchReset()
-                
+
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: "restart_alt"
                     iconSize: 18
                     color: Appearance.colors.colOnSecondaryContainer
                 }
+
             }
 
             // Lap Button
@@ -147,19 +157,20 @@ Item {
                 implicitHeight: 36
                 buttonRadius: 18
                 colBackground: Appearance.colors.colSecondaryContainer
-                
+                colRipple: Appearance.colors.colOnSecondaryContainer
                 onClicked: TimerService.stopwatchRecordLap()
-                
+
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: "flag"
                     iconSize: 18
                     color: Appearance.colors.colOnSecondaryContainer
                 }
+
             }
+
         }
+
     }
+
 }
-
-
-

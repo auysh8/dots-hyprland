@@ -16,8 +16,9 @@ FocusScope {
     // UI Configuration - Using shell theme colors
     property color backgroundColor: Appearance.colors.colLayer0
     property color cardColor: Appearance.colors.colLayer1
+    property color cardColorHover: Appearance.colors.colLayer1Hover
     property color textColor: Appearance.colors.colOnLayer0
-    property color textSecondary: Appearance.m3colors.m3onSurfaceVariant
+    property color textSecondary: Appearance.colors.colSubtext
     property real cornerRadius: Appearance.rounding.large
     
     // ========== M3 MOTION PRESETS ==========
@@ -31,8 +32,8 @@ FocusScope {
     
     // Colors for stats - Using shell accent colors
     property color cpuColor: Appearance.colors.colPrimary
-    property color ramColor: Appearance.m3colors.m3tertiary
-    property color networkColor: Appearance.m3colors.m3secondary
+    property color ramColor: Appearance.colors.colSecondary
+    property color networkColor: Appearance.colors.colTertiary
     
     // Process data
     property var processes: []
@@ -181,151 +182,95 @@ FocusScope {
                 
                 Item { Layout.fillWidth: true }
                 
-                // Close button
-                Rectangle {
-                    width: 36
-                    height: 36
-                    radius: 18
-                    color: closeArea.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
-                    
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "close"
-                        iconSize: 20
-                        color: root.textColor
-                    }
-                    
-                    MouseArea {
-                        id: closeArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: Qt.createQmlObject(`import Quickshell.Io; Process { command: ["qs", "-c", "ii", "ipc", "call", "system-monitor", "close"]; running: true }`, root, "closer")
-                    }
-                }
-            }
+                                // Close button
+                                RippleButton {
+                                    implicitWidth: 36
+                                    implicitHeight: 36
+                                    buttonRadius: 18
+                                    colBackground: "transparent"
+                                    colBackgroundHover: Qt.rgba(1, 1, 1, 0.1)
+                                    colRipple: root.textColor
+                
+                                    onClicked: Qt.createQmlObject(`import Quickshell.Io; Process { command: ["qs", "-c", "ii", "ipc", "call", "system-monitor", "close"]; running: true }`, root, "closer")
+                
+                                    contentItem: MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "close"
+                                        iconSize: 20
+                                        color: root.textColor
+                                    }
+                                }            }
             
             // ========== STAT CARDS ==========
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 16
                 
-                // CPU Card
-                Rectangle {
-                    id: cpuCard
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 140
-                    radius: 16
-                    color: root.cardColor
-                    
-                    // M3 hover animation
-                    scale: cpuCardMouse.containsMouse ? 1.02 : 1.0
-                    Behavior on scale {
-                        SpringAnimation {
-                            spring: root.m3SpringStiffness / 100
-                            damping: root.m3SpringDamping
-                            mass: root.m3SpringMass
-                        }
-                    }
-                    
-                    MouseArea {
-                        id: cpuCardMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                    
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 20
-                        spacing: 12
-                        
-                        RowLayout {
-                            spacing: 10
-                            
-                            Rectangle {
-                                width: 32
-                                height: 32
-                                radius: 8
-                                color: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.2)
+                                                // CPU Card
+                                                RippleButton {
+                                                    id: cpuCard
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredHeight: 140
+                                                    buttonRadius: 16
+                                                    colBackground: root.cardColor
+                                                    colBackgroundHover: root.cardColorHover
+                                                    rippleEnabled: false
+                                                    pointingHandCursor: false
                                 
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "memory"
-                                    iconSize: 18
-                                    color: root.cpuColor
-                                }
-                            }
-                            
-                            Text {
-                                text: "CPU"
-                                font.pixelSize: 15
-                                font.weight: Font.Medium
-                                color: root.textColor
-                            }
-                            
-                            Item { Layout.fillWidth: true }
-                            
-                            Text {
-                                text: Math.round(ResourceUsage.cpuUsage * 100) + "%"
-                                font.pixelSize: 28
-                                font.weight: Font.Bold
-                                color: root.cpuColor
-                            }
-                        }
-                        
-                        // CPU Graph
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            
-                            Canvas {
-                                id: cpuCanvas
-                                anchors.fill: parent
-                                property var history: ResourceUsage.cpuUsageHistory
-                                onHistoryChanged: requestPaint()
+                                                    contentItem: ColumnLayout {
+                                                        anchors.fill: parent
+                                                        anchors.margins: 20
+                                                        spacing: 12
                                 
-                                onPaint: {
-                                    var ctx = getContext("2d");
-                                    ctx.clearRect(0, 0, width, height);
-                                    if (history.length < 2) return;
-                                    
-                                    // Fill gradient
-                                    var gradient = ctx.createLinearGradient(0, 0, 0, height);
-                                    gradient.addColorStop(0, Qt.rgba(0.65, 0.55, 0.98, 0.3));
-                                    gradient.addColorStop(1, Qt.rgba(0.65, 0.55, 0.98, 0.0));
-                                    
-                                    var step = width / (history.length - 1);
-                                    
-                                    ctx.beginPath();
-                                    ctx.moveTo(0, height);
-                                    for (var i = 0; i < history.length; i++) {
-                                        var x = i * step;
-                                        var y = height - (history[i] * height * 0.9);
-                                        ctx.lineTo(x, y);
-                                    }
-                                    ctx.lineTo(width, height);
-                                    ctx.closePath();
-                                    ctx.fillStyle = gradient;
-                                    ctx.fill();
-                                    
-                                    // Line
-                                    ctx.beginPath();
-                                    for (var j = 0; j < history.length; j++) {
-                                        var lx = j * step;
-                                        var ly = height - (history[j] * height * 0.9);
-                                        if (j === 0) ctx.moveTo(lx, ly);
-                                        else ctx.lineTo(lx, ly);
-                                    }
-                                    ctx.strokeStyle = root.cpuColor;
-                                    ctx.lineWidth = 2;
-                                    ctx.stroke();
-                                }
-                            }
-                        }
-                    }
-                }
-                
+                                                        RowLayout {
+                                                            spacing: 10
+                                
+                                                            Rectangle {
+                                                                width: 32
+                                                                height: 32
+                                                                radius: 8
+                                                                color: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.2)
+                                
+                                                                MaterialSymbol {
+                                                                    anchors.centerIn: parent
+                                                                    text: "memory"
+                                                                    iconSize: 18
+                                                                    color: root.cpuColor
+                                                                }
+                                                            }
+                                
+                                                            Text {
+                                                                text: "CPU"
+                                                                font.pixelSize: 15
+                                                                font.weight: Font.Medium
+                                                                color: root.textColor
+                                                            }
+                                
+                                                            Item { Layout.fillWidth: true }
+                                
+                                                            Text {
+                                                                text: Math.round(ResourceUsage.cpuUsage * 100) + "%"
+                                                                font.pixelSize: 28
+                                                                font.weight: Font.Bold
+                                                                color: root.cpuColor
+                                                            }
+                                                        }
+                                
+                                                        // CPU Graph
+                                                        Item {
+                                                            Layout.fillWidth: true
+                                                            Layout.fillHeight: true
+                                
+                                                            Graph {
+                                                                anchors.fill: parent
+                                                                values: ResourceUsage.cpuUsageHistory
+                                                                color: root.cpuColor
+                                                                fillOpacity: 0.3
+                                                                alignment: Graph.Alignment.Right
+                                                            }
+                                                        }
+                                                    }
+                                                }                
                 // RAM Card
                 Rectangle {
                     id: ramCard
@@ -584,143 +529,95 @@ FocusScope {
                             color: root.textSecondary
                         }
                         
-                        TextInput {
-                            id: searchInput
-                            Layout.fillWidth: true
-                            font.pixelSize: 14
-                            color: root.textColor
-                            clip: true
-                            onTextChanged: root.searchText = text
-                            
-                            Text {
-                                anchors.fill: parent
-                                text: "Search processes..."
-                                font.pixelSize: 14
-                                color: root.textSecondary
-                                visible: !searchInput.text && !searchInput.activeFocus
-                            }
-                        }
-                    }
+                                                TextInput {
+                                                    id: searchInput
+                                                    Layout.fillWidth: true
+                                                    font.pixelSize: 14
+                                                    color: root.textColor
+                                                    clip: true
+                                                    selectByMouse: true
+                                                    selectionColor: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.5)
+                                                    selectedTextColor: Appearance.colors.colOnPrimary
+                                                    onTextChanged: root.searchText = text
+                        
+                                                    Text {
+                                                        anchors.fill: parent
+                                                        text: "Search processes..."
+                                                        font.pixelSize: 14
+                                                        color: root.textSecondary
+                                                        visible: !searchInput.text && !searchInput.activeFocus
+                                                    }
+                                                }                    }
                 }
                 
                 Item { Layout.fillWidth: true }
                 
-                // Sort buttons with spring physics
-                Row {
-                    spacing: 8
-                    
-                    Repeater {
-                        model: [
-                            { key: "cpu", label: "CPU" },
-                            { key: "mem", label: "RAM" },
-                            { key: "name", label: "Name" }
-                        ]
-                        
-                        Rectangle {
-                            id: sortBtn
-                            width: 60
-                            height: 32
-                            radius: 16
-                            
-                            property bool isActive: root.sortBy === modelData.key
-                            property bool isPressed: sortBtnMouse.pressed
-                            
-                            // Spring scale animation
-                            scale: isPressed ? 0.9 : 1.0
-                            
-                            Behavior on scale {
-                                SpringAnimation {
-                                    spring: 4
-                                    damping: 0.3
-                                    mass: 0.5
-                                }
-                            }
-                            
-                            // Smooth color transition
-                            color: isActive ? root.cpuColor : root.cardColor
-                            
-                            Behavior on color {
-                                ColorAnimation { duration: 200; easing.type: Easing.OutCubic }
-                            }
-                            
-                            // Glow effect when active
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: parent.radius
-                                color: "transparent"
-                                border.width: 2
-                                border.color: sortBtn.isActive ? Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.5) : "transparent"
-                                opacity: sortBtn.isActive ? 1 : 0
-                                
-                                Behavior on opacity {
-                                    NumberAnimation { duration: 200 }
-                                }
-                            }
-                            
-                            Text {
-                                anchors.centerIn: parent
-                                text: modelData.label
-                                font.pixelSize: 12
-                                font.weight: sortBtn.isActive ? Font.Bold : Font.Medium
-                                color: sortBtn.isActive ? Appearance.colors.colOnPrimary : root.textColor
-                                
-                                // Subtle scale on active
-                                scale: sortBtn.isActive ? 1.05 : 1.0
-                                Behavior on scale {
-                                    SpringAnimation { spring: 3; damping: 0.4 }
-                                }
-                            }
-                            
-                            MouseArea {
-                                id: sortBtnMouse
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                hoverEnabled: true
-                                
-                                onClicked: {
-                                    root.sortBy = modelData.key
-                                }
-                            }
-                        }
-                    }
-                }
+                                                                                                                                // Sort buttons
+                                                                                                                                ButtonGroup {
+                                                                                                                                    spacing: 2
+                                                                                                                                    
+                                                                                                                                    Repeater {
+                                                                                                                                        model: [
+                                                                                                                                            { key: "cpu", label: "CPU", icon: "memory" },
+                                                                                                                                            { key: "mem", label: "RAM", icon: "memory_alt" },
+                                                                                                                                            { key: "name", label: "Name", icon: "sort_by_alpha" }
+                                                                                                                                        ]
+                                                                                                
+                                                                                                                                        SelectionGroupButton {
+                                                                                                                                            buttonText: modelData.label
+                                                                                                                                            buttonIcon: modelData.icon
+                                                                                                                                            toggled: root.sortBy === modelData.key
+                                                                                                                                            leftmost: index === 0
+                                                                                                                                            rightmost: index === 2
+                                                                                                
+                                                                                                                                            // Matching Settings module exactly
+                                                                                                                                            colBackground: Appearance.colors.colLayer2
+                                                                                                                                            colBackgroundHover: Appearance.colors.colLayer2Hover
+                                                                                                                                            colBackgroundActive: Appearance.colors.colLayer2Active
+                                                                                                                                            colBackgroundToggled: Appearance.colors.colPrimary
+                                                                                                                                            colBackgroundToggledHover: Appearance.colors.colPrimaryHover
+                                                                                                                                            colBackgroundToggledActive: Appearance.colors.colPrimaryActive
+                                                                                                
+                                                                                                                                            onClicked: root.sortBy = modelData.key
+                                                                                                                                        }
+                                                                                                                                    }
+                                                                                                                                }                                // Kill button
+                                RippleButton {
+                                    implicitWidth: 80
+                                    implicitHeight: 32
+                                    buttonRadius: 16
+                                    colBackground: root.selectedPid > 0 ? Qt.rgba(0.9, 0.3, 0.3, 1) : root.cardColor
+                                    colRipple: root.textColor
+                                    opacity: root.selectedPid > 0 ? 1 : 0.5
+                                    enabled: root.selectedPid > 0
                 
-                // Kill button
-                Rectangle {
-                    width: 80
-                    height: 32
-                    radius: 16
-                    color: root.selectedPid > 0 ? Qt.rgba(0.9, 0.3, 0.3, 1) : root.cardColor
-                    opacity: root.selectedPid > 0 ? 1 : 0.5
-                    
-                    RowLayout {
-                        anchors.centerIn: parent
-                        spacing: 6
-                        
-                        MaterialSymbol {
-                            text: "close"
-                            iconSize: 14
-                            color: root.textColor
-                        }
-                        Text {
-                            text: "Kill"
-                            font.pixelSize: 12
-                            font.weight: Font.Medium
-                            color: root.textColor
-                        }
-                    }
-                    
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        enabled: root.selectedPid > 0
-                        onClicked: {
-                            root.killProcess(root.selectedPid);
-                            root.selectedPid = -1;
-                        }
-                    }
-                }
-            }
+                                    onClicked: {
+                                        root.killProcess(root.selectedPid);
+                                        root.selectedPid = -1;
+                                    }
+                
+                                                                        contentItem: Item {
+                                                                            implicitWidth: killRow.implicitWidth
+                                                                            implicitHeight: killRow.implicitHeight
+                                    
+                                                                            RowLayout {
+                                                                                id: killRow
+                                                                                anchors.centerIn: parent
+                                                                                spacing: 6
+                                    
+                                                                                MaterialSymbol {
+                                                                                    text: "close"
+                                                                                    iconSize: 14
+                                                                                    color: root.textColor
+                                                                                }
+                                                                                Text {
+                                                                                    text: "Kill"
+                                                                                    font.pixelSize: 12
+                                                                                    font.weight: Font.Medium
+                                                                                    color: root.textColor
+                                                                                }
+                                                                            }
+                                                                        }                                }            }
             
             // ========== TABLE HEADER ==========
             RowLayout {

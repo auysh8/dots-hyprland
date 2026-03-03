@@ -24,6 +24,7 @@ Item {
     property bool isResizing: false
     property real position: 0
     property string lyricsSource: ""
+    property bool showWindowControls: true
     
     signal fullscreenToggled()
     signal closeRequested()
@@ -62,6 +63,7 @@ Item {
         anchors.right: parent.right
         spacing: 8
         z: 10
+        visible: root.showWindowControls
         
         // Helper component for M3 Icon Buttons
         component M3IconButton: Rectangle {
@@ -161,44 +163,19 @@ Item {
         clip: true
 
         // VISIBLE: Only while actively waiting for data OR recognizing
-        Item {
+        MaterialLoadingIndicator {
             id: loaderContainer
             anchors.centerIn: parent
-            width: 64
-            height: 64
-            visible: root.lyricsCount === 0 && (root.isPlaying && !root.lyricsLoaded)
-            
-            MaterialCookie {
-                id: loadingCookie
-                anchors.fill: parent
-                anchors.margins: 4
-                color: root.secondaryContentColor
-                sides: 12 
-                Behavior on sides { NumberAnimation { duration: 0 } }
-            }
+            implicitSize: 64
 
-            RotationAnimator {
-                target: loadingCookie
-                from: 0; to: 360
-                duration: 2000
-                loops: Animation.Infinite
-                running: loaderContainer.visible // Only spin if visible
-            }
-        }
+            property bool isLoading: root.lyricsCount === 0 && (root.isPlaying && !root.lyricsLoaded)
 
-        Timer {
-            interval: 800
-            running: loaderContainer.visible // Only morph if visible
-            repeat: true
-            triggeredOnStart: true
-            onTriggered: {
-                const shapes = [0, 4, 5, 6, 12]
-                let next = shapes[Math.floor(Math.random() * shapes.length)]
-                while (next === loadingCookie.sides) {
-                    next = shapes[Math.floor(Math.random() * shapes.length)]
-                }
-                loadingCookie.sides = next
-            }
+            loading: isLoading
+            opacity: isLoading ? 1.0 : 0.0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
+
+            color: root.pillColor
         }
 
         // 2. The Status Text

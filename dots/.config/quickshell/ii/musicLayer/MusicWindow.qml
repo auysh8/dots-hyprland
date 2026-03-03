@@ -64,15 +64,49 @@ Scope {
     property bool isLoading: true
     property bool refreshing: false
     property var currentTrack: null
+    property bool currentTrackLiked: false
     property bool isTrackLoading: false
     property bool playbackPaused: false
+    property ListModel queueList: ListModel {}
+    property bool isQueueLoading: false
+    property int trackPositionSec: 0
+    property int trackDurationSec: 0
     property string currentView: "home"
+    property string previousView: "home"
+    
+    onCurrentViewChanged: {
+        if (currentView !== "player") {
+            previousView = currentView
+        }
+    }
     property string lastSearchQuery: ""
     property int searchVisibleSongCount: 5
     property int searchSongPrefetchLimit: 20
     property bool searchSongsHasMore: false
     property var cachedSongResults: []
     property bool suppressSuggestionResponses: false
+    
+    // OAuth flow properties
+    property bool oauthDialogVisible: false
+    property string oauthUrl: ""
+    property string oauthCode: ""
+    property bool oauthSuccess: false
+    property bool oauthCopied: false
+    property bool isAuthenticated: false
+    property string accountName: ""
+    
+    function startOauth() {
+        oauthUrl = ""
+        oauthCode = ""
+        oauthSuccess = false
+        oauthCopied = false
+        oauthDialogVisible = true
+        sendCommand({ "command": "oauth_start" })
+    }
+    
+    function refreshAuth() {
+        sendCommand({ "command": "refresh_auth" })
+    }
     
     function sendCommand(cmdObject) {
         backend.write(JSON.stringify(cmdObject) + "\n")
@@ -86,6 +120,17 @@ Scope {
     function getExplore() {
         isLoading = true
         sendCommand({ "command": "get_explore" })
+    }
+    
+    function getLibrary() {
+        isLoading = true
+        sendCommand({ "command": "get_library" })
+    }
+    
+    function toggleCurrentTrackLike() {
+        if (!currentTrack || isTrackLoading) return
+        currentTrackLiked = !currentTrackLiked
+        sendCommand({ "command": "toggle_like", "liked": currentTrackLiked, "videoId": currentTrack.videoId })
     }
     
     function applyVisibleSongResults() {
@@ -157,6 +202,8 @@ Scope {
             return searchView.flickable
         if (root.currentView === "explore" && exploreView.visible)
             return exploreView.flickable
+        if (root.currentView === "library" && libraryView.visible)
+            return libraryView.flickable
         if (root.currentView === "home" && homeView.visible)
             return homeView.flickable
         return null
@@ -196,6 +243,25 @@ Scope {
         function toggle() { MusicService.toggle() }
     }
     
+    property list<real> visualizerPoints: []
+    Process {
+        id: cavaProc
+        running: !!root.showMusic && !!root.currentTrack && !root.playbackPaused
+        onRunningChanged: {
+            if (!cavaProc.running) {
+                // Return to baseline properly rather than destroying the array
+                root.visualizerPoints = new Array(25).fill(0.0);
+            }
+        }
+        command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
+        stdout: SplitParser {
+            onRead: data => {
+                let points = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+                root.visualizerPoints = points.slice(0, 25);
+            }
+        }
+    }
+    
     property string artUrl: currentTrack ? currentTrack.artUrl : ""
     property string artLocalPath: (currentTrack && currentTrack.artLocalPath) ? currentTrack.artLocalPath : ""
     
@@ -215,7 +281,7 @@ Scope {
     }
     
     readonly property color extractedColor: {
-        if (!root.currentTrack || !root.currentTrack.artUrl) {
+        if (!root.currentTrack || !root.currentTrack.title || root.currentTrack.title === "") {
             return Appearance.colors.colPrimary
         }
         let c = colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary
@@ -223,7 +289,7 @@ Scope {
     }
     
     property QtObject blendedColors: QtObject {
-        property bool isPlaying: root.currentTrack && root.currentTrack.artUrl
+        property bool isPlaying: root.currentTrack && root.currentTrack.title && root.currentTrack.title !== ""
         property color accent: isPlaying ? root.extractedColor : Appearance.m3colors.m3primary
         
         // Dynamically shift hue and saturation to match the album art perfectly, 
@@ -288,6 +354,10 @@ Scope {
                     // console.log("[MusicBackend]", line)
                     
                     if (data.type === "ready") {
+                        if (data.authenticated !== undefined) {
+                            root.isAuthenticated = data.authenticated
+                            if (data.accountName) root.accountName = data.accountName
+                        }
                         root.getHome()
                     } else if (data.type === "suggestions") {
                         if (root.suppressSuggestionResponses) {
@@ -362,6 +432,22 @@ Scope {
                             root.exploreNewReleases.clear()
                             for (let i = 0; i < items.length; i++) root.exploreNewReleases.append(items[i])
                         }
+                    } else if (data.type === "library_section") {
+                        root.isLoading = false
+                        root.refreshing = false
+                        let items = data.items || []
+                        if (data.section === "recent_tracks") {
+                            root.libraryRecentTracks.clear()
+                            for (let i = 0; i < items.length; i++) root.libraryRecentTracks.append(items[i])
+                        } else if (data.section === "playlists") {
+                            root.libraryPlaylists.clear()
+                            for (let i = 0; i < items.length; i++) root.libraryPlaylists.append(items[i])
+                            if (data.likedCount !== undefined) root.libraryLikedSongCount = data.likedCount
+                            if (data.likedArt !== undefined) root.libraryLikedSongArt = data.likedArt
+                        } else if (data.section === "community_playlists") {
+                            root.libraryCommunityPlaylists.clear()
+                            for (let i = 0; i < items.length; i++) root.libraryCommunityPlaylists.append(items[i])
+                        }
                     } else if (data.type === "error") {
                         root.isLoading = false
                         root.refreshing = false
@@ -376,7 +462,10 @@ Scope {
                             artUrl: data.artUrl,
                             artLocalPath: data.artLocalPath || ""
                         }
+                        root.currentTrackLiked = data.isLiked || false
                         root.playbackPaused = false
+                        root.trackPositionSec = 0
+                        root.trackDurationSec = 0
                     } else if (data.type === "playback_stopped") {
                         if (!root.isTrackLoading) {
                             root.currentTrack = null
@@ -386,6 +475,39 @@ Scope {
                         root.playbackPaused = true
                     } else if (data.type === "playback_resumed") {
                         root.playbackPaused = false
+                    } else if (data.type === "playback_progress") {
+                        root.trackPositionSec = data.positionSec || 0
+                        if (data.durationSec > 0) root.trackDurationSec = data.durationSec
+                    } else if (data.type === "playback_duration") {
+                        root.trackDurationSec = data.durationSec || 0
+                    } else if (data.type === "queue_fetching") {
+                        root.isQueueLoading = true
+                    } else if (data.type === "queue_updated") {
+                        root.queueList.clear()
+                        let q = data.queue || []
+                        for (let i = 0; i < q.length; i++) {
+                            root.queueList.append(q[i])
+                        }
+                        root.isQueueLoading = false
+                    } else if (data.type === "oauth_code") {
+                        root.oauthUrl = data.url
+                        root.oauthCode = data.user_code
+                    } else if (data.type === "oauth_success") {
+                        root.oauthSuccess = true
+                        root.oauthDialogVisible = false
+                        root.isAuthenticated = true
+                        if (data.accountName) root.accountName = data.accountName
+                        root.getHome()
+                        root.getLibrary()
+                    } else if (data.type === "auth_refreshed") {
+                        if (data.success) {
+                            root.isAuthenticated = true
+                            root.getHome()
+                            root.getLibrary()
+                            console.log("[MusicBackend] Auth refreshed successfully")
+                        } else {
+                            console.log("[MusicBackend] Auth refresh failed:", data.error)
+                        }
                     }
                 } catch(e) { 
                     console.log("[MusicBackend] Parse Error on line:", line) 
@@ -567,7 +689,12 @@ Scope {
                                     }
                                     NavigationRailButton {
                                         toggled: root.currentView === "library"
-                                        onPressed: root.currentView = "library"
+                                        onPressed: {
+                                            root.currentView = "library"
+                                            if (root.libraryPlaylists.count === 0 && root.libraryRecentTracks.count === 0) {
+                                                root.getLibrary()
+                                            }
+                                        }
                                         expanded: navRail.expanded
                                         buttonIcon: "library_music"
                                         buttonText: "Library"
@@ -670,6 +797,39 @@ Scope {
                                             id: hideSuggsTimer
                                             interval: 150 // Small delay allows onClicked in the menu to register before disappearing
                                             onTriggered: root.searchSuggestions.clear()
+                                        }
+                                    }
+                                    
+                                    RippleButton {
+                                        visible: searchInput.text.length > 0
+                                        Layout.preferredWidth: 32
+                                        Layout.preferredHeight: 32
+                                        Layout.alignment: Qt.AlignVCenter
+                                        buttonRadius: 16
+                                        colBackground: "transparent"
+                                        colBackgroundHover: ColorUtils.transparentize(root.pillContentColor, 0.85)
+                                        
+                                        contentItem: Item {
+                                            anchors.fill: parent
+                                            MaterialSymbol {
+                                                anchors.centerIn: parent
+                                                text: "close"
+                                                color: root.pillContentColor
+                                                iconSize: 18
+                                            }
+                                        }
+                                        
+                                        onClicked: {
+                                            searchInput.text = ""
+                                            root.suppressSuggestionResponses = false
+                                            root.artistResults.clear()
+                                            root.songResults.clear()
+                                            root.albumResults.clear()
+                                            root.cachedSongResults = []
+                                            root.searchVisibleSongCount = 5
+                                            root.searchSongsHasMore = false
+                                            root.searchSuggestions.clear()
+                                            searchInput.forceActiveFocus()
                                         }
                                     }
                                 }
@@ -792,6 +952,157 @@ Scope {
                     id: playerPanel
                     rootContext: root
                     navRailExpanded: navRail.expanded
+                }
+                
+                // Fullscreen Player Overlay
+                MusicPlayerView {
+                    id: playerView
+                    rootContext: root
+                    navRailExpanded: navRail.expanded
+                    z: 500
+                }
+                
+                // OAuth Flow Dialog overlay
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.width * 0.5
+                    height: 280
+                    radius: 20
+                    color: root.surfaceColor
+                    border.width: 1
+                    border.color: root.pillColor
+                    z: 9999
+                    visible: root.oauthDialogVisible
+                    opacity: visible ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
+                    
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 24
+                        spacing: 16
+                        
+                        StyledText {
+                            text: root.oauthCode ? "YouTube Music Authentication" : "Starting Authentication..."
+                            font.pixelSize: 22
+                            font.weight: 800
+                            color: root.contentColor
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                        
+                        StyledText {
+                            text: root.oauthCode ? "Please go to the URL below in your browser and enter the code to seamlessly link your YouTube Music account." : "Connecting to Google..."
+                            font.pixelSize: 14
+                            color: root.pillContentColor
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                        }
+                        
+                        Item { Layout.fillHeight: true }
+                        
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 60
+                            spacing: 8
+                            opacity: root.oauthCode ? 1.0 : 0.0
+                            
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                radius: 12
+                                color: root.pillColor
+                                
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: root.oauthCode || "..."
+                                    font.pixelSize: 32
+                                    font.weight: 900
+                                    color: root.contentColor
+                                    font.letterSpacing: 8
+                                }
+                            }
+                            
+                            Rectangle {
+                                Layout.preferredWidth: 60
+                                Layout.fillHeight: true
+                                radius: 12
+                                color: root.oauthCopied ? parent.parent.extractedColor : root.pillColor // green/accent if copied
+                                
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: root.oauthCopied ? "check" : "content_copy"
+                                    font.pixelSize: 24
+                                    color: root.oauthCopied ? ColorUtils.overlayForeground(parent.color, "primary") : root.contentColor
+                                }
+                                
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.sendCommand({ "command": "copy_clipboard", "text": root.oauthCode })
+                                        root.oauthCopied = true
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Item { Layout.fillHeight: true }
+                        
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+                            
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                radius: 22
+                                color: root.pillColor
+                                
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: "Cancel"
+                                    font.pixelSize: 15
+                                    color: root.contentColor
+                                }
+                                
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.oauthDialogVisible = false
+                                        root.sendCommand({ "command": "oauth_cancel" })
+                                    }
+                                }
+                            }
+                            
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                radius: 22
+                                color: root.extractedColor
+                                opacity: root.oauthCode ? 1.0 : 0.5
+                                
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: "Open Browser"
+                                    font.pixelSize: 15
+                                    font.weight: 700
+                                    color: ColorUtils.overlayForeground(parent.color, "primary")
+                                }
+                                
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    enabled: root.oauthCode !== ""
+                                    onClicked: {
+                                        // Simple way to open URL in browser and copy code
+                                        Qt.openUrlExternally(root.oauthUrl)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

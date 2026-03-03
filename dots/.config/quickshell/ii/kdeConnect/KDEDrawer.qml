@@ -320,6 +320,12 @@ Scope {
 
     Process { id: actionProcess }
 
+    Timer {
+        id: delayedTransferTimer
+        interval: 800 // Give the UI 800ms to show the spinner per file
+        onTriggered: runNextTransfer()
+    }
+
     Process {
         id: transferProcess
         onExited: (exitCode, exitStatus) => {
@@ -329,7 +335,8 @@ Scope {
                 console.log("KDE: Transfer failed for", currentTransferFile, "exit", exitCode, exitStatus);
             }
             transferQueue = transferQueue.slice(1);
-            runNextTransfer();
+            // Delay the next transfer loop to ensure the UI progress is visible
+            delayedTransferTimer.start();
         }
     }
 
@@ -401,41 +408,45 @@ Scope {
             Item {
                 anchors.fill: parent
 
-                // Regular hover handler for the drawer
+                // Robust hover tracking that ignores child event stealing
                 HoverHandler {
-                    onHoveredChanged: {
-                        drawerHovered = hovered
-                        userActive = hovered
-                        if (hovered)
+                    id: drawerHoverTracker
+                    blocking: false
+                    // We don't use onHoveredChanged because it fires falsely when children take focus.
+                    // Instead, we just let it passively track the hovered state.
+                }
+
+                Timer {
+                    id: hoverDebounceTimer
+                    interval: 100
+                    running: true
+                    repeat: true
+                    onTriggered: {
+                        // If the drawer or the extended area is hovered, stay open
+                        if (drawerHoverTracker.hovered || (openedFromCorner && extendedHoverTracker.hovered)) {
+                            drawerHovered = true
+                            userActive = true
                             closeTimer.stop()
-                        else
-                            closeTimer.start()
+                        } else {
+                            if (drawerHovered) { // Transitioning from hovered to not hovered
+                                drawerHovered = false
+                                userActive = false
+                                closeTimer.interval = openedFromCorner ? 2000 : 1200
+                                closeTimer.restart()
+                            }
+                        }
                     }
                 }
 
                 // Extended hover area when opened from corner (for file dropping)
-                MouseArea {
+                Item {
                     anchors.fill: parent
-                    anchors.margins: openedFromCorner ? -100 : 0  // Extend hover area by 100px when opened from corner
-                    hoverEnabled: true
-                    acceptedButtons: Qt.NoButton
-                    visible: openedFromCorner  // Only active when opened from corner
+                    anchors.margins: openedFromCorner ? -100 : 0
+                    visible: openedFromCorner
 
-                    onEntered: {
-                        if (openedFromCorner) {
-                            drawerHovered = true
-                            userActive = true
-                            closeTimer.stop()
-                        }
-                    }
-
-                    onExited: {
-                        if (openedFromCorner) {
-                            drawerHovered = false
-                            userActive = false
-                            closeTimer.interval = 2000  // Extended timeout for file dropping
-                            closeTimer.start()
-                        }
+                    HoverHandler {
+                        id: extendedHoverTracker
+                        blocking: false
                     }
                 }
 
@@ -454,6 +465,11 @@ Scope {
                     border.width: 1
                     border.color: Appearance.colors.colLayer0Border
                     clip: true // Prevents content from spilling during animation
+                    
+                    layer.enabled: true
+                    layer.effect: StyledDropShadow {
+                        target: drawer
+                    }
 
                     Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
                     Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
@@ -525,30 +541,22 @@ Scope {
                             spacing: 12
 
                             // Phone icon with online indicator
-                            Rectangle {
-                                width: 40
-                                height: 40
-                                radius: 12
-                                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "smartphone"
-                                    color: accentColor
-                                    iconSize: 22
-                                }
+                            MaterialShapeWrappedMaterialSymbol {
+                                shape: MaterialShape.Shape.Square
+                                padding: 9
+                                colSymbol: accentColor
+                                color: Qt.rgba(colSymbol.r, colSymbol.g, colSymbol.b, 0.15)
+                                text: "smartphone"
+                                iconSize: 22
 
                                 // Online dot
-                                Rectangle {
+                                MaterialShape {
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
                                     anchors.margins: -2
-                                    width: 12
-                                    height: 12
-                                    radius: 6
+                                    implicitSize: 12
+                                    shape: MaterialShape.Shape.Circle
                                     color: deviceOnline ? successColor : "#f38ba8"
-                                    border.width: 2
-                                    border.color: cardColor
 
                                     // Pulse animation when online
                                     SequentialAnimation on scale {
@@ -561,7 +569,7 @@ Scope {
                             }
 
                             // Device name
-                            Text {
+                            StyledText {
                                 text: deviceName
                                 color: textColor
                                 font.pixelSize: 20
@@ -570,27 +578,23 @@ Scope {
                             }
 
                             // Minimize button
-                            Rectangle {
-                                width: 32
-                                height: 32
-                                radius: 16
-                                color: minimizeArea.containsMouse ? Qt.rgba(textColor.r, textColor.g, textColor.b, 0.1) : "transparent"
-                                Behavior on color { ColorAnimation { duration: 150 } }
+                            RippleButton {
+                                implicitWidth: 32
+                                implicitHeight: 32
+                                buttonRadius: 16
+                                colBackground: "transparent"
+                                colBackgroundHover: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.1)
 
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "keyboard_arrow_down"
-                                    color: textSecondary
-                                    iconSize: 24
+                                onClicked: {
+                                    requestCloseDrawer()
                                 }
-                                
-                                MouseArea {
-                                    id: minimizeArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        requestCloseDrawer()
+
+                                contentItem: Item {
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "keyboard_arrow_down"
+                                        color: textSecondary
+                                        iconSize: 24
                                     }
                                 }
                             }
@@ -609,19 +613,25 @@ Scope {
                                 anchors.rightMargin: 14
                                 spacing: 10
 
-                                Text {
+                                StyledText {
                                     text: "Device"
                                     color: textSecondary
                                     font.pixelSize: 13
                                     font.weight: Font.Medium
                                 }
 
-                                ComboBox {
+                                StyledComboBox {
                                     id: deviceSelector
                                     Layout.fillWidth: true
                                     enabled: !isTransferring
                                     model: availableDevices.map(dev => dev.reachable ? dev.name : `${dev.name} (offline)`)
                                     currentIndex: selectedDeviceIndex()
+                                    
+                                    // Make it blend with the card nicely
+                                    colBackground: Qt.rgba(0,0,0,0.1)
+                                    colBackgroundHover: Qt.rgba(0,0,0,0.2)
+                                    colBackgroundActive: Qt.rgba(0,0,0,0.3)
+                                    
                                     onActivated: index => {
                                         if (index < 0 || index >= availableDevices.length) return
                                         activeDeviceId = availableDevices[index].id
@@ -633,7 +643,7 @@ Scope {
                             }
                         }
 
-                        Text {
+                        StyledText {
                             Layout.fillWidth: true
                             visible: closeBlockedByTransfer
                             text: "Transfer in progress. Please wait before closing."
@@ -655,37 +665,31 @@ Scope {
                                 anchors.margins: 16
                                 spacing: 14
 
-                                // Battery icon with circle background
-                                Rectangle {
-                                    width: 38
-                                    height: 38
-                                    radius: 12
-                                    color: batteryCharging 
-                                        ? Qt.rgba(successColor.r, successColor.g, successColor.b, 0.2)
-                                        : (batteryPercent != -1 && batteryPercent < 20 
-                                            ? Qt.rgba(1, 0.4, 0.4, 0.2) 
-                                            : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15))
-
-                                    MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        iconSize: 22
-                                        color: batteryCharging
-                                            ? successColor
-                                            : (batteryPercent != -1 && batteryPercent < 20 ? "#f38ba8" : accentColor)
-                                        text: batteryCharging
-                                            ? "battery_charging_full"
-                                            : batteryPercent == -1
-                                                ? "battery_unknown"
-                                                : batteryPercent >= 90
-                                                    ? "battery_full"
-                                                    : batteryPercent >= 50
-                                                        ? "battery_4_bar"
-                                                        : "battery_2_bar"
-                                    }
-                                }
-
+                                                                // Battery icon with circle background
+                                                                MaterialShapeWrappedMaterialSymbol {
+                                                                    shape: MaterialShape.Shape.Square
+                                                                    padding: 8
+                                                                    colSymbol: batteryCharging
+                                                                        ? successColor
+                                                                        : (batteryPercent != -1 && batteryPercent < 20 ? "#f38ba8" : accentColor)
+                                                                    color: batteryCharging
+                                                                        ? Qt.rgba(successColor.r, successColor.g, successColor.b, 0.2)
+                                                                        : (batteryPercent != -1 && batteryPercent < 20
+                                                                            ? Qt.rgba(1, 0.4, 0.4, 0.2)
+                                                                            : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15))
+                                                                    iconSize: 22
+                                                                    text: batteryCharging
+                                                                        ? "battery_charging_full"
+                                                                        : batteryPercent == -1
+                                                                            ? "battery_unknown"
+                                                                            : batteryPercent >= 90
+                                                                                ? "battery_full"
+                                                                                : batteryPercent >= 50
+                                                                                    ? "battery_4_bar"
+                                                                                    : "battery_2_bar"
+                                                                }
                                 // Percentage
-                                Text {
+                                StyledText {
                                     text: batteryPercent >= 0 ? batteryPercent + "%" : "--%"
                                     font.pixelSize: 24
                                     font.weight: Font.Bold
@@ -693,43 +697,23 @@ Scope {
                                 }
 
                                 // Progress bar - takes remaining space
-                                Rectangle {
+                                StyledProgressBar {
                                     Layout.fillWidth: true
-                                    height: 10
-                                    radius: 5
-                                    color: Qt.rgba(1, 1, 1, 0.08)
-
-                                    Rectangle {
-                                        height: 10
-                                        radius: 5
-                                        width: parent.width * Math.max(batteryPercent, 0) / 100
-                                        
-                                        // Gradient fill
-                                        gradient: Gradient {
-                                            orientation: Gradient.Horizontal
-                                            GradientStop { 
-                                                position: 0.0
-                                                color: batteryCharging ? successColor : accentColor
-                                            }
-                                            GradientStop { 
-                                                position: 1.0
-                                                color: batteryCharging 
-                                                    ? Qt.lighter(successColor, 1.3) 
-                                                    : Qt.lighter(accentColor, 1.2)
-                                            }
-                                        }
-
-                                        Behavior on width {
-                                            NumberAnimation { duration: 500; easing.type: Easing.OutQuad }
-                                        }
-                                    }
+                                    Layout.alignment: Qt.AlignVCenter
+                                    valueBarHeight: 6
+                                    value: Math.max(batteryPercent, 0) / 100
+                                    highlightColor: batteryCharging ? successColor : accentColor
+                                    trackColor: Qt.rgba(1, 1, 1, 0.08)
+                                    // Remove gap for a solid bar look
+                                    valueBarGap: 0
                                 }
 
                                 // Charging indicator text
-                                Text {
+                                MaterialSymbol {
                                     visible: batteryCharging
-                                    text: "⚡"
-                                    font.pixelSize: 16
+                                    text: "bolt"
+                                    iconSize: 20
+                                    color: successColor
                                 }
                             }
                         }
@@ -741,177 +725,121 @@ Scope {
                              visible: deviceOnline
 
                              // Ring - Warning/Orange (alert action)
-                             Rectangle {
+                             RippleButton {
                                  id: ringBtn
                                  Layout.fillWidth: true
-                                 Layout.preferredWidth: ringArea.pressed ? 110 : 100 
-                                 height: ringArea.pressed ? 52 : 48
-                                 radius: ringArea.pressed ? 12 : 16
-                                 color: ringArea.containsMouse 
-                                     ? warningColor 
-                                     : cardColor
-                                 border.width: ringArea.activeFocus ? 2 : 0
-                                 border.color: accentColor
+                                 Layout.preferredWidth: down ? 110 : 100 
+                                 implicitHeight: 48
+                                 buttonRadius: down ? 12 : 16
+
+                                 colBackground: cardColor
+                                 colBackgroundHover: warningColor
+                                 colBackgroundToggled: warningColor
+                                 colRipple: Appearance.colors.colOnWarning || Appearance.m3colors.m3onPrimary
                                  
                                  // Property for StyledToolTip
-                                 property bool hovered: ringArea.containsMouse
                                  
                                  Behavior on Layout.preferredWidth { 
                                      NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
                                  }
-                                 Behavior on height { 
-                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
-                                 }
-                                 Behavior on radius { NumberAnimation { duration: 200 } }
-                                 Behavior on color { ColorAnimation { duration: 150 } }
 
-                                 MaterialSymbol {
-                                     anchors.centerIn: parent
-                                     text: "ring_volume"
-                                     color: ringArea.containsMouse ? Appearance.m3colors.m3onPrimary : textColor
-                                     iconSize: 24
-                                     Behavior on color { ColorAnimation { duration: 150 } }
+                                 onClicked: {
+                                     if(!activeDeviceId) return
+                                     actionProcess.command = ["kdeconnect-cli", "--ring", "--device", activeDeviceId]
+                                     actionProcess.running = true
+                                 }
+
+                                 contentItem: Item {
+                                     MaterialSymbol {
+                                         anchors.centerIn: parent
+                                         text: "ring_volume"
+                                         color: ringBtn.hovered ? Appearance.m3colors.m3onPrimary : textColor
+                                         iconSize: 24
+                                         Behavior on color { ColorAnimation { duration: 150 } }
+                                     }
                                  }
 
                                  StyledToolTip {
                                      text: "Ring Phone"
                                  }
-
-                                 MouseArea {
-                                     id: ringArea
-                                     anchors.fill: parent
-                                     hoverEnabled: true
-                                     activeFocusOnTab: true
-                                     cursorShape: Qt.PointingHandCursor
-                                     Keys.onPressed: event => {
-                                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                                             if (!activeDeviceId) return
-                                             actionProcess.command = ["kdeconnect-cli", "--ring", "--device", activeDeviceId]
-                                             actionProcess.running = true
-                                             event.accepted = true
-                                         }
-                                     }
-                                     onClicked: {
-                                         if(!activeDeviceId) return
-                                         actionProcess.command = ["kdeconnect-cli", "--ring", "--device", activeDeviceId]
-                                         actionProcess.running = true
-                                     }
-                                 }
                              }
 
                              // Ping - Success/Green (confirmation)
-                             Rectangle {
+                             RippleButton {
                                  id: pingBtn
                                  Layout.fillWidth: true
-                                 Layout.preferredWidth: pingArea.pressed ? 110 : 100 
-                                 height: pingArea.pressed ? 52 : 48
-                                 radius: pingArea.pressed ? 12 : 16
-                                 color: pingArea.containsMouse 
-                                     ? successColor 
-                                     : cardColor
-                                 border.width: pingArea.activeFocus ? 2 : 0
-                                 border.color: accentColor
+                                 Layout.preferredWidth: down ? 110 : 100 
+                                 implicitHeight: 48
+                                 buttonRadius: down ? 12 : 16
+
+                                 colBackground: cardColor
+                                 colBackgroundHover: successColor
+                                 colBackgroundToggled: successColor
+                                 colRipple: Appearance.colors.colOnSuccess || Appearance.m3colors.m3onPrimary
                                  
                                  // Property for StyledToolTip
-                                 property bool hovered: pingArea.containsMouse
                                  
                                  Behavior on Layout.preferredWidth { 
                                      NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
                                  }
-                                 Behavior on height { 
-                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
-                                 }
-                                 Behavior on radius { NumberAnimation { duration: 200 } }
-                                 Behavior on color { ColorAnimation { duration: 150 } }
 
-                                 MaterialSymbol {
-                                     anchors.centerIn: parent
-                                     text: "touch_app"
-                                     color: pingArea.containsMouse ? Appearance.m3colors.m3onPrimary : textColor
-                                     iconSize: 24
-                                     Behavior on color { ColorAnimation { duration: 150 } }
+                                 onClicked: {
+                                     if(!activeDeviceId) return
+                                     actionProcess.command = ["kdeconnect-cli", "--ping", "--device", activeDeviceId]
+                                     actionProcess.running = true
+                                 }
+
+                                 contentItem: Item {
+                                     MaterialSymbol {
+                                         anchors.centerIn: parent
+                                         text: "touch_app"
+                                         color: pingBtn.hovered ? Appearance.m3colors.m3onPrimary : textColor
+                                         iconSize: 24
+                                         Behavior on color { ColorAnimation { duration: 150 } }
+                                     }
                                  }
 
                                  StyledToolTip {
                                      text: "Ping"
                                  }
-
-                                 MouseArea {
-                                     id: pingArea
-                                     anchors.fill: parent
-                                     hoverEnabled: true
-                                     activeFocusOnTab: true
-                                     cursorShape: Qt.PointingHandCursor
-                                     Keys.onPressed: event => {
-                                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                                             if (!activeDeviceId) return
-                                             actionProcess.command = ["kdeconnect-cli", "--ping", "--device", activeDeviceId]
-                                             actionProcess.running = true
-                                             event.accepted = true
-                                         }
-                                     }
-                                     onClicked: {
-                                         if(!activeDeviceId) return
-                                         actionProcess.command = ["kdeconnect-cli", "--ping", "--device", activeDeviceId]
-                                         actionProcess.running = true
-                                     }
-                                 }
                              }
 
                              // Mirror - Primary/Accent (main feature)
-                             Rectangle {
+                             RippleButton {
                                  id: mirrorBtn
                                  Layout.fillWidth: true
-                                 Layout.preferredWidth: mirrorArea.pressed ? 110 : 100 
-                                 height: mirrorArea.pressed ? 52 : 48
-                                 radius: mirrorArea.pressed ? 12 : 16
-                                 color: mirrorArea.containsMouse 
-                                     ? accentColor 
-                                     : cardColor
-                                 border.width: mirrorArea.activeFocus ? 2 : 0
-                                 border.color: accentColor
+                                 Layout.preferredWidth: down ? 110 : 100 
+                                 implicitHeight: 48
+                                 buttonRadius: down ? 12 : 16
+
+                                 colBackground: cardColor
+                                 colBackgroundHover: accentColor
+                                 colBackgroundToggled: accentColor
+                                 colRipple: Appearance.colors.colOnPrimary || Appearance.m3colors.m3onPrimary
                                  
                                  // Property for StyledToolTip
-                                 property bool hovered: mirrorArea.containsMouse
                                  
                                  Behavior on Layout.preferredWidth { 
                                      NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
                                  }
-                                 Behavior on height { 
-                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
-                                 }
-                                 Behavior on radius { NumberAnimation { duration: 200 } }
-                                 Behavior on color { ColorAnimation { duration: 150 } }
 
-                                 MaterialSymbol {
-                                     anchors.centerIn: parent
-                                     text: "screen_share"
-                                     color: mirrorArea.containsMouse ? Appearance.m3colors.m3onPrimary : textColor
-                                     iconSize: 24
-                                     Behavior on color { ColorAnimation { duration: 150 } }
+                                 onClicked: {
+                                     actionProcess.command = ["bash", Qt.resolvedUrl("mirror_phone.sh").toString().replace("file://", "")]
+                                     actionProcess.running = true
+                                 }
+
+                                 contentItem: Item {
+                                     MaterialSymbol {
+                                         anchors.centerIn: parent
+                                         text: "screen_share"
+                                         color: mirrorBtn.hovered ? Appearance.m3colors.m3onPrimary : textColor
+                                         iconSize: 24
+                                         Behavior on color { ColorAnimation { duration: 150 } }
+                                     }
                                  }
 
                                  StyledToolTip {
                                      text: "Mirror Screen"
-                                 }
-
-                                 MouseArea {
-                                     id: mirrorArea
-                                     anchors.fill: parent
-                                     hoverEnabled: true
-                                     activeFocusOnTab: true
-                                     cursorShape: Qt.PointingHandCursor
-                                     Keys.onPressed: event => {
-                                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                                             actionProcess.command = ["bash", Qt.resolvedUrl("mirror_phone.sh").toString().replace("file://", "")]
-                                             actionProcess.running = true
-                                             event.accepted = true
-                                         }
-                                     }
-                                     onClicked: {
-                                         actionProcess.command = ["bash", Qt.resolvedUrl("mirror_phone.sh").toString().replace("file://", "")]
-                                         actionProcess.running = true
-                                     }
                                  }
                              }
                         }
@@ -945,24 +873,20 @@ Scope {
                                 spacing: 20
                                 visible: !isTransferring // Hide when sharing starts
 
-                                Rectangle {
+                                MaterialShapeWrappedMaterialSymbol {
                                     Layout.alignment: Qt.AlignHCenter
-                                    width: 64
-                                    height: 64
-                                    radius: 32
+                                    shape: MaterialShape.Shape.Circle
+                                    padding: 16
+                                    colSymbol: fileDropArea.containsDrag ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnSurface
                                     color: fileDropArea.containsDrag ? accentColor : Qt.rgba(cardColor.r, cardColor.g, cardColor.b, 0.5)
 
                                     Behavior on color { ColorAnimation { duration: 150 } }
 
-                                    MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        text: "upload_file"
-                                        iconSize: 32
-                                        color: fileDropArea.containsDrag ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnSurface
-                                    }
+                                    text: "upload_file"
+                                    iconSize: 32
                                 }
 
-                                Text {
+                                StyledText {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: fileDropArea.containsDrag ? "Drop to share!" : "Drop files to send"
                                     color: textSecondary
@@ -989,63 +913,11 @@ Scope {
                                 Item {
                                     anchors.fill: parent
 
-                                    // Morphing Spinner
-                                    Item {
-                                        id: loaderContainer
+                                    StyledText {
                                         anchors.centerIn: parent
-                                        width: 64
-                                        height: 64
-                                        visible: isTransferring
-                                        
-                                        // Light background circle
-                                        Rectangle {
-                                            anchors.centerIn: parent
-                                            width: 56
-                                            height: 56
-                                            radius: 28
-                                            color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
-                                        }
-
-                                        MaterialCookie {
-                                            id: loadingCookie
-                                            anchors.fill: parent
-                                            anchors.margins: 4
-                                            color: accentColor
-                                            sides: 12 
-                                            Behavior on sides { NumberAnimation { duration: 0 } }
-                                        }
-
-                                        RotationAnimator {
-                                            target: loadingCookie
-                                            from: 0; to: 360
-                                            duration: 2000
-                                            loops: Animation.Infinite
-                                            running: loaderContainer.visible
-                                        }
-
-                                        Timer {
-                                            interval: 800
-                                            running: loaderContainer.visible
-                                            repeat: true
-                                            triggeredOnStart: true
-                                            onTriggered: {
-                                                const shapes = [0, 4, 5, 6, 12]
-                                                let next = shapes[Math.floor(Math.random() * shapes.length)]
-                                                while (next === loadingCookie.sides) {
-                                                    next = shapes[Math.floor(Math.random() * shapes.length)]
-                                                }
-                                                loadingCookie.sides = next
-                                            }
-                                        }
-                                    }
-
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        anchors.top: loaderContainer.bottom
-                                        anchors.topMargin: 18
                                         text: `Sending ${transferSuccessCount + transferFailureCount + (transferProcess.running ? 1 : 0)}/${transferPendingCount}`
                                         color: textColor
-                                        font.pixelSize: 13
+                                        font.pixelSize: 14
                                         font.weight: Font.Medium
                                     }
                                 }
@@ -1094,10 +966,9 @@ Scope {
                                 anchors.centerIn: parent
                                 spacing: 8
 
-                                Rectangle {
-                                    width: 8
-                                    height: 8
-                                    radius: 4
+                                MaterialShape {
+                                    implicitSize: 8
+                                    shape: MaterialShape.Shape.Circle
                                     color: deviceOnline ? successColor : "#f38ba8"
 
                                     // Pulse animation when online
@@ -1109,7 +980,7 @@ Scope {
                                     }
                                 }
 
-                                Text {
+                                StyledText {
                                     text: transferStatusText !== "" ? transferStatusText : (deviceOnline ? "Connected" : "Offline")
                                     color: transferStatusText !== "" ? (transferFailureCount > 0 ? warningColor : successColor) : textSecondary
                                     font.pixelSize: 11

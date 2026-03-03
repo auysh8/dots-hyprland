@@ -26,6 +26,15 @@ Scope {
     property bool lyricsLoaded: false
     property string lyricsSource: ""
     
+    // Broadcast state to the global LyricsService so other components (like MusicPlayerView) can share it
+    Binding { target: LyricsService; property: "model"; value: root.lyricsModel }
+    Binding { target: LyricsService; property: "count"; value: root.lyricsCount }
+    Binding { target: LyricsService; property: "currentLine"; value: root.currentLine }
+    Binding { target: LyricsService; property: "loaded"; value: root.lyricsLoaded }
+    Binding { target: LyricsService; property: "position"; value: root.position }
+    Binding { target: LyricsService; property: "sourceName"; value: root.lyricsSource }
+    Binding { target: LyricsService; property: "activePlayer"; value: root.activePlayer }
+    
     // Use native MPRIS for UI updates only (art, progress)
     readonly property var availablePlayers: MprisController.players
     property MprisPlayer selectedPlayer: null
