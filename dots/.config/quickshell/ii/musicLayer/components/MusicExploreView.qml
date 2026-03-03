@@ -74,6 +74,7 @@ StyledFlickable {
                 orientation: ListView.Horizontal
                 spacing: 16
                 clip: true
+                cacheBuffer: 1200
                 model: root.releaseCount
 
                 delegate: Item {
@@ -118,8 +119,11 @@ StyledFlickable {
                                     id: releaseArt
                                     anchors.fill: parent
                                     source: itemData.artUrl || ""
+                                    sourceSize.width: 272
+                                    sourceSize.height: 272
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
+                                    cache: true
                                     visible: status === Image.Ready
                                     scale: releaseHover.containsMouse ? 1.08 : 1.0
 
@@ -260,8 +264,11 @@ StyledFlickable {
                                     RoundedImage {
                                         anchors.fill: parent
                                         source: track.artUrl || ""
+                                        sourceSize.width: 96
+                                        sourceSize.height: 96
                                         fillMode: Image.PreserveAspectCrop
                                         radius: 8
+                                        cache: true
                                     }
 
                                     Rectangle {

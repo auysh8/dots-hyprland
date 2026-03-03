@@ -113,6 +113,7 @@ StyledFlickable {
                 flow: GridView.FlowTopToBottom
                 clip: true
                 flickableDirection: Flickable.HorizontalFlick
+                cacheBuffer: 1200
 
                 model: rootContext.homeContent
 
@@ -158,8 +159,11 @@ StyledFlickable {
                                         id: recArt
                                         anchors.fill: parent
                                         source: model.artUrl || ""
+                                        sourceSize.width: 272
+                                        sourceSize.height: 272
                                         fillMode: Image.PreserveAspectCrop
                                         asynchronous: true
+                                        cache: true
                                         visible: status === Image.Ready
                                         
                                         // Zoom effect
@@ -289,8 +293,11 @@ StyledFlickable {
                                         id: quickPickArt
                                         anchors.fill: parent
                                         source: model.artUrl || ""
+                                        sourceSize.width: 96
+                                        sourceSize.height: 96
                                         fillMode: Image.PreserveAspectCrop
                                         radius: 8
+                                        cache: true
                                         visible: status === Image.Ready
                                     }
 
@@ -399,6 +406,7 @@ StyledFlickable {
                 clip: true
                 flickableDirection: Flickable.HorizontalFlick
                 visible: rootContext.shortsContent.count > 0
+                cacheBuffer: 1200
 
                 model: rootContext.shortsContent
 
@@ -444,8 +452,11 @@ StyledFlickable {
                                         id: shortArt
                                         anchors.fill: parent
                                         source: model.artUrl || ""
+                                        sourceSize.width: 272
+                                        sourceSize.height: 272
                                         fillMode: Image.PreserveAspectCrop
                                         asynchronous: true
+                                        cache: true
                                         visible: status === Image.Ready
                                         
                                         // Zoom effect

@@ -2,11 +2,20 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import qs
 
 Scope {
     id: root
     property bool showMonitor: false
     property bool closing: false
+    property bool barWasOpen: false
+
+    function openWindow() {
+        if (root.showMonitor || root.closing) return;
+        root.barWasOpen = GlobalStates.barOpen;
+        GlobalStates.barOpen = false;
+        root.showMonitor = true;
+    }
     
     function closeWindow() {
         if (root.showMonitor) {
@@ -15,13 +24,20 @@ Scope {
         }
     }
 
+    function restorePanels() {
+        if (root.barWasOpen) {
+            GlobalStates.barOpen = true;
+            root.barWasOpen = false;
+        }
+    }
+
     IpcHandler {
         target: "system-monitor"
         function toggle() { 
             if (root.showMonitor) root.closeWindow();
-            else root.showMonitor = true;
+            else root.openWindow();
         }
-        function open() { root.showMonitor = true; }
+        function open() { root.openWindow(); }
         function close() { root.closeWindow(); }
     }
 
@@ -38,10 +54,24 @@ Scope {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
+
+            Rectangle {
+                anchors.fill: parent
+                color: "black"
+                opacity: root.showMonitor ? 0.35 : 0
+                z: 0
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: root.showMonitor ? 220 : 140
+                        easing.type: root.showMonitor ? Easing.OutQuad : Easing.InQuad
+                    }
+                }
+            }
             
             MouseArea {
                 id: backgroundClickArea
                 anchors.fill: parent
+                z: 1
                 onClicked: (mouse) => {
                     const monitorBounds = monitor.mapToItem(backgroundClickArea, 0, 0, monitor.width, monitor.height);
                     const clickInMonitor = mouse.x >= monitorBounds.x && mouse.x <= monitorBounds.x + monitorBounds.width &&
@@ -54,8 +84,9 @@ Scope {
                 id: monitor
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: root.showMonitor ? (parent.height - height) / 2 : -height
+                z: 2
                 
-                width: parent.width * 0.8
+                width: Math.min(parent.width * 0.92, 1560)
                 height: parent.height * 0.85
                 
                 onActiveFocusChanged: {
@@ -72,6 +103,7 @@ Scope {
                         onRunningChanged: {
                             if (!running && !root.showMonitor) {
                                 root.closing = false;
+                                root.restorePanels();
                             }
                         }
                     }
@@ -81,4 +113,6 @@ Scope {
             onVisibleChanged: { if (visible) monitor.forceActiveFocus(); }
         }
     }
+
+    Component.onDestruction: root.restorePanels()
 }

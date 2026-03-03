@@ -15,7 +15,7 @@ StyledFlickable {
     anchors.fill: parent
     contentHeight: resultsColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
 
-    property bool show: queryText.length > 0 && !rootContext.isLoading
+    property bool show: queryText.length > 0 && rootContext.currentView !== "playlist" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
@@ -68,8 +68,11 @@ StyledFlickable {
                             RoundedImage {
                                 anchors.fill: parent
                                 source: model.artUrl
+                                sourceSize.width: 200
+                                sourceSize.height: 200
                                 fillMode: Image.PreserveAspectCrop
                                 radius: 50
+                                cache: true
                             }
                         }
 
@@ -173,8 +176,11 @@ StyledFlickable {
                                     RoundedImage {
                                         anchors.fill: parent
                                         source: model.artUrl
+                                        sourceSize.width: 96
+                                        sourceSize.height: 96
                                         fillMode: Image.PreserveAspectCrop
                                         radius: 8
+                                        cache: true
                                     }
 
                                     Rectangle {
@@ -265,13 +271,16 @@ StyledFlickable {
                             Layout.fillWidth: true
                             Layout.preferredHeight: width
                             radius: 12
-                            color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                            color: albumHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : ColorUtils.transparentize(rootContext.pillColor, 0.5)
 
                             RoundedImage {
                                 anchors.fill: parent
                                 source: model.artUrl
+                                sourceSize.width: 272
+                                sourceSize.height: 272
                                 fillMode: Image.PreserveAspectCrop
                                 radius: 12
+                                cache: true
                             }
                         }
 
@@ -289,6 +298,14 @@ StyledFlickable {
                             font.pixelSize: 12
                             color: rootContext.secondaryContentColor
                             elide: Text.ElideRight
+                        }
+
+                        MouseArea {
+                            id: albumHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: rootContext.openPlaylist(model.videoId)
                         }
                     }
                 }

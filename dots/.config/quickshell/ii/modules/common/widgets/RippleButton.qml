@@ -131,21 +131,25 @@ Button {
         }
     }
 
-    background: Rectangle {
+    background: Item {
         id: buttonBackground
-        radius: root.buttonEffectiveRadius
         implicitHeight: 30
 
-        color: root.buttonColor
-        Behavior on color {
-            animation: Appearance?.animation.elementMoveFast.colorAnimation.createObject(this)
+        Rectangle {
+            id: bgRect
+            anchors.fill: parent
+            radius: root.buttonEffectiveRadius
+            color: root.buttonColor
+            Behavior on color {
+                animation: Appearance?.animation.elementMoveFast.colorAnimation.createObject(this)
+            }
         }
         
         // M3 State Layer Overlay
         Rectangle {
             id: stateLayer
             anchors.fill: parent
-            radius: parent.radius
+            radius: root.buttonEffectiveRadius
             color: root.rippleColor
             opacity: root.down ? 0.1 : (root.hovered ? 0.04 : 0)
             
@@ -154,41 +158,47 @@ Button {
             }
         }
 
-        layer.enabled: true
-        layer.effect: OpacityMask {
-            maskSource: Rectangle {
-                width: buttonBackground.width
-                height: buttonBackground.height
+        Item {
+            id: rippleMaskTarget
+            anchors.fill: parent
+            visible: false
+            
+            Rectangle {
+                anchors.fill: parent
                 radius: root.buttonEffectiveRadius
             }
         }
 
         Item {
-            id: ripple
-            width: ripple.implicitWidth
-            height: ripple.implicitHeight
-            opacity: 0
-            visible: width > 0 && height > 0
-
-            property real implicitWidth: 0
-            property real implicitHeight: 0
-
-            Behavior on opacity {
-                animation: Appearance?.animation.elementMoveFast.colorAnimation.createObject(this)
+            id: rippleContainer
+            anchors.fill: parent
+            visible: ripple.opacity > 0
+            
+            layer.enabled: true
+            layer.effect: OpacityMask {
+                maskSource: rippleMaskTarget
             }
 
-            RadialGradient {
-                anchors.fill: parent
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0.20) }
-                    GradientStop { position: 0.6; color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0.20) }
-                    GradientStop { position: 1.0; color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0) }
+            Rectangle {
+                id: ripple
+                width: ripple.implicitWidth
+                height: ripple.implicitHeight
+                radius: width / 2
+                color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0.25)
+                opacity: 0
+                visible: width > 0 && height > 0
+
+                property real implicitWidth: 0
+                property real implicitHeight: 0
+
+                Behavior on opacity {
+                    animation: Appearance?.animation.elementMoveFast.colorAnimation.createObject(this)
                 }
-            }
 
-            transform: Translate {
-                x: -ripple.width / 2
-                y: -ripple.height / 2
+                transform: Translate {
+                    x: -ripple.width / 2
+                    y: -ripple.height / 2
+                }
             }
         }
     }

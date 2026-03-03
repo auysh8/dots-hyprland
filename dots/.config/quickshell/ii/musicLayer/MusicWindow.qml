@@ -58,6 +58,15 @@ Scope {
     property ListModel libraryCommunityPlaylists: ListModel {}
     property int libraryLikedSongCount: 0
     property string libraryLikedSongArt: ""
+
+    // Playlist View Models
+    property string activePlaylistId: ""
+    property string activePlaylistTitle: ""
+    property string activePlaylistDescription: ""
+    property string activePlaylistAuthor: ""
+    property string activePlaylistCover: ""
+    property int activePlaylistTrackCount: 0
+    property ListModel activePlaylistTracks: ListModel {}
     
     // Shared layer transition offset for both panel and background.
     readonly property real panelHiddenOffset: -(musicPanel.y + musicPanel.height + 100)
@@ -186,6 +195,17 @@ Scope {
         })
     }
     
+    function openPlaylist(browseId) {
+        if (!browseId) return;
+        root.previousView = root.currentView
+        root.currentView = "playlist"
+        root.isLoading = true
+        root.activePlaylistTracks.clear()
+        root.activePlaylistId = browseId
+        
+        sendCommand({ "command": "get_playlist", "browseId": browseId })
+    }
+    
     function toggle() {
         MusicService.toggle()
     }
@@ -206,6 +226,8 @@ Scope {
             return libraryView.flickable
         if (root.currentView === "home" && homeView.visible)
             return homeView.flickable
+        if (root.currentView === "playlist" && playlistView.visible)
+            return playlistView.flickable
         return null
     }
 
@@ -447,6 +469,21 @@ Scope {
                         } else if (data.section === "community_playlists") {
                             root.libraryCommunityPlaylists.clear()
                             for (let i = 0; i < items.length; i++) root.libraryCommunityPlaylists.append(items[i])
+                        }
+                    } else if (data.type === "playlist_details") {
+                        root.isLoading = false
+                        root.refreshing = false
+                        root.activePlaylistId = data.id || ""
+                        root.activePlaylistTitle = data.title || ""
+                        root.activePlaylistDescription = data.description || ""
+                        root.activePlaylistAuthor = data.author || ""
+                        root.activePlaylistCover = data.cover || ""
+                        root.activePlaylistTrackCount = data.trackCount || 0
+                        
+                        root.activePlaylistTracks.clear()
+                        let tracks = data.tracks || []
+                        for (let i = 0; i < tracks.length; i++) {
+                            root.activePlaylistTracks.append(tracks[i])
                         }
                     } else if (data.type === "error") {
                         root.isLoading = false
@@ -927,6 +964,12 @@ Scope {
                                 anchors.fill: parent
                                 rootContext: root
                                 queryText: searchInput.text
+                            }
+
+                            MusicPlaylistView {
+                                id: playlistView
+                                anchors.fill: parent
+                                rootContext: root
                             }
 
                             // Central Loading Spinner

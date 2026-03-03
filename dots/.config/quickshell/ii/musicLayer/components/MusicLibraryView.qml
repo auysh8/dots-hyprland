@@ -166,6 +166,7 @@ StyledFlickable {
                 spacing: 16
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
+                cacheBuffer: 800
                 model: rootContext.libraryRecentTracks
 
                 delegate: Item {
@@ -191,7 +192,11 @@ StyledFlickable {
                             Image {
                                 anchors.fill: parent
                                 source: model.cover || ""
+                                sourceSize.width: 272
+                                sourceSize.height: 272
                                 fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: true
                             }
                             
                             MouseArea {
@@ -243,7 +248,11 @@ StyledFlickable {
                     id: likedSongsBg
                     anchors.fill: parent
                     source: rootContext.libraryLikedSongArt || ""
+                    sourceSize.width: 272
+                    sourceSize.height: 272
                     fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: true
                     opacity: 0.8
                     visible: source !== ""
                     
@@ -251,6 +260,13 @@ StyledFlickable {
                     layer.effect: OpacityMask {
                         maskSource: Rectangle { width: likedSongsBg.width; height: likedSongsBg.height; radius: 20 }
                     }
+                }
+                
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: rootContext.openPlaylist("LM")
                 }
                 
                 // Overlay gradient to blend text
@@ -328,7 +344,11 @@ StyledFlickable {
                             Image {
                                 anchors.fill: parent
                                 source: model.cover || ""
+                                sourceSize.width: 120
+                                sourceSize.height: 120
                                 fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: true
                             }
                         }
                         Item { Layout.fillHeight: true }
@@ -356,6 +376,7 @@ StyledFlickable {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onClicked: rootContext.openPlaylist(model.id)
                     }
                 }
             }
@@ -382,6 +403,7 @@ StyledFlickable {
                 spacing: 16
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
+                cacheBuffer: 800
                 model: rootContext.libraryCommunityPlaylists
 
                 delegate: Item {
@@ -407,13 +429,18 @@ StyledFlickable {
                             Image {
                                 anchors.fill: parent
                                 source: model.cover || ""
+                                sourceSize.width: 272
+                                sourceSize.height: 272
                                 fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: true
                             }
                             
                             MouseArea {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                onClicked: rootContext.openPlaylist(model.id)
                             }
                         }
 

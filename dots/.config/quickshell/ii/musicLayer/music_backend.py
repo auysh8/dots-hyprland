@@ -413,6 +413,7 @@ class MusicBackend:
         self._play_stack = []  # in-memory playback stack for prev_track
         self._current_queue = []  # upcoming tracks (radio queue)
         self.repeat_mode = 0 # 0: Off, 1: All, 2: One
+        self._stream_cache = {} # Background cache for gapless playback URL transitions
         runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
         self.ipc_socket = os.path.join(runtime_dir, f"mpv_music_{os.getuid()}.sock")
         self.current_video_id = None
@@ -423,6 +424,18 @@ class MusicBackend:
         self._home_cache = []
         self._home_cache_ts = 0.0
         self._home_cache_lock = threading.Lock()
+
+        # Search results cache: { query_lower: { "ts": float, "response": dict } }
+        self._search_cache = {}
+        self._search_cache_ttl = 300  # 5 minutes
+
+        # Explore/Charts cache: { "sections": [...], "ts": float }
+        self._explore_cache = None
+        self._explore_cache_ttl = 900  # 15 minutes
+
+        # Song metadata cache: { videoId: { "data": dict, "is_liked": bool, "ts": float } }
+        self._song_meta_cache = {}
+        self._song_meta_cache_ttl = 1800  # 30 minutes
 
         # Track metadata state
         self._current_title = ""
@@ -954,6 +967,24 @@ class MusicBackend:
             daemon=True,
         ).start()
 
+    def _prefetch_stream_url(self, video_id):
+        if video_id in self._stream_cache:
+            return
+        self.log(f"Background prefetching next URL for gapless playback: {video_id}")
+        try:
+            ytdlp = self._resolve_ytdlp_path()
+            result = subprocess.run(
+                [ytdlp, "-f", "bestaudio", "-g", "--no-warnings", f"https://music.youtube.com/watch?v={video_id}"],
+                capture_output=True, text=True, check=True, timeout=30,
+            )
+            stream_url = result.stdout.strip().split("\n")[-1].strip()
+            if stream_url:
+                with self._state_lock:
+                    self._stream_cache[video_id] = stream_url
+                self.log(f"Gapless URL ready for {video_id}")
+        except Exception as e:
+            self.log(f"Failed gapless prefetch: {e}")
+
     def _play_task(self, video_id, title, artist, art_url, token):
         try:
             # Check if this is a playlist/album ID (deferred from explore section)
@@ -974,23 +1005,29 @@ class MusicBackend:
                     return
 
             # 1. Get stream URL
-            self.log("Fetching stream URL...")
-            ytdlp = self._resolve_ytdlp_path()
-            result = subprocess.run(
-                [
-                    ytdlp,
-                    "-f",
-                    "bestaudio",
-                    "-g",
-                    "--no-warnings",
-                    f"https://music.youtube.com/watch?v={video_id}",
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=30,
-            )
-            stream_url = result.stdout.strip().split("\n")[-1].strip()
+            with self._state_lock:
+                stream_url = self._stream_cache.pop(video_id, None)
+            
+            if stream_url:
+                self.log(f"Using instant pre-fetched gapless stream URL")
+            else:
+                self.log("Fetching stream URL...")
+                ytdlp = self._resolve_ytdlp_path()
+                result = subprocess.run(
+                    [
+                        ytdlp,
+                        "-f",
+                        "bestaudio",
+                        "-g",
+                        "--no-warnings",
+                        f"https://music.youtube.com/watch?v={video_id}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=30,
+                )
+                stream_url = result.stdout.strip().split("\n")[-1].strip()
             if not stream_url:
                 raise ValueError("yt-dlp returned empty URL")
             self.log("Stream URL obtained")
@@ -1049,17 +1086,39 @@ class MusicBackend:
                 self.current_video_id = video_id
 
             self.log("mpv launched — playback started")
+            
+            # Attempt to prefetch the next track for gapless playback
+            with self._state_lock:
+                next_id = None
+                if self.repeat_mode == 2:
+                    next_id = video_id # Repeat one
+                elif getattr(self, "_current_queue", None):
+                    next_id = self._current_queue[0].get("videoId")
+            
+            if next_id:
+                threading.Thread(target=self._prefetch_stream_url, args=(next_id,), daemon=True).start()
 
             # 4. Sync playback to YouTube Music history if authenticated
             is_liked = False
             try:
                 if os.path.exists(self.oauth_path) or os.path.exists(self.headers_path):
                     self.log(f"Syncing '{title}' to YouTube Music history...")
-                    # We need the full song dictionary (playbackTracking data) for the API
-                    song_data = self.ytm.get_song(video_id)
-                    
-                    if song_data and song_data.get('videoDetails', {}).get('likeStatus') == 'LIKE':
-                        is_liked = True
+                    # Check metadata cache first
+                    cached_meta = self._song_meta_cache.get(video_id)
+                    if cached_meta and (time.time() - cached_meta["ts"]) < self._song_meta_cache_ttl:
+                        self.log(f"Using cached song metadata for {video_id}")
+                        song_data = cached_meta["data"]
+                        is_liked = cached_meta["is_liked"]
+                    else:
+                        song_data = self.ytm.get_song(video_id)
+                        if song_data and song_data.get('videoDetails', {}).get('likeStatus') == 'LIKE':
+                            is_liked = True
+                        # Store in cache
+                        self._song_meta_cache[video_id] = {
+                            "data": song_data,
+                            "is_liked": is_liked,
+                            "ts": time.time(),
+                        }
                         
                     if song_data and getattr(self.ytm, 'add_history_item', None):
                         self.ytm.add_history_item(song_data)
@@ -1462,6 +1521,12 @@ class MusicBackend:
 
     def get_explore(self):
         self.log("UI requested get_explore")
+        # Check explore cache first
+        if self._explore_cache and (time.time() - self._explore_cache["ts"]) < self._explore_cache_ttl:
+            self.log("Serving explore from cache (< 15 min old)")
+            for section in self._explore_cache["sections"]:
+                self.send_response(section)
+            return
         threading.Thread(target=self._fetch_explore_task, daemon=True).start()
 
     def _toggle_like_task(self, video_id, is_liked):
@@ -1472,6 +1537,9 @@ class MusicBackend:
                 status = "LIKE" if is_liked else "INDIFFERENT"
                 self.ytm.rate_song(video_id, status)
                 self.log(f"Successfully rated song {video_id} as {status}")
+                # Update metadata cache to stay in sync
+                if video_id in self._song_meta_cache:
+                    self._song_meta_cache[video_id]["is_liked"] = is_liked
         except Exception as e:
             self.log(f"Failed to rate song on YouTube Music: {e}")
 
@@ -1538,7 +1606,8 @@ class MusicBackend:
         except Exception as e:
             self.log(f"Dynamic Trending fetch failed: {e}")
 
-        self.send_response({"type": "explore_section", "section": "trending", "items": trending_items})
+        trending_response = {"type": "explore_section", "section": "trending", "items": trending_items}
+        self.send_response(trending_response)
         self.log(f"Streamed {len(trending_items)} trending songs")
 
         # --- STREAM NEW RELEASES: Use get_explore() directly ---
@@ -1582,8 +1651,16 @@ class MusicBackend:
         except Exception as e:
             self.log(f"New releases fetch failed: {e}")
 
-        self.send_response({"type": "explore_section", "section": "new_releases", "items": new_releases_items})
+        new_releases_response = {"type": "explore_section", "section": "new_releases", "items": new_releases_items}
+        self.send_response(new_releases_response)
         self.log(f"Streamed {len(new_releases_items)} new releases — explore complete")
+
+        # Save to explore cache
+        self._explore_cache = {
+            "ts": time.time(),
+            "sections": [trending_response, new_releases_response],
+        }
+        self.log("Explore data cached for 15 minutes")
 
     def get_library(self):
         self.log("UI requested get_library")
@@ -1730,6 +1807,116 @@ class MusicBackend:
         self.send_response({"type": "library_section", "section": "community_playlists", "items": community_playlists})
         self.log("Streamed library data complete.")
 
+    def get_playlist(self, browse_id):
+        threading.Thread(target=self._playlist_task, args=(browse_id,), daemon=True).start()
+
+    def _playlist_task(self, browse_id):
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                self.send_response({"type": "error", "message": "Connection error."})
+                return
+
+        try:
+            tracks = []
+            title = "Playlist"
+            author = ""
+            cover_url = ""
+            track_count = 0
+            description = ""
+            
+            if browse_id in ["LM", "Liked Music"]:
+                # Special case for liked songs
+                p = self.ytm.get_liked_songs(limit=None)
+                if not p:
+                    raise ValueError("Could not load liked songs.")
+                
+                title = "Liked Songs"
+                track_count = p.get("trackCount", 0)
+                items = p.get("tracks", [])
+                
+                # Fetch a valid art from the first song if available
+                for item in items:
+                    thumbs = item.get("thumbnails", [])
+                    if thumbs:
+                        cover_url = thumbs[-1].get("url", "")
+                        break
+                        
+            elif browse_id.startswith("MPREb_"):
+                p = self.ytm.get_album(browse_id)
+                if not p:
+                    raise ValueError("Album not found.")
+                
+                title = p.get("title", "")
+                artists_list = p.get("artists", [])
+                if isinstance(artists_list, list) and artists_list:
+                    author = ", ".join([a.get("name", "") for a in artists_list])
+                else:
+                    author = "Unknown Artist"
+                    
+                description = p.get("description", "")
+                track_count = p.get("trackCount", 0)
+                thumbs = p.get("thumbnails", [])
+                if thumbs:
+                    cover_url = thumbs[-1].get("url", "")
+                    if "=w" in cover_url and "-h" in cover_url:
+                        cover_url = re.sub(r"=w\d+-h\d+", "=w544-h544", cover_url)
+                
+                items = p.get("tracks", [])
+            else:
+                p = self.ytm.get_playlist(browse_id, limit=None)
+                if not p:
+                    raise ValueError("Playlist not found.")
+                
+                title = p.get("title", "")
+                author = p.get("author", {}).get("name", "") if isinstance(p.get("author"), dict) else p.get("author", "")
+                description = p.get("description", "")
+                track_count = p.get("trackCount", 0)
+                thumbs = p.get("thumbnails", [])
+                if thumbs:
+                    cover_url = thumbs[-1].get("url", "")
+                    if "=w" in cover_url and "-h" in cover_url:
+                        cover_url = re.sub(r"=w\d+-h\d+", "=w544-h544", cover_url)
+                
+                items = p.get("tracks", [])
+
+            for t in items:
+                art = ""
+                thumbs = t.get("thumbnails", [])
+                if thumbs:
+                    art = thumbs[-1].get("url", "")
+                    if "=w" in art and "-h" in art:
+                        art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                        
+                artist_name = "Unknown Artist"
+                if t.get("artists"):
+                    artist_name = ", ".join([a.get("name", "") for a in t.get("artists")])
+                
+                tracks.append({
+                    "videoId": t.get("videoId"),
+                    "title": t.get("title", ""),
+                    "artist": artist_name,
+                    "duration": t.get("duration", ""),
+                    "artUrl": art
+                })
+
+            self.send_response({
+                "type": "playlist_details",
+                "id": browse_id,
+                "title": title,
+                "author": author,
+                "description": description,
+                "cover": cover_url,
+                "trackCount": track_count,
+                "tracks": tracks
+            })
+
+        except Exception as e:
+            self.log(f"Failed to fetch playlist {browse_id}: {e}")
+            self.send_response({"type": "error", "message": f"Couldn't load playlist."})
+
     def search(self, query, song_limit=20):
         threading.Thread(target=self._search_task, args=(query, song_limit), daemon=True).start()
 
@@ -1747,6 +1934,14 @@ class MusicBackend:
                 song_limit = max(10, min(20, int(song_limit)))
             except Exception:
                 song_limit = 20
+
+            # Check search cache first
+            cache_key = query.strip().lower()
+            cached = self._search_cache.get(cache_key)
+            if cached and (time.time() - cached["ts"]) < self._search_cache_ttl:
+                self.log(f"Serving search results from cache for '{query}'")
+                self.send_response(cached["response"])
+                return
 
             artists, songs, albums = [], [], []
             song_ids = set()
@@ -1789,17 +1984,27 @@ class MusicBackend:
 
             songs_to_send = self._backfill_missing_song_durations(songs_to_send)
 
-            self.send_response(
-                {
-                    "type": "search_results",
-                    "query": query,
-                    "artists": artists[:5],
-                    "songs": songs_to_send,
-                    "songLimit": song_limit,
-                    "songsHasMore": songs_has_more,
-                    "albums": albums[:5],
-                }
-            )
+            response = {
+                "type": "search_results",
+                "query": query,
+                "artists": artists[:5],
+                "songs": songs_to_send,
+                "songLimit": song_limit,
+                "songsHasMore": songs_has_more,
+                "albums": albums[:5],
+            }
+            self.send_response(response)
+
+            # Save to search cache
+            self._search_cache[cache_key] = {"ts": time.time(), "response": response}
+            self.log(f"Search results cached for '{query}'")
+
+            # Evict old entries to prevent unbounded memory growth
+            now = time.time()
+            stale_keys = [k for k, v in self._search_cache.items() if (now - v["ts"]) > self._search_cache_ttl]
+            for k in stale_keys:
+                del self._search_cache[k]
+
         except Exception as e:
             self.log(f"Search error: {e}")
 
@@ -1958,6 +2163,8 @@ class MusicBackend:
                         self.get_explore()
                     elif t == "get_library":
                         self.get_library()
+                    elif t == "get_playlist":
+                        self.get_playlist(c.get("browseId", ""))
                     elif t == "play":
                         if c.get("videoId"):
                             self._current_title = c.get("title", "")

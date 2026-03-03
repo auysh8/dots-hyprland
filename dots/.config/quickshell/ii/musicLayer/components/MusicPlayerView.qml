@@ -900,7 +900,10 @@ Item {
                                         anchors.fill: parent
                                         radius: 12
                                         source: model.artUrl || ""
+                                        sourceSize.width: 96
+                                        sourceSize.height: 96
                                         fillMode: Image.PreserveAspectCrop
+                                        cache: true
                                     }
                                 }
 

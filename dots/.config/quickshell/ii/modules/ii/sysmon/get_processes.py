@@ -97,7 +97,7 @@ def get_processes():
                         "res_mb": parse_memory(parts[5]), # RES (Physical Memory)
                         "command": display_name, # CLEAN NAME
                         "full_command": full_command, # Full command for reference
-                        "icon": icon_name      # Derived icon name
+                        "processIcon": icon_name      # Derived icon name
                     })
                 except (ValueError, IndexError):
                     continue

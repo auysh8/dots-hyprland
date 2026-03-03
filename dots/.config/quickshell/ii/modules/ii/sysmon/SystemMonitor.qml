@@ -12,11 +12,27 @@ import Quickshell.Io
 
 FocusScope {
     id: root
+    component StatIconBadge: Rectangle {
+        required property string symbol
+        required property color tint
+        width: 32
+        height: 32
+        radius: 8
+        color: Qt.rgba(tint.r, tint.g, tint.b, 0.2)
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: parent.symbol
+            iconSize: 18
+            color: parent.tint
+        }
+    }
     
     // UI Configuration - Using shell theme colors
     property color backgroundColor: Appearance.colors.colLayer0
-    property color cardColor: Appearance.colors.colLayer1
-    property color cardColorHover: Appearance.colors.colLayer1Hover
+    property color panelColor: Appearance.colors.colLayer1
+    property color panelColorHover: Appearance.colors.colLayer1Hover
+    property color cardColor: Appearance.colors.colLayer2
+    property color cardColorHover: Appearance.colors.colLayer2Hover
     property color textColor: Appearance.colors.colOnLayer0
     property color textSecondary: Appearance.colors.colSubtext
     property real cornerRadius: Appearance.rounding.large
@@ -80,6 +96,10 @@ FocusScope {
         // Update existing & Add new
         for (var i = 0; i < count; i++) {
             var item = newData[i];
+            // Normalize collector schema for delegate consumption.
+            if (!item.icon && item.processIcon) {
+                item.icon = item.processIcon;
+            }
             if (i < currentCount) {
                 processModel.set(i, item);
             } else {
@@ -167,13 +187,13 @@ FocusScope {
                 
                 Column {
                     spacing: 2
-                    Text {
+                    StyledText {
                         text: "System Monitor"
                         font.pixelSize: 20
                         font.weight: Font.Bold
                         color: root.textColor
                     }
-                    Text {
+                    StyledText {
                         text: "Overview"
                         font.pixelSize: 13
                         color: root.textSecondary
@@ -191,7 +211,7 @@ FocusScope {
                                     colBackgroundHover: Qt.rgba(1, 1, 1, 0.1)
                                     colRipple: root.textColor
                 
-                                    onClicked: Qt.createQmlObject(`import Quickshell.Io; Process { command: ["qs", "-c", "ii", "ipc", "call", "system-monitor", "close"]; running: true }`, root, "closer")
+                                    onClicked: Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "system-monitor", "close"])
                 
                                     contentItem: MaterialSymbol {
                                         anchors.centerIn: parent
@@ -210,6 +230,8 @@ FocusScope {
                                                 RippleButton {
                                                     id: cpuCard
                                                     Layout.fillWidth: true
+                                                    Layout.preferredWidth: 1
+                                                    Layout.minimumWidth: 0
                                                     Layout.preferredHeight: 140
                                                     buttonRadius: 16
                                                     colBackground: root.cardColor
@@ -225,21 +247,12 @@ FocusScope {
                                                         RowLayout {
                                                             spacing: 10
                                 
-                                                            Rectangle {
-                                                                width: 32
-                                                                height: 32
-                                                                radius: 8
-                                                                color: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.2)
-                                
-                                                                MaterialSymbol {
-                                                                    anchors.centerIn: parent
-                                                                    text: "memory"
-                                                                    iconSize: 18
-                                                                    color: root.cpuColor
-                                                                }
+                                                            StatIconBadge {
+                                                                symbol: "memory"
+                                                                tint: root.cpuColor
                                                             }
                                 
-                                                            Text {
+                                                            StyledText {
                                                                 text: "CPU"
                                                                 font.pixelSize: 15
                                                                 font.weight: Font.Medium
@@ -248,7 +261,7 @@ FocusScope {
                                 
                                                             Item { Layout.fillWidth: true }
                                 
-                                                            Text {
+                                                            StyledText {
                                                                 text: Math.round(ResourceUsage.cpuUsage * 100) + "%"
                                                                 font.pixelSize: 28
                                                                 font.weight: Font.Bold
@@ -272,31 +285,19 @@ FocusScope {
                                                     }
                                                 }                
                 // RAM Card
-                Rectangle {
+                RippleButton {
                     id: ramCard
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.minimumWidth: 0
                     Layout.preferredHeight: 140
-                    radius: 16
-                    color: root.cardColor
+                    buttonRadius: 16
+                    colBackground: root.cardColor
+                    colBackgroundHover: root.cardColorHover
+                    rippleEnabled: false
+                    pointingHandCursor: false
                     
-                    // M3 hover animation
-                    scale: ramCardMouse.containsMouse ? 1.02 : 1.0
-                    Behavior on scale {
-                        SpringAnimation {
-                            spring: root.m3SpringStiffness / 100
-                            damping: root.m3SpringDamping
-                            mass: root.m3SpringMass
-                        }
-                    }
-                    
-                    MouseArea {
-                        id: ramCardMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                    
-                    ColumnLayout {
+                    contentItem: ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 20
                         spacing: 12
@@ -304,21 +305,12 @@ FocusScope {
                         RowLayout {
                             spacing: 10
                             
-                            Rectangle {
-                                width: 32
-                                height: 32
-                                radius: 8
-                                color: Qt.rgba(root.ramColor.r, root.ramColor.g, root.ramColor.b, 0.2)
-                                
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "memory_alt"
-                                    iconSize: 18
-                                    color: root.ramColor
-                                }
+                            StatIconBadge {
+                                symbol: "memory_alt"
+                                tint: root.ramColor
                             }
                             
-                            Text {
+                            StyledText {
                                 text: "RAM"
                                 font.pixelSize: 15
                                 font.weight: Font.Medium
@@ -327,7 +319,7 @@ FocusScope {
                             
                             Item { Layout.fillWidth: true }
                             
-                            Text {
+                            StyledText {
                                 text: Math.round(ResourceUsage.memoryUsedPercentage * 100) + "%"
                                 font.pixelSize: 28
                                 font.weight: Font.Bold
@@ -340,12 +332,12 @@ FocusScope {
                         // RAM Info
                         RowLayout {
                             spacing: 16
-                            Text {
+                            StyledText {
                                 text: (ResourceUsage.memoryUsed / (1024 * 1024)).toFixed(1) + " GB Used"
                                 font.pixelSize: 13
                                 color: root.textSecondary
                             }
-                            Text {
+                            StyledText {
                                 text: (ResourceUsage.memoryTotal / (1024 * 1024)).toFixed(1) + " GB Total"
                                 font.pixelSize: 13
                                 color: root.textSecondary
@@ -353,48 +345,31 @@ FocusScope {
                         }
                         
                         // Progress bar
-                        Rectangle {
+                        StyledProgressBar {
                             Layout.fillWidth: true
-                            height: 8
-                            radius: 4
-                            color: Qt.rgba(1, 1, 1, 0.1)
-                            
-                            Rectangle {
-                                width: parent.width * Math.min(1, ResourceUsage.memoryUsedPercentage)
-                                height: parent.height
-                                radius: 4
-                                color: root.ramColor
-                            }
+                            valueBarHeight: 8
+                            valueBarGap: 0
+                            value: Math.min(1, ResourceUsage.memoryUsedPercentage)
+                            highlightColor: root.ramColor
+                            trackColor: Qt.rgba(1, 1, 1, 0.1)
                         }
                     }
                 }
                 
                 // Network Card
-                Rectangle {
+                RippleButton {
                     id: netCard
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.minimumWidth: 0
                     Layout.preferredHeight: 140
-                    radius: 16
-                    color: root.cardColor
+                    buttonRadius: 16
+                    colBackground: root.cardColor
+                    colBackgroundHover: root.cardColorHover
+                    rippleEnabled: false
+                    pointingHandCursor: false
                     
-                    // M3 hover animation
-                    scale: netCardMouse.containsMouse ? 1.02 : 1.0
-                    Behavior on scale {
-                        SpringAnimation {
-                            spring: root.m3SpringStiffness / 100
-                            damping: root.m3SpringDamping
-                            mass: root.m3SpringMass
-                        }
-                    }
-                    
-                    MouseArea {
-                        id: netCardMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                    
-                    ColumnLayout {
+                    contentItem: ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 20
                         spacing: 16
@@ -402,21 +377,12 @@ FocusScope {
                         RowLayout {
                             spacing: 10
                             
-                            Rectangle {
-                                width: 32
-                                height: 32
-                                radius: 8
-                                color: Qt.rgba(root.networkColor.r, root.networkColor.g, root.networkColor.b, 0.2)
-                                
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "language"
-                                    iconSize: 18
-                                    color: root.networkColor
-                                }
+                            StatIconBadge {
+                                symbol: "language"
+                                tint: root.networkColor
                             }
                             
-                            Text {
+                            StyledText {
                                 text: "Network"
                                 font.pixelSize: 15
                                 font.weight: Font.Medium
@@ -440,7 +406,7 @@ FocusScope {
                                         iconSize: 14
                                         color: root.ramColor
                                     }
-                                    Text {
+                                    StyledText {
                                         text: "DOWN"
                                         font.pixelSize: 11
                                         color: root.textSecondary
@@ -449,13 +415,13 @@ FocusScope {
                                 
                                 Row {
                                     spacing: 4
-                                    Text {
+                                    StyledText {
                                         text: root.formatSpeed(ResourceUsage.networkDownloadSpeed).value
                                         font.pixelSize: 22
                                         font.weight: Font.Bold
                                         color: root.textColor
                                     }
-                                    Text {
+                                    StyledText {
                                         text: root.formatSpeed(ResourceUsage.networkDownloadSpeed).unit
                                         font.pixelSize: 12
                                         color: root.textSecondary
@@ -475,7 +441,7 @@ FocusScope {
                                         iconSize: 14
                                         color: root.cpuColor
                                     }
-                                    Text {
+                                    StyledText {
                                         text: "UP"
                                         font.pixelSize: 11
                                         color: root.textSecondary
@@ -484,13 +450,13 @@ FocusScope {
                                 
                                 Row {
                                     spacing: 4
-                                    Text {
+                                    StyledText {
                                         text: root.formatSpeed(ResourceUsage.networkUploadSpeed).value
                                         font.pixelSize: 22
                                         font.weight: Font.Bold
                                         color: root.textColor
                                     }
-                                    Text {
+                                    StyledText {
                                         text: root.formatSpeed(ResourceUsage.networkUploadSpeed).unit
                                         font.pixelSize: 12
                                         color: root.textSecondary
@@ -515,7 +481,9 @@ FocusScope {
                     Layout.maximumWidth: 400
                     height: 44
                     radius: 22
-                    color: root.cardColor
+                    color: root.panelColor
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.08)
                     
                     RowLayout {
                         anchors.fill: parent
@@ -529,25 +497,25 @@ FocusScope {
                             color: root.textSecondary
                         }
                         
-                                                TextInput {
+                                                StyledTextInput {
                                                     id: searchInput
                                                     Layout.fillWidth: true
                                                     font.pixelSize: 14
-                                                    color: root.textColor
                                                     clip: true
                                                     selectByMouse: true
                                                     selectionColor: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.5)
                                                     selectedTextColor: Appearance.colors.colOnPrimary
                                                     onTextChanged: root.searchText = text
-                        
-                                                    Text {
+
+                                                    StyledText {
                                                         anchors.fill: parent
                                                         text: "Search processes..."
                                                         font.pixelSize: 14
                                                         color: root.textSecondary
                                                         visible: !searchInput.text && !searchInput.activeFocus
                                                     }
-                                                }                    }
+                                                }
+                    }
                 }
                 
                 Item { Layout.fillWidth: true }
@@ -610,7 +578,7 @@ FocusScope {
                                                                                     iconSize: 14
                                                                                     color: root.textColor
                                                                                 }
-                                                                                Text {
+                                                                                StyledText {
                                                                                     text: "Kill"
                                                                                     font.pixelSize: 12
                                                                                     font.weight: Font.Medium
@@ -619,175 +587,186 @@ FocusScope {
                                                                             }
                                                                         }                                }            }
             
-            // ========== TABLE HEADER ==========
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: 16
-                Layout.rightMargin: 16
-                spacing: 0
-                
-                Text { Layout.preferredWidth: 80; text: "PID"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary }
-                Text { Layout.fillWidth: true; text: "NAME"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary }
-                Text { Layout.preferredWidth: 100; text: "CPU %"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignHCenter }
-                Text { Layout.preferredWidth: 100; text: "MEMORY"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignHCenter }
-                Text { Layout.preferredWidth: 80; text: "USER"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignRight }
-            }
-            
-            // Separator
+            StyledRectangularShadow { target: processPanel }
+
             Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Qt.rgba(1, 1, 1, 0.08)
-            }
-            
-            // ========== PROCESS LIST ==========
-            ScrollView {
+                id: processPanel
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                clip: true
-                
-                ListView {
-                    id: processList
+                radius: 18
+                color: root.panelColor
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.08)
+
+                ColumnLayout {
                     anchors.fill: parent
-                    model: processModel
-                    spacing: 0
-                    reuseItems: true
-                    
-                    delegate: Rectangle {
-                        required property int index
-                        required property int pid
-                        required property string command
-                        required property string user
-                        required property double cpu
-                        required property double res_mb
-                        required property string icon
-                        
-                        width: processList.width
-                        height: 48
-                        color: root.selectedPid === pid ? Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.15) : 
-                               (delegateMouseArea.containsMouse ? Qt.rgba(1, 1, 1, 0.03) : "transparent")
-                        
-                        MouseArea {
-                            id: delegateMouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                    anchors.margins: 16
+                    spacing: 12
+
+                    // ========== TABLE HEADER ==========
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        StyledText { Layout.preferredWidth: 80; text: "PID"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary }
+                        StyledText { Layout.fillWidth: true; text: "NAME"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary }
+                        StyledText { Layout.preferredWidth: 100; text: "CPU %"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignHCenter }
+                        StyledText { Layout.preferredWidth: 100; text: "MEMORY"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignHCenter }
+                        StyledText { Layout.preferredWidth: 80; text: "USER"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignRight }
+                    }
+
+                    // Separator
+                    DashedBorder {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: Qt.rgba(1, 1, 1, 0.08)
+                        dashLength: 6
+                        gapLength: 6
+                        borderWidth: 1
+                    }
+
+                    // ========== PROCESS LIST ==========
+                    StyledListView {
+                        id: processList
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        spacing: 0
+                        reuseItems: true
+                        animateAppearance: false
+                        ScrollBar.vertical: StyledScrollBar {}
+                        model: processModel
+
+                        delegate: RippleButton {
+                            required property int index
+                            required property int pid
+                            required property string command
+                            required property string user
+                            required property double cpu
+                            required property double res_mb
+                            required property string processIcon
+
+                            width: processList.width
+                            implicitHeight: 48
+                            buttonRadius: 0
+                            toggled: root.selectedPid === pid
+                            colBackground: "transparent"
+                            colBackgroundHover: Qt.rgba(1, 1, 1, 0.03)
+                            colBackgroundToggled: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.15)
+                            colBackgroundToggledHover: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.2)
+                            rippleEnabled: false
+                            buttonText: ""
                             onClicked: root.selectedPid = (root.selectedPid === pid) ? -1 : pid
-                        }
-                        
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 16
-                            anchors.rightMargin: 16
-                            spacing: 0
-                            
-                            // PID
-                            Text { 
-                                Layout.preferredWidth: 80
-                                text: pid
-                                font.pixelSize: 13
-                                color: root.textSecondary
-                            }
-                            
-                            // Command with icon
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 10
-                                
-                                Rectangle {
-                                    width: 24
-                                    height: 24
-                                    radius: 4
-                                    color: Qt.rgba(1, 1, 1, 0.08)
-                                    
-                                    MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        text: (icon === "application-x-python" || icon.includes("code")) ? "code" :
-                                              (icon.includes("browser") || icon.includes("firefox") || icon.includes("chrome")) ? "language" :
-                                              (icon.includes("hyprland")) ? "grid_view" :
-                                              (icon === "system-run") ? "settings" :
-                                              (icon === "quickshell") ? "layers" :
-                                              "terminal"
-                                        iconSize: 14
-                                        color: root.textSecondary
+
+                            contentItem: RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 16
+                                spacing: 0
+
+                                StyledText {
+                                    Layout.preferredWidth: 80
+                                    text: pid
+                                    font.pixelSize: 13
+                                    color: root.textSecondary
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 24
+                                        height: 24
+                                        radius: 4
+                                        color: Qt.rgba(1, 1, 1, 0.08)
+
+                                        MaterialSymbol {
+                                            anchors.centerIn: parent
+                                            text: (processIcon === "application-x-python" || processIcon.includes("code")) ? "code" :
+                                                  (processIcon.includes("browser") || processIcon.includes("firefox") || processIcon.includes("chrome")) ? "language" :
+                                                  (processIcon.includes("hyprland")) ? "grid_view" :
+                                                  (processIcon === "system-run") ? "settings" :
+                                                  (processIcon === "quickshell") ? "layers" :
+                                                  "terminal"
+                                            iconSize: 14
+                                            color: root.textSecondary
+                                        }
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: command
+                                        font.pixelSize: 13
+                                        color: root.textColor
+                                        elide: Text.ElideRight
                                     }
                                 }
-                                
-                                Text { 
-                                    Layout.fillWidth: true
-                                    text: command
+
+                                StyledText {
+                                    Layout.preferredWidth: 100
+                                    text: cpu.toFixed(1)
+                                    font.pixelSize: 13
+                                    font.weight: cpu > 20 ? Font.Bold : Font.Normal
+                                    color: cpu > 50 ? "#ef4444" : (cpu > 20 ? root.ramColor : root.textColor)
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+
+                                StyledText {
+                                    Layout.preferredWidth: 100
+                                    text: res_mb ? res_mb.toFixed(0) : "0"
                                     font.pixelSize: 13
                                     color: root.textColor
-                                    elide: Text.ElideRight
+                                    horizontalAlignment: Text.AlignHCenter
+                                }
+
+                                StyledText {
+                                    Layout.preferredWidth: 80
+                                    text: user
+                                    font.pixelSize: 13
+                                    color: root.textSecondary
+                                    horizontalAlignment: Text.AlignRight
                                 }
                             }
-                            
-                            // CPU %
-                            Text { 
-                                Layout.preferredWidth: 100
-                                text: cpu.toFixed(1)
-                                font.pixelSize: 13
-                                font.weight: cpu > 20 ? Font.Bold : Font.Normal
-                                color: cpu > 50 ? "#ef4444" : (cpu > 20 ? root.ramColor : root.textColor)
-                                horizontalAlignment: Text.AlignHCenter
+
+                            DashedBorder {
+                                anchors.bottom: parent.bottom
+                                width: parent.width
+                                height: 1
+                                color: Qt.rgba(1, 1, 1, 0.04)
+                                dashLength: 4
+                                gapLength: 6
+                                borderWidth: 1
                             }
-                            
-                            // RAM MB
-                            Text { 
-                                Layout.preferredWidth: 100
-                                text: res_mb ? res_mb.toFixed(0) : "0"
-                                font.pixelSize: 13
-                                color: root.textColor
-                                horizontalAlignment: Text.AlignHCenter
+                        }
+                    }
+
+                    // ========== FOOTER ==========
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        StyledText {
+                            text: "Showing " + root.getFilteredProcesses().length + " processes"
+                            font.pixelSize: 12
+                            color: root.textSecondary
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        RowLayout {
+                            spacing: 6
+
+                            Circle {
+                                diameter: 8
+                                color: root.ramColor
                             }
-                            
-                            // User
-                            Text { 
-                                Layout.preferredWidth: 80
-                                text: user
-                                font.pixelSize: 13
+
+                            StyledText {
+                                text: "Refreshes every 2s"
+                                font.pixelSize: 12
                                 color: root.textSecondary
-                                horizontalAlignment: Text.AlignRight
                             }
                         }
-                        
-                        // Bottom border
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width: parent.width
-                            height: 1
-                            color: Qt.rgba(1, 1, 1, 0.04)
-                        }
-                    }
-                }
-            }
-            
-            // ========== FOOTER ==========
-            RowLayout {
-                Layout.fillWidth: true
-                
-                Text {
-                    text: "Showing " + root.getFilteredProcesses().length + " processes"
-                    font.pixelSize: 12
-                    color: root.textSecondary
-                }
-                
-                Item { Layout.fillWidth: true }
-                
-                RowLayout {
-                    spacing: 6
-                    
-                    Rectangle {
-                        width: 8
-                        height: 8
-                        radius: 4
-                        color: root.ramColor
-                    }
-                    
-                    Text {
-                        text: "Refreshes every 2s"
-                        font.pixelSize: 12
-                        color: root.textSecondary
                     }
                 }
             }
