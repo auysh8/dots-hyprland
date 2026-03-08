@@ -12,13 +12,16 @@ import Quickshell.Io
 
 FocusScope {
     id: root
+    signal closeRequested()
+    property bool isAppMode: false
+    
     component StatIconBadge: Rectangle {
         required property string symbol
         required property color tint
         width: 32
         height: 32
         radius: 8
-        color: Qt.rgba(tint.r, tint.g, tint.b, 0.2)
+        color: ColorUtils.applyAlpha(tint, 0.2)
         MaterialSymbol {
             anchors.centerIn: parent
             text: parent.symbol
@@ -33,9 +36,14 @@ FocusScope {
     property color panelColorHover: Appearance.colors.colLayer1Hover
     property color cardColor: Appearance.colors.colLayer2
     property color cardColorHover: Appearance.colors.colLayer2Hover
+    property color panelBorderColor: Appearance.colors.colLayer1Border
     property color textColor: Appearance.colors.colOnLayer0
     property color textSecondary: Appearance.colors.colSubtext
     property real cornerRadius: Appearance.rounding.large
+    readonly property int pidColumnWidth: 80
+    readonly property int metricColumnWidth: 100
+    readonly property int userColumnWidth: 80
+    readonly property int pidNameGap: 16
     
     // ========== M3 MOTION PRESETS ==========
     // Material 3 spring configurations
@@ -48,8 +56,8 @@ FocusScope {
     
     // Colors for stats - Using shell accent colors
     property color cpuColor: Appearance.colors.colPrimary
-    property color ramColor: Appearance.colors.colSecondary
-    property color networkColor: Appearance.colors.colTertiary
+    property color ramColor: Appearance.colors.colPrimary
+    property color networkColor: Appearance.colors.colPrimary
     
     // Process data
     property var processes: []
@@ -96,7 +104,6 @@ FocusScope {
         // Update existing & Add new
         for (var i = 0; i < count; i++) {
             var item = newData[i];
-            // Normalize collector schema for delegate consumption.
             if (!item.icon && item.processIcon) {
                 item.icon = item.processIcon;
             }
@@ -109,7 +116,6 @@ FocusScope {
         
         // Remove excess
         if (currentCount > count) {
-            // Remove from the end
             for (var j = currentCount - 1; j >= count; j--) {
                 processModel.remove(j);
             }
@@ -144,16 +150,18 @@ FocusScope {
     }
     
     // Background shadow
-    StyledRectangularShadow { target: background }
-    
+    StyledRectangularShadow { 
+        target: background
+        visible: !root.isAppMode
+    }
+
     Rectangle {
         id: background
         anchors.fill: parent
-        radius: root.cornerRadius
-        color: root.backgroundColor
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-        
+        radius: root.isAppMode ? (Appearance.rounding.windowRounding - 8) : root.cornerRadius
+        color: root.isAppMode ? Appearance.m3colors.m3surfaceContainerLow : root.backgroundColor
+        border.width: root.isAppMode ? 0 : 1
+        border.color: Appearance.colors.colLayer0Border        
         MouseArea {
             anchors.fill: parent
             z: -1
@@ -162,64 +170,49 @@ FocusScope {
         
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 28
+            anchors.margins: root.isAppMode ? 32 : 28
             spacing: 24
             
             // ========== HEADER ==========
-            RowLayout {
+            Item { // Titlebar
+                visible: !root.isAppMode
                 Layout.fillWidth: true
-                spacing: 16
-                
-                // Icon circle
-                Rectangle {
-                    width: 48
-                    height: 48
-                    radius: 24
-                    color: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.2)
-                    
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "monitoring"
-                        iconSize: 24
-                        color: root.cpuColor
+                Layout.fillHeight: false
+                implicitHeight: Math.max(titleText.implicitHeight, windowControlsRow.implicitHeight)
+                StyledText {
+                    id: titleText
+                    anchors {
+                        left: Config.options?.windows?.centerTitle ? undefined : parent.left
+                        horizontalCenter: Config.options?.windows?.centerTitle ? parent.horizontalCenter : undefined
+                        verticalCenter: parent.verticalCenter
+                        leftMargin: 12
+                    }
+                    color: Appearance.colors.colOnLayer0
+                    text: Translation.tr("System Monitor")
+                    font {
+                        family: Appearance.font.family.title
+                        pixelSize: Appearance.font.pixelSize.title
+                        variableAxes: Appearance.font.variableAxes.title
                     }
                 }
-                
-                Column {
-                    spacing: 2
-                    StyledText {
-                        text: "System Monitor"
-                        font.pixelSize: 20
-                        font.weight: Font.Bold
-                        color: root.textColor
-                    }
-                    StyledText {
-                        text: "Overview"
-                        font.pixelSize: 13
-                        color: root.textSecondary
+                RowLayout { // Window controls row
+                    id: windowControlsRow
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.right: parent.right
+                    RippleButton {
+                        buttonRadius: Appearance.rounding.full
+                        implicitWidth: 35
+                        implicitHeight: 35
+                        onClicked: root.closeRequested()
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            text: "close"
+                            iconSize: 20
+                        }
                     }
                 }
-                
-                Item { Layout.fillWidth: true }
-                
-                                // Close button
-                                RippleButton {
-                                    implicitWidth: 36
-                                    implicitHeight: 36
-                                    buttonRadius: 18
-                                    colBackground: "transparent"
-                                    colBackgroundHover: Qt.rgba(1, 1, 1, 0.1)
-                                    colRipple: root.textColor
-                
-                                    onClicked: Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "system-monitor", "close"])
-                
-                                    contentItem: MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        text: "close"
-                                        iconSize: 20
-                                        color: root.textColor
-                                    }
-                                }            }
+            }
             
             // ========== STAT CARDS ==========
             RowLayout {
@@ -241,7 +234,10 @@ FocusScope {
                                 
                                                     contentItem: ColumnLayout {
                                                         anchors.fill: parent
-                                                        anchors.margins: 20
+                                                        anchors.leftMargin: 20
+                                                        anchors.rightMargin: 20
+                                                        anchors.topMargin: 18
+                                                        anchors.bottomMargin: 24
                                                         spacing: 12
                                 
                                                         RowLayout {
@@ -299,7 +295,10 @@ FocusScope {
                     
                     contentItem: ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 20
+                        anchors.leftMargin: 20
+                        anchors.rightMargin: 20
+                        anchors.topMargin: 18
+                        anchors.bottomMargin: 24
                         spacing: 12
                         
                         RowLayout {
@@ -351,8 +350,9 @@ FocusScope {
                             valueBarGap: 0
                             value: Math.min(1, ResourceUsage.memoryUsedPercentage)
                             highlightColor: root.ramColor
-                            trackColor: Qt.rgba(1, 1, 1, 0.1)
+                            trackColor: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.1)
                         }
+
                     }
                 }
                 
@@ -371,7 +371,10 @@ FocusScope {
                     
                     contentItem: ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 20
+                        anchors.leftMargin: 20
+                        anchors.rightMargin: 20
+                        anchors.topMargin: 18
+                        anchors.bottomMargin: 24
                         spacing: 16
                         
                         RowLayout {
@@ -404,7 +407,7 @@ FocusScope {
                                     MaterialSymbol {
                                         text: "download"
                                         iconSize: 14
-                                        color: root.ramColor
+                                        color: root.networkColor
                                     }
                                     StyledText {
                                         text: "DOWN"
@@ -419,7 +422,7 @@ FocusScope {
                                         text: root.formatSpeed(ResourceUsage.networkDownloadSpeed).value
                                         font.pixelSize: 22
                                         font.weight: Font.Bold
-                                        color: root.textColor
+                                        color: root.networkColor
                                     }
                                     StyledText {
                                         text: root.formatSpeed(ResourceUsage.networkDownloadSpeed).unit
@@ -439,7 +442,7 @@ FocusScope {
                                     MaterialSymbol {
                                         text: "upload"
                                         iconSize: 14
-                                        color: root.cpuColor
+                                        color: root.networkColor
                                     }
                                     StyledText {
                                         text: "UP"
@@ -454,7 +457,7 @@ FocusScope {
                                         text: root.formatSpeed(ResourceUsage.networkUploadSpeed).value
                                         font.pixelSize: 22
                                         font.weight: Font.Bold
-                                        color: root.textColor
+                                        color: root.networkColor
                                     }
                                     StyledText {
                                         text: root.formatSpeed(ResourceUsage.networkUploadSpeed).unit
@@ -466,6 +469,7 @@ FocusScope {
                                 }
                             }
                         }
+
                     }
                 }
             }
@@ -475,18 +479,21 @@ FocusScope {
                 Layout.fillWidth: true
                 spacing: 16
                 
-                // Search field
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.maximumWidth: 400
-                    height: 44
-                    radius: 22
-                    color: root.panelColor
-                    border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.08)
-                    
-                    RowLayout {
-                        anchors.fill: parent
+                                // Search field
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.maximumWidth: 400
+                                    height: 44
+                                    radius: 22
+                                    color: searchInput.activeFocus ? Appearance.colors.colLayer3 : root.cardColor
+                
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.IBeamCursor
+                                        onClicked: searchInput.forceActiveFocus()
+                                    }
+                
+                                    RowLayout {                        anchors.fill: parent
                         anchors.leftMargin: 16
                         anchors.rightMargin: 16
                         spacing: 12
@@ -497,24 +504,48 @@ FocusScope {
                             color: root.textSecondary
                         }
                         
-                                                StyledTextInput {
-                                                    id: searchInput
-                                                    Layout.fillWidth: true
-                                                    font.pixelSize: 14
-                                                    clip: true
-                                                    selectByMouse: true
-                                                    selectionColor: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.5)
-                                                    selectedTextColor: Appearance.colors.colOnPrimary
-                                                    onTextChanged: root.searchText = text
+                        StyledTextInput {
+                            id: searchInput
+                            Layout.fillWidth: true
+                            font.pixelSize: 14
+                            clip: true
+                            selectByMouse: true
+                            selectionColor: ColorUtils.applyAlpha(root.cpuColor, 0.5)
+                            selectedTextColor: Appearance.colors.colOnPrimary
+                            onTextChanged: root.searchText = text
 
-                                                    StyledText {
-                                                        anchors.fill: parent
-                                                        text: "Search processes..."
-                                                        font.pixelSize: 14
-                                                        color: root.textSecondary
-                                                        visible: !searchInput.text && !searchInput.activeFocus
-                                                    }
-                                                }
+                            StyledText {
+                                anchors.fill: parent
+                                text: "Search processes..."
+                                font.pixelSize: 14
+                                color: root.textSecondary
+                                visible: !searchInput.text && !searchInput.activeFocus
+                            }
+                        }
+
+                        RippleButton {
+                            Layout.alignment: Qt.AlignVCenter
+                            visible: searchInput.text.length > 0
+                            Layout.preferredWidth: 24
+                            Layout.preferredHeight: 24
+                            buttonRadius: 12
+                            padding: 0
+                            colBackground: "transparent"
+                            colBackgroundHover: Appearance.colors.colLayer1Hover
+
+                            onClicked: {
+                                searchInput.text = "";
+                                searchInput.forceActiveFocus();
+                            }
+
+                            contentItem: MaterialSymbol {
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                text: "close"
+                                iconSize: 16
+                                color: root.textSecondary
+                            }
+                        }
                     }
                 }
                 
@@ -554,7 +585,8 @@ FocusScope {
                                     implicitWidth: 80
                                     implicitHeight: 32
                                     buttonRadius: 16
-                                    colBackground: root.selectedPid > 0 ? Qt.rgba(0.9, 0.3, 0.3, 1) : root.cardColor
+                                    colBackground: root.selectedPid > 0 ? Appearance.colors.colError : root.cardColor
+                                    colBackgroundHover: root.selectedPid > 0 ? Appearance.colors.colError : root.cardColorHover
                                     colRipple: root.textColor
                                     opacity: root.selectedPid > 0 ? 1 : 0.5
                                     enabled: root.selectedPid > 0
@@ -566,63 +598,119 @@ FocusScope {
                 
                                                                         contentItem: Item {
                                                                             implicitWidth: killRow.implicitWidth
-                                                                            implicitHeight: killRow.implicitHeight
-                                    
+                                                                            implicitHeight: Math.max(14, killText.implicitHeight)
+
                                                                             RowLayout {
                                                                                 id: killRow
                                                                                 anchors.centerIn: parent
                                                                                 spacing: 6
-                                    
+
                                                                                 MaterialSymbol {
-                                                                                    text: "close"
+                                                                                    Layout.alignment: Qt.AlignVCenter
+                                                                                    text: "block"
                                                                                     iconSize: 14
-                                                                                    color: root.textColor
+                                                                                    color: root.selectedPid > 0 ? Appearance.colors.colOnError : root.textSecondary
                                                                                 }
                                                                                 StyledText {
+                                                                                    id: killText
+                                                                                    Layout.alignment: Qt.AlignVCenter
+                                                                                    verticalAlignment: Text.AlignVCenter
                                                                                     text: "Kill"
                                                                                     font.pixelSize: 12
                                                                                     font.weight: Font.Medium
-                                                                                    color: root.textColor
+                                                                                    color: root.selectedPid > 0 ? Appearance.colors.colOnError : root.textSecondary
                                                                                 }
                                                                             }
                                                                         }                                }            }
             
-            StyledRectangularShadow { target: processPanel }
-
             Rectangle {
                 id: processPanel
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 radius: 18
-                color: root.panelColor
-                border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.08)
+                color: root.cardColor
 
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 16
                     spacing: 12
 
-                    // ========== TABLE HEADER ==========
+                    // Sticky header (stays fixed while list scrolls)
                     RowLayout {
                         Layout.fillWidth: true
+                        Layout.leftMargin: 16
+                        Layout.rightMargin: 16
                         spacing: 0
 
-                        StyledText { Layout.preferredWidth: 80; text: "PID"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary }
-                        StyledText { Layout.fillWidth: true; text: "NAME"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary }
-                        StyledText { Layout.preferredWidth: 100; text: "CPU %"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignHCenter }
-                        StyledText { Layout.preferredWidth: 100; text: "MEMORY"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignHCenter }
-                        StyledText { Layout.preferredWidth: 80; text: "USER"; font.pixelSize: 12; font.weight: Font.Medium; color: root.textSecondary; horizontalAlignment: Text.AlignRight }
-                    }
+                        Item {
+                            Layout.preferredWidth: root.pidColumnWidth
+                            StyledText {
+                                anchors.fill: parent
+                                text: "PID"
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                color: root.textSecondary
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
 
-                    // Separator
-                    DashedBorder {
-                        Layout.fillWidth: true
-                        height: 1
-                        color: Qt.rgba(1, 1, 1, 0.08)
-                        dashLength: 6
-                        gapLength: 6
-                        borderWidth: 1
+                        Item {
+                            Layout.preferredWidth: root.pidNameGap
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            StyledText {
+                                anchors.fill: parent
+                                anchors.leftMargin: 34
+                                text: "NAME"
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                color: root.textSecondary
+                                horizontalAlignment: Text.AlignLeft
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        Item {
+                            Layout.preferredWidth: root.metricColumnWidth
+                            StyledText {
+                                anchors.fill: parent
+                                text: "CPU %"
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                color: root.textSecondary
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        Item {
+                            Layout.preferredWidth: root.metricColumnWidth
+                            StyledText {
+                                anchors.fill: parent
+                                text: "MEMORY"
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                color: root.textSecondary
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        Item {
+                            Layout.preferredWidth: root.userColumnWidth
+                            StyledText {
+                                anchors.fill: parent
+                                text: "USER"
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                color: root.textSecondary
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
                     }
 
                     // ========== PROCESS LIST ==========
@@ -632,7 +720,7 @@ FocusScope {
                         Layout.fillHeight: true
                         clip: true
                         spacing: 0
-                        reuseItems: true
+                        reuseItems: false
                         animateAppearance: false
                         ScrollBar.vertical: StyledScrollBar {}
                         model: processModel
@@ -646,16 +734,17 @@ FocusScope {
                             required property double res_mb
                             required property string processIcon
 
+                            // Remove local redeclarations, we just use the required properties injected by ListModel directly.
+
                             width: processList.width
                             implicitHeight: 48
-                            buttonRadius: 0
-                            toggled: root.selectedPid === pid
-                            colBackground: "transparent"
-                            colBackgroundHover: Qt.rgba(1, 1, 1, 0.03)
-                            colBackgroundToggled: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.15)
-                            colBackgroundToggledHover: Qt.rgba(root.cpuColor.r, root.cpuColor.g, root.cpuColor.b, 0.2)
-                            rippleEnabled: false
                             buttonText: ""
+                            colBackground: root.selectedPid === pid
+                                ? ColorUtils.applyAlpha(root.cpuColor, 0.12)
+                                : "transparent"
+                            colBackgroundHover: root.selectedPid === pid
+                                ? ColorUtils.applyAlpha(root.cpuColor, 0.16)
+                                : "transparent"
                             onClicked: root.selectedPid = (root.selectedPid === pid) ? -1 : pid
 
                             contentItem: RowLayout {
@@ -664,11 +753,20 @@ FocusScope {
                                 anchors.rightMargin: 16
                                 spacing: 0
 
-                                StyledText {
-                                    Layout.preferredWidth: 80
-                                    text: pid
-                                    font.pixelSize: 13
-                                    color: root.textSecondary
+                                Item {
+                                    Layout.preferredWidth: root.pidColumnWidth
+                                    StyledText {
+                                        anchors.fill: parent
+                                        text: pid
+                                        font.pixelSize: 13
+                                        color: root.textSecondary
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+
+                                Item {
+                                    Layout.preferredWidth: root.pidNameGap
                                 }
 
                                 RowLayout {
@@ -679,7 +777,7 @@ FocusScope {
                                         width: 24
                                         height: 24
                                         radius: 4
-                                        color: Qt.rgba(1, 1, 1, 0.08)
+                                        color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.08)
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
@@ -703,41 +801,44 @@ FocusScope {
                                     }
                                 }
 
-                                StyledText {
-                                    Layout.preferredWidth: 100
-                                    text: cpu.toFixed(1)
-                                    font.pixelSize: 13
-                                    font.weight: cpu > 20 ? Font.Bold : Font.Normal
-                                    color: cpu > 50 ? "#ef4444" : (cpu > 20 ? root.ramColor : root.textColor)
-                                    horizontalAlignment: Text.AlignHCenter
+                                Item {
+                                    Layout.preferredWidth: root.metricColumnWidth
+                                    StyledText {
+                                        anchors.fill: parent
+                                        text: cpu.toFixed(1)
+                                        font.pixelSize: 13
+                                        font.weight: cpu > 20 ? Font.Bold : Font.Normal
+                                        color: cpu > 50 ? Appearance.colors.colError : (cpu > 20 ? root.ramColor : root.textColor)
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
 
-                                StyledText {
-                                    Layout.preferredWidth: 100
-                                    text: res_mb ? res_mb.toFixed(0) : "0"
-                                    font.pixelSize: 13
-                                    color: root.textColor
-                                    horizontalAlignment: Text.AlignHCenter
+                                Item {
+                                    Layout.preferredWidth: root.metricColumnWidth
+                                    StyledText {
+                                        anchors.fill: parent
+                                        text: res_mb ? res_mb.toFixed(0) : "0"
+                                        font.pixelSize: 13
+                                        color: root.textColor
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
 
-                                StyledText {
-                                    Layout.preferredWidth: 80
-                                    text: user
-                                    font.pixelSize: 13
-                                    color: root.textSecondary
-                                    horizontalAlignment: Text.AlignRight
+                                Item {
+                                    Layout.preferredWidth: root.userColumnWidth
+                                    StyledText {
+                                        anchors.fill: parent
+                                        text: user
+                                        font.pixelSize: 13
+                                        color: root.textSecondary
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
                                 }
                             }
 
-                            DashedBorder {
-                                anchors.bottom: parent.bottom
-                                width: parent.width
-                                height: 1
-                                color: Qt.rgba(1, 1, 1, 0.04)
-                                dashLength: 4
-                                gapLength: 6
-                                borderWidth: 1
-                            }
                         }
                     }
 
@@ -770,6 +871,7 @@ FocusScope {
                     }
                 }
             }
+
         }
     }
 }

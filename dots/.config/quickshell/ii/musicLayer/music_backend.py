@@ -419,6 +419,7 @@ class MusicBackend:
         self.current_video_id = None
         self._state_lock = threading.Lock()
         self._playback_token = 0
+        self._ytdlp_proc = None  # track current yt-dlp subprocess for cancellation
         self.cache_dir = os.path.expanduser("~/.cache/quickshell/media/coverart")
         os.makedirs(self.cache_dir, exist_ok=True)
         self._home_cache = []
@@ -628,21 +629,23 @@ class MusicBackend:
                 title = artist_name
             if not title:
                 title = item.get("name") or "Unknown Title"
-            thumbnails = item.get("thumbnails") or item.get("thumbnail") or []
-            art_url = thumbnails[-1].get("url") if thumbnails else ""
-            
-            # FORCE HIGH RES: YouTube often returns low-res URLs like =w120-h120.
-            if art_url:
-                if "=w" in art_url and "-h" in art_url:
-                    art_url = re.sub(r"=w\d+-h\d+", "=w544-h544", art_url)
-                elif "googleusercontent.com" in art_url and "=s" in art_url:
-                    art_url = re.sub(r"=s\d+", "=s544", art_url)
+            art_url = self._extract_art_url(item)
+
+            # Extract artist channelId if available
+            artist_id = ""
+            if isinstance(artists_list, list) and artists_list:
+                artist_id = artists_list[0].get("id", "") or artists_list[0].get("browseId", "")
+
+            final_id = item.get("videoId") or item.get("browseId")
+            if not final_id and item.get("resultType") in ["artist", "profile"] and artist_id:
+                final_id = artist_id
 
             return {
                 "id": str(index_offset),
-                "videoId": item.get("videoId") or item.get("browseId"),
+                "videoId": final_id,
                 "title": title,
                 "artist": artist_name,
+                "artistId": artist_id,
                 "duration": self._extract_duration(item),
                 "artUrl": art_url,
             }
@@ -664,6 +667,24 @@ class MusicBackend:
 
     def _item_video_id(self, item):
         return item.get("videoId") or item.get("browseId")
+
+    def _extract_art_url(self, item, size=544):
+        """Extract thumbnail URL from item and force high resolution."""
+        thumbnails = item.get("thumbnails") or item.get("thumbnail") or []
+        if isinstance(thumbnails, dict):
+            thumbnails = thumbnails.get("thumbnails", [])
+        if isinstance(thumbnails, list) and thumbnails:
+            last_thumb = thumbnails[-1]
+            art = last_thumb.get("url", "") if isinstance(last_thumb, dict) else ""
+        else:
+            art = ""
+        # Force high-res
+        if art:
+            if "=w" in art and "-h" in art:
+                art = re.sub(r"=w\d+-h\d+", f"=w{size}-h{size}", art)
+            elif "googleusercontent.com" in art and "=s" in art:
+                art = re.sub(r"=s\d+", f"=s{size}", art)
+        return art
 
     def _append_unique(self, target, source, cap=96):
         if not source:
@@ -925,6 +946,7 @@ class MusicBackend:
                 continue
             rt = item.get("resultType")
             if rt == "artist":
+                self.log(f"[DEBUG] Artist card: videoId={fmt.get('videoId')}, title={fmt.get('title')}, browseId={item.get('browseId')}")
                 artists.append(fmt)
             elif rt == "album":
                 albums.append(fmt)
@@ -953,9 +975,36 @@ class MusicBackend:
     # ── playback ──────────────────────────────────────────────────────────────
     def play(self, video_id, title, artist, art_url):
         self.log(f"Playing: {title} by {artist}")
+        # Ensure high-res art URL
+        if art_url:
+            if "=w" in art_url and "-h" in art_url:
+                art_url = re.sub(r"=w\d+-h\d+", "=w544-h544", art_url)
+            elif "googleusercontent.com" in art_url and "=s" in art_url:
+                art_url = re.sub(r"=s\d+", "=s544", art_url)
         self._push_play_stack(video_id)
         
+        # Capture and reset auto-advancing flag before spawning thread
+        # so each play task gets its own copy and rapid clicks don't interfere
+        is_auto = getattr(self, "_is_auto_advancing", False)
+        self._is_auto_advancing = False
+        
+        # Kill any in-flight yt-dlp fetch from previous play command
+        try:
+            if self._ytdlp_proc and self._ytdlp_proc.poll() is None:
+                self._ytdlp_proc.kill()
+                self._ytdlp_proc = None
+        except Exception:
+            pass
+        
         self.stop(notify=False)
+        
+        self.send_response({
+            "type": "track_loading",
+            "videoId": video_id,
+            "title": title,
+            "artist": artist,
+            "artUrl": art_url
+        })
         
         with self._state_lock:
             self._playback_token += 1
@@ -963,7 +1012,7 @@ class MusicBackend:
             
         threading.Thread(
             target=self._play_task,
-            args=(video_id, title, artist, art_url, token),
+            args=(video_id, title, artist, art_url, token, is_auto),
             daemon=True,
         ).start()
 
@@ -985,8 +1034,16 @@ class MusicBackend:
         except Exception as e:
             self.log(f"Failed gapless prefetch: {e}")
 
-    def _play_task(self, video_id, title, artist, art_url, token):
+    def _play_task(self, video_id, title, artist, art_url, token, is_auto=False):
         try:
+            # Debounce: wait briefly so rapid next-button clicks settle
+            # before starting expensive yt-dlp work. Only the last click survives.
+            time.sleep(0.25)
+
+            with self._state_lock:
+                if self._playback_token != token:
+                    return
+
             # Check if this is a playlist/album ID (deferred from explore section)
             if video_id and (video_id.startswith("OLAK") or video_id.startswith("PL") or video_id.startswith("VL")):
                 self.log(f"Resolving playlist/album lead track for: {video_id}")
@@ -1004,16 +1061,22 @@ class MusicBackend:
                 if self._playback_token != token:
                     return
 
-            # 1. Get stream URL
+            # 1. Get stream URL (art download deferred to after mpv launch to save bandwidth)
             with self._state_lock:
                 stream_url = self._stream_cache.pop(video_id, None)
             
+            # Compute art file path (download happens later, may already be cached)
+            art_file_path = ""
+            if art_url:
+                digest = hashlib.md5(art_url.encode()).hexdigest()
+                art_file_path = os.path.join(self.cache_dir, digest)
+
             if stream_url:
                 self.log(f"Using instant pre-fetched gapless stream URL")
             else:
                 self.log("Fetching stream URL...")
                 ytdlp = self._resolve_ytdlp_path()
-                result = subprocess.run(
+                proc = subprocess.Popen(
                     [
                         ytdlp,
                         "-f",
@@ -1022,22 +1085,28 @@ class MusicBackend:
                         "--no-warnings",
                         f"https://music.youtube.com/watch?v={video_id}",
                     ],
-                    capture_output=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
-                    check=True,
-                    timeout=30,
                 )
-                stream_url = result.stdout.strip().split("\n")[-1].strip()
+                self._ytdlp_proc = proc
+                stdout, _ = proc.communicate(timeout=30)
+                self._ytdlp_proc = None
+                
+                if proc.returncode != 0:
+                    raise ValueError(f"yt-dlp exited with code {proc.returncode}")
+                stream_url = stdout.strip().split("\n")[-1].strip()
+                
+                # Recheck token after expensive fetch — bail if superseded
+                with self._state_lock:
+                    if self._playback_token != token:
+                        self.log("Playback task aborted after stream fetch.")
+                        return
+                        
             if not stream_url:
                 raise ValueError("yt-dlp returned empty URL")
             self.log("Stream URL obtained")
-
-            # 2. Download art (blocking)
-            art_file_path = ""
-            if art_url:
-                digest = hashlib.md5(art_url.encode()).hexdigest()
-                art_file_path = os.path.join(self.cache_dir, digest)
-                self._download_art(art_url, art_file_path)
 
             # Persist metadata for pause/resume re-broadcasts
             self._current_title = title
@@ -1045,16 +1114,15 @@ class MusicBackend:
             self._current_art = art_file_path
             self._current_art_url = art_url
 
-            # Also use this as our queue
-            # Make sure we only populate queue if we didn't just pop from it explicitly
-            if not getattr(self, "_is_auto_advancing", False):
-                threading.Thread(target=self._fetch_queue_task, args=(video_id,), daemon=True).start()
-            self._is_auto_advancing = False
-
             with self._state_lock:
                 if self._playback_token != token:
                     self.log("Playback task aborted, another play command was issued.")
                     return
+
+            # Fetch radio queue only for fresh (non-auto-advancing) plays
+            # and only after token check to prevent stale tasks from replacing the queue
+            if not is_auto:
+                threading.Thread(target=self._fetch_queue_task, args=(video_id,), daemon=True).start()
 
             # 3. Build mpv command — pure subprocess, no libmpv
             self._cleanup_socket()
@@ -1098,35 +1166,41 @@ class MusicBackend:
             if next_id:
                 threading.Thread(target=self._prefetch_stream_url, args=(next_id,), daemon=True).start()
 
-            # 4. Sync playback to YouTube Music history if authenticated
-            is_liked = False
-            try:
-                if os.path.exists(self.oauth_path) or os.path.exists(self.headers_path):
-                    self.log(f"Syncing '{title}' to YouTube Music history...")
-                    # Check metadata cache first
-                    cached_meta = self._song_meta_cache.get(video_id)
-                    if cached_meta and (time.time() - cached_meta["ts"]) < self._song_meta_cache_ttl:
-                        self.log(f"Using cached song metadata for {video_id}")
-                        song_data = cached_meta["data"]
-                        is_liked = cached_meta["is_liked"]
-                    else:
-                        song_data = self.ytm.get_song(video_id)
-                        if song_data and song_data.get('videoDetails', {}).get('likeStatus') == 'LIKE':
-                            is_liked = True
-                        # Store in cache
-                        self._song_meta_cache[video_id] = {
-                            "data": song_data,
-                            "is_liked": is_liked,
-                            "ts": time.time(),
-                        }
-                        
-                    if song_data and getattr(self.ytm, 'add_history_item', None):
-                        self.ytm.add_history_item(song_data)
-                        self.log("History sync successful.")
-            except Exception as e:
-                self.log(f"Failed to sync history to YouTube Music: {e}")
+            # Download art in background (for MPRIS + ColorQuantizer, doesn't block playback)
+            def _deferred_art_download():
+                if art_url and art_file_path:
+                    if self._download_art(art_url, art_file_path):
+                        # Notify QML so ColorQuantizer can extract colors
+                        self.send_response({
+                            "type": "art_downloaded",
+                            "videoId": video_id,
+                            "path": art_file_path,
+                        })
+                        # Update MPRIS with local art path
+                        self.mpris.update(
+                            status="Playing",
+                            title=title,
+                            artist=artist,
+                            art_local_path=art_file_path,
+                            video_id=video_id,
+                            art_url=art_url,
+                        )
+            threading.Thread(target=_deferred_art_download, daemon=True).start()
 
-            # 5. Publish MPRIS on D-Bus and update metadata
+            # 4. IMMEDIATELY notify QML — don't wait for history sync
+            self.send_response(
+                {
+                    "type": "playback_started",
+                    "videoId": video_id,
+                    "title": title,
+                    "artist": artist,
+                    "artUrl": art_url,
+                    "artLocalPath": art_file_path,
+                    "isLiked": False,  # updated async below
+                }
+            )
+
+            # 5. Publish MPRIS on D-Bus
             self.mpris.publish()
             self.mpris.update(
                 status="Playing",
@@ -1136,6 +1210,35 @@ class MusicBackend:
                 video_id=video_id,
                 art_url=art_url,
             )
+
+            # 6. History sync + like check in background (non-blocking)
+            def _sync_history():
+                try:
+                    if os.path.exists(self.oauth_path) or os.path.exists(self.headers_path):
+                        self.log(f"Syncing '{title}' to YouTube Music history...")
+                        cached_meta = self._song_meta_cache.get(video_id)
+                        if cached_meta and (time.time() - cached_meta["ts"]) < self._song_meta_cache_ttl:
+                            song_data = cached_meta["data"]
+                            is_liked = cached_meta["is_liked"]
+                        else:
+                            song_data = self.ytm.get_song(video_id)
+                            is_liked = bool(song_data and song_data.get('videoDetails', {}).get('likeStatus') == 'LIKE')
+                            self._song_meta_cache[video_id] = {
+                                "data": song_data,
+                                "is_liked": is_liked,
+                                "ts": time.time(),
+                            }
+                            
+                        if song_data and getattr(self.ytm, 'add_history_item', None):
+                            self.ytm.add_history_item(song_data)
+                            self.log("History sync successful.")
+                        
+                        # Send liked status update to QML
+                        if is_liked:
+                            self.send_response({"type": "like_status", "videoId": video_id, "isLiked": True})
+                except Exception as e:
+                    self.log(f"Failed to sync history to YouTube Music: {e}")
+            threading.Thread(target=_sync_history, daemon=True).start()
 
             # Wait for mpv to resolve duration, then update metadata again to push length to clients
             def _wait_for_duration():
@@ -1164,7 +1267,7 @@ class MusicBackend:
                         break
             threading.Thread(target=_wait_for_duration, daemon=True).start()
 
-            # 5b. Periodic position updates to QML
+            # 7. Periodic position updates to QML
             def _poll_position():
                 while True:
                     time.sleep(1)
@@ -1183,7 +1286,7 @@ class MusicBackend:
                         })
             threading.Thread(target=_poll_position, daemon=True).start()
 
-            # 5. Monitor process exit in a thread
+            # 8. Monitor process exit for auto-advance
             def _monitor():
                 code = process.wait()
                 self.log(f"mpv exited with code {code}")
@@ -1226,23 +1329,11 @@ class MusicBackend:
                             self.log(f"Repeat All (Empty Queue): Replaying {title}")
                             self.play(video_id, title, artist, art_url)
                         else:
-                            self.mpris.update("Stopped")
-                            self.send_response({"type": "playback_stopped"})
+                            # Queue empty — auto-fetch more similar songs (radio mode)
+                            self.log("Queue empty, fetching more radio tracks...")
+                            threading.Thread(target=self._auto_continue, args=(video_id,), daemon=True).start()
 
             threading.Thread(target=_monitor, daemon=True).start()
-
-            # 6. Notify QML
-            self.send_response(
-                {
-                    "type": "playback_started",
-                    "videoId": video_id,
-                    "title": title,
-                    "artist": artist,
-                    "artUrl": art_url,
-                    "artLocalPath": art_file_path,
-                    "isLiked": is_liked,
-                }
-            )
 
         except subprocess.CalledProcessError as e:
             self.log(f"yt-dlp error: {e.stderr}")
@@ -1350,15 +1441,6 @@ class MusicBackend:
                 if not vid or vid == video_id:
                     continue
                     
-                art = ""
-                thumbnails = item.get("thumbnail") or item.get("thumbnails") or []
-                if isinstance(thumbnails, dict):
-                    thumbnails = thumbnails.get("thumbnails", [])
-                if isinstance(thumbnails, list) and len(thumbnails) > 0:
-                    last_thumb = thumbnails[-1]
-                    if isinstance(last_thumb, dict):
-                        art = last_thumb.get("url", "")
-                    
                 artist_name = "Unknown"
                 artists_list = item.get("artists", [])
                 if isinstance(artists_list, list) and artists_list:
@@ -1368,7 +1450,7 @@ class MusicBackend:
                     "videoId": vid,
                     "title": item.get("title", "Unknown"),
                     "artist": artist_name,
-                    "artUrl": art,
+                    "artUrl": self._extract_art_url(item),
                     "duration": self._extract_duration(item) or ""
                 })
                 
@@ -1401,18 +1483,54 @@ class MusicBackend:
             self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"])
             return
 
-        # 2. Fallback to inline fetch (if queue was empty)
-        if not vid:
-            return
-        tracks = self.fetch_playlist(vid)
-        for i, t in enumerate(tracks):
-            if t.get("videoId") == vid and i + 1 < len(tracks):
-                fmt = self.format_track_item(tracks[i + 1], i + 1)
-                if fmt:
-                    self.play(
-                        fmt["videoId"], fmt["title"], fmt["artist"], fmt["artUrl"]
-                    )
-                return
+        # 2. Queue empty — auto-fetch more similar songs (radio mode)
+        if vid:
+            self.log("Queue empty on next_track, fetching radio...")
+            threading.Thread(target=self._auto_continue, args=(vid,), daemon=True).start()
+
+    def _auto_continue(self, seed_video_id, title=None, artist=None, art_url=None):
+        """Fetch radio tracks for seed_video_id, populate queue, and play the first one."""
+        try:
+            self.send_response({"type": "queue_fetching"})
+            self.log(f"Auto-continue: fetching radio for {seed_video_id}")
+            data = self.ytm.get_watch_playlist(videoId=seed_video_id, limit=20)
+            tracks = data.get("tracks", [])
+            queue = []
+
+            for item in tracks:
+                vid = self._item_video_id(item)
+                if not vid or vid == seed_video_id:
+                    continue
+
+                artist_name = "Unknown"
+                artists_list = item.get("artists", [])
+                if isinstance(artists_list, list) and artists_list:
+                    artist_name = artists_list[0].get("name", "Unknown")
+
+                queue.append({
+                    "videoId": vid,
+                    "title": item.get("title", "Unknown"),
+                    "artist": artist_name,
+                    "artUrl": self._extract_art_url(item),
+                    "duration": self._extract_duration(item) or ""
+                })
+
+            if queue:
+                first = queue[0]
+                with self._state_lock:
+                    self._current_queue = queue[1:]
+                self.send_response({"type": "queue_updated", "queue": self._current_queue})
+                self.log(f"Auto-continue: playing {first['title']}, {len(self._current_queue)} more in queue")
+                self._is_auto_advancing = True
+                self.play(first["videoId"], first["title"], first["artist"], first["artUrl"])
+            else:
+                self.log("Auto-continue: no tracks found, stopping.")
+                self.mpris.update("Stopped")
+                self.send_response({"type": "playback_stopped"})
+        except Exception as e:
+            self.log(f"Auto-continue failed: {e}")
+            self.mpris.update("Stopped")
+            self.send_response({"type": "playback_stopped"})
 
     def prev_track(self):
         with self._state_lock:
@@ -1780,12 +1898,34 @@ class MusicBackend:
             "likedArt": liked_song_art
         })
 
-        # --- COMMUNITY PLAYLISTS (Based on History) ---
+        # --- COMMUNITY PLAYLISTS (From the community or fallback) ---
         community_playlists = []
-        if history_item:
+        try:
+            home_data = self.ytm.get_home(limit=10)
+            for shelf in home_data:
+                if "community" in str(shelf.get("title", "")).lower():
+                    for r in shelf.get("contents", [])[:8]:
+                        thumbs = r.get("thumbnails", [])
+                        art = thumbs[-1].get("url", "") if thumbs else ""
+                        if art and "=w" in art and "-h" in art:
+                            art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                        elif "googleusercontent.com" in art and "=s" in art:
+                            art = re.sub(r"=s\d+", "=s544", art)
+                        
+                        community_playlists.append({
+                            "id": str(r.get("playlistId") or ""),
+                            "title": str(r.get("title") or ""),
+                            "artist": str(r.get("description") or ""),
+                            "cover": str(art or "")
+                        })
+                    break
+        except Exception as e:
+            self.log(f"Failed to fetch community shelf from home: {e}")
+
+        if not community_playlists:
             try:
-                artist = history_item.get("artist", "")
-                title = history_item.get("title", "")
+                artist = history_item.get("artist", "") if history_item else ""
+                title = history_item.get("title", "") if history_item else ""
                 query = f"{artist} {title} community playlists" if artist and title else "popular community playlists"
                 results = self.ytm.search(query, filter="playlists", limit=6)
                 
@@ -1796,16 +1936,265 @@ class MusicBackend:
                         art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
                     
                     community_playlists.append({
-                        "id": r.get("browseId", ""),
-                        "title": r.get("title", ""),
-                        "artist": r.get("author", ""),
-                        "cover": art
+                        "id": str(r.get("browseId") or ""),
+                        "title": str(r.get("title") or ""),
+                        "artist": str(r.get("author") or ""),
+                        "cover": str(art or "")
                     })
             except Exception as e:
-                self.log(f"Failed to fetch community playlists: {e}")
+                self.log(f"Failed to search fallback community playlists: {e}")
         
         self.send_response({"type": "library_section", "section": "community_playlists", "items": community_playlists})
         self.log("Streamed library data complete.")
+
+    # ── artist ──────────────────────────────────────────────────────────────
+    def get_artist(self, channel_id):
+        threading.Thread(target=self._artist_task, args=(channel_id,), daemon=True).start()
+
+    def _artist_task(self, channel_id):
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                self.send_response({"type": "error", "message": "Connection error."})
+                return
+
+        try:
+            self.log(f"Fetching artist: {channel_id}")
+            data = self.ytm.get_artist(channel_id)
+            if not data:
+                raise ValueError("Artist not found.")
+
+            name = data.get("name", "Unknown Artist")
+            description = data.get("description", "")
+            subscribers = data.get("subscribers", "")
+            views = data.get("views", "")
+
+            # Thumbnail
+            thumbs = data.get("thumbnails", [])
+            thumb_url = self._extract_art_url(data) if thumbs else ""
+
+            # Top songs
+            songs_data = data.get("songs", {})
+            songs_browse_id = songs_data.get("browseId", "")
+            top_songs = []
+            for item in (songs_data.get("results", []) or []):
+                vid = item.get("videoId")
+                if not vid:
+                    continue
+                artist_name = "Unknown"
+                artists_list = item.get("artists", [])
+                if isinstance(artists_list, list) and artists_list:
+                    artist_name = artists_list[0].get("name", "Unknown")
+                top_songs.append({
+                    "videoId": vid,
+                    "title": item.get("title", "Unknown"),
+                    "artist": artist_name,
+                    "artUrl": self._extract_art_url(item),
+                    "duration": self._extract_duration(item) or "",
+                    "plays": item.get("views", ""),
+                })
+
+            # Albums
+            albums_data = data.get("albums", {})
+            albums_browse_id = albums_data.get("browseId", "")
+            albums_params = albums_data.get("params", "")
+            albums = []
+            for item in (albums_data.get("results", []) or []):
+                browse_id = item.get("browseId", "")
+                if not browse_id:
+                    continue
+                albums.append({
+                    "browseId": browse_id,
+                    "title": item.get("title", ""),
+                    "year": item.get("year", ""),
+                    "artUrl": self._extract_art_url(item),
+                    "type": item.get("type", "Album"),
+                })
+
+            # Singles
+            singles_data = data.get("singles", {})
+            singles_browse_id = singles_data.get("browseId", "")
+            singles_params = singles_data.get("params", "")
+            singles = []
+            for item in (singles_data.get("results", []) or []):
+                browse_id = item.get("browseId", "")
+                if not browse_id:
+                    continue
+                singles.append({
+                    "browseId": browse_id,
+                    "title": item.get("title", ""),
+                    "year": item.get("year", ""),
+                    "artUrl": self._extract_art_url(item),
+                    "type": "Single",
+                })
+
+            # Related artists
+            related_data = data.get("related", {})
+            related = []
+            for item in (related_data.get("results", []) or []):
+                bid = item.get("browseId", "")
+                if not bid:
+                    continue
+                related.append({
+                    "browseId": bid,
+                    "name": item.get("title", "") or item.get("name", ""),
+                    "subscribers": item.get("subscribers", ""),
+                    "artUrl": self._extract_art_url(item),
+                })
+
+            self.send_response({
+                "type": "artist_details",
+                "channelId": channel_id,
+                "name": name,
+                "description": description,
+                "subscribers": subscribers,
+                "views": views,
+                "thumbnailUrl": thumb_url,
+                "topSongs": top_songs,
+                "albums": albums,
+                "singles": singles,
+                "relatedArtists": related,
+                "songsBrowseId": songs_browse_id,
+                "albumsParams": albums_params,
+                "singlesParams": singles_params,
+            })
+            self.log(f"Artist loaded: {name} — {len(top_songs)} songs, {len(albums)} albums, {len(singles)} singles")
+
+        except Exception as e:
+            self.log(f"Failed to fetch artist {channel_id}: {e}")
+            self.send_response({"type": "error", "message": f"Couldn't load artist."})
+
+    def get_artist_items(self, channel_id, params, item_type):
+        threading.Thread(target=self._artist_items_task, args=(channel_id, params, item_type), daemon=True).start()
+
+    def _artist_items_task(self, channel_id, params, item_type):
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                return
+
+        try:
+            self.log(f"Fetching full artist {item_type} for {channel_id}")
+            results = []
+            try:
+                # This works if the result is a simple grid
+                results = self.ytm.get_artist_albums(channel_id, params)
+            except Exception as yt_err:
+                self.log(f"ytmusicapi get_artist_albums failed ({yt_err}), falling back to manual browse")
+                raw = self.ytm._send_request('browse', {'browseId': channel_id, 'params': params})
+                tabs = raw.get('contents', {}).get('singleColumnBrowseResultsRenderer', {}).get('tabs', [])
+                if tabs:
+                    content = tabs[0].get('tabRenderer', {}).get('content', {})
+                    sections = content.get('sectionListRenderer', {}).get('contents', [])
+                    for sec in sections:
+                        nodes = None
+                        if 'gridRenderer' in sec:
+                            nodes = sec['gridRenderer'].get('items', [])
+                        elif 'musicCarouselShelfRenderer' in sec:
+                            nodes = sec['musicCarouselShelfRenderer'].get('contents', [])
+                        
+                        if nodes:
+                            added_any = False
+                            for n in nodes:
+                                data = n.get('musicTwoRowItemRenderer')
+                                if not data:
+                                    continue
+                                bid = data.get('navigationEndpoint', {}).get('browseEndpoint', {}).get('browseId', '')
+                                title = "".join(r.get("text", "") for r in data.get("title", {}).get("runs", []))
+                                year_parts = []
+                                for r in data.get("subtitle", {}).get("runs", []):
+                                    t = r.get("text", "")
+                                    if t and t.strip() and t != "•":
+                                        year_parts.append(t.strip())
+                                
+                                t_val = year_parts[0] if len(year_parts) > 1 else (year_parts[0] if len(year_parts) == 1 else item_type.capitalize())
+                                
+                                results.append({
+                                    "browseId": bid,
+                                    "title": title,
+                                    "year": year_parts[-1] if year_parts else "",
+                                    "type": t_val,
+                                    "thumbnails": data.get("thumbnailRenderer", {}).get("musicThumbnailRenderer", {}).get("thumbnail", {}).get("thumbnails", [])
+                                })
+                                added_any = True
+                                
+                            if added_any:
+                                break
+
+            items = []
+            for item in results:
+                browse_id = item.get("browseId", "")
+                if not browse_id:
+                    continue
+                t = item.get("type", item_type.capitalize())
+
+                items.append({
+                    "browseId": browse_id,
+                    "title": item.get("title", ""),
+                    "year": item.get("year", ""),
+                    "artUrl": self._extract_art_url(item),
+                    "type": t,
+                })
+            
+            self.send_response({
+                "type": f"artist_full_{item_type}",
+                "channelId": channel_id,
+                "items": items,
+            })
+        except Exception as e:
+            self.log(f"Failed to fetch artist {item_type} for {channel_id}: {e}")
+            self.send_response({"type": "error", "message": f"Couldn't load full {item_type}."})
+
+    def get_artist_full_songs(self, channel_id, songs_browse_id):
+        threading.Thread(target=self._artist_full_songs_task, args=(channel_id, songs_browse_id), daemon=True).start()
+
+    def _artist_full_songs_task(self, channel_id, songs_browse_id):
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                return
+
+        try:
+            self.log(f"Fetching full artist songs for {channel_id} via playlist {songs_browse_id}")
+            p = self.ytm.get_playlist(songs_browse_id, limit=10)
+            items = p.get("tracks", []) if p else []
+            
+            songs = []
+            for t in items:
+                art = ""
+                thumbs = t.get("thumbnails", [])
+                if thumbs:
+                    art = thumbs[-1].get("url", "")
+                    if "=w" in art and "-h" in art:
+                        art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                        
+                artist_name = "Unknown Artist"
+                if t.get("artists"):
+                    artist_name = ", ".join([a.get("name", "") for a in t.get("artists")])
+                
+                songs.append({
+                    "videoId": t.get("videoId"),
+                    "title": t.get("title", ""),
+                    "artist": artist_name,
+                    "duration": t.get("duration", ""),
+                    "artUrl": art,
+                    "plays": t.get("views", "")
+                })
+            
+            self.send_response({
+                "type": "artist_full_songs",
+                "channelId": channel_id,
+                "items": songs,
+            })
+        except Exception as e:
+            self.log(f"Failed to fetch full artist songs {channel_id}: {e}")
+            self.send_response({"type": "error", "message": "Couldn't load full songs."})
 
     def get_playlist(self, browse_id):
         threading.Thread(target=self._playlist_task, args=(browse_id,), daemon=True).start()
@@ -2165,6 +2554,14 @@ class MusicBackend:
                         self.get_library()
                     elif t == "get_playlist":
                         self.get_playlist(c.get("browseId", ""))
+                    elif t == "debug_log":
+                        self.log(f"[QML_DEBUG] {c.get('message', '')}")
+                    elif t == "get_artist":
+                        self.get_artist(c.get("channelId", ""))
+                    elif t == "get_artist_full_items":
+                        self.get_artist_items(c.get("channelId", ""), c.get("params", ""), c.get("itemType", "albums"))
+                    elif t == "get_artist_full_songs":
+                        self.get_artist_full_songs(c.get("channelId", ""), c.get("songsBrowseId", ""))
                     elif t == "play":
                         if c.get("videoId"):
                             self._current_title = c.get("title", "")
@@ -2172,6 +2569,12 @@ class MusicBackend:
                             self._current_art = (
                                 ""  # updated after download in _play_task
                             )
+                            if "queue" in c:
+                                with self._state_lock:
+                                    self._current_queue = c["queue"]
+                                self._is_auto_advancing = True
+                                self.send_response({"type": "queue_updated", "queue": self._current_queue})
+                            
                             self.play(
                                 c["videoId"],
                                 c.get("title", ""),
@@ -2188,6 +2591,12 @@ class MusicBackend:
                         self.next_track()
                     elif t == "previous":
                         self.prev_track()
+                    elif t == "seek":
+                        try:
+                            pos = float(c.get("position", 0))
+                            self.seek(pos)
+                        except Exception:
+                            pass
                     elif t == "reorder_queue":
                         with self._state_lock:
                             try:

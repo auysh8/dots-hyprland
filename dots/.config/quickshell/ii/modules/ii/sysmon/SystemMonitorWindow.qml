@@ -89,6 +89,8 @@ Scope {
                 width: Math.min(parent.width * 0.92, 1560)
                 height: parent.height * 0.85
                 
+                onCloseRequested: root.closeWindow()
+                
                 onActiveFocusChanged: {
                     if (!activeFocus && root.showMonitor && !root.closing) {
                         root.closeWindow();

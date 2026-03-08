@@ -17,8 +17,6 @@ Item {
     // Smooth visibility transitions
     property bool show: rootContext.currentView === "player"
     property bool queueExpanded: false
-    property bool shuffleToggled: false
-    property int repeatMode: 0 // 0: Off, 1: Repeat All, 2: Repeat One
     property bool inlineLyricsExpanded: false
     
     property real currentRadius: show ? 32 : 20
@@ -162,7 +160,23 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             
+            property string _trackId: rootContext.currentTrack ? rootContext.currentTrack.videoId : ""
+            on_TrackIdChanged: {
+                if (_trackId !== "") {
+                    artAnim.restart()
+                }
+            }
+            
+            SequentialAnimation {
+                id: artAnim
+                ParallelAnimation {
+                    NumberAnimation { target: artRect; property: "scale"; from: 0.85; to: 1.0; duration: 600; easing.type: Easing.OutElastic; easing.amplitude: 1.3 }
+                    NumberAnimation { target: artRect; property: "opacity"; from: 0.0; to: 1.0; duration: 400; easing.type: Easing.OutCubic }
+                }
+            }
+
             Rectangle {
+                id: artRect
                 width: Math.min(parent.width, parent.height) * 1.0
                 height: width
                 anchors.centerIn: parent
@@ -195,7 +209,23 @@ Item {
             Layout.maximumWidth: 400
             spacing: 16
             
+            property string _trackId: rootContext.currentTrack ? rootContext.currentTrack.videoId : ""
+            on_TrackIdChanged: {
+                if (_trackId !== "") {
+                    infoAnim.restart()
+                }
+            }
+
+            SequentialAnimation {
+                id: infoAnim
+                ParallelAnimation {
+                    NumberAnimation { target: trackInfoCol; property: "opacity"; from: 0.0; to: 1.0; duration: 400; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: trackInfoCol; property: "scale"; from: 0.95; to: 1.0; duration: 400; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+                }
+            }
+            
             ColumnLayout {
+                id: trackInfoCol
                 Layout.fillWidth: true
                 spacing: 4
                 
@@ -267,8 +297,9 @@ Item {
 
                 enabled: rootContext.trackDurationSec > 0
                 onMoved: {
-                    if (LyricsService.activePlayer && rootContext.trackDurationSec > 0) {
-                        LyricsService.activePlayer.position = value * rootContext.trackDurationSec
+                    if (rootContext.trackDurationSec > 0) {
+                        let seekPos = value * rootContext.trackDurationSec
+                        rootContext.sendCommand({"command": "seek", "position": seekPos})
                     }
                 }
             }
@@ -650,23 +681,22 @@ Item {
                     colBackgroundToggled: Qt.darker(rootContext.extractedColor, 1.25)
                     colBackgroundToggledHover: Qt.darker(rootContext.extractedColor, 1.1)
                     colBackgroundToggledActive: rootContext.extractedColor
-                    toggled: root.shuffleToggled
+                    toggled: rootContext.shuffleToggled
                     
                     contentItem: MaterialSymbol {
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         text: "shuffle"
                         iconSize: 22
-                        color: root.shuffleToggled ? "white" : rootContext.contentColor
-                        opacity: root.shuffleToggled ? 1.0 : 0.6
+                        color: rootContext.shuffleToggled ? "white" : rootContext.contentColor
+                        opacity: rootContext.shuffleToggled ? 1.0 : 0.6
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
                     releaseAction: () => { 
-                        root.shuffleToggled = !root.shuffleToggled
-                        rootContext.sendCommand({"command": "toggle_shuffle"}) 
+                        rootContext.shuffleToggled = !rootContext.shuffleToggled
                         
-                        if (root.shuffleToggled && !rootContext.isQueueLoading && rootContext.queueList.count > 1) {
+                        if (rootContext.shuffleToggled && !rootContext.isQueueLoading && rootContext.queueList.count > 1) {
                             for (let i = 0; i < rootContext.queueList.count; i++) {
                                 let randomIndex = Math.floor(Math.random() * rootContext.queueList.count);
                                 rootContext.queueList.move(randomIndex, 0, 1);
@@ -731,21 +761,21 @@ Item {
                     colBackgroundToggled: Qt.darker(rootContext.extractedColor, 1.25)
                     colBackgroundToggledHover: Qt.darker(rootContext.extractedColor, 1.1)
                     colBackgroundToggledActive: rootContext.extractedColor
-                    toggled: root.repeatMode > 0
+                    toggled: rootContext.repeatMode > 0
                     
                     contentItem: MaterialSymbol {
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                        text: root.repeatMode === 2 ? "repeat_one" : "repeat"
+                        text: rootContext.repeatMode === 2 ? "repeat_one" : "repeat"
                         iconSize: 22
-                        color: root.repeatMode > 0 ? "white" : rootContext.contentColor
-                        opacity: root.repeatMode > 0 ? 1.0 : 0.6
+                        color: rootContext.repeatMode > 0 ? "white" : rootContext.contentColor
+                        opacity: rootContext.repeatMode > 0 ? 1.0 : 0.6
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                         Behavior on color { ColorAnimation { duration: 150 } }
                     }
                     releaseAction: () => { 
-                        root.repeatMode = (root.repeatMode + 1) % 3
-                        rootContext.sendCommand({"command": "set_repeat", "mode": root.repeatMode}) 
+                        rootContext.repeatMode = (rootContext.repeatMode + 1) % 3
+                        rootContext.sendCommand({"command": "set_repeat", "mode": rootContext.repeatMode}) 
                     }
                 }
             }
@@ -1009,14 +1039,24 @@ Item {
                                 z: -1
 
                                 onClicked: {
+                                    let clickedIndex = model.index
+                                    
+                                    // Build queue from tracks AFTER the clicked one
+                                    let remainingQueue = []
+                                    for (let i = clickedIndex + 1; i < rootContext.queueList.count; i++) {
+                                        let t = rootContext.queueList.get(i)
+                                        remainingQueue.push({
+                                            videoId: t.videoId,
+                                            title: t.title,
+                                            artist: t.artist,
+                                            artUrl: t.artUrl,
+                                            duration: t.duration || ""
+                                        })
+                                    }
+                                    
+                                    // Play the clicked track with the trimmed queue
+                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, remainingQueue)
                                     root.queueExpanded = false
-                                    rootContext.sendCommand({
-                                        "command": "play",
-                                        "videoId": model.videoId,
-                                        "title": model.title,
-                                        "artist": model.artist,
-                                        "artUrl": model.artUrl
-                                    })
                                 }
                             }
                         }

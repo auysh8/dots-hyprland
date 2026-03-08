@@ -201,7 +201,62 @@ StyledFlickable {
                         onClicked: {
                             if (rootContext && rootContext.activePlaylistTracks.count > 0) {
                                 let first = rootContext.activePlaylistTracks.get(0)
-                                rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl || rootContext.activePlaylistCover)
+                                let queueTracks = []
+                                for (let i = 1; i < rootContext.activePlaylistTracks.count; i++) {
+                                    let t = rootContext.activePlaylistTracks.get(i)
+                                    queueTracks.push({
+                                        videoId: t.videoId,
+                                        title: t.title,
+                                        artist: t.artist,
+                                        artUrl: t.artUrl || rootContext.activePlaylistCover,
+                                        duration: t.duration || ""
+                                    })
+                                }
+                                rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl || rootContext.activePlaylistCover, queueTracks)
+                            }
+                        }
+                    }
+
+                    // Shuffle Button
+                    RippleButton {
+                        Layout.preferredWidth: shuffleRow.implicitWidth + 32
+                        Layout.preferredHeight: 48
+                        buttonRadius: 24
+                        colBackground: rootContext ? ColorUtils.transparentize(rootContext.contentColor, 0.9) : "gray"
+                        
+                        property color txColor: rootContext ? rootContext.contentColor : "white"
+                        
+                        contentItem: RowLayout {
+                            id: shuffleRow
+                            anchors.centerIn: parent
+                            spacing: 8
+                            MaterialSymbol { text: "shuffle"; color: parent.parent.txColor; iconSize: 24 }
+                            StyledText { text: "Shuffle"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
+                        }
+                        
+                        onClicked: {
+                            if (rootContext && rootContext.activePlaylistTracks.count > 0) {
+                                let tracksToPlay = [];
+                                for (let i = 0; i < rootContext.activePlaylistTracks.count; i++) {
+                                    let t = rootContext.activePlaylistTracks.get(i);
+                                    tracksToPlay.push({
+                                        videoId: t.videoId,
+                                        title: t.title,
+                                        artist: t.artist,
+                                        artUrl: t.artUrl || rootContext.activePlaylistCover,
+                                        duration: t.duration || ""
+                                    });
+                                }
+                                
+                                // Fisher-Yates shuffle
+                                for (let i = tracksToPlay.length - 1; i > 0; i--) {
+                                    const j = Math.floor(Math.random() * (i + 1));
+                                    [tracksToPlay[i], tracksToPlay[j]] = [tracksToPlay[j], tracksToPlay[i]];
+                                }
+                                
+                                let first = tracksToPlay[0];
+                                let queueTracks = tracksToPlay.slice(1);
+                                rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl, queueTracks);
                             }
                         }
                     }
@@ -320,7 +375,18 @@ StyledFlickable {
                                 if (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) {
                                     rootContext.toggle() // Pause/play
                                 } else {
-                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl || rootContext.activePlaylistCover)
+                                    let queueTracks = []
+                                    for (let i = index + 1; i < rootContext.activePlaylistTracks.count; i++) {
+                                        let t = rootContext.activePlaylistTracks.get(i)
+                                        queueTracks.push({
+                                            videoId: t.videoId,
+                                            title: t.title,
+                                            artist: t.artist,
+                                            artUrl: t.artUrl || rootContext.activePlaylistCover,
+                                            duration: t.duration || ""
+                                        })
+                                    }
+                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl || rootContext.activePlaylistCover, queueTracks)
                                 }
                             }
                         }

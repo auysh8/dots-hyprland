@@ -71,22 +71,6 @@ FocusScope {
     enum FocusArea { Sidebar, Search, Grid }
     property int currentFocusArea: ApplicationDrawer.FocusArea.Search
 
-    // Toast Notification
-    property string toastMessage: ""
-    property bool toastVisible: false
-
-    function showToast(message) {
-        toastMessage = message;
-        toastVisible = true;
-        toastTimer.restart();
-    }
-
-    Timer {
-        id: toastTimer
-        interval: 2500
-        onTriggered: root.toastVisible = false
-    }
-    
     Component.onCompleted: {
         extractCategories();
         appGrid.model.values = root.getFilteredApps();
@@ -347,16 +331,57 @@ FocusScope {
         border.width: 1
         border.color: Appearance.colors.colLayer0Border
 
-        RowLayout {
+        ColumnLayout {
             anchors.fill: parent
             anchors.margins: 16
-            spacing: 0
+            spacing: 16
+
+            // --- Top Header ---
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+
+                StyledText {
+                    anchors.centerIn: parent
+                    text: root.searchText ? "Search Results" : (root.currentCategory === "All" ? "All Applications" : root.currentCategory)
+                    font.pixelSize: 16
+                    font.weight: Font.Normal
+                    color: Appearance.colors.colOnLayer0
+                }
+
+                RippleButton {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 32
+                    height: 32
+                    padding: 0
+                    buttonRadius: 16
+                    colBackground: "transparent"
+                    colBackgroundHover: Appearance.colors.colLayer1Hover
+
+                    contentItem: MaterialSymbol {
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: "close"
+                        iconSize: 20
+                        color: Appearance.colors.colOnLayer0
+                    }
+
+                    onClicked: {
+                        Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "app-drawer", "close"])
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 0
 
             // --- Sidebar ---
-            Rectangle {
+            Item {
                 Layout.fillHeight: true
                 Layout.preferredWidth: 200
-                color: "transparent"
                 
                 ColumnLayout {
                     anchors.fill: parent
@@ -375,101 +400,57 @@ FocusScope {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
-                        
-                        property int selectedIndex: root.categories.indexOf(root.currentCategory)
-                        property real itemHeight: 44
-                        
-                        // Animated pill highlight
-                        Rectangle {
-                            id: pillHighlight
-                            anchors.left: categoryColumn.left
-                            anchors.leftMargin: 8
-                            y: categoryListContainer.selectedIndex * categoryListContainer.itemHeight
-                            width: categoryColumn.width - 16
-                            height: categoryListContainer.itemHeight
-                            radius: Appearance.rounding.small
-                            color: Appearance.colors.colSecondaryContainer
-                            
-                            Behavior on y {
-                                NumberAnimation {
-                                    duration: Appearance.animationCurves.expressiveFastSpatialDuration
-                                    easing.type: Appearance.animation.elementMove.type
-                                    easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
-                                }
-                            }
-                        }
-                        
-                        ColumnLayout {
-                            id: categoryColumn
+
+                        NavigationRail {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.top: parent.top
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
                             spacing: 0
-                            
-                            Repeater {
-                                model: root.categories
-                                
-                                RippleButton {
-                                    required property int index
-                                    required property string modelData
-                                    
-                                    Layout.fillWidth: true
-                                    Layout.leftMargin: 8
-                                    Layout.rightMargin: 8
-                                    Layout.preferredHeight: categoryListContainer.itemHeight
-                                    buttonRadius: Appearance.rounding.small
-                                    
-                                    property bool isSelected: modelData === root.currentCategory
-                                    colBackground: "transparent"
-                                    colBackgroundHover: isSelected ? "transparent" : Appearance.colors.colLayer1
-                                    
-                                    onClicked: {
-                                        root.currentCategory = modelData;
-                                        root.searchText = ""; 
-                                        searchField.text = "";
-                                        appGrid.model.values = root.getFilteredApps();
-                                    }
+                            expanded: true
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 16
-                                        spacing: 6
-                                        
-                                        Item {
-                                            Layout.preferredWidth: 24
-                                            Layout.preferredHeight: 32
-                                            Layout.alignment: Qt.AlignVCenter
-                                            
-                                            MaterialSymbol {
-                                                anchors.centerIn: parent
-                                                text: {
-                                                    switch(modelData) {
-                                                        case "All": return "apps";
-                                                        case "Multimedia": return "movie";
-                                                        case "Development": return "code";
-                                                        case "Education": return "school";
-                                                        case "Games": return "sports_esports";
-                                                        case "Graphics": return "palette";
-                                                        case "Internet": return "public";
-                                                        case "Office": return "description";
-                                                        case "Settings": return "settings";
-                                                        case "System": return "dns";
-                                                        case "Utilities": return "build";
-                                                        default: return "category";
-                                                    }
-                                                }
-                                                iconSize: 20
-                                                color: isSelected ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer0
+                            NavigationRailTabArray {
+                                currentIndex: Math.max(0, root.categories.indexOf(root.currentCategory))
+                                expanded: true
+                                Layout.topMargin: 0
+
+                                Repeater {
+                                    model: root.categories
+
+                                    NavigationRailButton {
+                                        required property int index
+                                        required property string modelData
+
+                                        toggled: modelData === root.currentCategory
+                                        showToggledHighlight: false
+                                        expanded: true
+                                        baseSize: 44
+                                        baseHighlightHeight: 44
+
+                                        buttonIcon: {
+                                            switch (modelData) {
+                                                case "All": return "widgets";
+                                                case "Multimedia": return "movie";
+                                                case "Development": return "laptop_mac";
+                                                case "Education": return "school";
+                                                case "Games": return "sports_esports";
+                                                case "Graphics": return "palette";
+                                                case "Internet": return "explore";
+                                                case "Office": return "description";
+                                                case "Settings": return "settings";
+                                                case "System": return "desktop_windows";
+                                                case "Utilities": return "home_repair_service";
+                                                default: return "category";
                                             }
                                         }
+                                        buttonText: modelData + " (" + root.getCategoryAppCount(modelData) + ")"
 
-                                        StyledText {
-                                            Layout.alignment: Qt.AlignVCenter
-                                            Layout.fillWidth: true
-                                            horizontalAlignment: Text.AlignLeft
-                                            text: modelData + " (" + root.getCategoryAppCount(modelData) + ")"
-                                            color: isSelected ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer0
-                                            font.weight: isSelected ? Font.DemiBold : Font.Normal
+                                        onPressed: {
+                                            root.currentCategory = modelData;
+                                            root.searchText = "";
+                                            searchField.text = "";
+                                            appGrid.model.values = root.getFilteredApps();
                                         }
                                     }
                                 }
@@ -483,178 +464,257 @@ FocusScope {
             }
 
             // --- Main Content ---
-            ColumnLayout {
+            Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.leftMargin: 20
-                spacing: 16
+                color: Appearance.colors.colLayer1
+                radius: Appearance.rounding.large
 
-                // Header & Search
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 16
+
+                    // Header & Search
                 RowLayout {
                     Layout.fillWidth: true
                     
-                    StyledText {
-                        text: root.searchText ? "Search Results" : (root.currentCategory === "All" ? "All Applications" : root.currentCategory)
-                        font.pixelSize: 24
-                        font.weight: Font.Normal
-                        color: Appearance.colors.colOnLayer0
+                    RowLayout {
+                        spacing: 8
+                        MaterialSymbol {
+                            text: "grid_view"
+                            iconSize: 20
+                            color: Appearance.colors.colOnLayer0
+                        }
+                        StyledText {
+                            text: "Applications Grid"
+                            font.pixelSize: 16
+                            color: Appearance.colors.colOnLayer0
+                        }
                     }
                     
                     Item { Layout.fillWidth: true }
 
-                    TextField {
-                        id: searchField
+                    Rectangle {
                         Layout.preferredWidth: 300
                         Layout.preferredHeight: 44
-                        placeholderText: "Search apps..."
-                        
-                        background: Rectangle {
-                            radius: 22
-                            color: Appearance.colors.colLayer2
-                            border.width: parent.activeFocus ? 2 : 0
-                            border.color: Appearance.colors.colPrimary
-                            
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: 22
+                        color: searchField.activeFocus ? Appearance.colors.colLayer3 : Appearance.colors.colLayer2
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.IBeamCursor
+                            onClicked: searchField.forceActiveFocus()
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            spacing: 10
+
                             MaterialSymbol {
-                                anchors.left: parent.left
-                                anchors.leftMargin: 12
-                                anchors.verticalCenter: parent.verticalCenter
+                                Layout.alignment: Qt.AlignVCenter
                                 text: "search"
-                                color: Appearance.colors.colOnLayer0
                                 iconSize: 20
+                                color: Appearance.colors.colOnLayer0
                             }
-                        }
-                        
-                        font.pixelSize: 15
-                        color: Appearance.m3colors.m3onSurface
-                        leftPadding: 42
-                        
-                        onTextChanged: {
-                            root.searchText = text;
-                            appGrid.model.values = root.getFilteredApps();
-                        }
-                        
-                        // Forward navigation keys to root
-                        Keys.onPressed: event => {
-                            if (event.key === Qt.Key_Escape) {
-                                GlobalStates.appDrawerOpen = false;
-                                event.accepted = true;
-                            } else if (event.key === Qt.Key_Tab) {
-                                focusGrid();
-                                event.accepted = true;
-                            } else if (event.key === Qt.Key_Down) {
-                                // Move to grid on arrow down
-                                focusGrid();
-                                event.accepted = true;
-                            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                // Launch first app in filtered results
-                                if (appGrid.model.values.length > 0) {
-                                    const app = appGrid.model.values[0];
-                                    GlobalStates.appDrawerOpen = false;
-                                    GlobalStates.overviewOpen = false;
-                                    root.trackRecentApp(app);
-                                    root.executeApp(app);
+
+                            StyledTextInput {
+                                id: searchField
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                font.pixelSize: 15
+                                color: Appearance.colors.colOnSurface
+                                selectByMouse: true
+                                clip: true
+
+                                onTextChanged: {
+                                    root.searchText = text;
+                                    appGrid.model.values = root.getFilteredApps();
                                 }
-                                event.accepted = true;
+
+                                StyledText {
+                                    anchors.fill: parent
+                                    text: "Search apps..."
+                                    color: Appearance.colors.colSubtext
+                                    font.pixelSize: 15
+                                    visible: !searchField.text && !searchField.activeFocus
+                                }
+
+                                // Forward navigation keys to root
+                                Keys.onPressed: event => {
+                                    if (event.key === Qt.Key_Escape) {
+                                        GlobalStates.appDrawerOpen = false;
+                                        event.accepted = true;
+                                    } else if (event.key === Qt.Key_Tab) {
+                                        focusGrid();
+                                        event.accepted = true;
+                                    } else if (event.key === Qt.Key_Down) {
+                                        focusGrid();
+                                        event.accepted = true;
+                                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                        if (appGrid.model.values.length > 0) {
+                                            const app = appGrid.model.values[0];
+                                            GlobalStates.appDrawerOpen = false;
+                                            GlobalStates.overviewOpen = false;
+                                            root.trackRecentApp(app);
+                                            root.executeApp(app);
+                                        }
+                                        event.accepted = true;
+                                    }
+                                }
+                            }
+
+                            RippleButton {
+                                Layout.alignment: Qt.AlignVCenter
+                                visible: searchField.text.length > 0
+                                padding: 0
+                                Layout.preferredWidth: 24
+                                Layout.preferredHeight: 24
+                                buttonRadius: 12
+                                colBackground: "transparent"
+                                colBackgroundHover: Appearance.colors.colLayer1Hover
+
+                                contentItem: MaterialSymbol {
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: "close"
+                                    iconSize: 16
+                                    color: Appearance.colors.colOnLayer0
+                                }
+
+                                onClicked: {
+                                    searchField.text = "";
+                                    searchField.forceActiveFocus();
+                                }
                             }
                         }
                     }
                 }
 
-                // Grid
-                GridView {
-                    id: appGrid
+                // Grid Container
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    clip: true
-                    
-                    cellWidth: width / root.columns
-                    cellHeight: cellWidth * 1.3
-                    
-                    model: ScriptModel { values: [] }
 
-                    delegate: RippleButton {
-                        id: appButton
-                        required property int index
-                        required property var modelData
-                        property bool isPinned: TaskbarApps.isPinned(root.getAppId(modelData))
+                    StyledFlickable {
+                        id: appGrid
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        clip: true
                         
-                        width: appGrid.cellWidth - 10
-                        height: appGrid.cellHeight - 10
-                        buttonRadius: 12
-                        colBackground: "transparent"
-                        colBackgroundHover: Appearance.colors.colSecondaryContainer
+                        ScrollBar.vertical: StyledScrollBar {}
                         
-                        // Keyboard selection highlight
-                        property bool isKeyboardSelected: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && root.selectedGridIndex === index
-                        
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 12
-                            color: "transparent"
-                            border.width: appButton.isKeyboardSelected ? 2 : 0
-                            border.color: Appearance.colors.colPrimary
-                            
-                            Behavior on border.width {
-                                NumberAnimation { duration: 100 }
-                            }
-                        }
-                        
-                        onClicked: {
-                            GlobalStates.appDrawerOpen = false;
-                            GlobalStates.overviewOpen = false;
-                            root.trackRecentApp(modelData);
-                            root.executeApp(modelData);
-                        }
-                        
-                        // Right-click context menu
-                        altAction: () => {
-                            root.contextMenuApp = modelData;
-                            root.contextMenuVisible = true;
-                            // Position relative to drawerBackground
-                            let globalPos = appButton.mapToItem(drawerBackground, appButton.width / 2, appButton.height / 2);
-                            root.contextMenuPosition = Qt.point(globalPos.x, globalPos.y);
-                        }
+                        property real cellWidth: width / root.columns
+                    property real cellHeight: cellWidth * 1.3
+                    contentWidth: width
+                    contentHeight: gridContent.implicitHeight
+                    property var model: appGridModel
 
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            width: parent.width - 16
-                            spacing: 8
-                            
-                            IconImage {
-                                Layout.alignment: Qt.AlignHCenter
-                                source: Quickshell.iconPath(modelData.icon, "application-x-executable")
-                                implicitSize: root.iconSize
-                            }
-                            
-                            Text {
-                                Layout.fillWidth: true
-                                text: modelData.name
-                                horizontalAlignment: Text.AlignHCenter
-                                color: appButton.isPinned ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer0
-                                font.pixelSize: 13
-                                font.weight: appButton.isPinned ? Font.DemiBold : Font.Normal
-                                elide: Text.ElideRight
-                                wrapMode: Text.WordWrap
-                                maximumLineCount: 2
-                            }
-                        }
+                    function positionViewAtIndex(index, mode) {
+                        if (index < 0) return;
+                        const row = Math.floor(index / root.columns);
+                        const rowTop = row * cellHeight;
+                        const rowBottom = rowTop + cellHeight;
+                        const viewportTop = contentY;
+                        const viewportBottom = contentY + height;
+                        let targetY = contentY;
+
+                        if (rowTop < viewportTop) targetY = rowTop;
+                        else if (rowBottom > viewportBottom) targetY = rowBottom - height;
+
+                        const maxY = Math.max(0, contentHeight - height);
+                        contentY = Math.max(0, Math.min(targetY, maxY));
                     }
-                    
-                    ScrollBar.vertical: ScrollBar {
-                        policy: ScrollBar.AsNeeded
-                        active: appGrid.moving || appGrid.flickableItem.contentHeight > appGrid.height
-                        
-                        contentItem: Rectangle {
-                            implicitWidth: 6
-                            radius: 3
-                            color: Appearance.colors.colPrimary
+
+                    ScriptModel {
+                        id: appGridModel
+                        values: []
+                    }
+
+                    Grid {
+                        id: gridContent
+                        width: appGrid.width
+                        columns: root.columns
+                        // No spacing needed as the cells are fixed sizes
+
+                        Repeater {
+                            model: appGrid.model.values
+
+                            delegate: Item {
+                                required property int index
+                                required property var modelData
+                                width: appGrid.cellWidth
+                                height: appGrid.cellHeight
+
+                                RippleButton {
+                                    id: appButton
+                                    property bool isPinned: TaskbarApps.isPinned(root.getAppId(modelData))
+
+                                    anchors.centerIn: parent
+                                    width: appGrid.cellWidth - 10
+                                    height: appGrid.cellHeight - 10
+                                    buttonRadius: 12
+                                    colBackground: "transparent"
+                                    colBackgroundHover: Appearance.colors.colSecondaryContainer
+                                    toggled: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && root.selectedGridIndex === index
+                                    colBackgroundToggled: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.18)
+                                    colBackgroundToggledHover: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.24)
+                                    colRippleToggled: ColorUtils.applyAlpha(Appearance.colors.colOnPrimary, 0.88)
+
+                                    onClicked: {
+                                        GlobalStates.appDrawerOpen = false;
+                                        GlobalStates.overviewOpen = false;
+                                        root.trackRecentApp(modelData);
+                                        root.executeApp(modelData);
+                                    }
+
+                                    // Right-click context menu
+                                    altAction: () => {
+                                        root.contextMenuApp = modelData;
+                                        root.contextMenuVisible = true;
+                                        let globalPos = appButton.mapToItem(drawerBackground, appButton.width / 2, appButton.height / 2);
+                                        root.contextMenuPosition = Qt.point(globalPos.x, globalPos.y);
+                                    }
+
+                                    ColumnLayout {
+                                        anchors.centerIn: parent
+                                        width: parent.width - 16
+                                        spacing: 8
+
+                                        IconImage {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            source: Quickshell.iconPath(modelData.icon, "application-x-executable")
+                                            implicitSize: root.iconSize
+                                        }
+
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: modelData.name
+                                            horizontalAlignment: Text.AlignHCenter
+                                            color: Appearance.colors.colOnLayer0
+                                            font.pixelSize: 13
+                                            font.weight: appButton.isPinned ? Font.DemiBold : Font.Normal
+                                            elide: Text.ElideRight
+                                            wrapMode: Text.WordWrap
+                                            maximumLineCount: 2
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
-    
+            }
+        }
+    }
+
         // Context Menu Overlay (positioned outside layout to not affect grid)
     Item {
         id: contextMenuOverlay
@@ -664,39 +724,25 @@ FocusScope {
         
         MouseArea {
             anchors.fill: parent
+            hoverEnabled: true
             onClicked: root.contextMenuVisible = false
-        }
-        
-        // Shadow behind context menu
-        Rectangle {
-            x: contextMenu.x + 4
-            y: contextMenu.y + 4
-            width: contextMenu.width
-            height: contextMenu.height
-            radius: contextMenu.radius
-            color: Qt.rgba(0, 0, 0, 0.2)
-            opacity: contextMenu.opacity
         }
         
         Rectangle {
             id: contextMenu
             x: Math.min(root.contextMenuPosition.x, parent.width - width - 10)
             y: Math.min(root.contextMenuPosition.y, parent.height - height - 10)
-            width: 220
+            width: 240
             implicitHeight: contextMenuColumn.implicitHeight + 16
             radius: Appearance.rounding.normal
             color: Appearance.colors.colLayer2Base
-            
-            scale: root.contextMenuVisible ? 1 : 0.5
+            scale: root.contextMenuVisible ? 1 : 0.95
             opacity: root.contextMenuVisible ? 1 : 0
             transformOrigin: Item.TopLeft
-            
-            Behavior on scale { NumberAnimation { duration: 350; easing.type: Easing.OutBack; easing.overshoot: 1.4 } }
-            Behavior on opacity { NumberAnimation { duration: 200 } }
-            
-            border.width: 1
-            border.color: Appearance.colors.colLayer1Border
-            
+
+            Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+
             ColumnLayout {
                 id: contextMenuColumn
                 anchors.fill: parent
@@ -704,13 +750,11 @@ FocusScope {
                 spacing: 4
                 
                 // Pin to Dock
-                RippleButton {
+                DialogListItem {
                     id: pinToDockButton
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 36
+                    Layout.preferredHeight: 40
                     buttonRadius: Appearance.rounding.small
-                    colBackground: "transparent"
-                    colBackgroundHover: Appearance.colors.colLayer2
                     
                     property bool isPinned: root.contextMenuApp ? TaskbarApps.isPinned(root.getAppId(root.contextMenuApp)) : false
                     
@@ -728,9 +772,6 @@ FocusScope {
                                 ? "Pinned " + appName + " to dock" 
                                 : "Unpinned " + appName + " from dock";
                             
-                            console.log("Showing toast:", msg);
-                            root.showToast(msg);
-
                             const line = "neutral|Dock|" + msg + "|notification|" + (isPinnedNow ? "pinned" : "unpinned");
                             const safeLine = StringUtils.shellSingleQuoteEscape(line);
                             Quickshell.execDetached(["bash", "-c", "echo '" + safeLine + "' >> /tmp/qs_popup.log"]);
@@ -738,32 +779,41 @@ FocusScope {
                         root.contextMenuVisible = false;
                     }
                     
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        spacing: 10
+                    contentItem: Item {
+                        implicitWidth: pinToDockRow.implicitWidth
+                        implicitHeight: Math.max(18, pinToDockText.implicitHeight)
                         
-                        MaterialSymbol {
-                            text: "push_pin"
-                            iconSize: 18
-                            color: Appearance.colors.colOnLayer1
-                        }
-                        
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: pinToDockButton.isPinned ? Translation.tr("Unpin from Dock") : Translation.tr("Pin to Dock")
-                            color: Appearance.colors.colOnLayer1
+                        RowLayout {
+                            id: pinToDockRow
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            spacing: 10
+
+                            MaterialSymbol {
+                                Layout.alignment: Qt.AlignVCenter
+                                text: "push_pin"
+                                iconSize: 18
+                                color: Appearance.colors.colOnLayer1
+                            }
+
+                            StyledText {
+                                id: pinToDockText
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                verticalAlignment: Text.AlignVCenter
+                                text: pinToDockButton.isPinned ? Translation.tr("Unpin from Dock") : Translation.tr("Pin to Dock")
+                                color: Appearance.colors.colOnLayer1
+                            }
                         }
                     }
                 }
 
                 // Uninstall
-                RippleButton {
+                DialogListItem {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 36
+                    Layout.preferredHeight: 40
                     buttonRadius: Appearance.rounding.small
-                    colBackground: "transparent"
-                    colBackgroundHover: Appearance.colors.colLayer2
                     
                     onClicked: {
                         if (root.contextMenuApp) {
@@ -784,86 +834,36 @@ FocusScope {
                         GlobalStates.overviewOpen = false;
                     }
                     
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        spacing: 10
+                    contentItem: Item {
+                        implicitWidth: uninstallRow.implicitWidth
+                        implicitHeight: Math.max(18, uninstallText.implicitHeight)
                         
-                        MaterialSymbol {
-                            text: "delete"
-                            iconSize: 18
-                            color: Appearance.colors.colOnLayer1
-                        }
-                        
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: Translation.tr("Uninstall")
-                            color: Appearance.colors.colOnLayer1
-                        }
-                    }
-                }
+                        RowLayout {
+                            id: uninstallRow
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            spacing: 10
 
+                            MaterialSymbol {
+                                Layout.alignment: Qt.AlignVCenter
+                                text: "delete"
+                                iconSize: 18
+                                color: Appearance.colors.colOnLayer1
+                            }
 
-                
-
-            }
-        }
-    }
-
-    // Toast Component - moved to root for Z-indexing
-    Rectangle {
-        id: toast
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 30
-        width: toastTextMetrics.width + 40
-        height: 44
-        radius: 22
-        z: 200 // Ensure it's on top of everything
-        
-        color: Appearance.colors.colLayer2
-        border.width: 1
-        border.color: Appearance.colors.colLayer2Border
-        
-        // Elevation shadow
-        layer.enabled: true
-        layer.effect: StyledRectangularShadow {
-            blur: 16
-            opacity: 0.3
-        }
-        
-        // Animation
-        opacity: root.toastVisible ? 1 : 0
-        transform: Translate {
-            y: root.toastVisible ? 0 : 20
-        }
-        
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-        Behavior on transform { NumberAnimation { target: toast.transform; property: "y"; duration: 200; easing.type: Easing.OutCubic } }
-
-        RowLayout {
-            anchors.centerIn: parent
-            spacing: 12
-            
-            MaterialSymbol {
-                text: "info"
-                iconSize: 20
-                color: Appearance.colors.colPrimary
-            }
-            
-            Text {
-                id: toastTextItem
-                text: root.toastMessage
-                color: Appearance.colors.colOnLayer1
-                font.pixelSize: 14
-                font.weight: Font.Medium
-            }
-        }
-        
-        TextMetrics {
-            id: toastTextMetrics
-            text: root.toastMessage
-            font: toastTextItem.font
-        }
-    }
+                            StyledText {
+                                id: uninstallText
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                verticalAlignment: Text.AlignVCenter
+                                text: Translation.tr("Uninstall")
+                                color: Appearance.colors.colOnLayer1
+}
+}
+}
+}
+}
+}
+}
 }

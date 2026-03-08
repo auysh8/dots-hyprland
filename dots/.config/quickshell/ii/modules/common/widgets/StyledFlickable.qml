@@ -16,13 +16,22 @@ Flickable {
     ScrollBar.vertical: StyledScrollBar {}
 
     MouseArea {
-        visible: Config?.options.interactions.scrolling.fasterTouchpadScroll
+        visible: Config?.options?.interactions?.scrolling?.fasterTouchpadScroll ?? true
         anchors.fill: parent
-        acceptedButtons: Qt.NoButton
+        
+        // CRITICAL WAYLAND FIX: We must accept at least one mouse button type for Wayland to consistently route wheel events to this transparent area.
+        acceptedButtons: Qt.AllButtons 
+        propagateComposedEvents: true // Let clicks pass through to items below!
+
+        // Pass clicks through
+        onPressed: mouse => mouse.accepted = false
+        onReleased: mouse => mouse.accepted = false
+        onClicked: mouse => mouse.accepted = false
+        onDoubleClicked: mouse => mouse.accepted = false
+        onPressAndHold: mouse => mouse.accepted = false
+
         onWheel: function(wheelEvent) {
             const delta = wheelEvent.angleDelta.y / root.mouseScrollDeltaThreshold;
-            // The angleDelta.y of a touchpad is usually small and continuous,
-            // while that of a mouse wheel is typically in multiples of ±120.
             var scrollFactor = Math.abs(wheelEvent.angleDelta.y) >= root.mouseScrollDeltaThreshold ? root.mouseScrollFactor : root.touchpadScrollFactor;
 
             const maxY = Math.max(0, root.contentHeight - root.height);

@@ -15,7 +15,7 @@ StyledFlickable {
     anchors.fill: parent
     contentHeight: resultsColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
 
-    property bool show: queryText.length > 0 && rootContext.currentView !== "playlist" && !rootContext.isLoading
+    property bool show: queryText.length > 0 && rootContext.currentView !== "playlist" && rootContext.currentView !== "artist" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
@@ -54,35 +54,58 @@ StyledFlickable {
                 Repeater {
                     model: rootContext.artistResults
 
-                    delegate: ColumnLayout {
-                        width: 100
-                        spacing: 8
+                    delegate: Item {
+                        width: 120
+                        height: 140
 
                         Rectangle {
-                            Layout.alignment: Qt.AlignHCenter
-                            width: 100
-                            height: 100
-                            radius: 50
-                            color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                            anchors.fill: parent
+                            radius: 12
+                            color: artistHoverHandler.hovered ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "transparent"
+                        }
 
-                            RoundedImage {
-                                anchors.fill: parent
-                                source: model.artUrl
-                                sourceSize.width: 200
-                                sourceSize.height: 200
-                                fillMode: Image.PreserveAspectCrop
+                        Column {
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            spacing: 8
+
+                            Rectangle {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: 100
+                                height: 100
                                 radius: 50
-                                cache: true
+                                color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+
+                                RoundedImage {
+                                    anchors.fill: parent
+                                    source: model.artUrl || ""
+                                    sourceSize.width: 200
+                                    sourceSize.height: 200
+                                    fillMode: Image.PreserveAspectCrop
+                                    radius: 50
+                                    cache: true
+                                }
+                            }
+
+                            StyledText {
+                                width: parent.width
+                                horizontalAlignment: Text.AlignHCenter
+                                text: model.title || ""
+                                font.weight: 600
+                                color: rootContext.contentColor
+                                elide: Text.ElideRight
                             }
                         }
 
-                        StyledText {
-                            Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignHCenter
-                            text: model.title
-                            font.weight: 600
-                            color: rootContext.contentColor
-                            elide: Text.ElideRight
+                        HoverHandler {
+                            id: artistHoverHandler
+                            cursorShape: Qt.PointingHandCursor
+                        }
+
+                        TapHandler {
+                            onTapped: {
+                                rootContext.openArtist(model.videoId || "")
+                            }
                         }
                     }
                 }

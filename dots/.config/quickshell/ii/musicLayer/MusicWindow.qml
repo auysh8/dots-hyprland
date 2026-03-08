@@ -61,12 +61,28 @@ Scope {
 
     // Playlist View Models
     property string activePlaylistId: ""
+    property bool autoPlayPending: false
+    property bool autoPlayShufflePending: false
     property string activePlaylistTitle: ""
     property string activePlaylistDescription: ""
     property string activePlaylistAuthor: ""
     property string activePlaylistCover: ""
     property int activePlaylistTrackCount: 0
     property ListModel activePlaylistTracks: ListModel {}
+    
+    // Artist View Models
+    property string activeArtistId: ""
+    property string activeArtistName: ""
+    property string activeArtistDescription: ""
+    property string activeArtistSubscribers: ""
+    property string activeArtistThumbnail: ""
+    property ListModel activeArtistSongs: ListModel {}
+    property ListModel activeArtistAlbums: ListModel {}
+    property ListModel activeArtistSingles: ListModel {}
+    property ListModel activeArtistRelated: ListModel {}
+    property string activeArtistSongsBrowseId: ""
+    property string activeArtistAlbumsParams: ""
+    property string activeArtistSinglesParams: ""
     
     // Shared layer transition offset for both panel and background.
     readonly property real panelHiddenOffset: -(musicPanel.y + musicPanel.height + 100)
@@ -80,6 +96,8 @@ Scope {
     property bool isQueueLoading: false
     property int trackPositionSec: 0
     property int trackDurationSec: 0
+    property int repeatMode: 0  // 0: Off, 1: Repeat All, 2: Repeat One
+    property bool shuffleToggled: false
     property string currentView: "home"
     property string previousView: "home"
     
@@ -178,7 +196,7 @@ Scope {
         root.applyVisibleSongResults()
     }
 
-    function playTrack(videoId, title, artist, artUrl) {
+    function playTrack(videoId, title, artist, artUrl, queueTracks) {
         root.currentTrack = {
             videoId: videoId,
             title: title,
@@ -186,13 +204,17 @@ Scope {
             artUrl: artUrl
         }
         root.isTrackLoading = true
-        sendCommand({
+        let msg = {
             "command": "play",
             "videoId": videoId,
             "title": title,
             "artist": artist,
             "artUrl": artUrl
-        })
+        }
+        if (queueTracks && Array.isArray(queueTracks)) {
+            msg["queue"] = queueTracks;
+        }
+        sendCommand(msg)
     }
     
     function openPlaylist(browseId) {
@@ -204,6 +226,31 @@ Scope {
         root.activePlaylistId = browseId
         
         sendCommand({ "command": "get_playlist", "browseId": browseId })
+    }
+
+    function openAndPlayPlaylist(browseId, shuffle = false) {
+        if (!browseId) return;
+        root.autoPlayPending = true;
+        root.autoPlayShufflePending = shuffle;
+        root.activePlaylistId = browseId;
+        root.isTrackLoading = true;
+        sendCommand({ "command": "get_playlist", "browseId": browseId });
+    }
+
+    function openArtist(channelId) {
+        console.log("[MusicWindow] openArtist called with:", channelId)
+        root.previousView = root.currentView
+        root.currentView = "artist"
+        root.isLoading = true
+        root.activeArtistId = channelId || ""
+        root.activeArtistSongs.clear()
+        root.activeArtistAlbums.clear()
+        root.activeArtistSingles.clear()
+        root.activeArtistRelated.clear()
+        
+        if (channelId && channelId.length > 0) {
+            sendCommand({ "command": "get_artist", "channelId": channelId })
+        }
     }
     
     function toggle() {
@@ -228,6 +275,8 @@ Scope {
             return homeView.flickable
         if (root.currentView === "playlist" && playlistView.visible)
             return playlistView.flickable
+        if (root.currentView === "artist" && artistView.visible)
+            return artistView.flickable
         return null
     }
 
@@ -285,10 +334,12 @@ Scope {
     }
     
     property string artUrl: currentTrack ? currentTrack.artUrl : ""
-    property string artLocalPath: (currentTrack && currentTrack.artLocalPath) ? currentTrack.artLocalPath : ""
     
-    // Use the backend-provided local path if available, fallback to remote URL otherwise.
-    property string displayedArtFilePath: artLocalPath !== "" ? "file://" + artLocalPath : artUrl
+    // For Image components: use the remote URL directly (QML caches it)
+    property string displayedArtFilePath: artUrl
+    
+    // For ColorQuantizer: needs a local file path, updated when backend finishes downloading
+    property string colorSourcePath: ""
     
     // Ensure ColorQuantizer triggers properly when art changes
     onDisplayedArtFilePathChanged: {
@@ -297,16 +348,16 @@ Scope {
     
     ColorQuantizer {
         id: colorQuantizer
-        source: root.displayedArtFilePath
+        source: root.colorSourcePath !== "" ? Qt.resolvedUrl(root.colorSourcePath) : ""
         depth: 0
         rescaleSize: 1
     }
     
     readonly property color extractedColor: {
         if (!root.currentTrack || !root.currentTrack.title || root.currentTrack.title === "") {
-            return Appearance.colors.colPrimary
+            return Appearance.m3colors.m3primary
         }
-        let c = colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary
+        let c = colorQuantizer?.colors[0] ?? Appearance.m3colors.m3primary
         return c
     }
     
@@ -403,7 +454,12 @@ Scope {
                         let albums = data.albums || []
                         root.cachedSongResults = songs
                         
-                        for (let i = 0; i < artists.length; i++) root.artistResults.append(artists[i])
+                        for (let i = 0; i < artists.length; i++) {
+                            root.artistResults.append(artists[i])
+                        }
+                        // Debug: log artist data via backend
+                        if (artists.length > 0)
+                            sendCommand({ "command": "debug_log", "message": "Artist[0] keys: " + Object.keys(artists[0]).join(",") + " videoId=" + (artists[0].videoId || "EMPTY") })
                         for (let i = 0; i < albums.length; i++) root.albumResults.append(albums[i])
                         root.applyVisibleSongResults()
                         
@@ -485,19 +541,116 @@ Scope {
                         for (let i = 0; i < tracks.length; i++) {
                             root.activePlaylistTracks.append(tracks[i])
                         }
+
+                        if (root.autoPlayPending && tracks.length > 0) {
+                            root.autoPlayPending = false;
+                            
+                            // Make a copy to shuffle
+                            let tracksToPlay = [...tracks];
+                            
+                            if (root.autoPlayShufflePending) {
+                                root.autoPlayShufflePending = false;
+                                // Fisher-Yates shuffle
+                                for (let i = tracksToPlay.length - 1; i > 0; i--) {
+                                    const j = Math.floor(Math.random() * (i + 1));
+                                    [tracksToPlay[i], tracksToPlay[j]] = [tracksToPlay[j], tracksToPlay[i]];
+                                }
+                            }
+                            
+                            let first = tracksToPlay[0];
+                            let queueTracks = [];
+                            for (let i = 1; i < tracksToPlay.length; i++) {
+                                let t = tracksToPlay[i];
+                                queueTracks.push({
+                                    videoId: t.videoId,
+                                    title: t.title,
+                                    artist: t.artist,
+                                    artUrl: t.artUrl || root.activePlaylistCover,
+                                    duration: t.duration || ""
+                                })
+                            }
+                            root.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.activePlaylistCover, queueTracks)
+                        } else {
+                            root.autoPlayPending = false;
+                        }
+                    } else if (data.type === "artist_details") {
+                        root.isLoading = false
+                        root.refreshing = false
+                        root.activeArtistId = data.channelId || ""
+                        root.activeArtistName = data.name || ""
+                        root.activeArtistDescription = data.description || ""
+                        root.activeArtistSubscribers = data.subscribers || ""
+                        root.activeArtistThumbnail = data.thumbnailUrl || ""
+                        
+                        root.activeArtistSongs.clear()
+                        let artistSongs = data.topSongs || []
+                        for (let i = 0; i < artistSongs.length; i++)
+                            root.activeArtistSongs.append(artistSongs[i])
+                        
+                        root.activeArtistAlbums.clear()
+                        let artistAlbums = data.albums || []
+                        for (let i = 0; i < artistAlbums.length; i++)
+                            root.activeArtistAlbums.append(artistAlbums[i])
+                        
+                        root.activeArtistSingles.clear()
+                        let artistSingles = data.singles || []
+                        for (let i = 0; i < artistSingles.length; i++)
+                            root.activeArtistSingles.append(artistSingles[i])
+                        
+                        root.activeArtistRelated.clear()
+                        let artistRelated = data.relatedArtists || []
+                        for (let i = 0; i < artistRelated.length; i++)
+                            root.activeArtistRelated.append(artistRelated[i])
+                        
+                        root.activeArtistSongsBrowseId = data.songsBrowseId || ""
+                        root.activeArtistAlbumsParams = data.albumsParams || ""
+                        root.activeArtistSinglesParams = data.singlesParams || ""
+                    } else if (data.type === "artist_full_songs") {
+                        root.isLoading = false
+                        let fullSongs = data.items || []
+                        root.activeArtistSongs.clear()
+                        for (let i = 0; i < fullSongs.length; i++) {
+                            root.activeArtistSongs.append(fullSongs[i])
+                        }
+                        root.activeArtistSongsBrowseId = "" // Hide the button
+                    } else if (data.type === "artist_full_albums") {
+                        root.isLoading = false
+                        let fullAlbums = data.items || []
+                        root.activeArtistAlbums.clear()
+                        for (let i = 0; i < fullAlbums.length; i++) {
+                            root.activeArtistAlbums.append(fullAlbums[i])
+                        }
+                        root.activeArtistAlbumsParams = "" // Hide the button
+                    } else if (data.type === "artist_full_singles") {
+                        root.isLoading = false
+                        let fullSingles = data.items || []
+                        root.activeArtistSingles.clear()
+                        for (let i = 0; i < fullSingles.length; i++) {
+                            root.activeArtistSingles.append(fullSingles[i])
+                        }
+                        root.activeArtistSinglesParams = "" // Hide the button
                     } else if (data.type === "error") {
                         root.isLoading = false
                         root.refreshing = false
                         root.isTrackLoading = false
                         console.error("[MusicBackend] Error:", data.message)
+                    } else if (data.type === "track_loading") {
+                        root.isTrackLoading = true
+                        root.trackPositionSec = 0
+                        root.trackDurationSec = 0
+                        root.currentTrack = {
+                            videoId: data.videoId,
+                            title: data.title,
+                            artist: data.artist,
+                            artUrl: data.artUrl
+                        }
                     } else if (data.type === "playback_started") {
                         root.isTrackLoading = false
                         root.currentTrack = {
                             videoId: data.videoId,
                             title: data.title,
                             artist: data.artist,
-                            artUrl: data.artUrl,
-                            artLocalPath: data.artLocalPath || ""
+                            artUrl: data.artUrl
                         }
                         root.currentTrackLiked = data.isLiked || false
                         root.playbackPaused = false
@@ -517,6 +670,16 @@ Scope {
                         if (data.durationSec > 0) root.trackDurationSec = data.durationSec
                     } else if (data.type === "playback_duration") {
                         root.trackDurationSec = data.durationSec || 0
+                    } else if (data.type === "like_status") {
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
+                            root.currentTrackLiked = data.isLiked || false
+                        }
+                    } else if (data.type === "art_downloaded") {
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId && data.path) {
+                            // Force ColorQuantizer to re-read by clearing first if same path
+                            root.colorSourcePath = ""
+                            root.colorSourcePath = "file://" + data.path
+                        }
                     } else if (data.type === "queue_fetching") {
                         root.isQueueLoading = true
                     } else if (data.type === "queue_updated") {
@@ -968,6 +1131,12 @@ Scope {
 
                             MusicPlaylistView {
                                 id: playlistView
+                                anchors.fill: parent
+                                rootContext: root
+                            }
+
+                            MusicArtistView {
+                                id: artistView
                                 anchors.fill: parent
                                 rootContext: root
                             }

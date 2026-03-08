@@ -75,7 +75,32 @@ Rectangle {
         opacity: root.isExpanding ? 0.0 : 1.0
         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
 
+        property string _trackId: rootContext.currentTrack ? rootContext.currentTrack.videoId : ""
+        on_TrackIdChanged: {
+            if (_trackId !== "") {
+                miniArtAnim.restart()
+                miniInfoAnim.restart()
+            }
+        }
+
+        SequentialAnimation {
+            id: miniArtAnim
+            ParallelAnimation {
+                NumberAnimation { target: miniArtRect; property: "scale"; from: 0.85; to: 1.0; duration: 500; easing.type: Easing.OutElastic; easing.amplitude: 1.2 }
+                NumberAnimation { target: miniArtRect; property: "opacity"; from: 0.0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
+            }
+        }
+
+        SequentialAnimation {
+            id: miniInfoAnim
+            ParallelAnimation {
+                NumberAnimation { target: miniInfoCol; property: "opacity"; from: 0.0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
+                NumberAnimation { target: miniInfoCol; property: "scale"; from: 0.95; to: 1.0; duration: 400; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+            }
+        }
+
         Rectangle {
+            id: miniArtRect
             width: 56
             height: 56
             radius: 12
@@ -92,6 +117,7 @@ Rectangle {
         }
 
         ColumnLayout {
+            id: miniInfoCol
             Layout.fillWidth: true
             spacing: 2
 

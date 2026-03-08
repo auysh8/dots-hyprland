@@ -6,6 +6,7 @@ set -u
 
 CONFIG_DIR="$HOME/.config/kdeconnect-drawer"
 CONFIG_FILE="$CONFIG_DIR/mirror_ip"
+TARGET_SERIAL=""
 
 SCRCPY_OPTS=(
   --window-title=PhoneMirror
@@ -35,7 +36,11 @@ save_ip() {
 
 start_mirror() {
   notify "Starting mirror..." -t 1600
-  scrcpy "${SCRCPY_OPTS[@]}" &
+  if [ -n "$TARGET_SERIAL" ]; then
+    scrcpy --serial="$TARGET_SERIAL" "${SCRCPY_OPTS[@]}" &
+  else
+    scrcpy "${SCRCPY_OPTS[@]}" &
+  fi
   exit 0
 }
 
@@ -64,14 +69,15 @@ fi
 
 adb start-server >/dev/null 2>&1 || fail "Failed to start adb server."
 
-USB_DEVICE="$(adb devices | awk 'NR>1 && $2==\"device\" {print $1; exit}')"
+USB_DEVICE="$(adb devices -l | awk 'NR>1 && $2=="device" && /usb:/ {print $1; exit}')"
 if [ -n "$USB_DEVICE" ]; then
   notify "USB device detected. Enabling wireless mode..." -t 2000
+  TARGET_SERIAL="$USB_DEVICE"
 
-  PHONE_IP="$(adb shell ip route 2>/dev/null | grep " src " | awk '{print $9}' | head -1)"
+  PHONE_IP="$(adb -s "$USB_DEVICE" shell ip route 2>/dev/null | grep " src " | awk '{print $9}' | head -1)"
   save_ip "$PHONE_IP"
 
-  if ! adb tcpip 5555 >/dev/null 2>&1; then
+  if ! adb -s "$USB_DEVICE" tcpip 5555 >/dev/null 2>&1; then
     fail "Unable to enable adb tcpip mode on the USB device."
   fi
 
@@ -93,6 +99,7 @@ if [ -n "$DETECTED_IP" ]; then
   res=$?
   if [ "$res" -eq 0 ]; then
     save_ip "$DETECTED_IP"
+    TARGET_SERIAL="$DETECTED_IP:5555"
     notify "Connected via active KDE Connect session: $DETECTED_IP" -t 1800
     start_mirror
   elif [ "$res" -eq 2 ]; then
@@ -103,6 +110,7 @@ fi
 if [ -f "$CONFIG_FILE" ]; then
   SAVED_IP="$(cat "$CONFIG_FILE")"
   if try_connect "$SAVED_IP"; then
+    TARGET_SERIAL="$SAVED_IP:5555"
     notify "Connected via saved IP: $SAVED_IP" -t 1800
     start_mirror
   fi
@@ -111,6 +119,7 @@ fi
 GATEWAY_IP="$(ip route | awk '/default/ {print $3; exit}')"
 if try_connect "$GATEWAY_IP"; then
   save_ip "$GATEWAY_IP"
+  TARGET_SERIAL="$GATEWAY_IP:5555"
   notify "Connected via hotspot gateway: $GATEWAY_IP" -t 1800
   start_mirror
 fi
@@ -124,6 +133,7 @@ if command -v zenity >/dev/null 2>&1; then
   case "$?" in
     0)
       save_ip "$PHONE_IP"
+      TARGET_SERIAL="$PHONE_IP:5555"
       start_mirror
       ;;
     2)
