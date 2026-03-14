@@ -23,7 +23,7 @@ StyledFlickable {
     flickableDirection: Flickable.VerticalFlick
 
     onDraggingChanged: {
-        if (!dragging && contentY < -120 && !rootContext.refreshing && !rootContext.isLoading) {
+        if (!dragging && contentY <= -100 && !rootContext.refreshing && !rootContext.isLoading) {
             rootContext.refreshing = true
             rootContext.openPlaylist(rootContext.activePlaylistId)
         }
@@ -70,31 +70,17 @@ StyledFlickable {
             Layout.fillWidth: true
             spacing: 16
             
-            Rectangle {
-                width: 40; height: 40; radius: 20
-                color: backHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "transparent"
-                
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "arrow_back"
-                    color: rootContext.contentColor
-                    iconSize: 24
-                }
-                
-                MouseArea {
-                    id: backHover
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (rootContext.previousView && rootContext.previousView !== "playlist")
-                            rootContext.currentView = rootContext.previousView
+            MusicBackButton {
+                rootContext: root.rootContext
+                onClicked: {
+                    if (rootContext) {
+                        if (rootContext.returnView && rootContext.returnView !== "playlist")
+                            rootContext.currentView = rootContext.returnView
                         else
                             rootContext.currentView = "library"
                     }
                 }
-            }
-        }
+            }        }
 
         // Header Section
         RowLayout {
@@ -194,8 +180,8 @@ StyledFlickable {
                             id: playRow
                             anchors.centerIn: parent
                             spacing: 8
-                            MaterialSymbol { text: "play_arrow"; color: parent.parent.txColor; iconSize: 24 }
-                            StyledText { text: "Play"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
+                            MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "play_arrow"; color: parent.parent.txColor; iconSize: 24 }
+                            StyledText { Layout.alignment: Qt.AlignVCenter; text: "Play"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
                         }
                         
                         onClicked: {
@@ -230,8 +216,8 @@ StyledFlickable {
                             id: shuffleRow
                             anchors.centerIn: parent
                             spacing: 8
-                            MaterialSymbol { text: "shuffle"; color: parent.parent.txColor; iconSize: 24 }
-                            StyledText { text: "Shuffle"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
+                            MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "shuffle"; color: parent.parent.txColor; iconSize: 24 }
+                            StyledText { Layout.alignment: Qt.AlignVCenter; text: "Shuffle"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
                         }
                         
                         onClicked: {
@@ -282,117 +268,32 @@ StyledFlickable {
                 Repeater {
                     model: rootContext ? rootContext.activePlaylistTracks : null
 
-                    delegate: Rectangle {
-                        Layout.fillWidth: true
-                        height: 64
-                        radius: 12
-                        color: trackHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "transparent"
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 16
-
-                            StyledText {
-                                text: (index + 1).toString()
-                                font.pixelSize: 14
-                                Layout.preferredWidth: 32
-                                horizontalAlignment: Text.AlignHCenter
-                                Layout.alignment: Qt.AlignVCenter
-                                color: rootContext.secondaryContentColor
-                            }
-
-                            Rectangle {
-                                width: 48
-                                height: 48
-                                radius: 8
-                                color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
-
-                                RoundedImage {
-                                    anchors.fill: parent
-                                    source: model.artUrl || rootContext.activePlaylistCover || ""
-                                    sourceSize.width: 96
-                                    sourceSize.height: 96
-                                    fillMode: Image.PreserveAspectCrop
-                                    radius: 8
-                                    asynchronous: true
-                                    cache: true
+                    delegate: MusicListTrackItem {
+                        rootContext: root.rootContext
+                        track: model
+                        indexNumber: index + 1
+                        
+                        onClicked: {
+                            if (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) {
+                                rootContext.toggle()
+                            } else {
+                                let queueTracks = []
+                                for (let i = index + 1; i < rootContext.activePlaylistTracks.count; i++) {
+                                    let t = rootContext.activePlaylistTracks.get(i)
+                                    queueTracks.push({
+                                        videoId: t.videoId,
+                                        title: t.title,
+                                        artist: t.artist,
+                                        artUrl: t.artUrl,
+                                        duration: t.duration || ""
+                                    })
                                 }
-                                
-                                Rectangle {
-                                    anchors.fill: parent
-                                    color: "#40000000"
-                                    radius: 8
-                                    visible: trackHover.containsMouse || (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId)
-
-                                    MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        text: (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) ? (rootContext.playbackPaused ? "play_arrow" : "pause") : "play_arrow"
-                                        color: "white"
-                                        iconSize: 24
-                                    }
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                spacing: 2
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: model.title
-                                    font.weight: 600
-                                    color: (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) ? (rootContext.extractedColor || rootContext.pillColor) : rootContext.contentColor
-                                    elide: Text.ElideRight
-                                    horizontalAlignment: Text.AlignLeft
-                                }
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: model.artist
-                                    font.pixelSize: 12
-                                    color: rootContext.secondaryContentColor
-                                    elide: Text.ElideRight
-                                    horizontalAlignment: Text.AlignLeft
-                                }
-                            }
-
-                            StyledText {
-                                text: (model.duration && model.duration.length > 0) ? model.duration : "--:--"
-                                color: rootContext.secondaryContentColor
-                                font.pixelSize: 12
-                                Layout.alignment: Qt.AlignVCenter
+                                rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks)
                             }
                         }
-
-                        MouseArea {
-                            id: trackHover
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) {
-                                    rootContext.toggle() // Pause/play
-                                } else {
-                                    let queueTracks = []
-                                    for (let i = index + 1; i < rootContext.activePlaylistTracks.count; i++) {
-                                        let t = rootContext.activePlaylistTracks.get(i)
-                                        queueTracks.push({
-                                            videoId: t.videoId,
-                                            title: t.title,
-                                            artist: t.artist,
-                                            artUrl: t.artUrl || rootContext.activePlaylistCover,
-                                            duration: t.duration || ""
-                                        })
-                                    }
-                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl || rootContext.activePlaylistCover, queueTracks)
-                                }
-                            }
-                        }
-                    }
                 }
             }
+        }
         }
         
         // Spacer

@@ -184,7 +184,7 @@ Button {
                 width: ripple.implicitWidth
                 height: ripple.implicitHeight
                 radius: width / 2
-                color: Qt.rgba(root.rippleColor.r, root.rippleColor.g, root.rippleColor.b, 0.25)
+                color: ColorUtils.applyAlpha(root.rippleColor, 0.25)
                 opacity: 0
                 visible: width > 0 && height > 0
 

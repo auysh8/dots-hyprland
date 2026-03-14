@@ -2,8 +2,9 @@
 import sys
 import os
 import json
-# Add the directory to path so we can import
-sys.path.append(os.path.expanduser("~/.config/quickshell/ii/lyricsLayer"))
+
+# Add the directory to path so we can import dynamically based on script location
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Mocking some things if needed, but let's try direct import
 try:
@@ -24,11 +25,11 @@ except Exception as e:
 
 # Try fetching
 print("Fetching 'Naked' by 'James Arthur'...")
-res = lyrics_backend.fetch_lyrics("Naked", "James Arthur")
+lyrics, is_synced, source = lyrics_backend.fetch_lyrics("Naked", "James Arthur")
 
-if res:
-    print("SUCCESS: Got lyrics!")
-    print(json.dumps(res[:3], indent=2)) # Print first 3 lines
+if lyrics:
+    print(f"SUCCESS: Got lyrics from {source} (Synced: {is_synced})")
+    print(json.dumps(lyrics[:3], indent=2)) # Print first 3 lines
 else:
     print("FAILURE: returned None")
     

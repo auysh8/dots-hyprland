@@ -6,6 +6,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.modules.common.widgets
 import qs.modules.common
+import qs.modules.common.functions
 
 Scope {
     id: kdeRoot
@@ -167,7 +168,7 @@ Scope {
     property color textSecondary: Appearance.colors.colSubtext
     property color accentColor: Appearance.colors.colPrimary
     property color successColor: Appearance.m3colors.m3success
-    property color warningColor: "#fab387"  // Warm orange for Ring (alert action)
+    property color warningColor: Appearance.m3colors.m3tertiary  // Warm/alert action
 
     /* --- CLOSE TIMER (shared) --- */
     Timer {
@@ -545,7 +546,7 @@ Scope {
                                 shape: MaterialShape.Shape.Square
                                 padding: 9
                                 colSymbol: accentColor
-                                color: Qt.rgba(colSymbol.r, colSymbol.g, colSymbol.b, 0.15)
+                                color: ColorUtils.applyAlpha(colSymbol, 0.15)
                                 text: "smartphone"
                                 iconSize: 22
 
@@ -556,7 +557,7 @@ Scope {
                                     anchors.margins: -2
                                     implicitSize: 12
                                     shape: MaterialShape.Shape.Circle
-                                    color: deviceOnline ? successColor : "#f38ba8"
+                                    color: deviceOnline ? successColor : Appearance.colors.colError
 
                                     // Pulse animation when online
                                     SequentialAnimation on scale {
@@ -583,7 +584,7 @@ Scope {
                                 implicitHeight: 32
                                 buttonRadius: 16
                                 colBackground: "transparent"
-                                colBackgroundHover: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.1)
+                                colBackgroundHover: ColorUtils.applyAlpha(textColor, 0.1)
 
                                 onClicked: {
                                     requestCloseDrawer()
@@ -628,9 +629,9 @@ Scope {
                                     currentIndex: selectedDeviceIndex()
                                     
                                     // Make it blend with the card nicely
-                                    colBackground: Qt.rgba(0,0,0,0.1)
-                                    colBackgroundHover: Qt.rgba(0,0,0,0.2)
-                                    colBackgroundActive: Qt.rgba(0,0,0,0.3)
+                                    colBackground: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.1)
+                                    colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.2)
+                                    colBackgroundActive: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.3)
                                     
                                     onActivated: index => {
                                         if (index < 0 || index >= availableDevices.length) return
@@ -671,12 +672,12 @@ Scope {
                                                                     padding: 8
                                                                     colSymbol: batteryCharging
                                                                         ? successColor
-                                                                        : (batteryPercent != -1 && batteryPercent < 20 ? "#f38ba8" : accentColor)
+                                                                        : (batteryPercent != -1 && batteryPercent < 20 ? Appearance.colors.colError : accentColor)
                                                                     color: batteryCharging
-                                                                        ? Qt.rgba(successColor.r, successColor.g, successColor.b, 0.2)
+                                                                        ? ColorUtils.applyAlpha(successColor, 0.2)
                                                                         : (batteryPercent != -1 && batteryPercent < 20
-                                                                            ? Qt.rgba(1, 0.4, 0.4, 0.2)
-                                                                            : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15))
+                                                                            ? ColorUtils.applyAlpha(Appearance.colors.colError, 0.2)
+                                                                            : ColorUtils.applyAlpha(accentColor, 0.15))
                                                                     iconSize: 22
                                                                     text: batteryCharging
                                                                         ? "battery_charging_full"
@@ -703,7 +704,7 @@ Scope {
                                     valueBarHeight: 6
                                     value: Math.max(batteryPercent, 0) / 100
                                     highlightColor: batteryCharging ? successColor : accentColor
-                                    trackColor: Qt.rgba(1, 1, 1, 0.08)
+                                    trackColor: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.08)
                                     // Remove gap for a solid bar look
                                     valueBarGap: 0
                                 }
@@ -733,11 +734,9 @@ Scope {
                                  buttonRadius: down ? 12 : 16
 
                                  colBackground: cardColor
-                                 colBackgroundHover: warningColor
-                                 colBackgroundToggled: warningColor
-                                 colRipple: Appearance.colors.colOnWarning || Appearance.m3colors.m3onPrimary
-                                 
-                                 // Property for StyledToolTip
+                                 colBackgroundHover: accentColor
+                                 colBackgroundToggled: accentColor
+                                 colRipple: Appearance.colors.colOnPrimary
                                  
                                  Behavior on Layout.preferredWidth { 
                                      NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
@@ -753,7 +752,7 @@ Scope {
                                      MaterialSymbol {
                                          anchors.centerIn: parent
                                          text: "ring_volume"
-                                         color: ringBtn.hovered ? Appearance.m3colors.m3onPrimary : textColor
+                                         color: ringBtn.hovered ? Appearance.colors.colOnPrimary : textColor
                                          iconSize: 24
                                          Behavior on color { ColorAnimation { duration: 150 } }
                                      }
@@ -773,11 +772,9 @@ Scope {
                                  buttonRadius: down ? 12 : 16
 
                                  colBackground: cardColor
-                                 colBackgroundHover: successColor
-                                 colBackgroundToggled: successColor
-                                 colRipple: Appearance.colors.colOnSuccess || Appearance.m3colors.m3onPrimary
-                                 
-                                 // Property for StyledToolTip
+                                 colBackgroundHover: accentColor
+                                 colBackgroundToggled: accentColor
+                                 colRipple: Appearance.colors.colOnPrimary
                                  
                                  Behavior on Layout.preferredWidth { 
                                      NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
@@ -793,7 +790,7 @@ Scope {
                                      MaterialSymbol {
                                          anchors.centerIn: parent
                                          text: "touch_app"
-                                         color: pingBtn.hovered ? Appearance.m3colors.m3onPrimary : textColor
+                                         color: pingBtn.hovered ? Appearance.colors.colOnPrimary : textColor
                                          iconSize: 24
                                          Behavior on color { ColorAnimation { duration: 150 } }
                                      }
@@ -815,9 +812,7 @@ Scope {
                                  colBackground: cardColor
                                  colBackgroundHover: accentColor
                                  colBackgroundToggled: accentColor
-                                 colRipple: Appearance.colors.colOnPrimary || Appearance.m3colors.m3onPrimary
-                                 
-                                 // Property for StyledToolTip
+                                 colRipple: Appearance.colors.colOnPrimary
                                  
                                  Behavior on Layout.preferredWidth { 
                                      NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
@@ -832,7 +827,7 @@ Scope {
                                      MaterialSymbol {
                                          anchors.centerIn: parent
                                          text: "screen_share"
-                                         color: mirrorBtn.hovered ? Appearance.m3colors.m3onPrimary : textColor
+                                         color: mirrorBtn.hovered ? Appearance.colors.colOnPrimary : textColor
                                          iconSize: 24
                                          Behavior on color { ColorAnimation { duration: 150 } }
                                      }
@@ -845,11 +840,9 @@ Scope {
                         }
 
                         // Drop Zone
-                        Rectangle {
+                        Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            radius: 28
-                            color: "transparent"
 
                             Canvas {
                                 anchors.fill: parent
@@ -857,7 +850,7 @@ Scope {
                                     const ctx = getContext("2d")
                                     ctx.reset()
                                     // Highlight border on drag
-                                    ctx.strokeStyle = fileDropArea.containsDrag ? accentColor : Qt.rgba(textColor.r, textColor.g, textColor.b, 0.2)
+                                    ctx.strokeStyle = fileDropArea.containsDrag ? accentColor : ColorUtils.applyAlpha(textColor, 0.2)
                                     ctx.lineWidth = 2
                                     ctx.setLineDash([12, 12]) // Larger dashes
                                     ctx.beginPath()
@@ -878,7 +871,7 @@ Scope {
                                     shape: MaterialShape.Shape.Circle
                                     padding: 16
                                     colSymbol: fileDropArea.containsDrag ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnSurface
-                                    color: fileDropArea.containsDrag ? accentColor : Qt.rgba(cardColor.r, cardColor.g, cardColor.b, 0.5)
+                                    color: fileDropArea.containsDrag ? accentColor : ColorUtils.applyAlpha(cardColor, 0.5)
 
                                     Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -899,7 +892,7 @@ Scope {
                             Rectangle {
                                 anchors.fill: parent
                                 radius: 28
-                                color: Qt.rgba(cardColor.r, cardColor.g, cardColor.b, 0.95)
+                                color: ColorUtils.applyAlpha(cardColor, 0.95)
                                 z: 100
 
                                 // Animate visibility
@@ -954,12 +947,10 @@ Scope {
                         }
 
                         // Status Pill - Floating style
-                        Rectangle {
+                        Item {
                             Layout.alignment: Qt.AlignHCenter
                             width: statusRow.width + 20
                             height: 28
-                            radius: 14
-                            color: "transparent"
 
                             RowLayout {
                                 id: statusRow
@@ -969,7 +960,7 @@ Scope {
                                 MaterialShape {
                                     implicitSize: 8
                                     shape: MaterialShape.Shape.Circle
-                                    color: deviceOnline ? successColor : "#f38ba8"
+                                    color: deviceOnline ? successColor : Appearance.colors.colError
 
                                     // Pulse animation when online
                                     SequentialAnimation on opacity {

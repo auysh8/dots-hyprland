@@ -8,16 +8,26 @@ Item {
     
     // Properties
     property string albumArt: ""
-    property bool showLyrics: false
+    property bool active: false // Controls the animation (used to be showLyrics)
+    property bool animated: false // Opt-in to drifting animation
     property color backgroundColor: "transparent"
     
     property real cornerRadius: 24
+    
+    property string lastValidArt: root.albumArt
+    onAlbumArtChanged: {
+        if (root.albumArt !== "") {
+            lastValidArt = root.albumArt
+        }
+    }
     
     // Blurred album art background
     Item {
         id: blurBackground
         anchors.fill: parent
-        visible: root.albumArt !== ""
+        opacity: root.albumArt !== "" ? 1.0 : 0.0
+        Behavior on opacity { NumberAnimation { duration: root.albumArt !== "" ? 800 : 350 } }
+        visible: opacity > 0
         
         // Apply rounded corner mask - disable if no radius (fullscreen)
         layer.enabled: root.cornerRadius > 0
@@ -29,14 +39,15 @@ Item {
             }
         }
         
-        // Animated container - holds the image + effect together
+        // Container - holds the image + effect together
         Item {
             id: animatedBgContainer
+            
+            // Dynamic sizing based on animation state
+            // If animated, we need a larger container to pan around without showing edges
+            width: root.animated ? Math.max(Screen.width, Screen.height) * 1.2 : parent.width
+            height: root.animated ? width : parent.height
             anchors.centerIn: parent
-            // Performance: Use fixed large size to prevent re-rendering/re-blurring during resize
-            // We use the maximum likely screen dimension to ensure coverage
-            width: Math.max(Screen.width, Screen.height) * 1.2
-            height: width
             
             // Animation properties
             property real offsetX: 0
@@ -44,19 +55,19 @@ Item {
             property real scaleAnim: 1.0
             
             transform: [
-                Translate { x: animatedBgContainer.offsetX; y: animatedBgContainer.offsetY },
+                Translate { x: root.animated ? animatedBgContainer.offsetX : 0; y: root.animated ? animatedBgContainer.offsetY : 0 },
                 Scale { 
                     origin.x: animatedBgContainer.width / 2
                     origin.y: animatedBgContainer.height / 2
-                    xScale: animatedBgContainer.scaleAnim
-                    yScale: animatedBgContainer.scaleAnim
+                    xScale: root.animated ? animatedBgContainer.scaleAnim : 1.0
+                    yScale: root.animated ? animatedBgContainer.scaleAnim : 1.0
                 }
             ]
             
             // Horizontal drift - more pronounced
             SequentialAnimation on offsetX {
                 loops: Animation.Infinite
-                running: root.showLyrics
+                running: root.animated && root.active
                 NumberAnimation { to: 80; duration: 8000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: -80; duration: 8000; easing.type: Easing.InOutSine }
             }
@@ -64,7 +75,7 @@ Item {
             // Vertical drift
             SequentialAnimation on offsetY {
                 loops: Animation.Infinite
-                running: root.showLyrics
+                running: root.animated && root.active
                 NumberAnimation { to: -60; duration: 6000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 60; duration: 6000; easing.type: Easing.InOutSine }
             }
@@ -72,7 +83,7 @@ Item {
             // Breathing/scale effect
             SequentialAnimation on scaleAnim {
                 loops: Animation.Infinite
-                running: root.showLyrics
+                running: root.animated && root.active
                 NumberAnimation { to: 1.25; duration: 10000; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 1.0; duration: 10000; easing.type: Easing.InOutSine }
             }
@@ -80,7 +91,7 @@ Item {
             Image {
                 id: bgImage
                 anchors.fill: parent
-                source: root.albumArt
+                source: root.lastValidArt
                 fillMode: Image.PreserveAspectCrop
                 visible: false
                 // Optimize: Limit source size for blur performance

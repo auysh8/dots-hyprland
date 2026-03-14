@@ -15,7 +15,7 @@ StyledFlickable {
     anchors.fill: parent
     contentHeight: resultsColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
 
-    property bool show: queryText.length > 0 && rootContext.currentView !== "playlist" && rootContext.currentView !== "artist" && !rootContext.isLoading
+    property bool show: queryText.length > 0 && rootContext.currentView !== "playlist" && rootContext.currentView !== "artist" && rootContext.currentView !== "artist_items" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }

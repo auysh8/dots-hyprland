@@ -33,17 +33,6 @@ ColumnLayout {
     property real position: 0
     
     signal seek(real seconds)
-
-    function formatTime(seconds) {
-        if (isNaN(seconds) || seconds < 0) return "0:00";
-        let h = Math.floor(seconds / 3600);
-        let m = Math.floor((seconds % 3600) / 60);
-        let s = Math.floor(seconds % 60);
-        if (h > 0) {
-            return h + ":" + (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
-        }
-        return m + ":" + (s < 10 ? "0" + s : s);
-    }
     
     Layout.preferredWidth: centeredMode ? 500 : (isFullscreen ? 420 : 260)
     Layout.maximumWidth: centeredMode ? 500 : (isFullscreen ? 420 : 260)
@@ -67,6 +56,10 @@ ColumnLayout {
             fillMode: Image.PreserveAspectCrop
             visible: false
             asynchronous: true
+            sourceSize.width: 400
+            sourceSize.height: 400
+            antialiasing: true
+            smooth: true
         }
 
         Rectangle {
@@ -87,13 +80,13 @@ ColumnLayout {
         Rectangle {
             anchors.fill: parent
             radius: 16
-            color: Appearance.m3colors.m3surfaceContainerHighest
+            color: ColorUtils.applyAlpha(root.contentColor, 0.1)
             visible: root.artLoading
 
-            Text {
+            StyledText {
                 anchors.centerIn: parent
                 text: "Loading..."
-                color: "white"
+                color: root.contentColor
                 font.pixelSize: 14
             }
         }
@@ -102,20 +95,20 @@ ColumnLayout {
         Rectangle {
             anchors.fill: parent
             radius: 16
-            color: Appearance.m3colors.m3surfaceContainerHighest
+            color: ColorUtils.applyAlpha(root.contentColor, 0.1)
             visible: root.albumArt === "" && !root.artLoading
 
             MaterialSymbol {
                 anchors.centerIn: parent
                 text: "music_note"
                 iconSize: 64
-                color: "#888"
+                color: root.secondaryContentColor
             }
         }
     }
 
     // Title
-    Text {
+    StyledText {
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignHCenter
         horizontalAlignment: Text.AlignHCenter
@@ -132,7 +125,7 @@ ColumnLayout {
     }
 
     // Artist
-    Text {
+    StyledText {
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignHCenter
         horizontalAlignment: Text.AlignHCenter
@@ -166,7 +159,7 @@ ColumnLayout {
                 sourceComponent: StyledSlider {
                     configuration: root.isPlaying ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
                     highlightColor: root.contentColor 
-                    trackColor: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
+                    trackColor: ColorUtils.applyAlpha(root.contentColor, 0.2)
                     handleColor: root.contentColor
                     value: root.duration > 0 ? root.position / root.duration : 0
                     onMoved: {
@@ -186,7 +179,7 @@ ColumnLayout {
                 sourceComponent: StyledProgressBar {
                     wavy: root.isPlaying
                     highlightColor: root.contentColor
-                    trackColor: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
+                    trackColor: ColorUtils.applyAlpha(root.contentColor, 0.2)
                     value: root.duration > 0 ? root.position / root.duration : 0
                 }
             }
@@ -195,15 +188,15 @@ ColumnLayout {
         // Time Labels
         RowLayout {
             Layout.fillWidth: true
-            Text {
-                text: root.formatTime(root.position)
+            StyledText {
+                text: StringUtils.friendlyTimeForSeconds(root.position)
                 color: root.secondaryContentColor
                 font.pixelSize: 13
                 font.family: "Inter, Segoe UI, sans-serif"
             }
             Item { Layout.fillWidth: true }
-            Text {
-                text: root.formatTime(root.duration)
+            StyledText {
+                text: StringUtils.friendlyTimeForSeconds(root.duration)
                 color: root.secondaryContentColor
                 font.pixelSize: 13
                 font.family: "Inter, Segoe UI, sans-serif"
@@ -220,141 +213,100 @@ ColumnLayout {
                 spacing: isFullscreen ? 6 : 4
 
                 // Previous Button
-                Item {
+                RippleButton {
                     id: prevBtnContainer
-                    property bool isPressed: prevArea.pressed
-                    
-                    implicitWidth: (isFullscreen ? 80 : 64) + (isPressed ? 16 : (playBtnContainer.isPressed ? -10 : 0))
-                    implicitHeight: isFullscreen ? 75 : 60
-                    
-                    Behavior on implicitWidth { 
-                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
+
+                    Layout.preferredWidth: (isFullscreen ? 80 : 64) + (down ? 16 : (playBtnContainer.down ? -10 : 0))
+                    Layout.preferredHeight: isFullscreen ? 75 : 60
+                    buttonRadius: down ? 24 : Layout.preferredHeight / 2
+
+                    colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
+                    colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.2)
+                    colRipple: root.contentColor
+
+                    onClicked: root.activePlayer?.previous()
+
+                    Behavior on Layout.preferredWidth { 
+                        NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
                     }
-                    Behavior on implicitHeight { 
-                        NumberAnimation { 
-                            duration: 300
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 2
-                        } 
+                    Behavior on Layout.preferredHeight { 
+                        NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 } 
                     }
-                    
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: height / 2
-                        color: prevArea.containsMouse 
-                            ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
-                            : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
-                        
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            iconSize: 28
-                            fill: 1
-                            color: root.contentColor
-                            text: "skip_previous"
-                        }
+                    Behavior on buttonRadius { 
+                        NumberAnimation { duration: 200 }
                     }
-                    
-                    MouseArea {
-                        id: prevArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.activePlayer?.previous()
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 28
+                        fill: 1
+                        color: root.contentColor
+                        text: "skip_previous"
                     }
                 }
 
                 // Play/Pause Button
-                Item {
+                RippleButton {
                     id: playBtnContainer
-                    property bool isPressed: playArea.pressed
+
+                    Layout.preferredWidth: (isFullscreen ? 170 : 130) + (down ? 20 : (prevBtnContainer.down ? -16 : (nextBtnContainer.down ? -16 : 0)))
+                    Layout.preferredHeight: isFullscreen ? 75 : 60
+                    buttonRadius: down ? 20 : 24
                     
-                    implicitWidth: (isFullscreen ? 170 : 130) + (isPressed ? 20 : (prevBtnContainer.isPressed ? -16 : (nextBtnContainer.isPressed ? -16 : 0)))
-                    implicitHeight: isFullscreen ? 75 : 60
-                    
-                    Behavior on implicitWidth { 
-                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
+                    Behavior on buttonRadius { NumberAnimation { duration: 200 } }
+
+                    colBackground: root.pillColor
+                    colBackgroundHover: Qt.darker(root.pillColor, 1.05)
+                    colRipple: root.pillContentColor
+
+                    onClicked: root.activePlayer?.togglePlaying()
+
+                    Behavior on Layout.preferredWidth { 
+                        NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
                     }
-                    Behavior on implicitHeight { 
-                        NumberAnimation { 
-                            duration: 300
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 2
-                        } 
+                    Behavior on Layout.preferredHeight { 
+                        NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 } 
                     }
-                    
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: playBtnContainer.isPressed ? 20 : 24
-                        color: playArea.containsMouse 
-                            ? Qt.darker(root.pillColor, 1.05)
-                            : root.pillColor
-                        
-                        Behavior on radius { NumberAnimation { duration: 200 } }
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            iconSize: 40
-                            fill: 1
-                            color: root.pillContentColor
-                            text: root.isPlaying ? "pause" : "play_arrow"
-                        }
-                    }
-                    
-                    MouseArea {
-                        id: playArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.activePlayer?.togglePlaying()
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 40
+                        fill: 1
+                        color: root.pillContentColor
+                        text: root.isPlaying ? "pause" : "play_arrow"
                     }
                 }
 
                 // Next Button
-                Item {
+                RippleButton {
                     id: nextBtnContainer
-                    property bool isPressed: nextArea.pressed
                     
-                    implicitWidth: (isFullscreen ? 80 : 64) + (isPressed ? 16 : (playBtnContainer.isPressed ? -10 : 0))
-                    implicitHeight: isFullscreen ? 75 : 60
-                    
-                    Behavior on implicitWidth { 
-                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
+                    Layout.preferredWidth: (isFullscreen ? 80 : 64) + (down ? 16 : (playBtnContainer.down ? -10 : 0))
+                    Layout.preferredHeight: isFullscreen ? 75 : 60
+                    buttonRadius: down ? 24 : Layout.preferredHeight / 2
+
+                    colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
+                    colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.2)
+                    colRipple: root.contentColor
+
+                    onClicked: root.activePlayer?.next()
+
+                    Behavior on Layout.preferredWidth { 
+                        NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
                     }
-                    Behavior on implicitHeight { 
-                        NumberAnimation { 
-                            duration: 300
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 2
-                        } 
+                    Behavior on Layout.preferredHeight { 
+                        NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 } 
                     }
-                    
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: height / 2
-                        color: nextArea.containsMouse 
-                            ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
-                            : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
-                        
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            iconSize: 28
-                            fill: 1
-                            color: root.contentColor
-                            text: "skip_next"
-                        }
+                    Behavior on buttonRadius { 
+                        NumberAnimation { duration: 200 }
                     }
-                    
-                    MouseArea {
-                        id: nextArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.activePlayer?.next()
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 28
+                        fill: 1
+                        color: root.contentColor
+                        text: "skip_next"
                     }
                 }
             }

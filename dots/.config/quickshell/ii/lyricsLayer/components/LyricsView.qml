@@ -5,6 +5,7 @@ import QtQuick.Effects
 import Quickshell
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 
 Item {
     id: root
@@ -14,6 +15,7 @@ Item {
     property color secondaryContentColor: "gray"
     property color pillColor: "white"
     property color pillContentColor: "black"
+    property color loaderColor: "white"
     
     property var activePlayer: null
     property var lyricsModel: null
@@ -65,50 +67,48 @@ Item {
         z: 10
         visible: root.showWindowControls
         
-        // Helper component for M3 Icon Buttons
-        component M3IconButton: Rectangle {
-            id: btnRoot
-            property string iconName: ""
-            property var action: null
-            property bool active: false
-            
-            width: 32
-            height: 32
-            radius: 16
-            
-            color: btnArea.containsMouse 
-                ? Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.2)
-                : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
-            
-            Behavior on color { ColorAnimation { duration: 150 } }
-            
-            MaterialSymbol {
-                anchors.centerIn: parent
-                text: btnRoot.iconName
-                iconSize: 18
-                color: root.contentColor
-                opacity: 0.8
-            }
-            
-            MouseArea {
-                id: btnArea
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: if (btnRoot.action) btnRoot.action()
-            }
-        }
-
         // Fullscreen / View Mode Button
-        M3IconButton {
-            iconName: root.isFullscreen ? "branding_watermark" : "crop_free"
-            action: () => root.fullscreenToggled()
+        RippleButton {
+            implicitWidth: 36
+            implicitHeight: 36
+            buttonRadius: 18
+            padding: 0
+            
+            colBackground: ColorUtils.applyAlpha(root.contentColor, 0.1)
+            colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.2)
+            colRipple: root.contentColor
+            
+            onClicked: root.fullscreenToggled()
+            
+            contentItem: MaterialSymbol {
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                text: root.isFullscreen ? "branding_watermark" : "crop_free"
+                iconSize: 20
+                color: root.contentColor
+            }
         }
 
         // Close Button
-        M3IconButton {
-            iconName: "close"
-            action: () => root.closeRequested()
+        RippleButton {
+            implicitWidth: 36
+            implicitHeight: 36
+            buttonRadius: 18
+            padding: 0
+            
+            colBackground: ColorUtils.applyAlpha(root.contentColor, 0.1)
+            colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.2)
+            colRipple: root.contentColor
+            
+            onClicked: root.closeRequested()
+            
+            contentItem: MaterialSymbol {
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                text: "close"
+                iconSize: 20
+                color: root.contentColor
+            }
         }
     }
     
@@ -145,7 +145,7 @@ Item {
             color: root.secondaryContentColor
         }
         
-        Text {
+        StyledText {
             anchors.verticalCenter: parent.verticalCenter
             text: root.providerDisplayName(root.lyricsSource) + "  ·  " + (root.hasWordSync ? "Word Sync" : "Line Sync")
             color: root.secondaryContentColor
@@ -175,12 +175,13 @@ Item {
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 
-            color: root.pillColor
+            color: ColorUtils.applyAlpha(root.loaderColor, 0.2)
+            shapeColor: root.loaderColor
         }
 
         // 2. The Status Text
         // VISIBLE: If we are paused OR if we finished loading and found nothing
-        Text {
+        StyledText {
             anchors.centerIn: parent
             
             // Dynamic text based on state
@@ -196,7 +197,7 @@ Item {
         }
 
         // 3. The Lyrics List
-        ListView {
+        StyledListView {
             id: lyricsView
             visible: root.lyricsCount > 0
             anchors.fill: parent
@@ -204,6 +205,13 @@ Item {
             model: root.lyricsModel
             spacing: 16
             clip: true
+            animateAppearance: false
+            animateMovement: false
+            popin: false
+            
+            // Performance optimizations for large lyrics models
+            cacheBuffer: 600
+            reuseItems: true
             
             // Manual scroll tracking
             onFlickStarted: {
@@ -257,7 +265,7 @@ Item {
                     radius: height / 2
                     color: root.pillColor
                     opacity: 1.0
-                    border.color: Qt.rgba(1,1,1,0.1)
+                    border.color: ColorUtils.applyAlpha(root.contentColor, 0.15)
                     border.width: 1
                     
                     // Animate the width resizing as it slides
@@ -309,6 +317,7 @@ Item {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
+                    scrollGestureEnabled: false
                     onClicked: {
                         if (root.activePlayer && model.time !== undefined) {
                             console.log("[Lyrics] Seeking to:", model.time)
@@ -337,7 +346,7 @@ Item {
                     Behavior on opacity { NumberAnimation { duration: 150 } }
                 }
                 
-                Text {
+                StyledText {
                     id: lyricText
                     anchors.centerIn: parent
                     width: parent.width - 48
@@ -449,7 +458,7 @@ Item {
                     color: root.pillContentColor
                 }
                 
-                Text {
+                StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Re-sync"
                     color: root.pillContentColor

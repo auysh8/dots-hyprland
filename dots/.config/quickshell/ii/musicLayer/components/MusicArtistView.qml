@@ -22,7 +22,7 @@ StyledFlickable {
     contentHeight: artistContainer.implicitHeight + 32
 
     onDraggingChanged: {
-        if (!dragging && contentY < -120 && !rootContext.refreshing && !rootContext.isLoading) {
+        if (!dragging && contentY <= -100 && !rootContext.refreshing && !rootContext.isLoading) {
             rootContext.refreshing = true
             rootContext.openArtist(rootContext.activeArtistId)
         }
@@ -38,11 +38,12 @@ StyledFlickable {
         RowLayout {
             anchors.centerIn: parent
             spacing: 12
+            opacity: Math.min(Math.abs(root.contentY) / 100, 1.0)
 
-            MaterialSymbol {
-                text: root.contentY < -100 ? "refresh" : "arrow_downward"
-                color: rootContext ? rootContext.contentColor : "white"
-                iconSize: 20
+            MaterialLoadingIndicator {
+                implicitSize: 24
+                loading: true
+                color: rootContext ? rootContext.pillColor : "white"
             }
 
             StyledText {
@@ -55,13 +56,11 @@ StyledFlickable {
 
     ColumnLayout {
         id: artistContainer
-        width: parent.width
+        width: parent.width - 64
         anchors.top: parent.top
         anchors.topMargin: 16
         anchors.left: parent.left
         anchors.leftMargin: 32
-        anchors.right: parent.right
-        anchors.rightMargin: 32
         spacing: 32
 
         // Back button
@@ -69,25 +68,12 @@ StyledFlickable {
             Layout.fillWidth: true
             spacing: 16
             
-            Rectangle {
-                width: 40; height: 40; radius: 20
-                color: backHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "transparent"
-                
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "arrow_back"
-                    color: rootContext.contentColor
-                    iconSize: 24
-                }
-                
-                MouseArea {
-                    id: backHover
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (rootContext.previousView && rootContext.previousView !== "artist")
-                            rootContext.currentView = rootContext.previousView
+            MusicBackButton {
+                rootContext: root.rootContext
+                onClicked: {
+                    if (rootContext) {
+                        if (rootContext.returnView && rootContext.returnView !== "artist")
+                            rootContext.currentView = rootContext.returnView
                         else
                             rootContext.currentView = "home"
                     }
@@ -171,9 +157,10 @@ StyledFlickable {
                         
                         contentItem: RowLayout {
                             id: playRow
+                            anchors.centerIn: parent
                             spacing: 8
-                            MaterialSymbol { text: "play_arrow"; color: parent.parent.txColor; iconSize: 24 }
-                            StyledText { text: "Play"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
+                            MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "play_arrow"; color: parent.parent.txColor; iconSize: 24 }
+                            StyledText { Layout.alignment: Qt.AlignVCenter; text: "Play"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
                         }
 
                         onClicked: {
@@ -207,9 +194,10 @@ StyledFlickable {
 
                         contentItem: RowLayout {
                             id: shuffleRow
+                            anchors.centerIn: parent
                             spacing: 8
-                            MaterialSymbol { text: "shuffle"; color: parent.parent.txColor; iconSize: 24 }
-                            StyledText { text: "Shuffle"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
+                            MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "shuffle"; color: parent.parent.txColor; iconSize: 24 }
+                            StyledText { Layout.alignment: Qt.AlignVCenter; text: "Shuffle"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
                         }
 
                         onClicked: {
@@ -259,10 +247,10 @@ StyledFlickable {
                     Layout.preferredWidth: seeAllSongsText.implicitWidth + 24
                     Layout.preferredHeight: 32
                     buttonRadius: 16
-                    colBackground: "transparent"
+                    colBackground: rootContext ? rootContext.pillColor : "transparent"
                     colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "#333"
-                    visible: rootContext && rootContext.activeArtistSongsBrowseId && rootContext.activeArtistSongsBrowseId.length > 0
-                    
+                    visible: rootContext && (rootContext.activeArtistSongsBrowseId.length > 0 || rootContext.activeArtistSongsFull) && rootContext.activeArtistSongs.count > 0
+
                     contentItem: StyledText {
                         id: seeAllSongsText
                         text: "See all"
@@ -271,16 +259,26 @@ StyledFlickable {
                         color: rootContext ? rootContext.contentColor : "white"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                    }
-                    
+                    }                    
                     onClicked: {
-                        if (rootContext && rootContext.activeArtistId && rootContext.activeArtistSongsBrowseId) {
-                            rootContext.isLoading = true
-                            rootContext.sendCommand({
-                                "command": "get_artist_full_songs",
-                                "channelId": rootContext.activeArtistId,
-                                "songsBrowseId": rootContext.activeArtistSongsBrowseId
-                            })
+                        if (rootContext && rootContext.activeArtistId) {
+                            if (!rootContext.activeArtistSongsFull && rootContext.activeArtistSongsBrowseId) {
+                                rootContext.isLoading = true
+                                rootContext.sendCommand({
+                                    "command": "get_artist_full_songs",
+                                    "channelId": rootContext.activeArtistId,
+                                    "songsBrowseId": rootContext.activeArtistSongsBrowseId
+                                })
+                            } else if (rootContext.activeArtistSongsFull) {
+                                rootContext.returnView = "artist"
+                                rootContext.activePlaylistTitle = "Top Songs"
+                                rootContext.activePlaylistDescription = ""
+                                rootContext.activePlaylistAuthor = rootContext.activeArtistName
+                                rootContext.activePlaylistTrackCount = rootContext.activeArtistSongs.count
+                                rootContext.activePlaylistTracks = rootContext.activeArtistSongs
+                                rootContext.activePlaylistCover = rootContext.activeArtistThumbnail
+                                rootContext.currentView = "playlist"
+                            }
                         }
                     }
                 }
@@ -288,14 +286,17 @@ StyledFlickable {
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: songsColumn.implicitHeight + 16
+                Layout.preferredHeight: songsColumn.implicitHeight + 16
                 radius: 20
                 color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.7) : "#20ffffff"
 
                 ColumnLayout {
                     id: songsColumn
-                    anchors.fill: parent
-                    anchors.margins: 8
+                    width: parent.width - 16
+                    anchors.top: parent.top
+                    anchors.topMargin: 8
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
                     spacing: 4
 
                     Repeater {
@@ -430,10 +431,10 @@ StyledFlickable {
                     Layout.preferredWidth: seeAllAlbumsText.implicitWidth + 24
                     Layout.preferredHeight: 32
                     buttonRadius: 16
-                    colBackground: "transparent"
+                    colBackground: rootContext ? rootContext.pillColor : "transparent"
                     colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "#333"
-                    visible: rootContext && rootContext.activeArtistAlbumsParams && rootContext.activeArtistAlbumsParams.length > 0
-                    
+                    visible: rootContext && (rootContext.activeArtistAlbumsParams.length > 0 || rootContext.activeArtistAlbumsFull) && rootContext.activeArtistAlbums.count > 0
+
                     contentItem: StyledText {
                         id: seeAllAlbumsText
                         text: "See all"
@@ -442,99 +443,54 @@ StyledFlickable {
                         color: rootContext ? rootContext.contentColor : "white"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                    }
-                    
+                    }                    
                     onClicked: {
-                        if (rootContext && rootContext.activeArtistId && rootContext.activeArtistAlbumsParams) {
-                            rootContext.isLoading = true
-                            rootContext.sendCommand({
-                                "command": "get_artist_full_items",
-                                "channelId": rootContext.activeArtistId,
-                                "params": rootContext.activeArtistAlbumsParams,
-                                "itemType": "albums"
-                            })
+                        if (rootContext && rootContext.activeArtistId) {
+                            if (!rootContext.activeArtistAlbumsFull && rootContext.activeArtistAlbumsParams) {
+                                rootContext.isLoading = true
+                                rootContext.sendCommand({
+                                    "command": "get_artist_full_items",
+                                    "channelId": rootContext.activeArtistAlbumsBrowseId || rootContext.activeArtistId,
+                                    "params": rootContext.activeArtistAlbumsParams,
+                                    "itemType": "albums"
+                                })
+                            } else if (rootContext.activeArtistAlbumsFull) {
+                                rootContext.activeArtistItemsTitle = "All Albums"
+                                rootContext.activeArtistItemsModel = rootContext.activeArtistAlbums
+                                rootContext.currentView = "artist_items"
+                            }
                         }
                     }
                 }
             }
 
-            Flow {
+            ListView {
                 Layout.fillWidth: true
-                Layout.preferredHeight: childrenRect.height
+                Layout.preferredHeight: 280
+                orientation: ListView.Horizontal
                 spacing: 16
+                clip: true
 
-                Repeater {
-                    model: rootContext ? rootContext.activeArtistAlbums : null
+                model: rootContext ? rootContext.activeArtistAlbums : null
 
-                    delegate: ColumnLayout {
-                        width: (parent.width - 64) / 5
-                        spacing: 8
+                delegate: MusicMediaCard {
+                    width: 240
+                    height: 280
+                    rootContext: root.rootContext
+                    itemData: model
+                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+                    artPlaceholderColor: root.artPlaceholderColor
+                    
+                    customSubtitle: {
+                        let parts = []
+                        if (model.year) parts.push(model.year)
+                        if (model.type) parts.push(model.type)
+                        return parts.join(" • ")
+                    }
 
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: width
-                            radius: 12
-                            color: albumHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : ColorUtils.transparentize(rootContext.pillColor, 0.5)
-
-                            RoundedImage {
-                                anchors.fill: parent
-                                source: model.artUrl || ""
-                                sourceSize.width: 200
-                                sourceSize.height: 200
-                                fillMode: Image.PreserveAspectCrop
-                                radius: 12
-                                cache: true
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                color: "#40000000"
-                                radius: 12
-                                visible: albumHover.containsMouse
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "play_arrow"
-                                    color: "white"
-                                    iconSize: 32
-                                }
-                            }
-
-                            MouseArea {
-                                id: albumHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: rootContext.openPlaylist(model.browseId)
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: model.title
-                                font.weight: 600
-                                color: rootContext.contentColor
-                                elide: Text.ElideRight
-                                horizontalAlignment: Text.AlignLeft
-                            }
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: {
-                                    let parts = []
-                                    if (model.year) parts.push(model.year)
-                                    if (model.type) parts.push(model.type)
-                                    return parts.join(" • ")
-                                }
-                                font.pixelSize: 12
-                                color: rootContext.secondaryContentColor
-                                elide: Text.ElideRight
-                                horizontalAlignment: Text.AlignLeft
-                            }
+                    onClicked: {
+                        if (model.browseId && rootContext) {
+                            rootContext.openPlaylist(model.browseId)
                         }
                     }
                 }
@@ -560,10 +516,10 @@ StyledFlickable {
                     Layout.preferredWidth: seeAllSinglesText.implicitWidth + 24
                     Layout.preferredHeight: 32
                     buttonRadius: 16
-                    colBackground: "transparent"
+                    colBackground: rootContext ? rootContext.pillColor : "transparent"
                     colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "#333"
-                    visible: rootContext && rootContext.activeArtistSinglesParams && rootContext.activeArtistSinglesParams.length > 0
-                    
+                    visible: rootContext && (rootContext.activeArtistSinglesParams.length > 0 || rootContext.activeArtistSinglesFull) && rootContext.activeArtistSingles.count > 0
+
                     contentItem: StyledText {
                         id: seeAllSinglesText
                         text: "See all"
@@ -572,99 +528,54 @@ StyledFlickable {
                         color: rootContext ? rootContext.contentColor : "white"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                    }
-                    
+                    }                    
                     onClicked: {
-                        if (rootContext && rootContext.activeArtistId && rootContext.activeArtistSinglesParams) {
-                            rootContext.isLoading = true
-                            rootContext.sendCommand({
-                                "command": "get_artist_full_items",
-                                "channelId": rootContext.activeArtistId,
-                                "params": rootContext.activeArtistSinglesParams,
-                                "itemType": "singles"
-                            })
+                        if (rootContext && rootContext.activeArtistId) {
+                            if (!rootContext.activeArtistSinglesFull && rootContext.activeArtistSinglesParams) {
+                                rootContext.isLoading = true
+                                rootContext.sendCommand({
+                                    "command": "get_artist_full_items",
+                                    "channelId": rootContext.activeArtistSinglesBrowseId || rootContext.activeArtistId,
+                                    "params": rootContext.activeArtistSinglesParams,
+                                    "itemType": "singles"
+                                })
+                            } else if (rootContext.activeArtistSinglesFull) {
+                                rootContext.activeArtistItemsTitle = "All Singles & EPs"
+                                rootContext.activeArtistItemsModel = rootContext.activeArtistSingles
+                                rootContext.currentView = "artist_items"
+                            }
                         }
                     }
                 }
             }
 
-            Flow {
+            ListView {
                 Layout.fillWidth: true
-                Layout.preferredHeight: childrenRect.height
+                Layout.preferredHeight: 280
+                orientation: ListView.Horizontal
                 spacing: 16
+                clip: true
 
-                Repeater {
-                    model: rootContext ? rootContext.activeArtistSingles : null
+                model: rootContext ? rootContext.activeArtistSingles : null
 
-                    delegate: ColumnLayout {
-                        width: (parent.width - 64) / 5
-                        spacing: 8
+                delegate: MusicMediaCard {
+                    width: 240
+                    height: 280
+                    rootContext: root.rootContext
+                    itemData: model
+                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+                    artPlaceholderColor: root.artPlaceholderColor
+                    
+                    customSubtitle: {
+                        let parts = []
+                        if (model.year) parts.push(model.year)
+                        if (model.type) parts.push(model.type)
+                        return parts.join(" • ")
+                    }
 
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: width
-                            radius: 12
-                            color: singleHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : ColorUtils.transparentize(rootContext.pillColor, 0.5)
-
-                            RoundedImage {
-                                anchors.fill: parent
-                                source: model.artUrl || ""
-                                sourceSize.width: 200
-                                sourceSize.height: 200
-                                fillMode: Image.PreserveAspectCrop
-                                radius: 12
-                                cache: true
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                color: "#40000000"
-                                radius: 12
-                                visible: singleHover.containsMouse
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "play_arrow"
-                                    color: "white"
-                                    iconSize: 32
-                                }
-                            }
-
-                            MouseArea {
-                                id: singleHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: rootContext.openPlaylist(model.browseId)
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: model.title
-                                font.weight: 600
-                                color: rootContext.contentColor
-                                elide: Text.ElideRight
-                                horizontalAlignment: Text.AlignLeft
-                            }
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: {
-                                    let parts = []
-                                    if (model.year) parts.push(model.year)
-                                    if (model.type) parts.push(model.type)
-                                    return parts.join(" • ")
-                                }
-                                font.pixelSize: 12
-                                color: rootContext.secondaryContentColor
-                                elide: Text.ElideRight
-                                horizontalAlignment: Text.AlignLeft
-                            }
+                    onClicked: {
+                        if (model.browseId && rootContext) {
+                            rootContext.openPlaylist(model.browseId)
                         }
                     }
                 }
@@ -684,71 +595,28 @@ StyledFlickable {
                 color: rootContext ? rootContext.contentColor : "white"
             }
 
-            Flow {
+            ListView {
                 Layout.fillWidth: true
+                Layout.preferredHeight: 260
+                orientation: ListView.Horizontal
                 spacing: 16
+                clip: true
 
-                Repeater {
-                    model: rootContext ? rootContext.activeArtistRelated : null
+                model: rootContext ? rootContext.activeArtistRelated : null
 
-                    delegate: Rectangle {
-                        width: 140
-                        height: 200
-                        radius: 16
-                        color: relatedHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "transparent"
+                delegate: MusicMediaCard {
+                    width: 180
+                    height: 260
+                    rootContext: root.rootContext
+                    itemData: model
+                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+                    artPlaceholderColor: root.artPlaceholderColor
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 8
+                    customSubtitle: model.subscribers || ""
 
-                            Rectangle {
-                                Layout.preferredWidth: 124
-                                Layout.preferredHeight: 124
-                                radius: 62
-                                color: root.artPlaceholderColor
-                                clip: true
-
-                                RoundedImage {
-                                    anchors.fill: parent
-                                    source: model.artUrl || ""
-                                    sourceSize.width: 248
-                                    sourceSize.height: 248
-                                    fillMode: Image.PreserveAspectCrop
-                                    radius: 62
-                                    asynchronous: true
-                                    cache: true
-                                }
-                            }
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: model.name || ""
-                                font.pixelSize: 13
-                                font.weight: 600
-                                color: rootContext ? rootContext.contentColor : "white"
-                                elide: Text.ElideRight
-                                horizontalAlignment: Text.AlignHCenter
-                                maximumLineCount: 2
-                                wrapMode: Text.WordWrap
-                            }
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: model.subscribers || ""
-                                font.pixelSize: 11
-                                color: rootContext ? rootContext.secondaryContentColor : "gray"
-                                horizontalAlignment: Text.AlignHCenter
-                                visible: text.length > 0
-                            }
-                        }
-
-                        MouseArea {
-                            id: relatedHover
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: rootContext.openArtist(model.browseId)
+                    onClicked: {
+                        if (model.browseId && rootContext) {
+                            rootContext.openArtist(model.browseId)
                         }
                     }
                 }

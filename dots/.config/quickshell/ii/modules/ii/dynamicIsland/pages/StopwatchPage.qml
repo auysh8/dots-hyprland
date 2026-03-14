@@ -25,7 +25,7 @@ Item {
         color: Appearance.colors.colLayer0
         radius: Appearance.rounding.normal
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.05)
+        border.color: Appearance.colors.colLayer0Border
     }
 
     Item {

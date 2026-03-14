@@ -161,10 +161,6 @@ Scope {
     property string artist: ""
     
     // FIX: Track artUrl separately as string to avoid null/undefined issues
-    property string artUrl: (activePlayer && activePlayer.trackArtUrl) ? activePlayer.trackArtUrl : ""
-    property bool isLocalArt: artUrl ? (String(artUrl).startsWith("file://") || String(artUrl).startsWith("/")) : false
-    property string artFileName: isLocalArt ? String(artUrl).split('/').pop() : Qt.md5(String(artUrl))
-    property string artFilePath: isLocalArt ? String(artUrl).replace("file://", "") : `${Directories.coverArt}/${artFileName}`
     property string lastProcessedTrackKey: "" // Stable key to avoid false track-change clears
 
     function normalizeTrackPart(value) {
@@ -211,113 +207,60 @@ Scope {
         currentLine = -1
         currentSongTitle = ""
     }
-    
+
     // Watch both title and artist; compare via stable key to avoid flicker from metadata jitter.
     onDisplayTitleChanged: handleTrackMetadataChange()
     onDisplayArtistChanged: handleTrackMetadataChange()
-    
-    property string artDownloadLocation: Directories.coverArt // Compat
-    
-    // MediaPage Logic
 
-    property bool downloaded: isLocalArt
-    property string displayedArtFilePath: downloaded ? (isLocalArt ? artUrl : Qt.resolvedUrl(artFilePath)) : ""
-    
+    // Shared Media Color Context
+    MediaArtColorContext {
+        id: mediaContext
+        activePlayer: root.activePlayer
+    }
+
+    // MediaPage Logic mapped to mediaContext
+    property bool downloaded: mediaContext.downloaded
+    property string displayedArtFilePath: mediaContext.displayedArtFilePath
+
     // UI Compatibility Aliases
     readonly property string albumArt: displayedArtFilePath
     readonly property bool artDownloaded: downloaded
-    readonly property bool artLoading: !downloaded && artUrl.length > 0
-    
-    // Trigger download when path changes (MediaPage Logic)
-    onArtFilePathChanged: {
-        if (!root.artUrl || root.artUrl.length == 0 || root.isLocalArt) return
-        
-        console.log("[Lyrics] artFilePath changed, triggering download")
-        
-        coverArtDownloader.targetFile = root.artUrl 
-        coverArtDownloader.artFilePath = root.artFilePath
-        
-        root.downloaded = false
-        coverArtDownloader.running = true
-    }
-    
+    readonly property bool artLoading: !downloaded && mediaContext.artUrl.length > 0
+
     // Cleanup other state variables/functions
     property int lyricsCount: 0
     property int currentLine: -1
     property int colorUpdateTrigger: 0
-    property string currentSongTitle: "" 
-    
-    // Color extraction from album art
-    ColorQuantizer {
-        id: colorQuantizer
-        source: root.displayedArtFilePath
-        depth: 0
-        rescaleSize: 1
-    }
-    
-    // Extract dominant color or use default
-    readonly property color extractedColor: {
-        if (!downloaded || displayedArtFilePath.length === 0) {
-            return Appearance.colors.colPrimary
-        }
-        let c = colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary
-        return c
-    }
-    
-    property QtObject blendedColors: AdaptedMaterialScheme {
-        color: ColorUtils.mix(root.extractedColor, Appearance.colors.colPrimaryContainer, 0.8)
-    }
-    
-    // Source colors (change instantly when track changes)
-    readonly property color _srcBackgroundColor: blendedColors.colLayer0
-    readonly property color _srcContentColor: blendedColors.colOnLayer0
-    readonly property color _srcSecondaryContentColor: blendedColors.colSubtext
-    readonly property color _srcPillColor: blendedColors.colSecondaryContainer
-    readonly property color _srcPillContentColor: blendedColors.colOnSecondaryContainer
-    
+    property string currentSongTitle: ""
+
+    // Source colors mapped from context
+    readonly property color _srcBackgroundColor: mediaContext._srcBackgroundColor
+    readonly property color _srcContentColor: mediaContext._srcContentColor
+    readonly property color _srcSecondaryContentColor: mediaContext._srcSecondaryContentColor
+    readonly property color _srcPillColor: mediaContext.blendedColors.colSecondaryContainer // Custom mapping for lyrics
+    readonly property color _srcPillContentColor: mediaContext.blendedColors.colOnSecondaryContainer
+    readonly property color _srcLoaderAccentColor: mediaContext.blendedColors.colPrimary
+
     // Animated colors (smooth transitions over 800ms)
     property color backgroundColor: _srcBackgroundColor
     property color contentColor: _srcContentColor
     property color secondaryContentColor: _srcSecondaryContentColor
     property color pillColor: _srcPillColor
     property color pillContentColor: _srcPillContentColor
-    
+    property color loaderAccentColor: _srcLoaderAccentColor
+
     // Smooth color transition behaviors
-    Behavior on backgroundColor { 
-        ColorAnimation { 
-            duration: 800
-            easing.type: Easing.OutCubic
-        } 
-    }
-    Behavior on contentColor { 
-        ColorAnimation { 
-            duration: 800
-            easing.type: Easing.OutCubic
-        } 
-    }
-    Behavior on secondaryContentColor { 
-        ColorAnimation { 
-            duration: 800
-            easing.type: Easing.OutCubic
-        } 
-    }
-    Behavior on pillColor { 
-        ColorAnimation { 
-            duration: 800
-            easing.type: Easing.OutCubic
-        } 
-    }
-    Behavior on pillContentColor { 
-        ColorAnimation { 
-            duration: 800
-            easing.type: Easing.OutCubic
-        } 
-    }
-    
+    Behavior on backgroundColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on contentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on secondaryContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on pillColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on pillContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on loaderAccentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+
     // Debug logging for art state
     onArtLoadingChanged: console.log("[Lyrics] State: artLoading =", artLoading)
     onArtDownloadedChanged: console.log("[Lyrics] State: artDownloaded =", artDownloaded)
-    
+
     // FIX: Clean titles on frontend too
     readonly property string cleanDisplayTitle: {
         let title = displayTitle
@@ -330,38 +273,16 @@ Scope {
         }
         return title
     }
-    
+
     // Reset on title change handler removed - redundant or causing conflicts
     // State clearing is handled in onArtUrlChanged and parseUpdate logic
 
     Component.onCompleted: {
-        // Initial Art Download Trigger
-        if (artUrl && artUrl.length > 0) {
-            console.log("[Lyrics] Startup art download trigger:", artUrl)
-            // This will trigger onArtFilePathChanged if artFilePath is derived
-            // and different from its initial empty state.
-        }
-        
         // Initial Position Sync
         if (root.activePlayer) {
             root.position = root.activePlayer.position
         }
-    }
-    
-    Process {
-        id: coverArtDownloader
-        property string targetFile: root.artUrl
-        property string artFilePath: root.artFilePath
-        
-        // EXACT command from MediaPage - simple and reliable
-        command: [ "bash", "-c", '[ -f "$1" ] || curl -sSL "$2" -o "$1"', "_", artFilePath, targetFile ]
-        
-        onExited: (exitCode, exitStatus) => {
-            console.log("[Lyrics] Download process exited. Code:", exitCode)
-            root.downloaded = true
-        }
-    }
-    
+    }    
     function parseUpdate(data) {
         if (!data) return
 
@@ -591,18 +512,15 @@ Scope {
     Variants {
         model: Quickshell.screens
         
-        PanelWindow {
+        LayerManagedPanelWindow {
             id: window
             required property var modelData
             screen: modelData
-            anchors { top: true; bottom: true; left: true; right: true }
-            visible: root.showLyrics || root.closing
-            exclusionMode: ExclusionMode.Ignore
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.namespace: "lyrics-layer"
-            // Enable keyboard focus in fullscreen mode
-            WlrLayershell.keyboardFocus: root.isFullscreen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-            color: "transparent"
+            shown: root.showLyrics
+            closing: root.closing
+            layerNamespace: "lyrics-layer"
+            keyboardFocusMode: root.isFullscreen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            onCloseRequested: root.closeWindow()
 
             IdleInhibitor {
                 enabled: root.isFullscreen
@@ -660,13 +578,15 @@ Scope {
             
             MouseArea {
                 anchors.fill: parent
+                scrollGestureEnabled: false
                 onClicked: root.closeWindow()
             }
             
-            BackgroundBlur {
+            BlurredArtBackground {
                 anchors.fill: lyricsPanel
                 albumArt: root.albumArt
-                showLyrics: root.showLyrics
+                active: root.showLyrics
+                animated: true
                 backgroundColor: root.backgroundColor
                 cornerRadius: lyricsPanel.radius
                 
@@ -725,17 +645,21 @@ Scope {
                 Behavior on width { NumberAnimation { duration: 350; easing.type: Easing.OutCubic; onRunningChanged: root.isResizing = running } }
                 Behavior on height { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
                 Behavior on radius { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
-                
+
                 // Optimize: Disable shadow during resize to prevent heavy repaint
                 layer.enabled: !root.isFullscreen && !root.isResizing
                 layer.effect: MultiEffect {
                     shadowEnabled: !root.isFullscreen
-                    shadowColor: "#50000000"
+                    shadowColor: Appearance.colors.colShadow
                     shadowBlur: 1.0
                     shadowVerticalOffset: 12
                 }
                 
-                MouseArea { anchors.fill: parent; onClicked: {} }
+                MouseArea {
+                    anchors.fill: parent
+                    scrollGestureEnabled: false
+                    onClicked: {}
+                }
                 
                 // Centered layout when in fullscreen with no lyrics
                 readonly property bool centeredMode: root.isFullscreen && root.forceCenteredMode && !root.trackChanging
@@ -756,7 +680,11 @@ Scope {
                     isFullscreen: root.isFullscreen
                     forceCenteredMode: root.forceCenteredMode
                     
-                    onTogglePicker: root.showPlayerPicker = !root.showPlayerPicker
+                    onTogglePicker: {
+                        if (root.availablePlayers.length > 1) {
+                            root.showPlayerPicker = !root.showPlayerPicker
+                        }
+                    }
                     
                     onPlayerSelected: (player) => {
                         root.switching = true
@@ -850,6 +778,7 @@ Scope {
                         secondaryContentColor: root.secondaryContentColor
                         pillColor: root.pillColor
                         pillContentColor: root.pillContentColor
+                        loaderColor: root.loaderAccentColor
                         
                         activePlayer: root.activePlayer
                         lyricsModel: root.lyricsModel

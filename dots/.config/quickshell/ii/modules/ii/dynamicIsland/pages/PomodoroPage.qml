@@ -42,7 +42,7 @@ Item {
         color: Appearance.colors.colLayer0
         radius: Appearance.rounding.normal
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.05)
+        border.color: Appearance.colors.colLayer0Border
     }
 
     Item {
@@ -119,7 +119,7 @@ Item {
                         width: 6
                         height: 6
                         radius: 3
-                        color: completed ? root.accentColor : current ? root.accentColor : Qt.rgba(1, 1, 1, 0.15)
+                        color: completed ? root.accentColor : current ? root.accentColor : ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.15)
                         opacity: current ? 1 : (completed ? 0.6 : 1)
 
                         // Current dot glow/scale
@@ -192,7 +192,7 @@ Item {
                 lineWidth: 6
                 value: root.progress
                 colPrimary: root.accentColor
-                colSecondary: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.2)
+                colSecondary: ColorUtils.applyAlpha(root.accentColor, 0.2)
                 enableAnimation: true
             }
 

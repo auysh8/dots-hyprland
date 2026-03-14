@@ -8,6 +8,7 @@ PanelWindow {
     property bool shown: false
     property bool closing: false
     property string layerNamespace: "music-layer"
+    property int keyboardFocusMode: WlrKeyboardFocus.OnDemand
 
     signal closeRequested()
 
@@ -18,7 +19,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: root.layerNamespace
-    WlrLayershell.keyboardFocus: root.shown ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: root.shown ? root.keyboardFocusMode : WlrKeyboardFocus.None
     color: "transparent"
 
     Item {

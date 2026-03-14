@@ -517,7 +517,7 @@ class MusicBackend:
                 return self._home_cache
 
         try:
-            home_data = self.ytm.get_home()
+            home_data = self.ytm.get_home(limit=6)
             with self._home_cache_lock:
                 self._home_cache = home_data
                 self._home_cache_ts = now
@@ -636,17 +636,21 @@ class MusicBackend:
             if isinstance(artists_list, list) and artists_list:
                 artist_id = artists_list[0].get("id", "") or artists_list[0].get("browseId", "")
 
-            final_id = item.get("videoId") or item.get("browseId")
+            final_id = item.get("videoId") or item.get("playlistId") or item.get("browseId")
             if not final_id and item.get("resultType") in ["artist", "profile"] and artist_id:
                 final_id = artist_id
 
             return {
                 "id": str(index_offset),
                 "videoId": final_id,
+                "actualVideoId": item.get("videoId") or "",
+                "playlistId": item.get("playlistId") or "",
+                "browseId": item.get("browseId") or "",
                 "title": title,
                 "artist": artist_name,
                 "artistId": artist_id,
                 "duration": self._extract_duration(item),
+                "plays": item.get("views") or item.get("plays") or "",
                 "artUrl": art_url,
             }
         except Exception as e:
@@ -666,7 +670,7 @@ class MusicBackend:
             return False
 
     def _item_video_id(self, item):
-        return item.get("videoId") or item.get("browseId")
+        return item.get("videoId") or item.get("playlistId") or item.get("browseId")
 
     def _extract_art_url(self, item, size=544):
         """Extract thumbnail URL from item and force high resolution."""
@@ -783,7 +787,9 @@ class MusicBackend:
             title = section.get("title", "")
             t_lower = title.lower()
             contents = section.get("contents", [])
-            playable = [c for c in contents if c.get("videoId")]
+            
+            # Allow songs, albums, playlists, and artists
+            playable = [c for c in contents if c.get("videoId") or c.get("playlistId") or c.get("browseId")]
 
             matched = False
             if any(k in t_lower for k in pick_keywords):
@@ -1607,6 +1613,9 @@ class MusicBackend:
         import time
 
         # --- STREAM RECOMMENDATIONS (Listen Again) ---
+        # Supplement with history tracks if Listen Again is too sparse
+        if len(recs_raw) < 8:
+            self._append_unique(recs_raw, history_seed_tracks, cap=96)
         recs = self._build_recommendations_section(recs_raw, sent_ids)
         self.send_response({"type": "home_section", "section": "recommendations", "items": recs})
         self.log(f"Streamed {len(recs)} Listen Again (Recommendations)")
@@ -2059,6 +2068,8 @@ class MusicBackend:
                 "songsBrowseId": songs_browse_id,
                 "albumsParams": albums_params,
                 "singlesParams": singles_params,
+                "albumsBrowseId": albums_browse_id,
+                "singlesBrowseId": singles_browse_id,
             })
             self.log(f"Artist loaded: {name} — {len(top_songs)} songs, {len(albums)} albums, {len(singles)} singles")
 
@@ -2082,7 +2093,7 @@ class MusicBackend:
             results = []
             try:
                 # This works if the result is a simple grid
-                results = self.ytm.get_artist_albums(channel_id, params)
+                results = self.ytm.get_artist_albums(channel_id, params, limit=200)
             except Exception as yt_err:
                 self.log(f"ytmusicapi get_artist_albums failed ({yt_err}), falling back to manual browse")
                 raw = self.ytm._send_request('browse', {'browseId': channel_id, 'params': params})
@@ -2092,11 +2103,24 @@ class MusicBackend:
                     sections = content.get('sectionListRenderer', {}).get('contents', [])
                     for sec in sections:
                         nodes = None
+                        sec_title = ""
                         if 'gridRenderer' in sec:
                             nodes = sec['gridRenderer'].get('items', [])
+                            header = sec['gridRenderer'].get('header', {})
+                            if 'gridHeaderRenderer' in header:
+                                sec_title = "".join(r.get("text", "") for r in header['gridHeaderRenderer'].get('title', {}).get('runs', []))
                         elif 'musicCarouselShelfRenderer' in sec:
                             nodes = sec['musicCarouselShelfRenderer'].get('contents', [])
+                            header = sec['musicCarouselShelfRenderer'].get('header', {})
+                            sec_title = "".join(r.get("text", "") for r in header.get('musicCarouselShelfBasicHeaderRenderer', {}).get('title', {}).get('runs', []))
                         
+                        if sec_title:
+                            st = sec_title.lower()
+                            if item_type == "albums" and "album" not in st:
+                                continue
+                            if item_type == "singles" and "single" not in st and "ep" not in st:
+                                continue
+
                         if nodes:
                             added_any = False
                             for n in nodes:
@@ -2131,6 +2155,14 @@ class MusicBackend:
                 if not browse_id:
                     continue
                 t = item.get("type", item_type.capitalize())
+                t_lower = t.lower()
+
+                # ytmusicapi often maps both singles and albums to the SAME params (the "Releases" page).
+                # To prevent cross-contamination when clicking "See all", we filter based on requested item_type:
+                if item_type == "albums" and ("single" in t_lower or "ep" in t_lower):
+                    continue
+                if item_type == "singles" and "album" in t_lower:
+                    continue
 
                 items.append({
                     "browseId": browse_id,

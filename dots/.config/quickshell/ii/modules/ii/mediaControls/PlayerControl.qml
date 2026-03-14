@@ -15,20 +15,28 @@ import Quickshell.Services.Mpris
 Item { // Player instance
     id: root
     required property MprisPlayer player
-    property var artUrl: player?.trackArtUrl
-    property bool isLocalArt: artUrl ? (String(artUrl).startsWith("file://") || String(artUrl).startsWith("/")) : false
+    MediaArtColorContext {
+        id: mediaContext
+        activePlayer: root.player
+    }
+
+    property var artUrl: mediaContext.artUrl
+    property bool isLocalArt: mediaContext.isLocalArt
+    property string artDownloadLocation: mediaContext.artDownloadLocation
+    property string artFileName: mediaContext.artFileName
+    property string artFilePath: mediaContext.artFilePath
+    property bool downloaded: mediaContext.downloaded
+    property string displayedArtFilePath: mediaContext.displayedArtFilePath
+
+    property QtObject blendedColors: mediaContext.blendedColors
     
-    property string artDownloadLocation: Directories.coverArt
-    property string artFileName: isLocalArt ? String(artUrl).split('/').pop() : Qt.md5(String(artUrl))
-    property string artFilePath: isLocalArt ? String(artUrl).replace("file://", "") : `${artDownloadLocation}/${artFileName}`
-    property color artDominantColor: ColorUtils.mix((colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary), Appearance.colors.colPrimaryContainer, 0.8) || Appearance.m3colors.m3secondaryContainer
-    property bool downloaded: isLocalArt
+    // Maintain backwards compatibility for this specific property used here
+    property color artDominantColor: blendedColors.color
+
     property list<real> visualizerPoints: []
     property real maxVisualizerValue: 1000 // Max value in the data points
     property int visualizerSmoothing: 2 // Number of points to average for smoothing
     property real radius
-
-    property string displayedArtFilePath: root.downloaded ? (isLocalArt ? artUrl : Qt.resolvedUrl(artFilePath)) : ""
 
     component TrackChangeButton: Rectangle {
         property var iconName
@@ -66,44 +74,6 @@ Item { // Player instance
         onTriggered: {
             root.player.positionChanged()
         }
-    }
-
-    onArtFilePathChanged: {
-        if (!root.artUrl || root.artUrl.length == 0) {
-            root.artDominantColor = Appearance.m3colors.m3secondaryContainer
-            return;
-        }
-        if (root.isLocalArt) {
-            return;
-        }
-
-        // Binding does not work in Process
-        coverArtDownloader.targetFile = root.artUrl 
-        coverArtDownloader.artFilePath = root.artFilePath
-        // Download
-        root.downloaded = false
-        coverArtDownloader.running = true
-    }
-
-    Process { // Cover art downloader
-        id: coverArtDownloader
-        property string targetFile: root.artUrl
-        property string artFilePath: root.artFilePath
-        command: [ "bash", "-c", `[ -f ${artFilePath} ] || curl -sSL '${targetFile}' -o '${artFilePath}'` ]
-        onExited: (exitCode, exitStatus) => {
-            root.downloaded = true
-        }
-    }
-
-    ColorQuantizer {
-        id: colorQuantizer
-        source: root.displayedArtFilePath
-        depth: 0 // 2^0 = 1 color
-        rescaleSize: 1 // Rescale to 1x1 pixel for faster processing
-    }
-
-    property QtObject blendedColors: AdaptedMaterialScheme {
-        color: artDominantColor
     }
 
     StyledRectangularShadow {

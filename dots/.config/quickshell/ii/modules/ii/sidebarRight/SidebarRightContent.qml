@@ -40,6 +40,7 @@ Item {
                 root.showBluetoothDialog = false;
                 root.showAudioOutputDialog = false;
                 root.showAudioInputDialog = false;
+                root.showNightLightDialog = false;
             }
         }
     }

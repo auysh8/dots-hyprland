@@ -135,7 +135,18 @@ Rectangle {
             
             // Prefer explicitly defined toggled color if available
             if (isToggled && root.sourceItem && root.sourceItem.colBackgroundToggled !== undefined) {
-                return root.sourceItem.colBackgroundToggled;
+                const toggledColor = root.sourceItem.colBackgroundToggled;
+                // Large menu toggles can use translucent layer colors (e.g. disconnected BT/WiFi).
+                // Convert to an opaque visual equivalent against the sidebar background so close morph
+                // keeps the right tone without looking like it fades away.
+                if (root.toggleWidth > 100) {
+                    const c = Qt.color(toggledColor);
+                    if (c.a < 1) {
+                        const resolved = ColorUtils.mix(toggledColor, Appearance.colors.colLayer0, c.a);
+                        return ColorUtils.applyAlpha(resolved, 1);
+                    }
+                }
+                return toggledColor;
             }
 
             const isSmall = root.toggleWidth <= 100;
@@ -285,7 +296,13 @@ Rectangle {
                         //   - Inactive: Circle (Height/2 = 22)
                         radius: (root.toggleWidth > 100) ? (isToggled ? 12 : 22) : (height / 2)
                         
-                        color: isToggled ? (root.sourceItem?.colBackgroundToggled ?? Appearance.colors.colPrimary) : Appearance.colors.colLayer3
+                        color: {
+                            // Match expanded menu-toggle icon capsule behavior exactly.
+                            // In Android toggle style this capsule is blue when toggled, transparent otherwise.
+                            if (root.sourceItem?.expandedSize && root.sourceItem?.altAction)
+                                return isToggled ? Appearance.colors.colPrimary : "transparent";
+                            return isToggled ? (root.sourceItem?.colBackgroundToggled ?? Appearance.colors.colPrimary) : Appearance.colors.colLayer3;
+                        }
                     }
                     
                     MaterialSymbol {
@@ -297,6 +314,7 @@ Rectangle {
                         // Adapt text/icon color based on source toggle's own color property if possible
                         color: {
                             if (root.sourceItem) {
+                                if (root.sourceItem.colIcon !== undefined) return root.sourceItem.colIcon;
                                 if (isToggled && root.sourceItem.colOnPrimary !== undefined) return root.sourceItem.colOnPrimary;
                                 if (isToggled && root.sourceItem.colText !== undefined) return root.sourceItem.colText;
                             }

@@ -18,7 +18,7 @@ import "media_color_cache.js" as MediaColorCache
 Item {
     id: root
     clip: false
-    implicitHeight: mainLayout.implicitHeight + 20 // Add margins to height
+    implicitHeight: mainLayout.implicitHeight + 24 // Add margins to height
 
     // Player switching
     readonly property var availablePlayers: MprisController.players
@@ -54,85 +54,27 @@ Item {
         return { title: title, artist: "" }
     }
     
-    // Art Handling
-    // Art Handling
-    property var artUrl: activePlayer ? activePlayer.trackArtUrl : ""
-    property bool isLocalArt: artUrl ? (String(artUrl).startsWith("file://") || String(artUrl).startsWith("/")) : false
-    
-    property string artDownloadLocation: Directories.coverArt
-    property string artFileName: isLocalArt ? String(artUrl).split('/').pop() : Qt.md5(String(artUrl))
-    property string artFilePath: isLocalArt ? String(artUrl).replace("file://", "") : `${artDownloadLocation}/${artFileName}`
-
-    property bool downloaded: isLocalArt
-    property string displayedArtFilePath: downloaded ? (isLocalArt ? artUrl : Qt.resolvedUrl(artFilePath)) : ""
-    
-    onArtFilePathChanged: {
-        if (root.artUrl.length == 0 || root.isLocalArt) return
-
-        // Binding does not work in Process
-        coverArtDownloader.targetFile = root.artUrl 
-        coverArtDownloader.artFilePath = root.artFilePath
-        // Download
-        root.downloaded = false
-        coverArtDownloader.running = true
+    // Shared Media Color Context
+    MediaArtColorContext {
+        id: mediaContext
+        activePlayer: root.activePlayer
     }
 
-    Process {
-        id: coverArtDownloader
-        property string targetFile: root.artUrl
-        property string artFilePath: root.artFilePath
-        // Check if file exists, if not download it
-        command: [ "bash", "-c", `[ -f ${artFilePath} ] || curl -sSL '${targetFile}' -o '${artFilePath}'` ]
-        onExited: (exitCode, exitStatus) => {
-            root.downloaded = true
-        }
-    }
+    // Art Handling mapped to mediaContext
+    property string artUrl: mediaContext.artUrl
+    property bool isLocalArt: mediaContext.isLocalArt
+    property string artDownloadLocation: mediaContext.artDownloadLocation
+    property string artFileName: mediaContext.artFileName
+    property string artFilePath: mediaContext.artFilePath
+    property bool downloaded: mediaContext.downloaded
+    property string displayedArtFilePath: mediaContext.displayedArtFilePath
 
-    // Color Extraction
-    ColorQuantizer {
-        id: colorQuantizer
-        source: root.displayedArtFilePath
-        depth: 0
-        rescaleSize: 1
-    }
-
-    // Extract dominant color or use default
-    readonly property color cachedExtractedColor: MediaColorCache.getColor(root.artFileName, Appearance.colors.colPrimary)
-    readonly property color extractedColor: {
-        if (!downloaded || displayedArtFilePath.length === 0) {
-            return cachedExtractedColor
-        }
-
-        let c = (colorQuantizer && colorQuantizer.colors && colorQuantizer.colors.length > 0)
-            ? colorQuantizer.colors[0]
-            : null
-        return (c !== undefined && c !== null) ? c : cachedExtractedColor
-    }
-
-    Connections {
-        target: colorQuantizer
-        function onColorsChanged() {
-            if (colorQuantizer.colors && colorQuantizer.colors.length > 0) {
-                MediaColorCache.setColor(root.artFileName, colorQuantizer.colors[0])
-            }
-        }
-    }
-
-    property QtObject blendedColors: AdaptedMaterialScheme {
-        color: ColorUtils.mix(root.extractedColor, Appearance.colors.colPrimaryContainer, 0.8)
-    }
-
-    property color contentColor: blendedColors.colOnLayer0
-    property color secondaryContentColor: blendedColors.colSubtext
-    property color pillColor: blendedColors.colSecondaryContainer
-    property color pillContentColor: blendedColors.colOnSecondaryContainer
-    property color backgroundColor: blendedColors.colLayer0 
-
-    Behavior on contentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on secondaryContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on pillColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on pillContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on backgroundColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    // Color extraction from mediaContext
+    property color contentColor: mediaContext.contentColor
+    property color secondaryContentColor: mediaContext.secondaryContentColor
+    property color pillColor: mediaContext.pillColor
+    property color pillContentColor: mediaContext.pillContentColor
+    property color backgroundColor: mediaContext.backgroundColor
 
     // Interpolated Position Logic
     property real currentPosition: 0
@@ -281,8 +223,8 @@ Item {
                 buttonRadius: 14
                 pointingHandCursor: root.availablePlayers.length > 1
 
-                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.15)
-                colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.3)
+                colBackground: ColorUtils.applyAlpha(root.contentColor, 0.15)
+                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.3)
                 colRipple: root.contentColor
 
                 visible: root.availablePlayers.length > 0
@@ -367,7 +309,7 @@ Item {
                             anchors.fill: parent
                             radius: 12
                             color: "transparent"
-                            border.color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.25)
+                            border.color: ColorUtils.applyAlpha(root.contentColor, 0.25)
                             border.width: 1
                         }
                     }
@@ -385,8 +327,8 @@ Item {
                                 toggled: root.activePlayer === modelData
 
                                 colBackground: "transparent"
-                                colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
-                                colBackgroundToggled: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.08)
+                                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.12)
+                                colBackgroundToggled: ColorUtils.applyAlpha(root.contentColor, 0.08)
                                 colRipple: root.contentColor
 
                                 onClicked: {
@@ -423,7 +365,7 @@ Item {
                                             return "headphones";
                                         }
                                         iconSize: 16
-                                        color: root.activePlayer === modelData ? root.contentColor : Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.7)
+                                        color: root.activePlayer === modelData ? root.contentColor : ColorUtils.applyAlpha(root.contentColor, 0.7)
                                     }
                                 }
 
@@ -459,7 +401,7 @@ Item {
             
             configuration: (activePlayer && activePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
             highlightColor: root.contentColor
-            trackColor: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.5)
+            trackColor: ColorUtils.applyAlpha(root.contentColor, 0.5)
             handleColor: root.contentColor
             value: {
                 return (activePlayer && activePlayer.length > 0) ? root.currentPosition / activePlayer.length : 0;
@@ -477,6 +419,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter
+            Layout.bottomMargin: 8
             spacing: 8
 
             // Lyrics Toggle (Keep small and simple)
@@ -488,7 +431,7 @@ Item {
                 buttonRadius: height / 2
                 toggled: LyricsService.open
 
-                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.1)
+                colBackground: ColorUtils.applyAlpha(root.contentColor, 0.1)
                 colBackgroundHover: colBackground
                 colBackgroundToggled: root.pillColor
                 colBackgroundToggledHover: colBackgroundToggled
@@ -514,7 +457,8 @@ Item {
                 implicitHeight: 40
                 buttonRadius: height / 2
 
-                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
+                colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
+                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.18)
                 colRipple: root.contentColor
 
                 onClicked: activePlayer?.previous()
@@ -564,7 +508,8 @@ Item {
                 implicitHeight: 40
                 buttonRadius: height / 2
 
-                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
+                colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
+                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.18)
                 colRipple: root.contentColor
 
                 onClicked: activePlayer?.next()

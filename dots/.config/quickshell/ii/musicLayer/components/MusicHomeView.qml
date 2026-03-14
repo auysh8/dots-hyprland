@@ -11,7 +11,13 @@ StyledFlickable {
     property var rootContext
     property string queryText: ""
     readonly property var flickable: root
-    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : "#2f3239"
+    
+    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : Appearance.colors.colLayer2
+    readonly property color cardHoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+
+    readonly property real refreshThreshold: -100
+    readonly property real refreshPullThreshold: -20
+    readonly property real refreshY: -60
 
     anchors.fill: parent
     contentHeight: homeColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
@@ -25,22 +31,38 @@ StyledFlickable {
     clip: true
 
     onDraggingChanged: {
-        if (!dragging && contentY < -120 && !rootContext.refreshing && !rootContext.isLoading) {
+        if (!dragging && contentY <= refreshThreshold && !rootContext.refreshing && !rootContext.isLoading) {
             rootContext.refreshing = true
             rootContext.getHome()
         }
     }
 
+    function handleItemClick(itemModel) {
+        if (itemModel.actualVideoId) {
+            rootContext.playTrack(itemModel.actualVideoId, itemModel.title, itemModel.artist, itemModel.artUrl)
+        } else if (itemModel.browseId) {
+            if (itemModel.browseId.startsWith("UC")) {
+                rootContext.openArtist(itemModel.browseId)
+            } else {
+                rootContext.openPlaylist(itemModel.browseId)
+            }
+        } else if (itemModel.playlistId) {
+            rootContext.openPlaylist(itemModel.playlistId)
+        } else if (itemModel.videoId) {
+            rootContext.playTrack(itemModel.videoId, itemModel.title, itemModel.artist, itemModel.artUrl)
+        }
+    }
+
     Item {
         width: parent.width
-        height: 60
-        y: -60
-        visible: root.contentY < -20
+        height: -refreshY
+        y: refreshY
+        visible: root.contentY < refreshPullThreshold
 
         RowLayout {
             anchors.centerIn: parent
             spacing: 12
-            opacity: Math.min(Math.abs(root.contentY) / 100, 1.0)
+            opacity: Math.min(Math.abs(root.contentY) / Math.abs(refreshThreshold), 1.0)
 
             MaterialLoadingIndicator {
                 implicitSize: 24
@@ -49,7 +71,7 @@ StyledFlickable {
             }
 
             StyledText {
-                text: root.contentY < -100 ? "Release to refresh" : "Pull to refresh"
+                text: root.contentY < refreshThreshold ? "Release to refresh" : "Pull to refresh"
                 font.weight: 600
                 color: rootContext.contentColor
             }
@@ -65,7 +87,7 @@ StyledFlickable {
         anchors.leftMargin: 32
         anchors.right: parent.right
         anchors.rightMargin: 32
-        spacing: 0 // Spacing handled by individual section margins for smoother animation
+        spacing: 0
 
         // 1. Recommendations Section
         ColumnLayout {
@@ -76,7 +98,7 @@ StyledFlickable {
             property bool hasData: rootContext.homeContent.count > 0
             visible: opacity > 0
             opacity: hasData ? 1.0 : 0.0
-            Layout.topMargin: hasData ? 0 : -height // Collapse when empty
+            Layout.topMargin: hasData ? 0 : -height
             
             Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
             Behavior on Layout.topMargin { NumberAnimation { duration: 500; easing.type: Easing.OutBack } }
@@ -107,8 +129,9 @@ StyledFlickable {
             GridView {
                 id: recGrid
                 Layout.fillWidth: true
-                Layout.preferredHeight: rootContext.homeContent.count > 1 ? 560 : 280
-                cellWidth: Math.max(1, (width - 20) / 4)
+                property int columns: Math.max(1, Math.floor(width / 240))
+                Layout.preferredHeight: Math.min(2, Math.ceil(rootContext.homeContent.count / columns)) * cellHeight
+                cellWidth: 240
                 cellHeight: 280
                 flow: GridView.FlowTopToBottom
                 clip: true
@@ -117,110 +140,15 @@ StyledFlickable {
 
                 model: rootContext.homeContent
 
-                delegate: Item {
+                delegate: MusicMediaCard {
                     width: recGrid.cellWidth
                     height: recGrid.cellHeight
-
-                        Rectangle {
-                            id: recCard
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            radius: 20
-                            color: recHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
-                            
-                            Behavior on color { ColorAnimation { duration: 200 } }
-
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                anchors.topMargin: 12
-                                anchors.bottomMargin: 16
-                                spacing: 12
-
-                                Rectangle {
-                                    id: artContainer
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: width
-                                    radius: 20
-                                    color: root.artPlaceholderColor
-                                    
-                                    // Mask the entire container layer to keep corners sharp during child animations
-                                    layer.enabled: true
-                                    layer.effect: OpacityMask {
-                                        maskSource: Rectangle {
-                                            width: artContainer.width
-                                            height: artContainer.height
-                                            radius: 20
-                                        }
-                                    }
-
-                                    Image {
-                                        id: recArt
-                                        anchors.fill: parent
-                                        source: model.artUrl || ""
-                                        sourceSize.width: 272
-                                        sourceSize.height: 272
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        cache: true
-                                        visible: status === Image.Ready
-                                        
-                                        // Zoom effect
-                                        scale: recHover.containsMouse ? 1.1 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-                                    }
-
-                                    // Play Button Overlay
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        color: "#60000000"
-                                        opacity: recHover.containsMouse ? 1.0 : 0.0
-                                        
-                                        Behavior on opacity { NumberAnimation { duration: 200 } }
-
-                                        MaterialSymbol {
-                                            anchors.centerIn: parent
-                                            text: "play_arrow"
-                                            color: "white"
-                                            iconSize: 42
-                                            scale: recHover.containsMouse ? 1.0 : 0.5
-                                            Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
-                                        }
-                                    }
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: model.title
-                                        font.weight: 600
-                                        color: rootContext.contentColor
-                                        elide: Text.ElideRight
-                                    }
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: model.artist
-                                        font.pixelSize: 12
-                                        color: rootContext.secondaryContentColor
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-
-                            MouseArea {
-                                id: recHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl)
-                            }
-                        }
-                    }
+                    rootContext: root.rootContext
+                    itemData: model
+                    hoverColor: root.cardHoverColor
+                    artPlaceholderColor: root.artPlaceholderColor
+                    onClicked: root.handleItemClick(model)
+                }
             }
         }
 
@@ -233,7 +161,7 @@ StyledFlickable {
             property bool hasData: rootContext.quickPicks.count > 0
             visible: opacity > 0
             opacity: hasData ? 1.0 : 0.0
-            Layout.topMargin: hasData ? 32 : -height // Collapse when empty
+            Layout.topMargin: hasData ? 32 : -height
             
             Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
             Behavior on Layout.topMargin { NumberAnimation { duration: 500; easing.type: Easing.OutBack } }
@@ -263,98 +191,12 @@ StyledFlickable {
                     Repeater {
                         model: rootContext.quickPicks
 
-                        delegate: Rectangle {
-                            Layout.fillWidth: true
-                            height: 64
-                            radius: 12
-                            color: pickHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 16
-
-                                StyledText {
-                                    text: index + 1
-                                    color: rootContext.secondaryContentColor
-                                    font.pixelSize: 14
-                                    font.weight: 600
-                                    Layout.preferredWidth: 24
-                                    horizontalAlignment: Text.AlignHCenter
-                                }
-
-                                Rectangle {
-                                    width: 48
-                                    height: 48
-                                    radius: 8
-                                    color: root.artPlaceholderColor
-
-                                    RoundedImage {
-                                        id: quickPickArt
-                                        anchors.fill: parent
-                                        source: model.artUrl || ""
-                                        sourceSize.width: 96
-                                        sourceSize.height: 96
-                                        fillMode: Image.PreserveAspectCrop
-                                        radius: 8
-                                        cache: true
-                                        visible: status === Image.Ready
-                                    }
-
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        color: "#40000000"
-                                        radius: 8
-                                        visible: pickHover.containsMouse
-
-                                        MaterialSymbol {
-                                            anchors.centerIn: parent
-                                            text: "play_arrow"
-                                            color: "white"
-                                            iconSize: 24
-                                        }
-                                    }
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
-                                    spacing: 2
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: model.title
-                                        font.weight: 600
-                                        color: rootContext.contentColor
-                                        elide: Text.ElideRight
-                                        horizontalAlignment: Text.AlignLeft
-                                    }
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: model.artist
-                                        font.pixelSize: 12
-                                        color: rootContext.secondaryContentColor
-                                        elide: Text.ElideRight
-                                        horizontalAlignment: Text.AlignLeft
-                                    }
-                                }
-
-                                StyledText {
-                                    text: model.duration
-                                    color: rootContext.secondaryContentColor
-                                    font.pixelSize: 12
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                            }
-
-                            MouseArea {
-                                id: pickHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl)
-                            }
+                        delegate: MusicListTrackItem {
+                            rootContext: root.rootContext
+                            track: model
+                            indexNumber: index + 1
+                            
+                            onClicked: root.handleItemClick(model)
                         }
                     }
                 }
@@ -370,7 +212,7 @@ StyledFlickable {
             property bool hasData: rootContext.shortsContent.count > 0
             visible: opacity > 0
             opacity: hasData ? 1.0 : 0.0
-            Layout.topMargin: hasData ? 32 : -height // Collapse when empty
+            Layout.topMargin: hasData ? 32 : -height
             
             Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
             Behavior on Layout.topMargin { NumberAnimation { duration: 500; easing.type: Easing.OutBack } }
@@ -399,8 +241,9 @@ StyledFlickable {
             GridView {
                 id: shortGrid
                 Layout.fillWidth: true
-                Layout.preferredHeight: rootContext.shortsContent.count > 1 ? 560 : 280
-                cellWidth: Math.max(1, (width - 20) / 4)
+                property int columns: Math.max(1, Math.floor(width / 240))
+                Layout.preferredHeight: Math.min(2, Math.ceil(rootContext.shortsContent.count / columns)) * cellHeight
+                cellWidth: 240
                 cellHeight: 280
                 flow: GridView.FlowTopToBottom
                 clip: true
@@ -410,111 +253,15 @@ StyledFlickable {
 
                 model: rootContext.shortsContent
 
-                delegate: Item {
+                delegate: MusicMediaCard {
                     width: shortGrid.cellWidth
                     height: shortGrid.cellHeight
-
-                        Rectangle {
-                            id: shortCard
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            radius: 20
-                            color: shortHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
-                            
-                            Behavior on color { ColorAnimation { duration: 200 } }
-
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                anchors.topMargin: 12
-                                anchors.bottomMargin: 16
-                                spacing: 12
-
-                                Rectangle {
-                                    id: shortArtContainer
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: width
-                                    radius: 20
-                                    color: root.artPlaceholderColor
-                                    
-                                    // Mask the entire container layer to keep corners sharp during child animations
-                                    layer.enabled: true
-                                    layer.effect: OpacityMask {
-                                        maskSource: Rectangle {
-                                            width: shortArtContainer.width
-                                            height: shortArtContainer.height
-                                            radius: 20
-                                        }
-                                    }
-
-                                    Image {
-                                        id: shortArt
-                                        anchors.fill: parent
-                                        source: model.artUrl || ""
-                                        sourceSize.width: 272
-                                        sourceSize.height: 272
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        cache: true
-                                        visible: status === Image.Ready
-                                        
-                                        // Zoom effect
-                                        scale: shortHover.containsMouse ? 1.1 : 1.0
-                                        Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-                                    }
-
-                                    // Play Button Overlay
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        color: "#60000000"
-                                        opacity: shortHover.containsMouse ? 1.0 : 0.0
-                                        radius: 20
-                                        
-                                        Behavior on opacity { NumberAnimation { duration: 200 } }
-
-                                        MaterialSymbol {
-                                            anchors.centerIn: parent
-                                            text: "play_arrow"
-                                            color: "white"
-                                            iconSize: 42
-                                            scale: shortHover.containsMouse ? 1.0 : 0.5
-                                            Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
-                                        }
-                                    }
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: model.title
-                                        font.weight: 600
-                                        color: rootContext.contentColor
-                                        elide: Text.ElideRight
-                                    }
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: model.artist
-                                        font.pixelSize: 12
-                                        color: rootContext.secondaryContentColor
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-
-                            MouseArea {
-                                id: shortHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl)
-                            }
-                        }
-                    }
+                    rootContext: root.rootContext
+                    itemData: model
+                    hoverColor: root.cardHoverColor
+                    artPlaceholderColor: root.artPlaceholderColor
+                    onClicked: root.handleItemClick(model)
+                }
             }
         }
 

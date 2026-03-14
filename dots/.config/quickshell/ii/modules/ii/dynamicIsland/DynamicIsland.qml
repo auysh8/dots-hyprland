@@ -388,7 +388,7 @@ Scope {
                             pageCount++;
 
                         if (pageCount > 0)
-                            return pageCount > 1 ? 212 : 192;
+                            return pageCount > 1 ? 216 : 196;
 
                         return 60;
                     }
@@ -641,9 +641,8 @@ Scope {
                                     }
 
                                     StyledText {
-                                        Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
+                                        Layout.alignment: Qt.AlignVCenter
                                         verticalAlignment: Text.AlignVCenter
-                                        Layout.minimumWidth: 64 // Wide enough to fit "11:55 PM" without shifting
                                         // Time / Timer / Stopwatch
                                         text: {
                                             if (TimerService.pomodoroRunning || (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration && TimerService.pomodoroSecondsLeft > 0)) {
@@ -807,7 +806,7 @@ Scope {
                                             return Appearance.colors.colPrimary;
                                         }
                                     }
-                                    color: Qt.rgba(colSymbol.r, colSymbol.g, colSymbol.b, 0.15)
+                                    color: ColorUtils.applyAlpha(colSymbol, 0.15)
                                     text: {
                                         switch (islandContainer.popupCategory) {
                                         case "screenshot":
@@ -1136,7 +1135,7 @@ Scope {
                                                             shape: MaterialShape.Shape.Square
                                                             padding: 5
                                                             colSymbol: (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) ? Appearance.colors.colError : Appearance.colors.colPrimary
-                                                            color: Qt.rgba(colSymbol.r, colSymbol.g, colSymbol.b, 0.15)
+                                                            color: ColorUtils.applyAlpha(colSymbol, 0.15)
                                                             text: {
                                                                 if (Audio.sink && Audio.sink.audio && Audio.sink.audio.muted) return "volume_off";
                                                                 if (Audio.value > 0.5) return "volume_up";
@@ -1193,7 +1192,7 @@ Scope {
                                                             shape: MaterialShape.Shape.Square
                                                             padding: 5
                                                             colSymbol: Appearance.colors.colPrimary
-                                                            color: Qt.rgba(colSymbol.r, colSymbol.g, colSymbol.b, 0.15)
+                                                            color: ColorUtils.applyAlpha(colSymbol, 0.15)
                                                             text: {
                                                                 var val = 0;
                                                                 if (Brightness.monitors.length > 0) val = Brightness.monitors[0].brightness;
@@ -1256,7 +1255,7 @@ Scope {
                                 shape: MaterialShape.Shape.Square
                                 padding: 5
                                 colSymbol: islandContainer.isCharging ? Appearance.colors.colPrimary : (islandContainer.batteryPercent < 0.2 ? Appearance.colors.colError : Appearance.colors.colOnLayer0)
-                                color: Qt.rgba(colSymbol.r, colSymbol.g, colSymbol.b, 0.15)
+                                color: ColorUtils.applyAlpha(colSymbol, 0.15)
 
                                 text: {
                                     if (islandContainer.isCharging)
@@ -1291,7 +1290,7 @@ Scope {
 
                             StyledText {
                                 text: Math.round(islandContainer.batteryPercent * 100) + "%"
-                                color: Appearance.colors.colOnLayer0
+                                color: (islandContainer.batteryPercent < 0.2 && !islandContainer.isCharging) ? Appearance.colors.colError : Appearance.colors.colOnLayer0
                                 font.weight: Font.Bold
                                 font.pixelSize: Appearance.font.pixelSize.normal
                                 horizontalAlignment: Text.AlignLeft
@@ -1303,7 +1302,7 @@ Scope {
                             }
 
                             StyledText {
-                                text: islandContainer.batterySource === "custom" ? islandContainer.customBatteryName : (islandContainer.isCharging ? "Charging" : "Not Charging")
+                                text: islandContainer.batterySource === "custom" ? islandContainer.customBatteryName : (islandContainer.batteryPercent >= 0.99 ? "Fully Charged" : (islandContainer.isCharging ? "Charging" : "On Battery"))
                                 color: Appearance.colors.colOnLayer0
                                 font.weight: Font.Bold
                                 font.pixelSize: Appearance.font.pixelSize.normal

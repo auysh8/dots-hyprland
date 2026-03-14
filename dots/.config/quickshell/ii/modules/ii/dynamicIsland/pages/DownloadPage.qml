@@ -38,7 +38,7 @@ Item {
         color: Appearance.colors.colLayer0
         radius: Appearance.rounding.normal
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.05)
+        border.color: Appearance.colors.colLayer0Border
     }
 
     Item {
@@ -132,7 +132,7 @@ Item {
                 lineWidth: 6
                 value: root.progress
                 colPrimary: root.accentColor
-                colSecondary: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.2)
+                colSecondary: ColorUtils.applyAlpha(root.accentColor, 0.2)
                 enableAnimation: true
             }
 

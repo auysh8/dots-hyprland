@@ -83,6 +83,15 @@ Scope {
     property string activeArtistSongsBrowseId: ""
     property string activeArtistAlbumsParams: ""
     property string activeArtistSinglesParams: ""
+    property string activeArtistAlbumsBrowseId: ""
+    property string activeArtistSinglesBrowseId: ""
+    
+    // Artist Full Items View Properties
+    property string activeArtistItemsTitle: ""
+    property var activeArtistItemsModel: null
+    property bool activeArtistAlbumsFull: false
+    property bool activeArtistSinglesFull: false
+    property bool activeArtistSongsFull: false
     
     // Shared layer transition offset for both panel and background.
     readonly property real panelHiddenOffset: -(musicPanel.y + musicPanel.height + 100)
@@ -100,6 +109,7 @@ Scope {
     property bool shuffleToggled: false
     property string currentView: "home"
     property string previousView: "home"
+    property string returnView: "home"
     
     onCurrentViewChanged: {
         if (currentView !== "player") {
@@ -219,7 +229,7 @@ Scope {
     
     function openPlaylist(browseId) {
         if (!browseId) return;
-        root.previousView = root.currentView
+        root.returnView = root.currentView
         root.currentView = "playlist"
         root.isLoading = true
         root.activePlaylistTracks.clear()
@@ -239,7 +249,7 @@ Scope {
 
     function openArtist(channelId) {
         console.log("[MusicWindow] openArtist called with:", channelId)
-        root.previousView = root.currentView
+        root.returnView = root.currentView
         root.currentView = "artist"
         root.isLoading = true
         root.activeArtistId = channelId || ""
@@ -277,6 +287,8 @@ Scope {
             return playlistView.flickable
         if (root.currentView === "artist" && artistView.visible)
             return artistView.flickable
+        if (root.currentView === "artist_items" && artistItemsView.visible)
+            return artistItemsView.flickable
         return null
     }
 
@@ -355,42 +367,42 @@ Scope {
     
     readonly property color extractedColor: {
         if (!root.currentTrack || !root.currentTrack.title || root.currentTrack.title === "") {
-            return Appearance.m3colors.m3primary
+            return Appearance.colors.colPrimary
         }
-        let c = colorQuantizer?.colors[0] ?? Appearance.m3colors.m3primary
+        let c = colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary
         return c
     }
     
     property QtObject blendedColors: QtObject {
         property bool isPlaying: root.currentTrack && root.currentTrack.title && root.currentTrack.title !== ""
-        property color accent: isPlaying ? root.extractedColor : Appearance.m3colors.m3primary
+        property color accent: isPlaying ? root.extractedColor : Appearance.colors.colPrimary
         
         // Dynamically shift hue and saturation to match the album art perfectly, 
         // while preserving the exact lightness levels of the system's Material 3 theme!
         property color colLayer0: isPlaying 
-            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.m3colors.m3background, accent), Appearance.m3colors.m3background, 0.5) 
-            : Appearance.m3colors.m3background
+            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.colors.colLayer0Base, accent), Appearance.colors.colLayer0Base, 0.5) 
+            : Appearance.colors.colLayer0Base
             
         property color colSurface: isPlaying 
-            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.m3colors.m3surfaceContainerLow, accent), Appearance.m3colors.m3surfaceContainerLow, 0.5) 
-            : Appearance.m3colors.m3surfaceContainerLow
+            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.colors.colLayer1Base, accent), Appearance.colors.colLayer1Base, 0.5) 
+            : Appearance.colors.colLayer1Base
             
         property color colSecondaryContainer: isPlaying 
-            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.m3colors.m3surfaceContainerHigh, accent), Appearance.m3colors.m3surfaceContainerHigh, 0.6) 
-            : Appearance.m3colors.m3surfaceContainerHigh
+            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.colors.colSecondaryContainer, accent), Appearance.colors.colSecondaryContainer, 0.6) 
+            : Appearance.colors.colSecondaryContainer
             
         // Text gets a very subtle (15%) tonal shift to blend gracefully without losing pure contrast
         property color colOnLayer0: isPlaying 
-            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.m3colors.m3onSurface, accent), Appearance.m3colors.m3onSurface, 0.15) 
-            : Appearance.m3colors.m3onSurface
+            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.colors.colOnLayer0, accent), Appearance.colors.colOnLayer0, 0.15) 
+            : Appearance.colors.colOnLayer0
             
         property color colSubtext: isPlaying 
             ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.colors.colSubtext, accent), Appearance.colors.colSubtext, 0.15) 
             : Appearance.colors.colSubtext
             
         property color colOnSecondaryContainer: isPlaying 
-            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.m3colors.m3onSurface, accent), Appearance.m3colors.m3onSurface, 0.15) 
-            : Appearance.m3colors.m3onSurface
+            ? ColorUtils.mix(ColorUtils.adaptToAccent(Appearance.colors.colOnSecondaryContainer, accent), Appearance.colors.colOnSecondaryContainer, 0.15) 
+            : Appearance.colors.colOnSecondaryContainer
     }
     
     readonly property color _srcBackgroundColor: blendedColors.colLayer0
@@ -404,6 +416,7 @@ Scope {
     property color contentColor: _srcContentColor
     property color secondaryContentColor: _srcSecondaryContentColor
     property color pillColor: _srcPillColor
+    property color pillColorHover: Qt.lighter(_srcPillColor, 1.15)
     property color pillContentColor: _srcPillContentColor
     property color surfaceColor: _srcSurfaceColor
     
@@ -411,6 +424,7 @@ Scope {
     Behavior on contentColor { ColorAnimation { duration: blendedColors.isPlaying ? 800 : 350; easing.type: Easing.OutCubic } }
     Behavior on secondaryContentColor { ColorAnimation { duration: blendedColors.isPlaying ? 800 : 350; easing.type: Easing.OutCubic } }
     Behavior on pillColor { ColorAnimation { duration: blendedColors.isPlaying ? 800 : 350; easing.type: Easing.OutCubic } }
+    Behavior on pillColorHover { ColorAnimation { duration: blendedColors.isPlaying ? 800 : 350; easing.type: Easing.OutCubic } }
     Behavior on pillContentColor { ColorAnimation { duration: blendedColors.isPlaying ? 800 : 350; easing.type: Easing.OutCubic } }
     Behavior on surfaceColor { ColorAnimation { duration: blendedColors.isPlaying ? 800 : 350; easing.type: Easing.OutCubic } }
     
@@ -576,6 +590,9 @@ Scope {
                     } else if (data.type === "artist_details") {
                         root.isLoading = false
                         root.refreshing = false
+                        root.activeArtistAlbumsFull = false
+                        root.activeArtistSinglesFull = false
+                        root.activeArtistSongsFull = false
                         root.activeArtistId = data.channelId || ""
                         root.activeArtistName = data.name || ""
                         root.activeArtistDescription = data.description || ""
@@ -605,6 +622,8 @@ Scope {
                         root.activeArtistSongsBrowseId = data.songsBrowseId || ""
                         root.activeArtistAlbumsParams = data.albumsParams || ""
                         root.activeArtistSinglesParams = data.singlesParams || ""
+                        root.activeArtistAlbumsBrowseId = data.albumsBrowseId || ""
+                        root.activeArtistSinglesBrowseId = data.singlesBrowseId || ""
                     } else if (data.type === "artist_full_songs") {
                         root.isLoading = false
                         let fullSongs = data.items || []
@@ -612,7 +631,16 @@ Scope {
                         for (let i = 0; i < fullSongs.length; i++) {
                             root.activeArtistSongs.append(fullSongs[i])
                         }
-                        root.activeArtistSongsBrowseId = "" // Hide the button
+                        root.activeArtistSongsFull = true
+                        
+                        root.returnView = "artist"
+                        root.activePlaylistTitle = "Top Songs"
+                        root.activePlaylistDescription = ""
+                        root.activePlaylistAuthor = root.activeArtistName
+                        root.activePlaylistTrackCount = fullSongs.length
+                        root.activePlaylistTracks = root.activeArtistSongs
+                        root.activePlaylistCover = root.activeArtistThumbnail
+                        root.currentView = "playlist"
                     } else if (data.type === "artist_full_albums") {
                         root.isLoading = false
                         let fullAlbums = data.items || []
@@ -620,7 +648,10 @@ Scope {
                         for (let i = 0; i < fullAlbums.length; i++) {
                             root.activeArtistAlbums.append(fullAlbums[i])
                         }
-                        root.activeArtistAlbumsParams = "" // Hide the button
+                        root.activeArtistAlbumsFull = true
+                        root.activeArtistItemsTitle = "All Albums"
+                        root.activeArtistItemsModel = root.activeArtistAlbums
+                        root.currentView = "artist_items"
                     } else if (data.type === "artist_full_singles") {
                         root.isLoading = false
                         let fullSingles = data.items || []
@@ -628,7 +659,10 @@ Scope {
                         for (let i = 0; i < fullSingles.length; i++) {
                             root.activeArtistSingles.append(fullSingles[i])
                         }
-                        root.activeArtistSinglesParams = "" // Hide the button
+                        root.activeArtistSinglesFull = true
+                        root.activeArtistItemsTitle = "All Singles & EPs"
+                        root.activeArtistItemsModel = root.activeArtistSingles
+                        root.currentView = "artist_items"
                     } else if (data.type === "error") {
                         root.isLoading = false
                         root.refreshing = false
@@ -735,13 +769,14 @@ Scope {
                 anchors.fill: parent
                 enabled: root.showMusic
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                scrollGestureEnabled: false
                 onPressed: root.closeWindow()
             }
             
-            BackgroundBlur {
+            BlurredArtBackground {
                 anchors.fill: musicPanel
                 albumArt: root.displayedArtFilePath
-                showLyrics: root.showMusic
+                active: root.showMusic
                 backgroundColor: root.backgroundColor
                 cornerRadius: musicPanel.radius
                 
@@ -773,7 +808,7 @@ Scope {
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     shadowEnabled: true
-                    shadowColor: "#50000000"
+                    shadowColor: ColorUtils.applyAlpha(Appearance.colors.colShadow, 0.31)
                     shadowBlur: 1.0
                     shadowVerticalOffset: 12
                 }
@@ -865,7 +900,7 @@ Scope {
                                         showToggledHighlight: true
                                         useOverrideColors: true
                                         overrideActiveColor: root.pillColor
-                                        overrideActiveHoverColor: Qt.lighter(root.pillColor, 1.15)
+                                        overrideActiveHoverColor: root.pillColorHover
                                         overrideIconColor: root.pillContentColor
                                         overrideTextColor: root.contentColor
                                     }
@@ -883,7 +918,7 @@ Scope {
                                         showToggledHighlight: true
                                         useOverrideColors: true
                                         overrideActiveColor: root.pillColor
-                                        overrideActiveHoverColor: Qt.lighter(root.pillColor, 1.15)
+                                        overrideActiveHoverColor: root.pillColorHover
                                         overrideIconColor: root.pillContentColor
                                         overrideTextColor: root.contentColor
                                     }
@@ -901,7 +936,7 @@ Scope {
                                         showToggledHighlight: true
                                         useOverrideColors: true
                                         overrideActiveColor: root.pillColor
-                                        overrideActiveHoverColor: Qt.lighter(root.pillColor, 1.15)
+                                        overrideActiveHoverColor: root.pillColorHover
                                         overrideIconColor: root.pillContentColor
                                         overrideTextColor: root.contentColor
                                     }
@@ -1061,14 +1096,14 @@ Scope {
                                         Rectangle {
                                             anchors.fill: parent
                                             radius: 12
-                                            color: suggMouse.containsMouse ? ColorUtils.transparentize(root.contentColor, 0.9) : "transparent"
+                                            color: suggMouse.containsMouse ? root.pillColorHover : "transparent"
                                             
                                             RowLayout {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: 12
                                                 spacing: 12
-                                                MaterialSymbol { text: "search"; color: suggMouse.containsMouse ? root.contentColor : root.secondaryContentColor; iconSize: 18 }
-                                                StyledText { text: model.text; color: suggMouse.containsMouse ? root.contentColor : root.contentColor; elide: Text.ElideRight; Layout.fillWidth: true }
+                                                MaterialSymbol { text: "search"; color: suggMouse.containsMouse ? root.pillContentColor : root.secondaryContentColor; iconSize: 18 }
+                                                StyledText { text: model.text; color: suggMouse.containsMouse ? root.pillContentColor : root.secondaryContentColor; elide: Text.ElideRight; Layout.fillWidth: true }
                                             }
                                             
                                             MouseArea {
@@ -1141,6 +1176,12 @@ Scope {
                                 rootContext: root
                             }
 
+                            MusicArtistItemsView {
+                                id: artistItemsView
+                                anchors.fill: parent
+                                rootContext: root
+                            }
+
                             // Central Loading Spinner
                             MaterialLoadingIndicator {
                                 anchors.centerIn: parent
@@ -1205,7 +1246,7 @@ Scope {
                         StyledText {
                             text: root.oauthCode ? "Please go to the URL below in your browser and enter the code to seamlessly link your YouTube Music account." : "Connecting to Google..."
                             font.pixelSize: 14
-                            color: root.pillContentColor
+                            color: root.secondaryContentColor
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignHCenter
                             wrapMode: Text.WordWrap
@@ -1230,7 +1271,7 @@ Scope {
                                     text: root.oauthCode || "..."
                                     font.pixelSize: 32
                                     font.weight: 900
-                                    color: root.contentColor
+                                    color: root.pillContentColor
                                     font.letterSpacing: 8
                                 }
                             }
@@ -1239,13 +1280,13 @@ Scope {
                                 Layout.preferredWidth: 60
                                 Layout.fillHeight: true
                                 radius: 12
-                                color: root.oauthCopied ? parent.parent.extractedColor : root.pillColor // green/accent if copied
+                                color: root.oauthCopied ? root.extractedColor : root.pillColor // green/accent if copied
                                 
                                 MaterialSymbol {
                                     anchors.centerIn: parent
                                     text: root.oauthCopied ? "check" : "content_copy"
                                     font.pixelSize: 24
-                                    color: root.oauthCopied ? ColorUtils.overlayForeground(parent.color, "primary") : root.contentColor
+                                    color: root.oauthCopied ? ColorUtils.overlayForeground(parent.color, "primary") : root.pillContentColor
                                 }
                                 
                                 MouseArea {
@@ -1265,52 +1306,47 @@ Scope {
                             Layout.fillWidth: true
                             spacing: 12
                             
-                            Rectangle {
+                            RippleButton {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 44
-                                radius: 22
-                                color: root.pillColor
+                                buttonRadius: 22
+                                colBackground: root.pillColor
+                                colBackgroundHover: root.pillColorHover
+                                colRipple: ColorUtils.applyAlpha(root.pillContentColor, 0.2)
                                 
-                                StyledText {
+                                contentItem: StyledText {
                                     anchors.centerIn: parent
                                     text: "Cancel"
                                     font.pixelSize: 15
-                                    color: root.contentColor
+                                    color: root.pillContentColor
                                 }
                                 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.oauthDialogVisible = false
-                                        root.sendCommand({ "command": "oauth_cancel" })
-                                    }
+                                onClicked: {
+                                    root.oauthDialogVisible = false
+                                    root.sendCommand({ "command": "oauth_cancel" })
                                 }
                             }
                             
-                            Rectangle {
+                            RippleButton {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 44
-                                radius: 22
-                                color: root.extractedColor
+                                buttonRadius: 22
+                                colBackground: root.extractedColor
+                                colBackgroundHover: Qt.lighter(root.extractedColor, 1.15)
+                                colRipple: ColorUtils.applyAlpha(ColorUtils.overlayForeground(root.extractedColor, "primary"), 0.2)
                                 opacity: root.oauthCode ? 1.0 : 0.5
+                                enabled: root.oauthCode !== ""
                                 
-                                StyledText {
+                                contentItem: StyledText {
                                     anchors.centerIn: parent
                                     text: "Open Browser"
                                     font.pixelSize: 15
                                     font.weight: 700
-                                    color: ColorUtils.overlayForeground(parent.color, "primary")
+                                    color: ColorUtils.overlayForeground(parent.parent.color, "primary")
                                 }
                                 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    enabled: root.oauthCode !== ""
-                                    onClicked: {
-                                        // Simple way to open URL in browser and copy code
-                                        Qt.openUrlExternally(root.oauthUrl)
-                                    }
+                                onClicked: {
+                                    Qt.openUrlExternally(root.oauthUrl)
                                 }
                             }
                         }

@@ -631,8 +631,7 @@ def fetch_from_better_lyrics(title, artist, album="", duration=0):
 
     import ssl
     ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode    = ssl.CERT_NONE
+    # Insecure context removed for safety. If API has self-signed certs, consider trusting them properly.
 
     had_transient = False
     for params in _build_betterlyrics_query_variants(title, artist, album, duration):
