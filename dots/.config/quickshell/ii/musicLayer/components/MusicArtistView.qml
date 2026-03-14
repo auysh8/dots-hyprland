@@ -275,7 +275,10 @@ StyledFlickable {
                                 rootContext.activePlaylistDescription = ""
                                 rootContext.activePlaylistAuthor = rootContext.activeArtistName
                                 rootContext.activePlaylistTrackCount = rootContext.activeArtistSongs.count
-                                rootContext.activePlaylistTracks = rootContext.activeArtistSongs
+                                rootContext.activePlaylistTracks.clear()
+                                for (let i = 0; i < rootContext.activeArtistSongs.count; i++) {
+                                    rootContext.activePlaylistTracks.append(rootContext.activeArtistSongs.get(i))
+                                }
                                 rootContext.activePlaylistCover = rootContext.activeArtistThumbnail
                                 rootContext.currentView = "playlist"
                             }

@@ -164,6 +164,19 @@ Scope {
         sendCommand({ "command": "get_library" })
     }
     
+    function navigateTo(viewName) {
+        root.currentView = viewName
+        
+        // Centralized lazy-load policy
+        if (viewName === "home" && root.homeContent.count === 0 && root.quickPicks.count === 0 && !root.isLoading) {
+            root.getHome()
+        } else if (viewName === "explore" && root.exploreNewReleases.count === 0 && root.exploreTrending.count === 0 && !root.isLoading) {
+            root.getExplore()
+        } else if (viewName === "library" && root.libraryPlaylists.count === 0 && root.libraryRecentTracks.count === 0 && !root.isLoading) {
+            root.getLibrary()
+        }
+    }
+
     function toggleCurrentTrackLike() {
         if (!currentTrack || isTrackLoading) return
         currentTrackLiked = !currentTrackLiked
@@ -248,7 +261,6 @@ Scope {
     }
 
     function openArtist(channelId) {
-        console.log("[MusicWindow] openArtist called with:", channelId)
         root.returnView = root.currentView
         root.currentView = "artist"
         root.isLoading = true
@@ -327,6 +339,113 @@ Scope {
     }
     
     property list<real> visualizerPoints: []
+
+    function applyLibrarySection(data) {
+        root.isLoading = false
+        root.refreshing = false
+        let items = data.items || []
+        if (data.section === "recent_tracks") {
+            root.libraryRecentTracks.clear()
+            for (let i = 0; i < items.length; i++) root.libraryRecentTracks.append(items[i])
+        } else if (data.section === "playlists") {
+            root.libraryPlaylists.clear()
+            for (let i = 0; i < items.length; i++) root.libraryPlaylists.append(items[i])
+            if (data.likedCount !== undefined) root.libraryLikedSongCount = data.likedCount
+            if (data.likedArt !== undefined) root.libraryLikedSongArt = data.likedArt
+        } else if (data.section === "community_playlists") {
+            root.libraryCommunityPlaylists.clear()
+            for (let i = 0; i < items.length; i++) root.libraryCommunityPlaylists.append(items[i])
+        }
+    }
+
+    function applyPlaylistDetails(data) {
+        root.isLoading = false
+        root.refreshing = false
+        root.activePlaylistId = data.id || ""
+        root.activePlaylistTitle = data.title || ""
+        root.activePlaylistDescription = data.description || ""
+        root.activePlaylistAuthor = data.author || ""
+        root.activePlaylistCover = data.cover || ""
+        root.activePlaylistTrackCount = data.trackCount || 0
+        
+        root.activePlaylistTracks.clear()
+        let tracks = data.tracks || []
+        for (let i = 0; i < tracks.length; i++) {
+            root.activePlaylistTracks.append(tracks[i])
+        }
+
+        if (root.autoPlayPending && tracks.length > 0) {
+            root.autoPlayPending = false;
+            
+            // Make a copy to shuffle
+            let tracksToPlay = [...tracks];
+            
+            if (root.autoPlayShufflePending) {
+                root.autoPlayShufflePending = false;
+                // Fisher-Yates shuffle
+                for (let i = tracksToPlay.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [tracksToPlay[i], tracksToPlay[j]] = [tracksToPlay[j], tracksToPlay[i]];
+                }
+            }
+            
+            let first = tracksToPlay[0];
+            let queueTracks = [];
+            for (let i = 1; i < tracksToPlay.length; i++) {
+                let t = tracksToPlay[i];
+                queueTracks.push({
+                    videoId: t.videoId,
+                    title: t.title,
+                    artist: t.artist,
+                    artUrl: t.artUrl || root.activePlaylistCover,
+                    duration: t.duration || ""
+                })
+            }
+            root.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.activePlaylistCover, queueTracks)
+        } else {
+            root.autoPlayPending = false;
+        }
+    }
+
+    function applyArtistDetails(data) {
+        root.isLoading = false
+        root.refreshing = false
+        root.activeArtistAlbumsFull = false
+        root.activeArtistSinglesFull = false
+        root.activeArtistSongsFull = false
+        root.activeArtistId = data.channelId || ""
+        root.activeArtistName = data.name || ""
+        root.activeArtistDescription = data.description || ""
+        root.activeArtistSubscribers = data.subscribers || ""
+        root.activeArtistThumbnail = data.thumbnailUrl || ""
+        
+        root.activeArtistSongs.clear()
+        let artistSongs = data.topSongs || []
+        for (let i = 0; i < artistSongs.length; i++)
+            root.activeArtistSongs.append(artistSongs[i])
+        
+        root.activeArtistAlbums.clear()
+        let artistAlbums = data.albums || []
+        for (let i = 0; i < artistAlbums.length; i++)
+            root.activeArtistAlbums.append(artistAlbums[i])
+        
+        root.activeArtistSingles.clear()
+        let artistSingles = data.singles || []
+        for (let i = 0; i < artistSingles.length; i++)
+            root.activeArtistSingles.append(artistSingles[i])
+        
+        root.activeArtistRelated.clear()
+        let artistRelated = data.relatedArtists || []
+        for (let i = 0; i < artistRelated.length; i++)
+            root.activeArtistRelated.append(artistRelated[i])
+        
+        root.activeArtistSongsBrowseId = data.songsBrowseId || ""
+        root.activeArtistAlbumsParams = data.albumsParams || ""
+        root.activeArtistSinglesParams = data.singlesParams || ""
+        root.activeArtistAlbumsBrowseId = data.albumsBrowseId || ""
+        root.activeArtistSinglesBrowseId = data.singlesBrowseId || ""
+    }
+    
     Process {
         id: cavaProc
         running: !!root.showMusic && !!root.currentTrack && !root.playbackPaused
@@ -352,11 +471,6 @@ Scope {
     
     // For ColorQuantizer: needs a local file path, updated when backend finishes downloading
     property string colorSourcePath: ""
-    
-    // Ensure ColorQuantizer triggers properly when art changes
-    onDisplayedArtFilePathChanged: {
-        console.log("[MusicWindow] Displayed art file path changed:", displayedArtFilePath)
-    }
     
     ColorQuantizer {
         id: colorQuantizer
@@ -416,7 +530,7 @@ Scope {
     property color contentColor: _srcContentColor
     property color secondaryContentColor: _srcSecondaryContentColor
     property color pillColor: _srcPillColor
-    property color pillColorHover: Qt.lighter(_srcPillColor, 1.15)
+    property color pillColorHover: ColorUtils.mix(_srcPillColor, _srcPillContentColor, 0.15)
     property color pillContentColor: _srcPillContentColor
     property color surfaceColor: _srcSurfaceColor
     
@@ -438,7 +552,6 @@ Scope {
             onRead: (line) => {
                 try {
                     let data = JSON.parse(line)
-                    // console.log("[MusicBackend]", line)
                     
                     if (data.type === "ready") {
                         if (data.authenticated !== undefined) {
@@ -471,9 +584,6 @@ Scope {
                         for (let i = 0; i < artists.length; i++) {
                             root.artistResults.append(artists[i])
                         }
-                        // Debug: log artist data via backend
-                        if (artists.length > 0)
-                            sendCommand({ "command": "debug_log", "message": "Artist[0] keys: " + Object.keys(artists[0]).join(",") + " videoId=" + (artists[0].videoId || "EMPTY") })
                         for (let i = 0; i < albums.length; i++) root.albumResults.append(albums[i])
                         root.applyVisibleSongResults()
                         
@@ -502,8 +612,6 @@ Scope {
                         let picks = data.quick_picks || []
                         let shorts = data.shorts_content || []
                         
-                        console.log("[MusicWindow] Home Content - Recs:", recs.length, "Picks:", picks.length, "Shorts:", shorts.length)
-                        
                         for (let i = 0; i < recs.length; i++) {
                             root.homeContent.append(recs[i])
                         }
@@ -525,105 +633,11 @@ Scope {
                             for (let i = 0; i < items.length; i++) root.exploreNewReleases.append(items[i])
                         }
                     } else if (data.type === "library_section") {
-                        root.isLoading = false
-                        root.refreshing = false
-                        let items = data.items || []
-                        if (data.section === "recent_tracks") {
-                            root.libraryRecentTracks.clear()
-                            for (let i = 0; i < items.length; i++) root.libraryRecentTracks.append(items[i])
-                        } else if (data.section === "playlists") {
-                            root.libraryPlaylists.clear()
-                            for (let i = 0; i < items.length; i++) root.libraryPlaylists.append(items[i])
-                            if (data.likedCount !== undefined) root.libraryLikedSongCount = data.likedCount
-                            if (data.likedArt !== undefined) root.libraryLikedSongArt = data.likedArt
-                        } else if (data.section === "community_playlists") {
-                            root.libraryCommunityPlaylists.clear()
-                            for (let i = 0; i < items.length; i++) root.libraryCommunityPlaylists.append(items[i])
-                        }
+                        root.applyLibrarySection(data)
                     } else if (data.type === "playlist_details") {
-                        root.isLoading = false
-                        root.refreshing = false
-                        root.activePlaylistId = data.id || ""
-                        root.activePlaylistTitle = data.title || ""
-                        root.activePlaylistDescription = data.description || ""
-                        root.activePlaylistAuthor = data.author || ""
-                        root.activePlaylistCover = data.cover || ""
-                        root.activePlaylistTrackCount = data.trackCount || 0
-                        
-                        root.activePlaylistTracks.clear()
-                        let tracks = data.tracks || []
-                        for (let i = 0; i < tracks.length; i++) {
-                            root.activePlaylistTracks.append(tracks[i])
-                        }
-
-                        if (root.autoPlayPending && tracks.length > 0) {
-                            root.autoPlayPending = false;
-                            
-                            // Make a copy to shuffle
-                            let tracksToPlay = [...tracks];
-                            
-                            if (root.autoPlayShufflePending) {
-                                root.autoPlayShufflePending = false;
-                                // Fisher-Yates shuffle
-                                for (let i = tracksToPlay.length - 1; i > 0; i--) {
-                                    const j = Math.floor(Math.random() * (i + 1));
-                                    [tracksToPlay[i], tracksToPlay[j]] = [tracksToPlay[j], tracksToPlay[i]];
-                                }
-                            }
-                            
-                            let first = tracksToPlay[0];
-                            let queueTracks = [];
-                            for (let i = 1; i < tracksToPlay.length; i++) {
-                                let t = tracksToPlay[i];
-                                queueTracks.push({
-                                    videoId: t.videoId,
-                                    title: t.title,
-                                    artist: t.artist,
-                                    artUrl: t.artUrl || root.activePlaylistCover,
-                                    duration: t.duration || ""
-                                })
-                            }
-                            root.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.activePlaylistCover, queueTracks)
-                        } else {
-                            root.autoPlayPending = false;
-                        }
+                        root.applyPlaylistDetails(data)
                     } else if (data.type === "artist_details") {
-                        root.isLoading = false
-                        root.refreshing = false
-                        root.activeArtistAlbumsFull = false
-                        root.activeArtistSinglesFull = false
-                        root.activeArtistSongsFull = false
-                        root.activeArtistId = data.channelId || ""
-                        root.activeArtistName = data.name || ""
-                        root.activeArtistDescription = data.description || ""
-                        root.activeArtistSubscribers = data.subscribers || ""
-                        root.activeArtistThumbnail = data.thumbnailUrl || ""
-                        
-                        root.activeArtistSongs.clear()
-                        let artistSongs = data.topSongs || []
-                        for (let i = 0; i < artistSongs.length; i++)
-                            root.activeArtistSongs.append(artistSongs[i])
-                        
-                        root.activeArtistAlbums.clear()
-                        let artistAlbums = data.albums || []
-                        for (let i = 0; i < artistAlbums.length; i++)
-                            root.activeArtistAlbums.append(artistAlbums[i])
-                        
-                        root.activeArtistSingles.clear()
-                        let artistSingles = data.singles || []
-                        for (let i = 0; i < artistSingles.length; i++)
-                            root.activeArtistSingles.append(artistSingles[i])
-                        
-                        root.activeArtistRelated.clear()
-                        let artistRelated = data.relatedArtists || []
-                        for (let i = 0; i < artistRelated.length; i++)
-                            root.activeArtistRelated.append(artistRelated[i])
-                        
-                        root.activeArtistSongsBrowseId = data.songsBrowseId || ""
-                        root.activeArtistAlbumsParams = data.albumsParams || ""
-                        root.activeArtistSinglesParams = data.singlesParams || ""
-                        root.activeArtistAlbumsBrowseId = data.albumsBrowseId || ""
-                        root.activeArtistSinglesBrowseId = data.singlesBrowseId || ""
+                        root.applyArtistDetails(data)
                     } else if (data.type === "artist_full_songs") {
                         root.isLoading = false
                         let fullSongs = data.items || []
@@ -638,7 +652,10 @@ Scope {
                         root.activePlaylistDescription = ""
                         root.activePlaylistAuthor = root.activeArtistName
                         root.activePlaylistTrackCount = fullSongs.length
-                        root.activePlaylistTracks = root.activeArtistSongs
+                        root.activePlaylistTracks.clear()
+                        for (let i = 0; i < root.activeArtistSongs.count; i++) {
+                            root.activePlaylistTracks.append(root.activeArtistSongs.get(i))
+                        }
                         root.activePlaylistCover = root.activeArtistThumbnail
                         root.currentView = "playlist"
                     } else if (data.type === "artist_full_albums") {
@@ -738,19 +755,16 @@ Scope {
                             root.isAuthenticated = true
                             root.getHome()
                             root.getLibrary()
-                            console.log("[MusicBackend] Auth refreshed successfully")
-                        } else {
-                            console.log("[MusicBackend] Auth refresh failed:", data.error)
                         }
                     }
                 } catch(e) { 
-                    console.log("[MusicBackend] Parse Error on line:", line) 
+                    console.error("[MusicBackend] Parse Error on line:", line)
                 }
             }
         }
         
         stderr: SplitParser {
-            onRead: (line) => console.log("[MusicBackend ERR]", line)
+            onRead: (line) => console.error("[MusicBackend ERR]", line)
         }
     }
     
@@ -893,11 +907,11 @@ Scope {
                                     
                                     NavigationRailButton {
                                         toggled: root.currentView === "home"
-                                        onPressed: root.currentView = "home"
+                                        onPressed: root.navigateTo("home")
                                         expanded: navRail.expanded
                                         buttonIcon: "home"
                                         buttonText: "Home"
-                                        showToggledHighlight: true
+                                        showToggledHighlight: false
                                         useOverrideColors: true
                                         overrideActiveColor: root.pillColor
                                         overrideActiveHoverColor: root.pillColorHover
@@ -906,16 +920,11 @@ Scope {
                                     }
                                     NavigationRailButton {
                                         toggled: root.currentView === "explore"
-                                        onPressed: {
-                                            root.currentView = "explore"
-                                            if (root.exploreNewReleases.count === 0 && root.exploreTrending.count === 0) {
-                                                root.getExplore()
-                                            }
-                                        }
+                                        onPressed: root.navigateTo("explore")
                                         expanded: navRail.expanded
                                         buttonIcon: "explore"
                                         buttonText: "Explore"
-                                        showToggledHighlight: true
+                                        showToggledHighlight: false
                                         useOverrideColors: true
                                         overrideActiveColor: root.pillColor
                                         overrideActiveHoverColor: root.pillColorHover
@@ -924,16 +933,11 @@ Scope {
                                     }
                                     NavigationRailButton {
                                         toggled: root.currentView === "library"
-                                        onPressed: {
-                                            root.currentView = "library"
-                                            if (root.libraryPlaylists.count === 0 && root.libraryRecentTracks.count === 0) {
-                                                root.getLibrary()
-                                            }
-                                        }
+                                        onPressed: root.navigateTo("library")
                                         expanded: navRail.expanded
                                         buttonIcon: "library_music"
                                         buttonText: "Library"
-                                        showToggledHighlight: true
+                                        showToggledHighlight: false
                                         useOverrideColors: true
                                         overrideActiveColor: root.pillColor
                                         overrideActiveHoverColor: root.pillColorHover
@@ -1020,7 +1024,6 @@ Scope {
                                         onAccepted: root.search(text)
                                         
                                         onActiveFocusChanged: {
-                                            console.log("[MusicWindow] searchInput focus changed to: " + activeFocus);
                                             if (!activeFocus) {
                                                 hideSuggsTimer.restart()
                                             } else {
@@ -1102,8 +1105,8 @@ Scope {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: 12
                                                 spacing: 12
-                                                MaterialSymbol { text: "search"; color: suggMouse.containsMouse ? root.pillContentColor : root.secondaryContentColor; iconSize: 18 }
-                                                StyledText { text: model.text; color: suggMouse.containsMouse ? root.pillContentColor : root.secondaryContentColor; elide: Text.ElideRight; Layout.fillWidth: true }
+                                                MaterialSymbol { text: "search"; color: suggMouse.containsMouse ? root.backgroundColor : root.secondaryContentColor; iconSize: 18 }
+                                                StyledText { text: model.text; color: suggMouse.containsMouse ? root.backgroundColor : root.secondaryContentColor; elide: Text.ElideRight; Layout.fillWidth: true }
                                             }
                                             
                                             MouseArea {
@@ -1113,7 +1116,6 @@ Scope {
                                                 scrollGestureEnabled: false
                                                 cursorShape: Qt.PointingHandCursor
                                                 onPressed: {
-                                                    console.log("[MusicWindow] Suggestion clicked: " + model.text);
                                                     hideSuggsTimer.stop() // Prevent the timer from clearing our intended search
                                                     searchInput.text = model.text
                                                     root.search(model.text)
@@ -1332,7 +1334,7 @@ Scope {
                                 Layout.preferredHeight: 44
                                 buttonRadius: 22
                                 colBackground: root.extractedColor
-                                colBackgroundHover: Qt.lighter(root.extractedColor, 1.15)
+                                colBackgroundHover: ColorUtils.mix(root.extractedColor, ColorUtils.overlayForeground(root.extractedColor, "primary"), 0.15)
                                 colRipple: ColorUtils.applyAlpha(ColorUtils.overlayForeground(root.extractedColor, "primary"), 0.2)
                                 opacity: root.oauthCode ? 1.0 : 0.5
                                 enabled: root.oauthCode !== ""
