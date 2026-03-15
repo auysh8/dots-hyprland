@@ -19,17 +19,37 @@ Singleton {
     }
 
     function applyColors(fileContent) {
-        const json = JSON.parse(fileContent)
-        for (const key in json) {
-            if (json.hasOwnProperty(key)) {
-                // Convert snake_case to CamelCase
-                const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase())
-                const m3Key = `m3${camelCaseKey}`
-                Appearance.m3colors[m3Key] = json[key]
+        if (!fileContent) return;
+        try {
+            const json = JSON.parse(fileContent)
+            Quickshell.execDetached(["bash", "-c", `echo "ThemeLoader: Starting application of colors" >> /tmp/quickshell_theme_debug.log`])
+            for (const key in json) {
+                if (json.hasOwnProperty(key)) {
+                    if (key === "darkmode" || key === "transparent") {
+                        Appearance.m3colors[key] = json[key]
+                        continue
+                    }
+                    const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase())
+                    const m3Key = `m3${camelCaseKey.charAt(0).toLowerCase()}${camelCaseKey.slice(1)}`
+                    
+                    if (m3Key in Appearance.m3colors) {
+                        Appearance.m3colors[m3Key] = json[key]
+                    }
+                }
             }
+
+            if (json.darkmode !== undefined) {
+                 Appearance.m3colors.darkmode = json.darkmode
+            } else {
+                const bg = Appearance.m3colors.m3background
+                Appearance.m3colors.darkmode = (bg.hslLightness < 0.5)
+            }
+            
+            Appearance.triggerColorUpdate()
+            Quickshell.execDetached(["bash", "-c", `echo "ThemeLoader: Successfully updated theme, darkmode=${Appearance.m3colors.darkmode}" >> /tmp/quickshell_theme_debug.log`])
+        } catch (e) {
+            Quickshell.execDetached(["bash", "-c", `echo "ThemeLoader ERROR: ${e}" >> /tmp/quickshell_theme_debug.log`])
         }
-        
-        Appearance.m3colors.darkmode = (Appearance.m3colors.m3background.hslLightness < 0.5)
     }
 
     function resetFilePathNextTime() {
@@ -57,18 +77,27 @@ Singleton {
         }
     }
 
-	FileView { 
+	FileView {
         id: themeFileView
-        path: Qt.resolvedUrl(root.filePath)
+        path: root.filePath.startsWith("/") ? ("file://" + root.filePath) : root.filePath
         watchChanges: true
         onFileChanged: {
             this.reload()
             delayedFileRead.start()
         }
         onLoadedChanged: {
-            const fileContent = themeFileView.text()
-            root.applyColors(fileContent)
+            if (loaded) {
+                const fileContent = themeFileView.text()
+                root.applyColors(fileContent)
+            }
         }
         onLoadFailed: root.resetFilePathNextTime();
+    }
+
+    IpcHandler {
+        target: "theme"
+        function reload(): void {
+            root.reapplyTheme()
+        }
     }
 }

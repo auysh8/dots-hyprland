@@ -2,6 +2,7 @@
 import argparse
 import math
 import json
+import os
 from PIL import Image
 from materialyoucolor.quantize import QuantizeCelebi
 from materialyoucolor.score.score import Score
@@ -152,12 +153,22 @@ if args.termscheme is not None:
         term_colors[color] = argb_to_hex(harmonized)
 
 if args.debug == False:
+    # Output SCSS format to stdout (for material_colors.scss)
     print(f"$darkmode: {darkmode};")
     print(f"$transparent: {transparent};")
     for color, code in material_colors.items():
         print(f"${color}: {code};")
     for color, code in term_colors.items():
         print(f"${color}: {code};")
+    
+    # Also output JSON format to colors.json
+    if args.cache is not None:
+        json_dir = os.path.dirname(args.cache)
+        json_path = os.path.join(json_dir, "colors.json")
+        material_colors["darkmode"] = darkmode
+        material_colors["transparent"] = transparent
+        with open(json_path, 'w') as json_file:
+            json.dump(material_colors, json_file, indent=2)
 else:
     if args.path is not None:
         print('\n--------------Image properties-----------------')

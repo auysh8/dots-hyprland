@@ -1,4 +1,4 @@
-@#!/usr/bin/env bash
+#!/usr/bin/env bash
 
 QUICKSHELL_CONFIG_NAME="ii"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -93,3 +93,6 @@ else
 fi
 
 apply_qt & # Qt theming is already handled by kde-material-colors
+
+# Trigger Quickshell to reload colors
+sleep 0.2 && quickshell ipc -c ii call theme reload &
