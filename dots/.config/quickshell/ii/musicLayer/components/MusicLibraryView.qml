@@ -51,7 +51,7 @@ StyledFlickable {
                 Layout.preferredWidth: signInRow.implicitWidth + 32
                 Layout.preferredHeight: 36
                 buttonRadius: 18
-                colBackground: Appearance.colors.colLayer2
+                colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2
                 
                 contentItem: RowLayout {
                     id: signInRow
@@ -132,13 +132,13 @@ StyledFlickable {
                         MaterialSymbol {
                             text: "link"
                             font.pixelSize: 18
-                            color: ColorUtils.overlayForeground(connectRow.btnColor, "primary")
+                            color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnPrimary
                         }
                         StyledText {
                             text: "Connect Account"
                             font.pixelSize: 14
                             font.weight: 700
-                            color: ColorUtils.overlayForeground(connectRow.btnColor, "primary")
+                            color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnPrimary
                         }
                     }
                     
@@ -169,7 +169,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
                 orientation: ListView.Horizontal
-                spacing: 16
+                spacing: 0
                 clip: true
                 cacheBuffer: 1200
 
@@ -201,79 +201,71 @@ StyledFlickable {
             Layout.topMargin: 32
             
             // Liked Songs Card (Special vibrant one)
-            Rectangle {
+            RippleButton {
                 id: likedCard
                 width: Math.max(260, (parent.width - 16) / 2) // takes more space
                 height: 220
-                radius: 20
+                buttonRadius: 20
                 clip: true
                 
-                color: rootContext ? (rootContext.extractedColor || rootContext.pillColor) : Appearance.colors.colPrimary
-                Behavior on color { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
+                property color cardColor: rootContext ? (rootContext.extractedColor || rootContext.pillColor) : Appearance.colors.colPrimary
+                property color fgColor: rootContext ? rootContext.extractedForeground : (ColorUtils.isDark(cardColor) ? Appearance.colors.colOnLayer0 : Appearance.colors.colLayer0)
                 
-                property color fgColor: ColorUtils.overlayForeground(color, "primary")
+                colBackground: cardColor
+                colRipple: ColorUtils.applyAlpha(likedCard.fgColor, 0.2)
                 
-                // Huge watermark icon
-                MaterialSymbol {
-                    text: "thumb_up"
-                    color: likedCard.fgColor
-                    opacity: 0.15
-                    iconSize: 220
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    anchors.rightMargin: -40
-                    anchors.bottomMargin: -40
-                    rotation: -15
-                }
+                Behavior on colBackground { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
                 
-                MouseArea {
-                    id: likedHover
+                onClicked: rootContext.openPlaylist("LM")
+                
+                contentItem: Item {
                     anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: rootContext.openPlaylist("LM")
-                }
-
-                // Subtly darken on hover
-                Rectangle {
-                    anchors.fill: parent
-                    color: Appearance.colors.colShadow
-                    radius: 20
-                    opacity: likedHover.containsMouse ? 0.15 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 20
                     
-                    Rectangle {
-                        width: 40; height: 40; radius: 20
-                        color: ColorUtils.applyAlpha(likedCard.fgColor, 0.15)
-                        MaterialSymbol { anchors.centerIn: parent; text: "favorite"; color: likedCard.fgColor }
-                    }
-                    
-                    Item { Layout.fillHeight: true }
-                    
-                    StyledText {
-                        text: "Liked Songs"
-                        font.pixelSize: 28
-                        font.weight: 800
+                    // Huge watermark icon
+                    MaterialSymbol {
+                        text: "thumb_up"
                         color: likedCard.fgColor
+                        opacity: 0.15
+                        iconSize: 220
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.rightMargin: -40
+                        anchors.bottomMargin: -40
+                        rotation: -15
                     }
-                    StyledText {
-                        text: rootContext.libraryLikedSongCount + " Songs"
-                        font.pixelSize: 14
-                        color: ColorUtils.applyAlpha(likedCard.fgColor, 0.65)
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 20
+                        
+                        Rectangle {
+                            width: 40; height: 40; radius: 20
+                            color: ColorUtils.applyAlpha(likedCard.fgColor, 0.15)
+                            MaterialSymbol { anchors.centerIn: parent; text: "favorite"; color: likedCard.fgColor }
+                        }
+                        
+                        Item { Layout.fillHeight: true }
+                        
+                        StyledText {
+                            text: "Liked Songs"
+                            font.pixelSize: 28
+                            font.weight: 800
+                            color: likedCard.fgColor
+                        }
+                        StyledText {
+                            text: rootContext.libraryLikedSongCount + " Songs"
+                            font.pixelSize: 14
+                            color: ColorUtils.applyAlpha(likedCard.fgColor, 0.65)
+                        }
                     }
-                }
-                
-                // Play button
-                Rectangle {
-                    anchors.bottom: parent.bottom; anchors.right: parent.right
-                    anchors.margins: 20
-                    width: 48; height: 48; radius: 24; color: likedCard.fgColor
-                    MaterialSymbol { anchors.centerIn: parent; text: "play_arrow"; color: likedCard.color; iconSize: 28 }
+                    
+                    // Play button
+                    Rectangle {
+                        anchors.bottom: parent.bottom; anchors.right: parent.right
+                        anchors.margins: 20
+                        width: 48; height: 48; radius: 24; color: likedCard.fgColor
+                        MaterialSymbol { anchors.centerIn: parent; text: "play_arrow"; color: likedCard.cardColor; iconSize: 28 }
+                    }
                 }
             }
             

@@ -10,7 +10,7 @@ StyledFlickable {
 
     property var rootContext
     readonly property var flickable: root
-    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : "#2f3239"
+    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : Appearance.colors.colLayer1
 
     property bool show: rootContext && rootContext.currentView === "artist" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
@@ -43,13 +43,13 @@ StyledFlickable {
             MaterialLoadingIndicator {
                 implicitSize: 24
                 loading: true
-                color: rootContext ? rootContext.pillColor : "white"
+                color: rootContext ? rootContext.pillColor : Appearance.colors.colPrimary
             }
 
             StyledText {
                 text: root.contentY < -100 ? "Release to refresh" : "Pull to refresh"
                 font.weight: 600
-                color: rootContext ? rootContext.contentColor : "white"
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
         }
     }
@@ -115,7 +115,7 @@ StyledFlickable {
                     text: rootContext ? rootContext.activeArtistName : ""
                     font.pixelSize: 36
                     font.weight: 800
-                    color: rootContext ? rootContext.contentColor : "white"
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                 }
@@ -123,7 +123,7 @@ StyledFlickable {
                 StyledText {
                     text: rootContext ? rootContext.activeArtistSubscribers : ""
                     font.pixelSize: 14
-                    color: rootContext ? rootContext.secondaryContentColor : "gray"
+                    color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                     visible: text.length > 0
                 }
 
@@ -131,7 +131,7 @@ StyledFlickable {
                 StyledText {
                     text: rootContext ? rootContext.activeArtistDescription : ""
                     font.pixelSize: 13
-                    color: rootContext ? rootContext.secondaryContentColor : "gray"
+                    color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
                     elide: Text.ElideRight
@@ -150,8 +150,8 @@ StyledFlickable {
                         Layout.preferredWidth: playRow.implicitWidth + 32
                         Layout.preferredHeight: 48
                         buttonRadius: 24
-                        property color bgColor: rootContext ? rootContext.pillColor : "#444"
-                        property color txColor: rootContext ? rootContext.contentColor : "white"
+                        property color bgColor: rootContext ? rootContext.pillColor : Appearance.colors.colPrimary
+                        property color txColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnPrimary
                         colBackground: bgColor
                         colRipple: txColor
                         
@@ -187,8 +187,8 @@ StyledFlickable {
                         Layout.preferredWidth: shuffleRow.implicitWidth + 32
                         Layout.preferredHeight: 48
                         buttonRadius: 24
-                        property color bgColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "#333"
-                        property color txColor: rootContext ? rootContext.contentColor : "white"
+                        property color bgColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2
+                        property color txColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                         colBackground: bgColor
                         colRipple: txColor
 
@@ -240,7 +240,7 @@ StyledFlickable {
                     text: "Top Songs"
                     font.pixelSize: 22
                     font.weight: 700
-                    color: rootContext ? rootContext.contentColor : "white"
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     Layout.fillWidth: true
                 }
                 RippleButton {
@@ -248,7 +248,7 @@ StyledFlickable {
                     Layout.preferredHeight: 32
                     buttonRadius: 16
                     colBackground: rootContext ? rootContext.pillColor : "transparent"
-                    colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "#333"
+                    colBackgroundHover: rootContext ? Qt.binding(function() { return ColorUtils.transparentize(rootContext.pillColor, 0.5) }) : Appearance.colors.colLayer1Hover
                     visible: rootContext && (rootContext.activeArtistSongsBrowseId.length > 0 || rootContext.activeArtistSongsFull) && rootContext.activeArtistSongs.count > 0
 
                     contentItem: StyledText {
@@ -256,7 +256,7 @@ StyledFlickable {
                         text: "See all"
                         font.pixelSize: 14
                         font.weight: 600
-                        color: rootContext ? rootContext.contentColor : "white"
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }                    
@@ -291,7 +291,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: songsColumn.implicitHeight + 16
                 radius: 20
-                color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.7) : "#20ffffff"
+                color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.7) : ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
 
                 ColumnLayout {
                     id: songsColumn
@@ -342,14 +342,14 @@ StyledFlickable {
 
                                     Rectangle {
                                         anchors.fill: parent
-                                        color: "#40000000"
+                                        color: Appearance.colors.colScrim
                                         radius: 8
                                         visible: songHover.containsMouse || (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId)
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
                                             text: (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) ? (rootContext.playbackPaused ? "play_arrow" : "pause") : "play_arrow"
-                                            color: "white"
+                                            color: Appearance.colors.colOnSurface
                                             iconSize: 24
                                         }
                                     }
@@ -427,7 +427,7 @@ StyledFlickable {
                     text: "Albums"
                     font.pixelSize: 22
                     font.weight: 700
-                    color: rootContext ? rootContext.contentColor : "white"
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     Layout.fillWidth: true
                 }
                 RippleButton {
@@ -435,7 +435,7 @@ StyledFlickable {
                     Layout.preferredHeight: 32
                     buttonRadius: 16
                     colBackground: rootContext ? rootContext.pillColor : "transparent"
-                    colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "#333"
+                    colBackgroundHover: rootContext ? Qt.binding(function() { return ColorUtils.transparentize(rootContext.pillColor, 0.5) }) : Appearance.colors.colLayer1Hover
                     visible: rootContext && (rootContext.activeArtistAlbumsParams.length > 0 || rootContext.activeArtistAlbumsFull) && rootContext.activeArtistAlbums.count > 0
 
                     contentItem: StyledText {
@@ -443,7 +443,7 @@ StyledFlickable {
                         text: "See all"
                         font.pixelSize: 14
                         font.weight: 600
-                        color: rootContext ? rootContext.contentColor : "white"
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }                    
@@ -471,7 +471,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
                 orientation: ListView.Horizontal
-                spacing: 16
+                spacing: 0
                 clip: true
 
                 model: rootContext ? rootContext.activeArtistAlbums : null
@@ -512,7 +512,7 @@ StyledFlickable {
                     text: "Singles"
                     font.pixelSize: 22
                     font.weight: 700
-                    color: rootContext ? rootContext.contentColor : "white"
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     Layout.fillWidth: true
                 }
                 RippleButton {
@@ -520,7 +520,7 @@ StyledFlickable {
                     Layout.preferredHeight: 32
                     buttonRadius: 16
                     colBackground: rootContext ? rootContext.pillColor : "transparent"
-                    colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "#333"
+                    colBackgroundHover: rootContext ? Qt.binding(function() { return ColorUtils.transparentize(rootContext.pillColor, 0.5) }) : Appearance.colors.colLayer1Hover
                     visible: rootContext && (rootContext.activeArtistSinglesParams.length > 0 || rootContext.activeArtistSinglesFull) && rootContext.activeArtistSingles.count > 0
 
                     contentItem: StyledText {
@@ -528,7 +528,7 @@ StyledFlickable {
                         text: "See all"
                         font.pixelSize: 14
                         font.weight: 600
-                        color: rootContext ? rootContext.contentColor : "white"
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }                    
@@ -556,7 +556,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
                 orientation: ListView.Horizontal
-                spacing: 16
+                spacing: 0
                 clip: true
 
                 model: rootContext ? rootContext.activeArtistSingles : null
@@ -595,14 +595,14 @@ StyledFlickable {
                 text: "Fans might also like"
                 font.pixelSize: 22
                 font.weight: 700
-                color: rootContext ? rootContext.contentColor : "white"
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
 
             ListView {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 260
                 orientation: ListView.Horizontal
-                spacing: 16
+                spacing: 0
                 clip: true
 
                 model: rootContext ? rootContext.activeArtistRelated : null

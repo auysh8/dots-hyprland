@@ -81,7 +81,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
                 orientation: ListView.Horizontal
-                spacing: 16
+                spacing: 0
                 clip: true
                 cacheBuffer: 1200
                 model: root.releaseCount

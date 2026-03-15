@@ -19,9 +19,7 @@ Item {
         id: mainBtn
         anchors.fill: parent
         buttonRadius: 20
-        colBackground: Appearance.colors.colLayer1
-        colBackgroundHover: Appearance.colors.colLayer2
-        colRipple: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.1)
+        colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer1
         padding: 0
         
         onClicked: rootContext.openPlaylist(root.playlistModel.id)
@@ -64,6 +62,9 @@ Item {
                     text: root.playlistModel.count !== undefined ? (root.playlistModel.count + " songs") : (root.playlistModel.artist || "")
                     font.pixelSize: 13
                     color: rootContext.secondaryContentColor
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                    maximumLineCount: 1
                     visible: text.length > 0 && root.playlistModel.count !== "0"
                 }
             }

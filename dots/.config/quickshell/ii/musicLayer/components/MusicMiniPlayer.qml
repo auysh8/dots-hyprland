@@ -12,7 +12,7 @@ Rectangle {
     property bool navRailExpanded: false
     readonly property color elevatedPanelColor: rootContext
         ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.05)
-        : Appearance.m3colors.m3surfaceBright
+        : Appearance.colors.colLayer1
 
     property bool isExpanding: rootContext && rootContext.currentView === "player"
 
@@ -41,7 +41,7 @@ Rectangle {
     layer.enabled: true
     layer.effect: MultiEffect {
         shadowEnabled: true
-        shadowColor: "#40000000"
+        shadowColor: ColorUtils.applyAlpha(Appearance.colors.colShadow, 0.25)
         shadowBlur: 1.0
         shadowVerticalOffset: 4
     }
@@ -104,9 +104,9 @@ Rectangle {
             width: 56
             height: 56
             radius: 12
-            color: Appearance.m3colors.m3surface
+            color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2
             clip: true
-
+            
             RoundedImage {
                 anchors.fill: parent
                 source: rootContext.displayedArtFilePath
@@ -142,93 +142,87 @@ Rectangle {
         RowLayout {
             spacing: 8
 
-            Rectangle {
-                width: 48
-                height: 48
-                radius: 24
-                color: prevMouse.containsMouse ? rootContext.pillColor : "transparent"
-                Behavior on color { ColorAnimation { duration: 150 } }
+            RippleButton {
+                Layout.preferredWidth: 48
+                Layout.preferredHeight: 48
+                buttonRadius: 24
+                rippleEnabled: false
+                colBackground: "transparent"
+                colBackgroundHover: "transparent"
+                colBackgroundToggled: "transparent"
+                colBackgroundToggledHover: "transparent"
+                colRipple: "transparent"
+                colRippleToggled: "transparent"
+                onClicked: rootContext.sendCommand({"command": "previous"})
 
-                MaterialSymbol {
+                contentItem: MaterialSymbol {
                     anchors.centerIn: parent
                     text: "skip_previous"
                     color: rootContext.contentColor
                     iconSize: 24
                 }
-
-                MouseArea {
-                    id: prevMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    scrollGestureEnabled: false
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: rootContext.sendCommand({"command": "previous"})
-                }
             }
 
-            Rectangle {
-                width: 48
-                height: 48
-                radius: 24
-                color: (!rootContext.isTrackLoading && rootContext.playbackPaused)
-                    ? rootContext.pillColor
-                    : (playPauseMouse.containsMouse && !rootContext.isTrackLoading
-                        ? ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.9)
-                        : "transparent")
-                Behavior on color { ColorAnimation { duration: 150 } }
+            RippleButton {
+                Layout.preferredWidth: 48
+                Layout.preferredHeight: 48
+                buttonRadius: 24
+                rippleEnabled: false
+                pointingHandCursor: !rootContext.isTrackLoading
+                colBackground: "transparent"
+                colBackgroundHover: "transparent"
+                colBackgroundToggled: "transparent"
+                colBackgroundToggledHover: "transparent"
+                colRipple: "transparent"
+                colRippleToggled: "transparent"
 
-                MaterialLoadingIndicator {
-                    anchors.centerIn: parent
-                    implicitSize: 24
-                    loading: rootContext.isTrackLoading
-                    visible: rootContext.isTrackLoading
-                    color: rootContext.pillColor
+                onClicked: {
+                    if (rootContext.isTrackLoading) return
+                    if (rootContext.playbackPaused)
+                        rootContext.sendCommand({"command": "resume"})
+                    else
+                        rootContext.sendCommand({"command": "pause"})
                 }
 
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: rootContext.playbackPaused ? "play_arrow" : "pause"
-                    color: rootContext.contentColor
-                    iconSize: 24
-                    visible: !rootContext.isTrackLoading
-                }
-
-                MouseArea {
-                    id: playPauseMouse
+                contentItem: Item {
                     anchors.fill: parent
-                    hoverEnabled: !rootContext.isTrackLoading
-                    scrollGestureEnabled: false
-                    cursorShape: rootContext.isTrackLoading ? Qt.ArrowCursor : Qt.PointingHandCursor
-                    onClicked: {
-                        if (rootContext.playbackPaused)
-                            rootContext.sendCommand({"command": "resume"})
-                        else
-                            rootContext.sendCommand({"command": "pause"})
+
+                    MaterialLoadingIndicator {
+                        anchors.centerIn: parent
+                        implicitSize: 24
+                        loading: rootContext.isTrackLoading
+                        visible: rootContext.isTrackLoading
+                        color: rootContext.pillColor
+                    }
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: rootContext.playbackPaused ? "play_arrow" : "pause"
+                        color: rootContext.contentColor
+                        iconSize: 24
+                        visible: !rootContext.isTrackLoading
                     }
                 }
             }
 
-            Rectangle {
-                width: 48
-                height: 48
-                radius: 24
-                color: nextMouse.containsMouse ? rootContext.pillColor : "transparent"
-                Behavior on color { ColorAnimation { duration: 150 } }
+            RippleButton {
+                Layout.preferredWidth: 48
+                Layout.preferredHeight: 48
+                buttonRadius: 24
+                rippleEnabled: false
+                colBackground: "transparent"
+                colBackgroundHover: "transparent"
+                colBackgroundToggled: "transparent"
+                colBackgroundToggledHover: "transparent"
+                colRipple: "transparent"
+                colRippleToggled: "transparent"
+                onClicked: rootContext.sendCommand({"command": "next"})
 
-                MaterialSymbol {
+                contentItem: MaterialSymbol {
                     anchors.centerIn: parent
                     text: "skip_next"
                     color: rootContext.contentColor
                     iconSize: 24
-                }
-
-                MouseArea {
-                    id: nextMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    scrollGestureEnabled: false
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: rootContext.sendCommand({"command": "next"})
                 }
             }
         }

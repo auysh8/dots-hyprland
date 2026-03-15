@@ -135,7 +135,7 @@ StyledFlickable {
                     Layout.preferredWidth: 84
                     Layout.preferredHeight: 34
                     buttonRadius: 17
-                    colBackground: Appearance.colors.colLayer2
+                    colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2
                     
                     contentItem: Item {
                         anchors.fill: parent
@@ -208,13 +208,13 @@ StyledFlickable {
 
                                     Rectangle {
                                         anchors.fill: parent
-                                        color: "#40000000"
+                                        color: Appearance.colors.colScrim
                                         visible: songHover.containsMouse
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
                                             text: "play_arrow"
-                                            color: "white"
+                                            color: Appearance.colors.colOnSurface
                                             iconSize: 24
                                         }
                                     }

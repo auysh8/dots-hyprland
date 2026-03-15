@@ -10,7 +10,7 @@ StyledFlickable {
 
     property var rootContext
     readonly property var flickable: root
-    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : "#2f3239"
+    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : Appearance.colors.colLayer1
 
     property bool show: rootContext && rootContext.currentView === "playlist" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
@@ -43,13 +43,13 @@ StyledFlickable {
             MaterialLoadingIndicator {
                 implicitSize: 24
                 loading: true
-                color: rootContext ? rootContext.pillColor : "white"
+                color: rootContext ? rootContext.pillColor : Appearance.colors.colPrimary
             }
 
             StyledText {
                 text: root.contentY < -100 ? "Release to refresh" : "Pull to refresh"
                 font.weight: 600
-                color: rootContext ? rootContext.contentColor : "white"
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
         }
     }
@@ -115,7 +115,7 @@ StyledFlickable {
                     text: rootContext && rootContext.activePlaylistId.startsWith("MPREb_") ? "Album" : "Playlist"
                     font.pixelSize: 14
                     font.weight: 600
-                    color: rootContext ? rootContext.secondaryContentColor : "gray"
+                    color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                 }
 
                 StyledText {
@@ -123,7 +123,7 @@ StyledFlickable {
                     text: rootContext ? rootContext.activePlaylistTitle : ""
                     font.pixelSize: 48
                     font.weight: 800
-                    color: rootContext ? rootContext.contentColor : "white"
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
                     elide: Text.ElideRight
@@ -133,7 +133,7 @@ StyledFlickable {
                     Layout.fillWidth: true
                     text: rootContext ? rootContext.activePlaylistDescription : ""
                     font.pixelSize: 14
-                    color: rootContext ? rootContext.secondaryContentColor : "gray"
+                    color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                     visible: text.length > 0
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
@@ -146,19 +146,19 @@ StyledFlickable {
                         text: rootContext ? rootContext.activePlaylistAuthor : ""
                         font.pixelSize: 14
                         font.weight: 700
-                        color: rootContext ? rootContext.contentColor : "white"
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                         visible: text.length > 0
                     }
                     StyledText {
                         text: "•"
                         font.pixelSize: 14
-                        color: rootContext ? rootContext.secondaryContentColor : "gray"
+                        color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                         visible: rootContext && rootContext.activePlaylistAuthor.length > 0
                     }
                     StyledText {
                         text: rootContext ? rootContext.activePlaylistTrackCount + " songs" : ""
                         font.pixelSize: 14
-                        color: rootContext ? rootContext.secondaryContentColor : "gray"
+                        color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                     }
                 }
 
@@ -172,9 +172,9 @@ StyledFlickable {
                         Layout.preferredWidth: playRow.implicitWidth + 32
                         Layout.preferredHeight: 48
                         buttonRadius: 24
-                        colBackground: rootContext ? rootContext.extractedColor || rootContext.pillColor : "white"
+                        colBackground: rootContext ? rootContext.extractedColor || rootContext.pillColor : Appearance.colors.colPrimary
                         
-                        property color txColor: ColorUtils.overlayForeground(colBackground, "primary")
+                        property color txColor: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnPrimary
                         
                         contentItem: RowLayout {
                             id: playRow
@@ -208,9 +208,9 @@ StyledFlickable {
                         Layout.preferredWidth: shuffleRow.implicitWidth + 32
                         Layout.preferredHeight: 48
                         buttonRadius: 24
-                        colBackground: rootContext ? ColorUtils.transparentize(rootContext.contentColor, 0.9) : "gray"
+                        colBackground: rootContext ? ColorUtils.transparentize(rootContext.contentColor, 0.9) : ColorUtils.transparentize(Appearance.colors.colOnSurface, 0.9)
                         
-                        property color txColor: rootContext ? rootContext.contentColor : "white"
+                        property color txColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                         
                         contentItem: RowLayout {
                             id: shuffleRow
@@ -257,7 +257,7 @@ StyledFlickable {
             Layout.fillWidth: true
             implicitHeight: tracksColumn.implicitHeight + 16
             radius: 20
-            color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.7) : "#20ffffff"
+            color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.7) : ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
 
             ColumnLayout {
                 id: tracksColumn

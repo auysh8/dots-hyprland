@@ -66,7 +66,7 @@ Item {
             anchors.fill: parent
             radius: root.currentRadius
             visible: false
-            color: "white"
+            color: Appearance.colors.colSurface
         }
 
         OpacityMask {
@@ -78,7 +78,7 @@ Item {
         // Overlay to guarantee contrast
         Rectangle {
             anchors.fill: parent
-            color: "black"
+            color: Appearance.colors.colScrim
             opacity: 0.6
             radius: root.currentRadius
         }
@@ -186,7 +186,7 @@ Item {
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     shadowEnabled: true
-                    shadowColor: "#80000000"
+                    shadowColor: Appearance.colors.colShadow
                     shadowBlur: 2.0
                     shadowHorizontalOffset: 0
                     shadowVerticalOffset: 12
@@ -260,7 +260,7 @@ Item {
                     anchors.centerIn: parent
                     text: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
                     iconSize: 28
-                    color: rootContext.currentTrackLiked ? "#E25353" : rootContext.contentColor
+                    color: rootContext.currentTrackLiked ? Appearance.colors.colError : rootContext.contentColor
                     opacity: heartArea.containsMouse ? 1.0 : (rootContext.currentTrackLiked ? 1.0 : 0.6)
                     Behavior on opacity { NumberAnimation { duration: 150 } }
                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -356,8 +356,8 @@ Item {
                         anchors.fill: parent
                         radius: height / 2
                         color: prevArea.containsMouse 
-                            ? Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.08)
-                            : Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.04)
+                            ? ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                            : ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
                         
                         Behavior on color { ColorAnimation { duration: 150 } }
                         
@@ -401,9 +401,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         radius: playBtnContainer.isPressed ? 20 : 32
-                        color: playArea.containsMouse 
-                            ? Qt.darker(rootContext.extractedColor, 1.1)
-                            : Qt.darker(rootContext.extractedColor, 1.25)
+                        color: rootContext.pillColor
                         
                         Behavior on radius { NumberAnimation { duration: 200 } }
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -412,7 +410,7 @@ Item {
                             anchors.centerIn: parent
                             iconSize: 40
                             fill: 1
-                            color: "white"
+                            color: rootContext.pillContentColor
                             text: rootContext.playbackPaused ? "play_arrow" : "pause"
                         }
                     }
@@ -454,8 +452,8 @@ Item {
                         anchors.fill: parent
                         radius: height / 2
                         color: nextArea.containsMouse 
-                            ? Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.08)
-                            : Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.04)
+                            ? ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                            : ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
                         
                         Behavior on color { ColorAnimation { duration: 150 } }
                         
@@ -648,12 +646,12 @@ Item {
                     baseHeight: 48
                     buttonRadius: toggled ? 12 : 16
                     buttonRadiusPressed: 8
-                    colBackground: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.04)
-                    colBackgroundHover: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.08)
-                    colBackgroundActive: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.12)
-                    colBackgroundToggled: Qt.darker(rootContext.extractedColor, 1.25)
-                    colBackgroundToggledHover: Qt.darker(rootContext.extractedColor, 1.1)
-                    colBackgroundToggledActive: rootContext.extractedColor
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colBackgroundActive: ColorUtils.applyAlpha(rootContext.contentColor, 0.12)
+                    colBackgroundToggled: rootContext.pillColor
+                    colBackgroundToggledHover: rootContext.pillColor
+                    colBackgroundToggledActive: rootContext.pillColor
                     toggled: root.queueExpanded
                     
                     contentItem: MaterialSymbol {
@@ -661,7 +659,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                         text: "queue_music"
                         iconSize: 22
-                        color: root.queueExpanded ? "white" : rootContext.contentColor
+                        color: root.queueExpanded ? rootContext.pillContentColor : rootContext.contentColor
                         opacity: root.queueExpanded ? 1.0 : 0.6
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -675,12 +673,12 @@ Item {
                     baseHeight: 48
                     buttonRadius: toggled ? 12 : 16
                     buttonRadiusPressed: 8
-                    colBackground: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.04)
-                    colBackgroundHover: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.08)
-                    colBackgroundActive: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.12)
-                    colBackgroundToggled: Qt.darker(rootContext.extractedColor, 1.25)
-                    colBackgroundToggledHover: Qt.darker(rootContext.extractedColor, 1.1)
-                    colBackgroundToggledActive: rootContext.extractedColor
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colBackgroundActive: ColorUtils.applyAlpha(rootContext.contentColor, 0.12)
+                    colBackgroundToggled: rootContext.pillColor
+                    colBackgroundToggledHover: rootContext.pillColor
+                    colBackgroundToggledActive: rootContext.pillColor
                     toggled: rootContext.shuffleToggled
                     
                     contentItem: MaterialSymbol {
@@ -688,7 +686,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                         text: "shuffle"
                         iconSize: 22
-                        color: rootContext.shuffleToggled ? "white" : rootContext.contentColor
+                        color: rootContext.shuffleToggled ? rootContext.pillContentColor : rootContext.contentColor
                         opacity: rootContext.shuffleToggled ? 1.0 : 0.6
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -724,12 +722,12 @@ Item {
                     baseHeight: 48
                     buttonRadius: toggled ? 12 : 16
                     buttonRadiusPressed: 8
-                    colBackground: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.04)
-                    colBackgroundHover: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.08)
-                    colBackgroundActive: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.12)
-                    colBackgroundToggled: Qt.darker(rootContext.extractedColor, 1.25)
-                    colBackgroundToggledHover: Qt.darker(rootContext.extractedColor, 1.1)
-                    colBackgroundToggledActive: rootContext.extractedColor
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colBackgroundActive: ColorUtils.applyAlpha(rootContext.contentColor, 0.12)
+                    colBackgroundToggled: rootContext.pillColor
+                    colBackgroundToggledHover: rootContext.pillColor
+                    colBackgroundToggledActive: rootContext.pillColor
                     toggled: root.inlineLyricsExpanded
                     
                     contentItem: MaterialSymbol {
@@ -737,7 +735,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                         text: "lyrics"
                         iconSize: 22
-                        color: root.inlineLyricsExpanded ? "white" : rootContext.contentColor
+                        color: root.inlineLyricsExpanded ? rootContext.pillContentColor : rootContext.contentColor
                         opacity: root.inlineLyricsExpanded ? 1.0 : 0.6
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -755,12 +753,12 @@ Item {
                     baseHeight: 48
                     buttonRadius: toggled ? 12 : 16
                     buttonRadiusPressed: 8
-                    colBackground: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.04)
-                    colBackgroundHover: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.08)
-                    colBackgroundActive: Qt.rgba(rootContext.contentColor.r, rootContext.contentColor.g, rootContext.contentColor.b, 0.12)
-                    colBackgroundToggled: Qt.darker(rootContext.extractedColor, 1.25)
-                    colBackgroundToggledHover: Qt.darker(rootContext.extractedColor, 1.1)
-                    colBackgroundToggledActive: rootContext.extractedColor
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colBackgroundActive: ColorUtils.applyAlpha(rootContext.contentColor, 0.12)
+                    colBackgroundToggled: rootContext.pillColor
+                    colBackgroundToggledHover: rootContext.pillColor
+                    colBackgroundToggledActive: rootContext.pillColor
                     toggled: rootContext.repeatMode > 0
                     
                     contentItem: MaterialSymbol {
@@ -768,7 +766,7 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                         text: rootContext.repeatMode === 2 ? "repeat_one" : "repeat"
                         iconSize: 22
-                        color: rootContext.repeatMode > 0 ? "white" : rootContext.contentColor
+                        color: rootContext.repeatMode > 0 ? rootContext.pillContentColor : rootContext.contentColor
                         opacity: rootContext.repeatMode > 0 ? 1.0 : 0.6
                         Behavior on opacity { NumberAnimation { duration: 150 } }
                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -818,7 +816,7 @@ Item {
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     shadowEnabled: true
-                    shadowColor: "#80000000"
+                    shadowColor: Appearance.colors.colShadow
                     shadowBlur: 2.0
                     shadowHorizontalOffset: -4
                     shadowVerticalOffset: 4
@@ -911,7 +909,7 @@ Item {
                             layer.enabled: dragHandle.drag.active
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
-                                shadowColor: "#60000000"
+                                shadowColor: Appearance.colors.colShadow
                                 shadowBlur: 1.5
                                 shadowVerticalOffset: 6
                                 shadowHorizontalOffset: 0
