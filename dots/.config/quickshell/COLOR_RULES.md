@@ -100,7 +100,14 @@ Before merging any UI component:
 - Error/warning styles use semantic status tokens.
 - Works in both dark and light mode without manual branching where tokens already handle it.
 
-## 11) Quick Reference
+## 11) Standalone Apps (App Mode)
+
+When building standalone windows or apps (like `music.qml` or `settings.qml`) that should NOT have transparency:
+- Do NOT use standard layer tokens (`colLayer0`, `colLayer1`) as they contain alpha transparency and will show the desktop underneath.
+- Do NOT fall back to `m3colors` directly.
+- Instead, use the **Base** tokens (`colLayer0Base`, `colLayer1Base`, `colLayer2Base`). These map to the same semantic surfaces but are fully opaque.
+
+## 12) Quick Reference
 
 Use most often:
 - `Appearance.colors.colLayer0..4`

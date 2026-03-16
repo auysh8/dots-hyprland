@@ -10,8 +10,8 @@ StyledFlickable {
     property var rootContext
     property string queryText: ""
     readonly property var flickable: root
-    readonly property color sectionCardColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.85) : Appearance.colors.colLayer1
-    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer2
+    readonly property color sectionCardColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.85) : Appearance.colors.colLayer1Base
+    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer2Base
     readonly property color cardHoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
 
     property bool show: queryText.length === 0 && rootContext.currentView === "library" && !rootContext.isLoading
@@ -51,7 +51,7 @@ StyledFlickable {
                 Layout.preferredWidth: signInRow.implicitWidth + 32
                 Layout.preferredHeight: 36
                 buttonRadius: 18
-                colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2
+                colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2Base
                 
                 contentItem: RowLayout {
                     id: signInRow
@@ -132,13 +132,13 @@ StyledFlickable {
                         MaterialSymbol {
                             text: "link"
                             font.pixelSize: 18
-                            color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnPrimary
+                            color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnSecondaryContainer
                         }
                         StyledText {
                             text: "Connect Account"
                             font.pixelSize: 14
                             font.weight: 700
-                            color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnPrimary
+                            color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnSecondaryContainer
                         }
                     }
                     
@@ -200,73 +200,22 @@ StyledFlickable {
             visible: hasData
             Layout.topMargin: 32
             
-            // Liked Songs Card (Special vibrant one)
-            RippleButton {
+            // Liked Songs Card
+            MusicPlaylistCard {
                 id: likedCard
-                width: Math.max(260, (parent.width - 16) / 2) // takes more space
-                height: 220
-                buttonRadius: 20
-                clip: true
+                rootContext: root.rootContext
+                width: Math.max(180, (parent.width - 16 * 4) / 4)
                 
-                property color cardColor: rootContext ? (rootContext.extractedColor || rootContext.pillColor) : Appearance.colors.colPrimary
-                property color fgColor: rootContext ? rootContext.extractedForeground : (ColorUtils.isDark(cardColor) ? Appearance.colors.colOnLayer0 : Appearance.colors.colLayer0)
+                // Construct a dummy model that mimics what MusicPlaylistCard expects
+                playlistModel: ({
+                    id: "LM",
+                    title: "Liked Songs",
+                    author: rootContext.libraryLikedSongCount + " Songs",
+                    cover: "", // Will use fallback art if empty
+                    isLikedSongs: true // Flag to trigger custom heart icon logic if needed
+                })
                 
-                colBackground: cardColor
-                colRipple: ColorUtils.applyAlpha(likedCard.fgColor, 0.2)
-                
-                Behavior on colBackground { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
-                
-                onClicked: rootContext.openPlaylist("LM")
-                
-                contentItem: Item {
-                    anchors.fill: parent
-                    
-                    // Huge watermark icon
-                    MaterialSymbol {
-                        text: "thumb_up"
-                        color: likedCard.fgColor
-                        opacity: 0.15
-                        iconSize: 220
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.rightMargin: -40
-                        anchors.bottomMargin: -40
-                        rotation: -15
-                    }
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 20
-                        
-                        Rectangle {
-                            width: 40; height: 40; radius: 20
-                            color: ColorUtils.applyAlpha(likedCard.fgColor, 0.15)
-                            MaterialSymbol { anchors.centerIn: parent; text: "favorite"; color: likedCard.fgColor }
-                        }
-                        
-                        Item { Layout.fillHeight: true }
-                        
-                        StyledText {
-                            text: "Liked Songs"
-                            font.pixelSize: 28
-                            font.weight: 800
-                            color: likedCard.fgColor
-                        }
-                        StyledText {
-                            text: rootContext.libraryLikedSongCount + " Songs"
-                            font.pixelSize: 14
-                            color: ColorUtils.applyAlpha(likedCard.fgColor, 0.65)
-                        }
-                    }
-                    
-                    // Play button
-                    Rectangle {
-                        anchors.bottom: parent.bottom; anchors.right: parent.right
-                        anchors.margins: 20
-                        width: 48; height: 48; radius: 24; color: likedCard.fgColor
-                        MaterialSymbol { anchors.centerIn: parent; text: "play_arrow"; color: likedCard.cardColor; iconSize: 28 }
-                    }
-                }
+                artPlaceholderColor: rootContext ? rootContext.pillColor : Appearance.colors.colPrimaryContainer
             }
             
             // Regular Playlists

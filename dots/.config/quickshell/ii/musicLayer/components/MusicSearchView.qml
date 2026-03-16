@@ -135,7 +135,7 @@ StyledFlickable {
                     Layout.preferredWidth: 84
                     Layout.preferredHeight: 34
                     buttonRadius: 17
-                    colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2
+                    colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2Base
                     
                     contentItem: Item {
                         anchors.fill: parent
@@ -214,7 +214,7 @@ StyledFlickable {
                                         MaterialSymbol {
                                             anchors.centerIn: parent
                                             text: "play_arrow"
-                                            color: Appearance.colors.colOnSurface
+                                            color: rootContext.contentColor
                                             iconSize: 24
                                         }
                                     }

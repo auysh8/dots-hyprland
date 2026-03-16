@@ -32,7 +32,9 @@ Item {
                 Rectangle {
                     id: playlistArtContainer
                     width: 60; height: 60; radius: 10
-                    color: root.artPlaceholderColor
+                    color: root.playlistModel.isLikedSongs 
+                           ? (rootContext ? ColorUtils.applyAlpha(rootContext.contentColor, 0.15) : ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.15)) 
+                           : root.artPlaceholderColor
 
                     RoundedImage {
                         anchors.fill: parent
@@ -43,6 +45,16 @@ Item {
                         radius: 10
                         asynchronous: true
                         cache: true
+                        visible: !root.playlistModel.isLikedSongs
+                    }
+                    
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "favorite"
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1
+                        iconSize: 32
+                        fill: 1
+                        visible: root.playlistModel.isLikedSongs === true
                     }
                 }
                 Item { Layout.fillHeight: true }
@@ -77,26 +89,28 @@ Item {
         anchors.top: parent.top; anchors.right: parent.right
         anchors.margins: 14
         spacing: 8
-        
-                RippleButton {
+
+        // Play button - highly contrasting adapted white with punched-out icon
+        RippleButton {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 40; Layout.preferredHeight: 40; buttonRadius: 20
-            colBackground: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
-            colBackgroundHover: colBackground
-            colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.backgroundColor : Appearance.colors.colLayer0, 0.2)
-            
-            contentItem: MaterialSymbol { anchors.centerIn: parent; text: "play_arrow"; color: rootContext ? rootContext.backgroundColor : Appearance.colors.colLayer0; iconSize: 26 }
+            colBackground: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1
+            colBackgroundHover: rootContext ? ColorUtils.mix(rootContext.contentColor, rootContext.pillColor, 0.15) : Appearance.colors.colOnLayer1Hover
+            colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.pillColor : Appearance.colors.colLayer0, 0.2)
+
+            contentItem: MaterialSymbol { anchors.centerIn: parent; text: "play_arrow"; color: rootContext ? rootContext.pillColor : Appearance.colors.colLayer1Base; iconSize: 26; fill: 1 }
             onClicked: rootContext.openAndPlayPlaylist(root.playlistModel.id, false)
         }
 
-                RippleButton {
+        // Shuffle button
+        RippleButton {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 36; Layout.preferredHeight: 36; buttonRadius: 18
             colBackground: "transparent"
-            colBackgroundHover: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.1)
-            colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.2)
-            
-            contentItem: MaterialSymbol { anchors.centerIn: parent; text: "shuffle"; color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface; iconSize: 22 }
+            colBackgroundHover: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1, 0.15)
+            colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1, 0.2)
+
+            contentItem: MaterialSymbol { anchors.centerIn: parent; text: "shuffle"; color: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1; iconSize: 22 }
             onClicked: rootContext.openAndPlayPlaylist(root.playlistModel.id, true)
         }
     }

@@ -480,18 +480,27 @@ FocusScope {
     readonly property color _fallbackLight: "white"
     readonly property color _fallbackDark: "black"
 
-    // Conservative color blending for music layer (maintains system theme consistency)
-    // In App mode, we use pure system background for the outer shell.
-    readonly property color _srcBackgroundColor: root.isAppMode ? Appearance.colors.colLayer0Base : ColorUtils.mix(mediaContext._srcBackgroundColor, Appearance.colors.colLayer0Base, 0.7)
+    // Check if we have a valid track playing (for color fallback)
+    readonly property bool _hasTrack: root.currentTrack !== null && root.currentTrack.artUrl !== ""
+
+    // Album art dominant blending (heavily darkened for better contrast)
+    // We use the opaque colLayer0Base as the fallback and mix target to ensure App mode doesn't become transparent.
+    readonly property color _srcBackgroundColor: _hasTrack ? ColorUtils.mix(ColorUtils.mix(mediaContext._srcBackgroundColor, "black", 0.7), Appearance.colors.colLayer0Base, 0.5) : Appearance.colors.colLayer0Base
+
+    // High vibrancy: 80% album art colors, 20% system theme for readability
+    // Content colors always maintain contrast by using system foreground as base
+    readonly property color _srcContentColor: _hasTrack ? (ColorUtils.isDark(_srcSurfaceColor) ? ColorUtils.mix(_fallbackLight, Appearance.colors.colOnLayer0, 0.3) : ColorUtils.mix(_fallbackDark, Appearance.colors.colOnLayer0, 0.3)) : Appearance.colors.colOnLayer0
+    readonly property color _srcSecondaryContentColor: _hasTrack ? (ColorUtils.isDark(_srcSurfaceColor) ? ColorUtils.mix(_fallbackLight, Appearance.colors.colSubtext, 0.3) : ColorUtils.mix(_fallbackDark, Appearance.colors.colSubtext, 0.3)) : Appearance.colors.colSubtext
+    // Ensure pill content has high contrast - always use system-safe contrast colors
+    // We force white (_fallbackLight) in dark mode because the extracted pillColor is too dark/murky
+    readonly property color _srcPillContentColor: _hasTrack ? (Appearance.m3colors.darkmode ? _fallbackLight : _fallbackDark) : Appearance.colors.colOnSecondaryContainer
     
-    // Increase vibrancy by giving more weight to album art colors (Lower second factor)
-    readonly property color _srcContentColor: ColorUtils.mix(mediaContext._srcContentColor, Appearance.colors.colOnLayer0, 0.35)
-    readonly property color _srcSecondaryContentColor: ColorUtils.mix(mediaContext._srcSecondaryContentColor, Appearance.colors.colSubtext, 0.45)
-    readonly property color _srcPillColor: ColorUtils.mix(mediaContext._srcPillColor, Appearance.colors.colSecondaryContainer, 0.35)
-    
-    // Ensure pill content has high contrast
-    readonly property color _srcPillContentColor: ColorUtils.isDark(_srcPillColor) ? _fallbackLight : _fallbackDark
-    readonly property color _srcSurfaceColor: ColorUtils.mix(mediaContext.blendedColors.colSurface, Appearance.colors.colLayer1Base, 0.3)
+    // Create a dark elevated surface by mixing the blended color heavily with the dark system layer
+    readonly property color _srcSurfaceColor: _hasTrack ? ColorUtils.mix(mediaContext.blendedColors.colSurface, Appearance.colors.colLayer2Base, 0.8) : Appearance.colors.colLayer2Base
+
+    // Create a darker accent color so the nav rail, mini player, and search bar aren't overwhelmingly bright
+    // Purely derives from the album art, completely ignoring system accent colors when playing
+    readonly property color _srcPillColor: _hasTrack ? ColorUtils.mix(mediaContext._srcPillColor, Appearance.colors.colLayer0Base, 0.4) : Appearance.colors.colSecondaryContainer
 
     // Animated colors (smooth transitions)
     property color backgroundColor: _srcBackgroundColor
@@ -756,7 +765,7 @@ FocusScope {
             Rectangle {
                 anchors.fill: parent
                 color: root.backgroundColor
-                opacity: root.isAppMode ? 0 : 0.85
+                opacity: root.isAppMode ? 1.0 : 0.85
             }
 
             RowLayout {
@@ -809,8 +818,8 @@ FocusScope {
                                     useOverrideColors: true
                                     overrideActiveColor: root.pillColor
                                     overrideActiveHoverColor: root.pillColorHover
-                                    overrideIconColor: root.pillContentColor
-                                    overrideTextColor: root.contentColor
+                                    overrideIconColor: toggled ? root.pillContentColor : root.contentColor
+                                    overrideTextColor: toggled ? root.pillContentColor : root.contentColor
                                 }
                                 NavigationRailButton {
                                     toggled: root.currentView === "explore"
@@ -822,8 +831,8 @@ FocusScope {
                                     useOverrideColors: true
                                     overrideActiveColor: root.pillColor
                                     overrideActiveHoverColor: root.pillColorHover
-                                    overrideIconColor: root.pillContentColor
-                                    overrideTextColor: root.contentColor
+                                    overrideIconColor: toggled ? root.pillContentColor : root.contentColor
+                                    overrideTextColor: toggled ? root.pillContentColor : root.contentColor
                                 }
                                 NavigationRailButton {
                                     toggled: root.currentView === "library"
@@ -835,8 +844,8 @@ FocusScope {
                                     useOverrideColors: true
                                     overrideActiveColor: root.pillColor
                                     overrideActiveHoverColor: root.pillColorHover
-                                    overrideIconColor: root.pillContentColor
-                                    overrideTextColor: root.contentColor
+                                    overrideIconColor: toggled ? root.pillContentColor : root.contentColor
+                                    overrideTextColor: toggled ? root.pillContentColor : root.contentColor
                                 }
                             }
                             
@@ -849,7 +858,7 @@ FocusScope {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    color: root.isAppMode ? Appearance.colors.colLayer2Base : root.surfaceColor
+                    color: root.surfaceColor
                     radius: root.isAppMode ? (Appearance.rounding.windowRounding - 8) : 20
                     clip: true
                     

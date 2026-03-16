@@ -23,7 +23,9 @@ ApplicationWindow {
     minimumHeight: 600
     width: 1100
     height: 800
-    color: Appearance.colors.colLayer0Base
+    color: musicApp.backgroundColor || Appearance.colors.colLayer0Base
+    
+    Behavior on color { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
 
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
@@ -51,7 +53,7 @@ ApplicationWindow {
                     verticalCenter: parent.verticalCenter
                     leftMargin: 12
                 }
-                color: Appearance.colors.colOnLayer0
+                color: musicApp.contentColor || Appearance.colors.colOnLayer0
                 text: Translation.tr("Music")
                 font {
                     family: Appearance.font.family.title
@@ -68,6 +70,9 @@ ApplicationWindow {
                     implicitWidth: 35
                     implicitHeight: 35
                     padding: 0
+                    colBackground: "transparent"
+                    colBackgroundHover: ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.1)
+                    colRipple: ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.2)
                     onClicked: root.close()
                     contentItem: MaterialSymbol {
                         anchors.centerIn: parent
@@ -76,12 +81,14 @@ ApplicationWindow {
                         verticalAlignment: Text.AlignVCenter
                         text: "close"
                         iconSize: 20
+                        color: musicApp.contentColor || Appearance.colors.colOnLayer0
                     }
                 }
             }
         }
 
         MusicApp {
+            id: musicApp
             Layout.fillWidth: true
             Layout.fillHeight: true
             isAppMode: true

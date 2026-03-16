@@ -812,7 +812,7 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 radius: 32
-                color: ColorUtils.mix(Appearance.m3colors.m3surfaceContainerLowest, rootContext.pillColor, 0.15)
+                color: rootContext.backgroundColor
                 
                 layer.enabled: true
                 layer.effect: MultiEffect {
@@ -842,15 +842,15 @@ Item {
                         implicitWidth: 40
                         implicitHeight: 40
                         buttonRadius: 20
-                        colBackground: rootContext.pillColor
-                        colBackgroundHover: rootContext.pillColor
+                        colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.1)
+                        colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
                         colRipple: rootContext.contentColor
                         contentItem: MaterialSymbol {
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                             text: "close"
                             iconSize: 24
-                            color: rootContext.pillContentColor
+                            color: rootContext.contentColor
                         }
                         onClicked: root.queueExpanded = false
                     }
@@ -861,7 +861,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 20
-                    color: ColorUtils.transparentize(rootContext.pillColor, 0.9)
+                    color: ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.5)
 
                     ListView {
                         id: queueListView
