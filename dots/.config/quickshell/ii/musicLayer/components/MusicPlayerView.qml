@@ -66,7 +66,7 @@ Item {
             anchors.fill: parent
             radius: root.currentRadius
             visible: false
-            color: Appearance.colors.colSurface
+            color: rootContext.surfaceColor
         }
 
         OpacityMask {
@@ -79,7 +79,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             color: Appearance.colors.colScrim
-            opacity: 0.6
+            opacity: 0.7
             radius: root.currentRadius
         }
         
@@ -88,8 +88,9 @@ Item {
             anchors.fill: parent
             radius: root.currentRadius
             gradient: Gradient {
-                GradientStop { position: 0.0; color: ColorUtils.transparentize(rootContext.pillColor, 0.4) }
-                GradientStop { position: 1.0; color: ColorUtils.transparentize(rootContext.surfaceColor, 0.2) }
+                GradientStop { position: 0.0; color: ColorUtils.transparentize(rootContext.pillColor, 0.2) }
+                GradientStop { position: 0.6; color: ColorUtils.transparentize(rootContext.backgroundColor, 0.4) }
+                GradientStop { position: 1.0; color: rootContext.backgroundColor }
             }
         }
     }
@@ -811,7 +812,7 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 radius: 32
-                color: rootContext.surfaceColor
+                color: ColorUtils.mix(Appearance.m3colors.m3surfaceContainerLowest, rootContext.pillColor, 0.15)
                 
                 layer.enabled: true
                 layer.effect: MultiEffect {
@@ -849,7 +850,7 @@ Item {
                             verticalAlignment: Text.AlignVCenter
                             text: "close"
                             iconSize: 24
-                            color: rootContext.secondaryContentColor
+                            color: rootContext.pillContentColor
                         }
                         onClicked: root.queueExpanded = false
                     }
@@ -860,7 +861,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 20
-                    color: rootContext.pillColor
+                    color: ColorUtils.transparentize(rootContext.pillColor, 0.9)
 
                     ListView {
                         id: queueListView

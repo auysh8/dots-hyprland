@@ -74,7 +74,7 @@ StyledFlickable {
                                 width: 100
                                 height: 100
                                 radius: 50
-                                color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                                color: ColorUtils.transparentize(rootContext.pillColor, 0.4)
 
                                 RoundedImage {
                                     anchors.fill: parent
@@ -158,7 +158,7 @@ StyledFlickable {
                 implicitHeight: songResultsColumn.height + 32
                 Layout.preferredHeight: implicitHeight
                 radius: 24
-                color: ColorUtils.transparentize(rootContext.pillColor, 0.7)
+                color: ColorUtils.transparentize(rootContext.pillColor, 0.85)
                 clip: true
 
                 Behavior on Layout.preferredHeight {
@@ -183,7 +183,7 @@ StyledFlickable {
                             Layout.fillWidth: true
                             height: 64
                             radius: 12
-                            color: songHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+                            color: songHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
 
                             RowLayout {
                                 anchors.fill: parent
@@ -194,7 +194,7 @@ StyledFlickable {
                                     width: 48
                                     height: 48
                                     radius: 8
-                                    color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                                    color: ColorUtils.transparentize(rootContext.pillColor, 0.4)
 
                                     RoundedImage {
                                         anchors.fill: parent
@@ -294,7 +294,7 @@ StyledFlickable {
                             Layout.fillWidth: true
                             Layout.preferredHeight: width
                             radius: 12
-                            color: albumHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                            color: albumHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.3) : ColorUtils.transparentize(rootContext.pillColor, 0.4)
 
                             RoundedImage {
                                 anchors.fill: parent

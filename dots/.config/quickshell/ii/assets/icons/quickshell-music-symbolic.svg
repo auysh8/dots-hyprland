@@ -1,0 +1,20 @@
+<svg width="64" height="64" viewBox="0 0 16.933 16.933" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="musicGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#dd5349;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c73e34;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background rounded square -->
+  <rect x="1.587" y="1.587" width="13.758" height="13.758" rx="2.646" ry="2.646" 
+        fill="url(#musicGrad)" opacity="0.9"/>
+  
+  <!-- Music note -->
+  <path d="M10.054 5.292v5.82a2.381 2.381 0 1 1-1.587-2.244V6.405l-3.704 1.058v5.027a2.381 2.381 0 1 1-1.587-2.244V5.82l6.878-1.963z" 
+        fill="#ffffff"/>
+  
+  <!-- Sparkle/highlight -->
+  <circle cx="12.17" cy="4.762" r="0.529" fill="#ffffff" opacity="0.6"/>
+  <circle cx="13.229" cy="3.704" r="0.265" fill="#ffffff" opacity="0.4"/>
+</svg>

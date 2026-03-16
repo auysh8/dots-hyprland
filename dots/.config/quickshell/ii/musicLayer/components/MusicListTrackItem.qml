@@ -15,7 +15,7 @@ Rectangle {
     Layout.fillWidth: true
     height: 64
     radius: 12
-    color: trackHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+    color: trackHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
 
     signal clicked()
 
@@ -40,7 +40,7 @@ Rectangle {
             width: 40
             height: 40
             radius: 8
-            color: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : Appearance.colors.colLayer2
+            color: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer2
 
             RoundedImage {
                 anchors.fill: parent

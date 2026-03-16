@@ -10,7 +10,7 @@ StyledFlickable {
 
     property var rootContext
     readonly property var flickable: root
-    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.7) : Appearance.colors.colLayer1
+    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer1
 
     property bool show: rootContext && rootContext.currentView === "artist" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
@@ -291,7 +291,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: songsColumn.implicitHeight + 16
                 radius: 20
-                color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.7) : ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
+                color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.85) : ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
 
                 ColumnLayout {
                     id: songsColumn
@@ -309,7 +309,7 @@ StyledFlickable {
                             Layout.fillWidth: true
                             height: 64
                             radius: 12
-                            color: songHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "transparent"
+                            color: songHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
 
                             RowLayout {
                                 anchors.fill: parent
@@ -327,7 +327,7 @@ StyledFlickable {
 
                                 Rectangle {
                                     width: 48; height: 48; radius: 8
-                                    color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                                    color: ColorUtils.transparentize(rootContext.pillColor, 0.4)
 
                                     RoundedImage {
                                         anchors.fill: parent
@@ -481,7 +481,7 @@ StyledFlickable {
                     height: 280
                     rootContext: root.rootContext
                     itemData: model
-                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
                     artPlaceholderColor: root.artPlaceholderColor
                     
                     customSubtitle: {
@@ -566,7 +566,7 @@ StyledFlickable {
                     height: 280
                     rootContext: root.rootContext
                     itemData: model
-                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
                     artPlaceholderColor: root.artPlaceholderColor
                     
                     customSubtitle: {
