@@ -73,17 +73,17 @@ Rectangle {
                 Layout.fillHeight: true
                 radius: 12
                 color: rootContext.oauthCopied ? rootContext.extractedColor : rootContext.pillColor
-                
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: rootContext.oauthCopied ? "check" : "content_copy"
-                    font.pixelSize: 24
-                    color: rootContext.oauthCopied ? rootContext.extractedForeground : rootContext.pillContentColor
-                }
-                
-                MouseArea {
+
+                RippleButtonWithIcon {
                     anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
+                    anchors.margins: 4
+                    buttonRadius: 8
+                    materialIcon: rootContext.oauthCopied ? "check" : "content_copy"
+                    mainText: ""
+                    implicitHeight: parent.height - 8
+                    colBackground: "transparent"
+                    colBackgroundHover: ColorUtils.transparentize(rootContext.oauthCopied ? rootContext.extractedForeground : rootContext.pillContentColor, 0.85)
+
                     onClicked: {
                         rootContext.sendCommand({ "command": "copy_clipboard", "text": rootContext.oauthCode })
                         rootContext.oauthCopied = true
@@ -97,46 +97,33 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
-            
-            RippleButton {
+
+            DialogButton {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 44
-                buttonRadius: 22
+                buttonText: "Cancel"
+                colEnabled: rootContext.pillContentColor
                 colBackground: rootContext.pillColor
                 colBackgroundHover: rootContext.pillColorHover
                 colRipple: ColorUtils.applyAlpha(rootContext.pillContentColor, 0.2)
-                
-                contentItem: StyledText {
-                    anchors.centerIn: parent
-                    text: "Cancel"
-                    font.pixelSize: 15
-                    color: rootContext.pillContentColor
-                }
-                
+
                 onClicked: {
                     rootContext.oauthDialogVisible = false
                     rootContext.sendCommand({ "command": "oauth_cancel" })
                 }
             }
-            
-            RippleButton {
+
+            DialogButton {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 44
-                buttonRadius: 22
+                buttonText: "Open Browser"
+                opacity: rootContext.oauthCode ? 1.0 : 0.5
+                enabled: rootContext.oauthCode !== ""
                 colBackground: rootContext.extractedColor
                 colBackgroundHover: ColorUtils.mix(rootContext.extractedColor, rootContext.extractedForeground, 0.15)
                 colRipple: ColorUtils.applyAlpha(rootContext.extractedForeground, 0.2)
-                opacity: rootContext.oauthCode ? 1.0 : 0.5
-                enabled: rootContext.oauthCode !== ""
-                
-                contentItem: StyledText {
-                    anchors.centerIn: parent
-                    text: "Open Browser"
-                    font.pixelSize: 15
-                    font.weight: 700
-                    color: rootContext.extractedForeground
-                }
-                
+                colText: rootContext.extractedForeground
+
                 onClicked: {
                     Qt.openUrlExternally(rootContext.oauthUrl)
                 }

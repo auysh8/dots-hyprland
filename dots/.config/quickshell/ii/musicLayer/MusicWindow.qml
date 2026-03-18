@@ -57,7 +57,15 @@ Scope {
             Rectangle {
                 id: scrim
                 anchors.fill: parent
-                color: "transparent"
+                color: Appearance.colors.colScrim
+                opacity: root.showMusic ? 0.5 : 0
+
+                Behavior on opacity {
+                    ColorAnimation {
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.type
+                    }
+                }
 
                 MouseArea {
                     anchors.fill: parent
@@ -85,17 +93,17 @@ Scope {
                 scale: root.showMusic ? 1 : 0.9
 
                 Behavior on opacity {
-                    NumberAnimation {
-                        duration: 200
-                        easing.type: Easing.OutQuad
+                    ColorAnimation {
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.easing
                         onRunningChanged: if (!running && !root.showMusic) root.closing = false
                     }
                 }
 
                 Behavior on scale {
                     NumberAnimation {
-                        duration: 200
-                        easing.type: Easing.OutQuad
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.easing
                     }
                 }
 

@@ -989,30 +989,44 @@ FocusScope {
                                 border.width: 0
                                 visible: root.searchSuggestions.count > 0 && searchInput.text.length > 0
                                 z: 200
-                                
-                                ListView {
+
+                                StyledListView {
                                     id: suggestionsList
                                     anchors.fill: parent
                                     anchors.margins: 8
                                     clip: true
                                     model: root.searchSuggestions
+                                    spacing: 4
+                                    animateAppearance: false
                                     delegate: Item {
                                         width: ListView.view.width
                                         height: 40
-                                        
+
                                         Rectangle {
                                             anchors.fill: parent
                                             radius: 12
                                             color: suggMouse.containsMouse ? root.pillColorHover : "transparent"
-                                            
+                                            clip: true
+
                                             RowLayout {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: 12
+                                                anchors.rightMargin: 12
                                                 spacing: 12
-                                                MaterialSymbol { text: "search"; color: suggMouse.containsMouse ? root.backgroundColor : root.secondaryContentColor; iconSize: 18 }
-                                                StyledText { text: model.text; color: suggMouse.containsMouse ? root.backgroundColor : root.secondaryContentColor; elide: Text.ElideRight; Layout.fillWidth: true }
+                                                MaterialSymbol {
+                                                    text: "search"
+                                                    color: suggMouse.containsMouse ? root.backgroundColor : root.secondaryContentColor
+                                                    iconSize: 18
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                }
+                                                StyledText {
+                                                    text: model.text
+                                                    color: suggMouse.containsMouse ? root.backgroundColor : root.secondaryContentColor
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
                                             }
-                                            
+
                                             MouseArea {
                                                 id: suggMouse
                                                 anchors.fill: parent
@@ -1120,143 +1134,11 @@ FocusScope {
             navRailExpanded: navRail.expanded
             z: 500
         }
-        
-        // OAuth Flow Dialog overlay
-        Rectangle {
-            anchors.centerIn: parent
-            width: parent.width * 0.5
-            height: 280
-            radius: 20
-            color: root.surfaceColor
-            border.width: 1
-            border.color: root.pillColor
-            z: 9999
-            visible: root.oauthDialogVisible
-            opacity: visible ? 1.0 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
-            
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 24
-                spacing: 16
-                
-                StyledText {
-                    text: root.oauthCode ? "YouTube Music Authentication" : "Starting Authentication..."
-                    font.pixelSize: 22
-                    font.weight: 800
-                    color: root.contentColor
-                    Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                }
-                
-                StyledText {
-                    text: root.oauthCode ? "Please go to the URL below in your browser and enter the code to seamlessly link your YouTube Music account." : "Connecting to Google..."
-                    font.pixelSize: 14
-                    color: root.secondaryContentColor
-                    Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
-                }
-                
-                Item { Layout.fillHeight: true }
-                
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 60
-                    spacing: 8
-                    opacity: root.oauthCode ? 1.0 : 0.0
-                    
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 12
-                        color: root.pillColor
-                        
-                        StyledText {
-                            anchors.centerIn: parent
-                            text: root.oauthCode || "..."
-                            font.pixelSize: 32
-                            font.weight: 900
-                            color: root.pillContentColor
-                            font.letterSpacing: 8
-                        }
-                    }
-                    
-                    Rectangle {
-                        Layout.preferredWidth: 60
-                        Layout.fillHeight: true
-                        radius: 12
-                        color: root.oauthCopied ? root.extractedColor : root.pillColor
-                        
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: root.oauthCopied ? "check" : "content_copy"
-                            font.pixelSize: 24
-                            color: root.oauthCopied ? (ColorUtils.isDark(parent.color) ? root._fallbackLight : root._fallbackDark) : root.pillContentColor
-                        }
-                        
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.sendCommand({ "command": "copy_clipboard", "text": root.oauthCode })
-                                root.oauthCopied = true
-                            }
-                        }
-                    }
-                }
-                
-                Item { Layout.fillHeight: true }
-                
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    
-                    RippleButton {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 44
-                        buttonRadius: 22
-                        colBackground: root.pillColor
-                        colBackgroundHover: root.pillColorHover
-                        colRipple: ColorUtils.applyAlpha(root.pillContentColor, 0.2)
-                        
-                        contentItem: StyledText {
-                            anchors.centerIn: parent
-                            text: "Cancel"
-                            font.pixelSize: 15
-                            color: root.pillContentColor
-                        }
-                        
-                        onClicked: {
-                            root.oauthDialogVisible = false
-                            root.sendCommand({ "command": "oauth_cancel" })
-                        }
-                    }
-                    
-                    RippleButton {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 44
-                        buttonRadius: 22
-                        colBackground: root.extractedColor
-                        colBackgroundHover: ColorUtils.mix(root.extractedColor, (ColorUtils.isDark(root.extractedColor) ? root._fallbackLight : root._fallbackDark), 0.15)
-                        colRipple: ColorUtils.applyAlpha((ColorUtils.isDark(root.extractedColor) ? root._fallbackLight : root._fallbackDark), 0.2)
-                        opacity: root.oauthCode ? 1.0 : 0.5
-                        enabled: root.oauthCode !== ""
-                        
-                        contentItem: StyledText {
-                            anchors.centerIn: parent
-                            text: "Open Browser"
-                            font.pixelSize: 15
-                            font.weight: 700
-                            color: ColorUtils.isDark(parent.parent.color) ? root._fallbackLight : root._fallbackDark
-                        }
-                        
-                        onClicked: {
-                            Qt.openUrlExternally(root.oauthUrl)
-                        }
-                    }
-                }
-            }
+
+        // OAuth Flow Dialog - uses shared component
+        MusicOAuthDialog {
+            id: oauthDialog
+            rootContext: root
         }
     }
 }

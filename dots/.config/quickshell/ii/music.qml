@@ -45,7 +45,8 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: false
             implicitHeight: Math.max(titleText.implicitHeight, windowControlsRow.implicitHeight)
-            StyledText {
+            
+            WindowDialogTitle {
                 id: titleText
                 anchors {
                     left: Config.options.windows.centerTitle ? undefined : parent.left
@@ -55,16 +56,13 @@ ApplicationWindow {
                 }
                 color: musicApp.contentColor || Appearance.colors.colOnLayer0
                 text: Translation.tr("Music")
-                font {
-                    family: Appearance.font.family.title
-                    pixelSize: Appearance.font.pixelSize.title
-                    variableAxes: Appearance.font.variableAxes.title
-                }
             }
-            RowLayout { // Window controls row
+            
+            WindowDialogButtonRow { // Window controls row
                 id: windowControlsRow
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
+                
                 RippleButton {
                     buttonRadius: Appearance.rounding.full
                     implicitWidth: 35
@@ -74,6 +72,7 @@ ApplicationWindow {
                     colBackgroundHover: ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.1)
                     colRipple: ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.2)
                     onClicked: root.close()
+                    
                     contentItem: MaterialSymbol {
                         anchors.centerIn: parent
                         anchors.verticalCenterOffset: -2
