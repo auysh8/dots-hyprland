@@ -22,6 +22,7 @@ Item {
         radius: 24
         color: rootContext.pillColor
         border.width: 0
+        clip: true
         
         RowLayout {
             anchors.fill: parent
@@ -130,6 +131,7 @@ Item {
         border.width: 0
         visible: rootContext.searchSuggestions.count > 0 && searchInput.text.length > 0
         z: 200
+        clip: true
         
         ListView {
             id: suggestionsList
@@ -137,23 +139,37 @@ Item {
             anchors.margins: 8
             clip: true
             model: rootContext.searchSuggestions
+            spacing: 4
+            animateAppearance: false
             delegate: Item {
                 width: ListView.view.width
                 height: 40
-                
+
                 Rectangle {
                     anchors.fill: parent
                     radius: 12
                     color: suggMouse.containsMouse ? ColorUtils.applyAlpha(rootContext.contentColor, 0.08) : "transparent"
-                    
+                    clip: true
+
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 12
+                        anchors.rightMargin: 12
                         spacing: 12
-                        MaterialSymbol { text: "search"; color: suggMouse.containsMouse ? rootContext.contentColor : rootContext.secondaryContentColor; iconSize: 18 }
-                        StyledText { text: model.text; color: suggMouse.containsMouse ? rootContext.contentColor : rootContext.secondaryContentColor; elide: Text.ElideRight; Layout.fillWidth: true }
+                        MaterialSymbol {
+                            text: "search"
+                            color: suggMouse.containsMouse ? rootContext.contentColor : rootContext.secondaryContentColor
+                            iconSize: 18
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+                        StyledText {
+                            text: model.text
+                            color: suggMouse.containsMouse ? rootContext.contentColor : rootContext.secondaryContentColor
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
                     }
-                    
+
                     MouseArea {
                         id: suggMouse
                         anchors.fill: parent

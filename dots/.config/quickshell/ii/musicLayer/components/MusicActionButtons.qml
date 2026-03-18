@@ -15,26 +15,33 @@ Item {
 
     implicitHeight: 48
 
+    property color primaryBgColor: rootContext ? rootContext.pillColor : Appearance.colors.colPrimaryContainer
+    property color primaryContentColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnSecondaryContainer
+    property color secondaryBgColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2Base
+
     RowLayout {
         anchors.fill: parent
         spacing: 16
 
         // Play button
-        RippleButton {
-            Layout.preferredWidth: playRow.implicitWidth + 32
+        RippleButtonWithIcon {
+            Layout.preferredWidth: playContent.implicitWidth + 32
             Layout.preferredHeight: 48
             buttonRadius: 24
-            property color bgColor: rootContext ? rootContext.pillColor : Appearance.colors.colPrimaryContainer
-            property color txColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnSecondaryContainer
-            colBackground: bgColor
-            colRipple: txColor
+            materialIcon: "play_arrow"
+            colBackground: root.primaryBgColor
+            colBackgroundHover: ColorUtils.mix(root.primaryBgColor, root.primaryContentColor, 0.1)
+            colRipple: root.primaryContentColor
 
-            contentItem: RowLayout {
-                id: playRow
-                anchors.centerIn: parent
-                spacing: 8
-                MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "play_arrow"; color: parent.parent.txColor; iconSize: 24 }
-                StyledText { Layout.alignment: Qt.AlignVCenter; text: "Play"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
+            property color txColor: root.primaryContentColor
+            mainContentComponent: Component {
+                id: playContent
+                StyledText {
+                    text: "Play"
+                    color: parent.parent.txColor
+                    font.pixelSize: 16
+                    font.weight: 800
+                }
             }
 
             onClicked: {
@@ -57,21 +64,24 @@ Item {
         }
 
         // Shuffle button
-        RippleButton {
-            Layout.preferredWidth: shuffleRow.implicitWidth + 32
+        RippleButtonWithIcon {
+            Layout.preferredWidth: shuffleContent.implicitWidth + 32
             Layout.preferredHeight: 48
             buttonRadius: 24
-            property color bgColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2Base
-            property color txColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnSecondaryContainer
-            colBackground: bgColor
-            colRipple: txColor
+            materialIcon: "shuffle"
+            colBackground: root.secondaryBgColor
+            colBackgroundHover: ColorUtils.mix(root.secondaryBgColor, root.primaryContentColor, 0.15)
+            colRipple: root.primaryContentColor
 
-            contentItem: RowLayout {
-                id: shuffleRow
-                anchors.centerIn: parent
-                spacing: 8
-                MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "shuffle"; color: parent.parent.txColor; iconSize: 24 }
-                StyledText { Layout.alignment: Qt.AlignVCenter; text: "Shuffle"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
+            property color txColor: root.primaryContentColor
+            mainContentComponent: Component {
+                id: shuffleContent
+                StyledText {
+                    text: "Shuffle"
+                    color: parent.parent.txColor
+                    font.pixelSize: 16
+                    font.weight: 800
+                }
             }
 
             onClicked: {

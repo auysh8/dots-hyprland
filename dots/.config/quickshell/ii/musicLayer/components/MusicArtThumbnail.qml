@@ -5,7 +5,7 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 
 // Reusable album art thumbnail with play button overlay
-Rectangle {
+Item {
     id: root
 
     property var rootContext
@@ -17,8 +17,6 @@ Rectangle {
 
     width: showIndex ? (indexLabel.implicitWidth + 16 + size) : size
     height: size
-    radius: 8
-    color: "transparent"
 
     signal clicked()
 
