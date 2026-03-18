@@ -16,8 +16,11 @@ Item {
     implicitHeight: 48
 
     property color primaryBgColor: rootContext ? rootContext.pillColor : Appearance.colors.colPrimaryContainer
-    property color primaryContentColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnSecondaryContainer
-    property color secondaryBgColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2Base
+    property color primaryContentColor: rootContext ? rootContext.pillContentColor : Appearance.colors.colOnSecondaryContainer
+    property color secondaryBgColor: rootContext ? ColorUtils.mix(rootContext.pillColor, rootContext.surfaceColor, 0.3) : Appearance.colors.colLayer2
+
+    property color playButtonHover: rootContext ? ColorUtils.mix(rootContext.pillColor, rootContext.pillContentColor, 0.15) : Appearance.colors.colPrimaryContainerHover
+    property color shuffleButtonHover: rootContext ? ColorUtils.mix(rootContext.secondaryBgColor, rootContext.pillContentColor, 0.15) : Appearance.colors.colLayer2Hover
 
     RowLayout {
         anchors.fill: parent
@@ -29,16 +32,16 @@ Item {
             Layout.preferredHeight: 48
             buttonRadius: 24
             materialIcon: "play_arrow"
+            materialIconFill: true
             colBackground: root.primaryBgColor
-            colBackgroundHover: ColorUtils.mix(root.primaryBgColor, root.primaryContentColor, 0.1)
-            colRipple: root.primaryContentColor
+            colBackgroundHover: root.playButtonHover
+            colRipple: ColorUtils.applyAlpha(root.primaryContentColor, 0.2)
 
-            property color txColor: root.primaryContentColor
             mainContentComponent: Component {
                 id: playContent
                 StyledText {
                     text: "Play"
-                    color: parent.parent.txColor
+                    color: root.primaryContentColor
                     font.pixelSize: 16
                     font.weight: 800
                 }
@@ -69,16 +72,16 @@ Item {
             Layout.preferredHeight: 48
             buttonRadius: 24
             materialIcon: "shuffle"
+            materialIconFill: false
             colBackground: root.secondaryBgColor
-            colBackgroundHover: ColorUtils.mix(root.secondaryBgColor, root.primaryContentColor, 0.15)
-            colRipple: root.primaryContentColor
+            colBackgroundHover: root.shuffleButtonHover
+            colRipple: ColorUtils.applyAlpha(root.primaryContentColor, 0.2)
 
-            property color txColor: root.primaryContentColor
             mainContentComponent: Component {
                 id: shuffleContent
                 StyledText {
                     text: "Shuffle"
-                    color: parent.parent.txColor
+                    color: root.primaryContentColor
                     font.pixelSize: 16
                     font.weight: 800
                 }

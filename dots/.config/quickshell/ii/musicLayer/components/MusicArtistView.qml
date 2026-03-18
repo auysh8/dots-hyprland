@@ -142,88 +142,11 @@ StyledFlickable {
                 Item { Layout.preferredHeight: 8 }
 
                 // Shuffle all / Play buttons
-                RowLayout {
-                    spacing: 16
-
-                    // Play button
-                    RippleButton {
-                        Layout.preferredWidth: playRow.implicitWidth + 32
-                        Layout.preferredHeight: 48
-                        buttonRadius: 24
-                        property color bgColor: rootContext ? rootContext.pillColor : Appearance.colors.colPrimary
-                        property color txColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnPrimary
-                        colBackground: bgColor
-                        colRipple: txColor
-                        
-                        contentItem: RowLayout {
-                            id: playRow
-                            anchors.centerIn: parent
-                            spacing: 8
-                            MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "play_arrow"; color: parent.parent.txColor; iconSize: 24 }
-                            StyledText { Layout.alignment: Qt.AlignVCenter; text: "Play"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
-                        }
-
-                        onClicked: {
-                            if (rootContext && rootContext.activeArtistSongs.count > 0) {
-                                let first = rootContext.activeArtistSongs.get(0)
-                                let queueTracks = []
-                                for (let i = 1; i < rootContext.activeArtistSongs.count; i++) {
-                                    let t = rootContext.activeArtistSongs.get(i)
-                                    queueTracks.push({
-                                        videoId: t.videoId,
-                                        title: t.title,
-                                        artist: t.artist,
-                                        artUrl: t.artUrl,
-                                        duration: t.duration || ""
-                                    })
-                                }
-                                rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl, queueTracks)
-                            }
-                        }
-                    }
-
-                    // Shuffle button
-                    RippleButton {
-                        Layout.preferredWidth: shuffleRow.implicitWidth + 32
-                        Layout.preferredHeight: 48
-                        buttonRadius: 24
-                        property color bgColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2
-                        property color txColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
-                        colBackground: bgColor
-                        colRipple: txColor
-
-                        contentItem: RowLayout {
-                            id: shuffleRow
-                            anchors.centerIn: parent
-                            spacing: 8
-                            MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "shuffle"; color: parent.parent.txColor; iconSize: 24 }
-                            StyledText { Layout.alignment: Qt.AlignVCenter; text: "Shuffle"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
-                        }
-
-                        onClicked: {
-                            if (rootContext && rootContext.activeArtistSongs.count > 0) {
-                                let tracksToPlay = []
-                                for (let i = 0; i < rootContext.activeArtistSongs.count; i++) {
-                                    let t = rootContext.activeArtistSongs.get(i)
-                                    tracksToPlay.push({
-                                        videoId: t.videoId,
-                                        title: t.title,
-                                        artist: t.artist,
-                                        artUrl: t.artUrl,
-                                        duration: t.duration || ""
-                                    })
-                                }
-                                // Fisher-Yates shuffle
-                                for (let i = tracksToPlay.length - 1; i > 0; i--) {
-                                    const j = Math.floor(Math.random() * (i + 1));
-                                    [tracksToPlay[i], tracksToPlay[j]] = [tracksToPlay[j], tracksToPlay[i]];
-                                }
-                                let first = tracksToPlay[0]
-                                let queueTracks = tracksToPlay.slice(1)
-                                rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl, queueTracks)
-                            }
-                        }
-                    }
+                MusicActionButtons {
+                    rootContext: rootContext
+                    tracksModel: rootContext ? rootContext.activeArtistSongs : null
+                    coverUrl: rootContext ? rootContext.activeArtistThumbnail : ""
+                    authorName: rootContext ? rootContext.activeArtistName : ""
                 }
             }
         }
@@ -305,108 +228,28 @@ StyledFlickable {
                     Repeater {
                         model: rootContext ? rootContext.activeArtistSongs : null
 
-                        delegate: Rectangle {
+                        delegate: MusicListTrackItem {
                             Layout.fillWidth: true
-                            height: 64
-                            radius: 12
-                            color: songHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
+                            rootContext: root.rootContext
+                            track: model
+                            indexNumber: index + 1
 
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 16
-
-                                StyledText {
-                                    text: (index + 1).toString()
-                                    font.pixelSize: 14
-                                    Layout.preferredWidth: 32
-                                    horizontalAlignment: Text.AlignHCenter
-                                    Layout.alignment: Qt.AlignVCenter
-                                    color: rootContext.secondaryContentColor
-                                }
-
-                                Rectangle {
-                                    width: 48; height: 48; radius: 8
-                                    color: ColorUtils.transparentize(rootContext.pillColor, 0.4)
-
-                                    RoundedImage {
-                                        anchors.fill: parent
-                                        source: model.artUrl || ""
-                                        sourceSize.width: 96
-                                        sourceSize.height: 96
-                                        fillMode: Image.PreserveAspectCrop
-                                        radius: 8
-                                        asynchronous: true
-                                        cache: true
+                            onClicked: {
+                                if (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) {
+                                    rootContext.toggle()
+                                } else {
+                                    let queueTracks = []
+                                    for (let i = index + 1; i < rootContext.activeArtistSongs.count; i++) {
+                                        let t = rootContext.activeArtistSongs.get(i)
+                                        queueTracks.push({
+                                            videoId: t.videoId,
+                                            title: t.title,
+                                            artist: t.artist,
+                                            artUrl: t.artUrl,
+                                            duration: t.duration || ""
+                                        })
                                     }
-
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        color: Appearance.colors.colScrim
-                                        radius: 8
-                                        visible: songHover.containsMouse || (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId)
-
-                                        MaterialSymbol {
-                                            anchors.centerIn: parent
-                                            text: (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) ? (rootContext.playbackPaused ? "play_arrow" : "pause") : "play_arrow"
-                                            color: Appearance.colors.colOnSurface
-                                            iconSize: 24
-                                        }
-                                    }
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
-                                    spacing: 2
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: model.title
-                                        font.weight: 600
-                                        color: (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) ? (rootContext.extractedColor || rootContext.pillColor) : rootContext.contentColor
-                                        elide: Text.ElideRight
-                                        horizontalAlignment: Text.AlignLeft
-                                    }
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: {
-                                            let parts = []
-                                            if (model.plays) parts.push(model.plays)
-                                            if (model.duration) parts.push(model.duration)
-                                            return parts.join(" • ")
-                                        }
-                                        font.pixelSize: 12
-                                        color: rootContext.secondaryContentColor
-                                        elide: Text.ElideRight
-                                        horizontalAlignment: Text.AlignLeft
-                                    }
-                                }
-                            }
-
-                            MouseArea {
-                                id: songHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) {
-                                        rootContext.toggle()
-                                    } else {
-                                        let queueTracks = []
-                                        for (let i = index + 1; i < rootContext.activeArtistSongs.count; i++) {
-                                            let t = rootContext.activeArtistSongs.get(i)
-                                            queueTracks.push({
-                                                videoId: t.videoId,
-                                                title: t.title,
-                                                artist: t.artist,
-                                                artUrl: t.artUrl,
-                                                duration: t.duration || ""
-                                            })
-                                        }
-                                        rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks)
-                                    }
+                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks)
                                 }
                             }
                         }
