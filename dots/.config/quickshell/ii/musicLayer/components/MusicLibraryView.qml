@@ -47,30 +47,24 @@ StyledFlickable {
                 color: rootContext.contentColor
             }
             Item { Layout.fillWidth: true }
-            RippleButton {
-                Layout.preferredWidth: signInRow.implicitWidth + 32
+            RippleButtonWithIcon {
                 Layout.preferredHeight: 36
                 buttonRadius: 18
+                materialIcon: rootContext.isAuthenticated ? "sync" : "account_circle"
+                materialIconFill: false
+                mainText: rootContext.isAuthenticated ? "Refresh" : "Sign In"
                 colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2Base
-                
-                contentItem: RowLayout {
-                    id: signInRow
-                    anchors.centerIn: parent
-                    spacing: 8
-                    
-                    MaterialSymbol {
-                        text: rootContext.isAuthenticated ? "sync" : "account_circle"
-                        font.pixelSize: 18
-                        color: rootContext.contentColor
-                    }
+                colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+
+                mainContentComponent: Component {
                     StyledText {
-                        text: rootContext.isAuthenticated ? "Refresh" : "Sign In"
+                        text: parent.parent.mainText
                         font.pixelSize: 14
                         font.weight: 600
                         color: rootContext.contentColor
                     }
                 }
-                
+
                 onClicked: {
                     rootContext.refreshAuth()
                 }
@@ -117,23 +111,16 @@ StyledFlickable {
                     lineHeight: 1.4
                 }
                 
-                RippleButton {
-                    Layout.preferredWidth: connectRow.implicitWidth + 28
+                RippleButtonWithIcon {
                     Layout.preferredHeight: 38
                     buttonRadius: 19
-                    
-                    contentItem: RowLayout {
-                        id: connectRow
-                        anchors.centerIn: parent
-                        spacing: 8
-                        
-                        property color btnColor: rootContext.extractedColor || rootContext.pillColor
-                        
-                        MaterialSymbol {
-                            text: "link"
-                            font.pixelSize: 18
-                            color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnSecondaryContainer
-                        }
+                    materialIcon: "link"
+                    materialIconFill: false
+                    mainText: "Connect Account"
+                    colBackground: rootContext.extractedColor || rootContext.pillColor
+                    colRipple: ColorUtils.applyAlpha(rootContext.extractedForeground, 0.2)
+
+                    mainContentComponent: Component {
                         StyledText {
                             text: "Connect Account"
                             font.pixelSize: 14
@@ -141,7 +128,7 @@ StyledFlickable {
                             color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnSecondaryContainer
                         }
                     }
-                    
+
                     onClicked: rootContext.refreshAuth()
                 }
             }

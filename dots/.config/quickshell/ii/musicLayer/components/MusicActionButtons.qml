@@ -19,9 +19,6 @@ Item {
     property color primaryContentColor: rootContext ? rootContext.pillContentColor : Appearance.colors.colOnSecondaryContainer
     property color secondaryBgColor: rootContext ? ColorUtils.mix(rootContext.pillColor, rootContext.surfaceColor, 0.3) : Appearance.colors.colLayer2
 
-    property color playButtonHover: rootContext ? ColorUtils.mix(rootContext.pillColor, rootContext.pillContentColor, 0.15) : Appearance.colors.colPrimaryContainerHover
-    property color shuffleButtonHover: rootContext ? ColorUtils.mix(rootContext.secondaryBgColor, rootContext.pillContentColor, 0.15) : Appearance.colors.colLayer2Hover
-
     RowLayout {
         anchors.fill: parent
         spacing: 16
@@ -34,7 +31,6 @@ Item {
             materialIcon: "play_arrow"
             materialIconFill: true
             colBackground: root.primaryBgColor
-            colBackgroundHover: root.playButtonHover
             colRipple: ColorUtils.applyAlpha(root.primaryContentColor, 0.2)
 
             mainContentComponent: Component {
@@ -74,7 +70,6 @@ Item {
             materialIcon: "shuffle"
             materialIconFill: false
             colBackground: root.secondaryBgColor
-            colBackgroundHover: root.shuffleButtonHover
             colRipple: ColorUtils.applyAlpha(root.primaryContentColor, 0.2)
 
             mainContentComponent: Component {

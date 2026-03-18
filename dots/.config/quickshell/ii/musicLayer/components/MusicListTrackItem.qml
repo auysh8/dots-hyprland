@@ -5,19 +5,24 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 
-Rectangle {
+// Reusable track list item with index, art, and title/artist
+Item {
     id: root
 
     property var rootContext
     property var track
     property int indexNumber: -1 // Optional number to display on the left
-    
+
     Layout.fillWidth: true
     height: 64
-    radius: 12
-    color: trackHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
 
     signal clicked()
+
+    Rectangle {
+        anchors.fill: parent
+        radius: 12
+        color: trackHover.containsMouse ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
+    }
 
     RowLayout {
         anchors.fill: parent
