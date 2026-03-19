@@ -18,6 +18,9 @@ Item {
     property bool show: rootContext.currentView === "player"
     property bool queueExpanded: false
     property bool inlineLyricsExpanded: false
+    property real inlineLyricsPosition: rootContext ? rootContext.trackPositionSec : 0
+    property real maxLyricsPositionDrift: 0.12
+    property real lastLyricsTickMs: 0
     
     property real currentRadius: show ? 32 : 20
 
@@ -37,6 +40,66 @@ Item {
     Behavior on currentRadius { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
 
     visible: show || hAnim.running || bAnim.running || lAnim.running || rAnim.running
+
+    Connections {
+        target: rootContext || null
+        ignoreUnknownSignals: true
+
+        function onTrackPositionSecChanged() {
+            if (!rootContext) return
+            const realPos = rootContext.trackPositionSec || 0
+            const diff = Math.abs(root.inlineLyricsPosition - realPos)
+            if (diff > root.maxLyricsPositionDrift || rootContext.playbackPaused) {
+                root.inlineLyricsPosition = realPos
+            }
+        }
+
+        function onPlaybackPausedChanged() {
+            root.lastLyricsTickMs = 0
+            if (rootContext) {
+                root.inlineLyricsPosition = rootContext.trackPositionSec || 0
+            }
+        }
+
+        function onCurrentTrackChanged() {
+            root.lastLyricsTickMs = 0
+            if (rootContext) {
+                root.inlineLyricsPosition = rootContext.trackPositionSec || 0
+            }
+        }
+    }
+
+    Timer {
+        id: inlineLyricsPositionTimer
+        running: !!rootContext && !!rootContext.currentTrack && !rootContext.playbackPaused
+        interval: 50
+        repeat: true
+
+        onTriggered: {
+            if (!rootContext || !rootContext.currentTrack)
+                return
+
+            const nowMs = Date.now()
+            if (root.lastLyricsTickMs <= 0) {
+                root.lastLyricsTickMs = nowMs
+                root.inlineLyricsPosition = rootContext.trackPositionSec || 0
+                return
+            }
+
+            const dt = (nowMs - root.lastLyricsTickMs) / 1000.0
+            root.lastLyricsTickMs = nowMs
+
+            if (dt <= 0 || dt > 0.25) {
+                root.inlineLyricsPosition = rootContext.trackPositionSec || 0
+                return
+            }
+
+            root.inlineLyricsPosition += dt
+            if (rootContext.trackDurationSec > 0 && root.inlineLyricsPosition > rootContext.trackDurationSec) {
+                root.inlineLyricsPosition = rootContext.trackDurationSec
+            }
+        }
+    }
 
     // Elements appear instantly on open, disappear immediately on close (halfway through collapse)
     property bool elementsVisible: false
@@ -486,12 +549,13 @@ Item {
                 secondaryContentColor: rootContext.secondaryContentColor
                 pillColor: rootContext.pillColor
                 pillContentColor: rootContext.pillContentColor
+                loaderColor: rootContext.loaderAccentColor
                 
                 lyricsModel: LyricsService.model
                 lyricsCount: LyricsService.count
                 currentLine: LyricsService.currentLine
                 lyricsLoaded: LyricsService.loaded
-                position: LyricsService.position
+                position: root.inlineLyricsPosition
                 lyricsSource: LyricsService.sourceName
                 activePlayer: LyricsService.activePlayer
                 isPlaying: !rootContext.playbackPaused

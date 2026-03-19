@@ -482,6 +482,7 @@ FocusScope {
     property color pillColorHover: ColorUtils.mix(_srcPillColor, _srcPillContentColor, 0.15)
     property color pillContentColor: _srcPillContentColor
     property color surfaceColor: _srcSurfaceColor
+    property color loaderAccentColor: _hasTrack ? mediaContext.blendedColors.colPrimary : Appearance.colors.colPrimary
 
     // Extracted color alias for compatibility
     readonly property color extractedColor: mediaContext.extractedColor
@@ -495,6 +496,7 @@ FocusScope {
     Behavior on pillColorHover { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
     Behavior on pillContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
     Behavior on surfaceColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on loaderAccentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
     
     Process {
         id: backend
@@ -1080,7 +1082,8 @@ FocusScope {
                                 visible: opacity > 0
                                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 
-                                color: root.pillColor
+                                color: ColorUtils.applyAlpha(root.loaderAccentColor, 0.2)
+                                shapeColor: root.loaderAccentColor
                             }
                         }
                     }

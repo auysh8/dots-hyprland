@@ -177,16 +177,18 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: childrenRect.height
                 width: parent.width
-                spacing: 16
+                spacing: 0
                 property int targetCellWidth: 200
-                property int columns: Math.max(1, Math.floor((width + spacing) / (targetCellWidth + spacing)))
-                property int cellWidth: Math.floor((width - Math.max(0, columns - 1) * spacing) / columns)
+                property int columns: Math.max(1, Math.floor(width / targetCellWidth))
+                property int cellWidth: Math.floor(width / columns)
+                property int cellHeight: Math.max(280, cellWidth + 72)
 
                 Repeater {
                     model: rootContext.albumResults
 
                     delegate: MusicMediaCard {
                         width: albumGrid.cellWidth
+                        height: albumGrid.cellHeight
                         rootContext: root.rootContext
                         itemData: model
                         hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.3)

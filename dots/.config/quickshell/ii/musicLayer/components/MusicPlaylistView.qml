@@ -46,7 +46,8 @@ StyledFlickable {
             MaterialLoadingIndicator {
                 implicitSize: 24
                 loading: true
-                color: rootContext ? rootContext.pillColor : Appearance.colors.colPrimary
+                color: rootContext ? ColorUtils.applyAlpha(rootContext.loaderAccentColor, 0.2) : Appearance.colors.colPrimaryContainer
+                shapeColor: rootContext ? rootContext.loaderAccentColor : Appearance.colors.colPrimary
             }
 
             StyledText {

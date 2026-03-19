@@ -71,13 +71,15 @@ StyledFlickable {
             property int targetCellWidth: 220
             property int columns: Math.max(1, Math.floor(width / targetCellWidth))
             property int cellWidth: Math.floor(width / columns)
+            // Cards use square art based on width, so row height must grow with width.
+            property int cellHeight: Math.max(280, cellWidth + 72)
 
             Repeater {
                 model: rootContext && rootContext.activeArtistItemsModel ? rootContext.activeArtistItemsModel : null
 
                 delegate: MusicMediaCard {
                     width: itemsGrid.cellWidth
-                    height: 280
+                    height: itemsGrid.cellHeight
                     rootContext: root.rootContext
                     itemData: model
                     hoverColor: root.cardHoverColor

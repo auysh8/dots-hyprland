@@ -187,7 +187,8 @@ Rectangle {
                         implicitSize: 24
                         loading: rootContext.isTrackLoading
                         visible: rootContext.isTrackLoading
-                        color: rootContext.pillColor
+                        color: ColorUtils.applyAlpha(rootContext.loaderAccentColor, 0.2)
+                        shapeColor: rootContext.loaderAccentColor
                     }
 
                     MaterialSymbol {

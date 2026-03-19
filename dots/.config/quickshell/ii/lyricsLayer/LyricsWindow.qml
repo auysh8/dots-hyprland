@@ -26,14 +26,37 @@ Scope {
     property bool lyricsLoaded: false
     property string lyricsSource: ""
     
-    // Broadcast state to the global LyricsService so other components (like MusicPlayerView) can share it
-    Binding { target: LyricsService; property: "model"; value: root.lyricsModel }
-    Binding { target: LyricsService; property: "count"; value: root.lyricsCount }
-    Binding { target: LyricsService; property: "currentLine"; value: root.currentLine }
-    Binding { target: LyricsService; property: "loaded"; value: root.lyricsLoaded }
-    Binding { target: LyricsService; property: "position"; value: root.position }
-    Binding { target: LyricsService; property: "sourceName"; value: root.lyricsSource }
-    Binding { target: LyricsService; property: "activePlayer"; value: root.activePlayer }
+    // Mirror the live lyrics state into the shared singleton explicitly.
+    // Imperative sync is more reliable here than Binding for cross-component
+    // consumers that depend on both scalar properties and a mutable ListModel.
+    function serializeLyricsState() {
+        const lines = []
+        for (let i = 0; i < root.lyricsModel.count; i++) {
+            const line = root.lyricsModel.get(i)
+            lines.push({
+                time: Number(line.time || 0),
+                text: line.text || "",
+                words: line.words || "[]",
+            })
+        }
+
+        return {
+            lyrics: lines,
+            count: root.lyricsCount,
+            currentLine: root.currentLine,
+            loaded: root.lyricsLoaded,
+            position: root.position,
+            sourceName: root.lyricsSource,
+        }
+    }
+
+    function persistSharedLyricsState() {
+        sharedLyricsStateFile.setText(JSON.stringify(root.serializeLyricsState()))
+    }
+
+    function syncSharedLyricsState() {
+        root.persistSharedLyricsState()
+    }
     
     // Use native MPRIS for UI updates only (art, progress)
     readonly property var availablePlayers: MprisController.players
@@ -109,12 +132,28 @@ Scope {
         if (root.activePlayer) {
             root.position = root.activePlayer.position
         }
+        root.syncSharedLyricsState()
     }
 
     onActivePlayerChanged: {
         root.lastPositionTickMs = 0
         if (root.activePlayer) {
             root.position = root.activePlayer.position
+        }
+        root.syncSharedLyricsState()
+    }
+    onLyricsLoadedChanged: root.syncSharedLyricsState()
+    onLyricsSourceChanged: root.syncSharedLyricsState()
+    onCurrentLineChanged: root.syncSharedLyricsState()
+
+    FileView {
+        id: sharedLyricsStateFile
+        path: LyricsService.stateFilePath
+
+        onLoadFailed: (error) => {
+            if (error === FileViewError.FileNotFound) {
+                sharedLyricsStateFile.setText(JSON.stringify(root.serializeLyricsState()))
+            }
         }
     }
 
@@ -282,6 +321,7 @@ Scope {
         if (root.activePlayer) {
             root.position = root.activePlayer.position
         }
+        root.syncSharedLyricsState()
     }    
     function parseUpdate(data) {
         if (!data) return
@@ -368,9 +408,11 @@ Scope {
         if (data.lyricsSource !== undefined) {
             lyricsSource = data.lyricsSource || ""
         }
+
+        root.syncSharedLyricsState()
     }
     
-    property ListModel lyricsModel: ListModel { id: lyricsModel }
+    property ListModel lyricsModel: LyricsService.model
     
     function toggle() {
         LyricsService.toggle()

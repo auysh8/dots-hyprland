@@ -15,8 +15,6 @@ Flickable {
     property real mouseScrollDeltaThreshold: Config?.options.interactions.scrolling.mouseScrollDeltaThreshold ?? 120
     property real scrollTargetX: 0
 
-    ScrollBar.horizontal: StyledScrollBar {}
-
     MouseArea {
         visible: Config?.options?.interactions?.scrolling?.fasterTouchpadScroll ?? true
         anchors.fill: parent

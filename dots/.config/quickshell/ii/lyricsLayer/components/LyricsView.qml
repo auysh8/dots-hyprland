@@ -18,8 +18,13 @@ Item {
     property color loaderColor: "white"
     
     property var activePlayer: null
-    property var lyricsModel: null
+    property ListModel lyricsModel: ListModel {}
     property int lyricsCount: 0
+    readonly property int resolvedLyricsCount: (
+        lyricsModel && lyricsModel.count !== undefined
+            ? lyricsModel.count
+            : lyricsCount
+    )
     property bool isPlaying: false
     property bool lyricsLoaded: false
     property int currentLine: -1
@@ -47,7 +52,7 @@ Item {
     
     // Auto-scroll when currentLine changes
     onCurrentLineChanged: {
-        if (!manualScrollMode && currentLine >= 0 && currentLine < lyricsCount && lyricsLoaded) {
+        if (!manualScrollMode && currentLine >= 0 && currentLine < resolvedLyricsCount && lyricsLoaded) {
              lyricsView.positionViewAtIndex(currentLine, ListView.Center)
         }
     }
@@ -136,7 +141,7 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 6
         opacity: 0.4
-        visible: root.lyricsSource !== "" && root.lyricsCount > 0
+        visible: root.lyricsSource !== "" && root.resolvedLyricsCount > 0
         
         MaterialSymbol {
             anchors.verticalCenter: parent.verticalCenter
@@ -158,7 +163,7 @@ Item {
     
     Item {
         anchors.fill: parent
-        anchors.topMargin: root.lyricsSource !== "" && root.lyricsCount > 0 ? 68 : 48
+        anchors.topMargin: root.lyricsSource !== "" && root.resolvedLyricsCount > 0 ? 68 : 48
         anchors.bottomMargin: 16
         clip: true
 
@@ -168,7 +173,7 @@ Item {
             anchors.centerIn: parent
             implicitSize: 64
 
-            property bool isLoading: root.lyricsCount === 0 && (root.isPlaying && !root.lyricsLoaded)
+            property bool isLoading: root.resolvedLyricsCount === 0 && (root.isPlaying && !root.lyricsLoaded)
 
             loading: isLoading
             opacity: isLoading ? 1.0 : 0.0
@@ -193,13 +198,13 @@ Item {
             font.family: "Inter, Segoe UI, sans-serif"
             
             // Show if (Recognizing) OR (Lyrics Empty AND (Not Playing OR Loaded))
-            visible: (root.lyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded))
+            visible: (root.resolvedLyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded))
         }
 
         // 3. The Lyrics List
         StyledListView {
             id: lyricsView
-            visible: root.lyricsCount > 0
+            visible: root.resolvedLyricsCount > 0
             anchors.fill: parent
             anchors.margins: 16
             model: root.lyricsModel
