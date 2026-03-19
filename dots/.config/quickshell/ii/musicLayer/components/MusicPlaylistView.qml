@@ -164,88 +164,12 @@ StyledFlickable {
 
                 Item { Layout.preferredHeight: 16 }
 
-                RowLayout {
-                    spacing: 16
-                    
-                    // Play Button
-                    RippleButton {
-                        Layout.preferredWidth: playRow.implicitWidth + 32
-                        Layout.preferredHeight: 48
-                        buttonRadius: 24
-                        colBackground: rootContext ? rootContext.extractedColor || rootContext.pillColor : Appearance.colors.colPrimary
-                        
-                        property color txColor: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnPrimary
-                        
-                        contentItem: RowLayout {
-                            id: playRow
-                            anchors.centerIn: parent
-                            spacing: 8
-                            MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "play_arrow"; color: parent.parent.txColor; iconSize: 24 }
-                            StyledText { Layout.alignment: Qt.AlignVCenter; text: "Play"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
-                        }
-                        
-                        onClicked: {
-                            if (rootContext && rootContext.activePlaylistTracks.count > 0) {
-                                let first = rootContext.activePlaylistTracks.get(0)
-                                let queueTracks = []
-                                for (let i = 1; i < rootContext.activePlaylistTracks.count; i++) {
-                                    let t = rootContext.activePlaylistTracks.get(i)
-                                    queueTracks.push({
-                                        videoId: t.videoId,
-                                        title: t.title,
-                                        artist: t.artist,
-                                        artUrl: t.artUrl || rootContext.activePlaylistCover,
-                                        duration: t.duration || ""
-                                    })
-                                }
-                                rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl || rootContext.activePlaylistCover, queueTracks)
-                            }
-                        }
-                    }
-
-                    // Shuffle Button
-                    RippleButton {
-                        Layout.preferredWidth: shuffleRow.implicitWidth + 32
-                        Layout.preferredHeight: 48
-                        buttonRadius: 24
-                        colBackground: rootContext ? ColorUtils.transparentize(rootContext.contentColor, 0.9) : ColorUtils.transparentize(Appearance.colors.colOnSurface, 0.9)
-                        
-                        property color txColor: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
-                        
-                        contentItem: RowLayout {
-                            id: shuffleRow
-                            anchors.centerIn: parent
-                            spacing: 8
-                            MaterialSymbol { Layout.alignment: Qt.AlignVCenter; text: "shuffle"; color: parent.parent.txColor; iconSize: 24 }
-                            StyledText { Layout.alignment: Qt.AlignVCenter; text: "Shuffle"; color: parent.parent.txColor; font.pixelSize: 16; font.weight: 800 }
-                        }
-                        
-                        onClicked: {
-                            if (rootContext && rootContext.activePlaylistTracks.count > 0) {
-                                let tracksToPlay = [];
-                                for (let i = 0; i < rootContext.activePlaylistTracks.count; i++) {
-                                    let t = rootContext.activePlaylistTracks.get(i);
-                                    tracksToPlay.push({
-                                        videoId: t.videoId,
-                                        title: t.title,
-                                        artist: t.artist,
-                                        artUrl: t.artUrl || rootContext.activePlaylistCover,
-                                        duration: t.duration || ""
-                                    });
-                                }
-                                
-                                // Fisher-Yates shuffle
-                                for (let i = tracksToPlay.length - 1; i > 0; i--) {
-                                    const j = Math.floor(Math.random() * (i + 1));
-                                    [tracksToPlay[i], tracksToPlay[j]] = [tracksToPlay[j], tracksToPlay[i]];
-                                }
-                                
-                                let first = tracksToPlay[0];
-                                let queueTracks = tracksToPlay.slice(1);
-                                rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl, queueTracks);
-                            }
-                        }
-                    }
+                // Play/Shuffle buttons
+                MusicActionButtons {
+                    rootContext: rootContext
+                    tracksModel: rootContext ? rootContext.activePlaylistTracks : null
+                    coverUrl: rootContext ? rootContext.activePlaylistCover : ""
+                    authorName: rootContext ? rootContext.activePlaylistAuthor : ""
                 }
             }
         }

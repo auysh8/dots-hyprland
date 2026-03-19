@@ -105,32 +105,28 @@ Item {
             Behavior on y { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
         }
 
-        // Collapse button (Top left/right)
-        RippleButton {
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.margins: 24
-        implicitWidth: 48
-        implicitHeight: 48
-        buttonRadius: 24
-        
-        colBackground: ColorUtils.transparentize(rootContext.contentColor, 0.9)
-        colBackgroundHover: ColorUtils.transparentize(rootContext.contentColor, 0.8)
-        colRipple: rootContext.contentColor
-        
-        contentItem: MaterialSymbol {
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            text: "expand_more"
-            iconSize: 28
-            color: rootContext.contentColor
+        // Collapse button (Top right)
+        RippleButtonWithIcon {
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: 24
+            implicitWidth: 48
+            implicitHeight: 48
+            buttonRadius: 24
+            materialIcon: "expand_more"
+            materialIconFill: false
+            mainText: ""
+            colBackground: ColorUtils.transparentize(rootContext.contentColor, 0.9)
+            colBackgroundHover: ColorUtils.transparentize(rootContext.contentColor, 0.8)
+            colRipple: rootContext.contentColor
+
+            mainContentComponent: Component { Item {} }
+
+            onClicked: {
+                rootContext.currentView = rootContext.previousView || "home"
+            }
+            z: 10
         }
-        
-        onClicked: {
-            rootContext.currentView = rootContext.previousView || "home"
-        }
-        z: 10
-    }
 
     // Main Content
     ColumnLayout {
@@ -335,78 +331,50 @@ Item {
                 spacing: 6
 
                 // Previous Button
-                Item {
-                    id: prevBtnContainer
-                    property bool isPressed: prevArea.pressed
-                    
-                    implicitWidth: 64 + (isPressed ? 16 : (playBtnContainer.isPressed ? -10 : 0))
-                    implicitHeight: 64
-                    
-                    Behavior on implicitWidth { 
-                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
-                    }
-                    Behavior on implicitHeight { 
-                        NumberAnimation { 
-                            duration: 300
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 2
-                        } 
-                    }
-                    
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: height / 2
-                        color: prevArea.containsMouse 
-                            ? ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
-                            : ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
-                        
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            iconSize: 28
-                            fill: 1
-                            color: rootContext.contentColor
-                            text: "skip_previous"
-                        }
-                    }
-                    
-                    MouseArea {
-                        id: prevArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: rootContext.sendCommand({"command": "previous"})
-                    }
+                RippleButtonWithIcon {
+                    Layout.preferredWidth: 64
+                    Layout.preferredHeight: 64
+                    buttonRadius: 32
+                    materialIcon: "skip_previous"
+                    materialIconFill: true
+                    mainText: ""
+                    rippleEnabled: false
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+
+                    mainContentComponent: Component { Item {} }
+
+                    onClicked: rootContext.sendCommand({"command": "previous"})
                 }
 
                 // Play/Pause Button
                 Item {
                     id: playBtnContainer
                     property bool isPressed: playArea.pressed
-                    
-                    implicitWidth: 130 + (isPressed ? 20 : (prevBtnContainer.isPressed ? -16 : (nextBtnContainer.isPressed ? -16 : 0)))
+
+                    implicitWidth: 130 + (isPressed ? 20 : (prevBtnContainer.isPressed ? -10 : (nextBtnContainer.isPressed ? -10 : 0)))
                     implicitHeight: 64
-                    
-                    Behavior on implicitWidth { 
+
+                    Behavior on implicitWidth {
                         animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
                     }
-                    Behavior on implicitHeight { 
-                        NumberAnimation { 
+                    Behavior on implicitHeight {
+                        NumberAnimation {
                             duration: 300
                             easing.type: Easing.OutBack
                             easing.overshoot: 2
-                        } 
+                        }
                     }
-                    
+
                     Rectangle {
                         anchors.fill: parent
                         radius: playBtnContainer.isPressed ? 20 : 32
                         color: rootContext.pillColor
-                        
+
                         Behavior on radius { NumberAnimation { duration: 200 } }
                         Behavior on color { ColorAnimation { duration: 150 } }
-                        
+
                         MaterialSymbol {
                             anchors.centerIn: parent
                             iconSize: 40
@@ -415,7 +383,7 @@ Item {
                             text: rootContext.playbackPaused ? "play_arrow" : "pause"
                         }
                     }
-                    
+
                     MouseArea {
                         id: playArea
                         anchors.fill: parent
@@ -431,49 +399,21 @@ Item {
                 }
 
                 // Next Button
-                Item {
-                    id: nextBtnContainer
-                    property bool isPressed: nextArea.pressed
-                    
-                    implicitWidth: 64 + (isPressed ? 16 : (playBtnContainer.isPressed ? -10 : 0))
-                    implicitHeight: 64
-                    
-                    Behavior on implicitWidth { 
-                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
-                    }
-                    Behavior on implicitHeight { 
-                        NumberAnimation { 
-                            duration: 300
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 2
-                        } 
-                    }
-                    
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: height / 2
-                        color: nextArea.containsMouse 
-                            ? ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
-                            : ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
-                        
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            iconSize: 28
-                            fill: 1
-                            color: rootContext.contentColor
-                            text: "skip_next"
-                        }
-                    }
-                    
-                    MouseArea {
-                        id: nextArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: rootContext.sendCommand({"command": "next"})
-                    }
+                RippleButtonWithIcon {
+                    Layout.preferredWidth: 64
+                    Layout.preferredHeight: 64
+                    buttonRadius: 32
+                    materialIcon: "skip_next"
+                    materialIconFill: true
+                    mainText: ""
+                    rippleEnabled: false
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+
+                    mainContentComponent: Component { Item {} }
+
+                    onClicked: rootContext.sendCommand({"command": "next"})
                 }
             
             // Closing brace for the centered RowLayout inside MainView's controls
@@ -838,20 +778,19 @@ Item {
                         color: rootContext.contentColor
                         Layout.fillWidth: true
                     }
-                    RippleButton {
+                    RippleButtonWithIcon {
                         implicitWidth: 40
                         implicitHeight: 40
                         buttonRadius: 20
+                        materialIcon: "close"
+                        materialIconFill: false
+                        mainText: ""
                         colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.1)
                         colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
                         colRipple: rootContext.contentColor
-                        contentItem: MaterialSymbol {
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            text: "close"
-                            iconSize: 24
-                            color: rootContext.contentColor
-                        }
+
+                        mainContentComponent: Component { Item {} }
+
                         onClicked: root.queueExpanded = false
                     }
                 }

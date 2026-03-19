@@ -91,26 +91,38 @@ Item {
         spacing: 8
 
         // Play button - highly contrasting adapted white with punched-out icon
-        RippleButton {
+        RippleButtonWithIcon {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 40; Layout.preferredHeight: 40; buttonRadius: 20
+            Layout.preferredWidth: 40
+            Layout.preferredHeight: 40
+            buttonRadius: 20
+            materialIcon: "play_arrow"
+            materialIconFill: true
+            mainText: ""
             colBackground: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1
             colBackgroundHover: rootContext ? ColorUtils.mix(rootContext.contentColor, rootContext.pillColor, 0.15) : Appearance.colors.colOnLayer1Hover
             colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.pillColor : Appearance.colors.colLayer0, 0.2)
 
-            contentItem: MaterialSymbol { anchors.centerIn: parent; text: "play_arrow"; color: rootContext ? rootContext.pillColor : Appearance.colors.colLayer1Base; iconSize: 26; fill: 1 }
+            mainContentComponent: Component { Item {} }
+
             onClicked: rootContext.openAndPlayPlaylist(root.playlistModel.id, false)
         }
 
         // Shuffle button
-        RippleButton {
+        RippleButtonWithIcon {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 36; Layout.preferredHeight: 36; buttonRadius: 18
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
+            buttonRadius: 18
+            materialIcon: "shuffle"
+            materialIconFill: false
+            mainText: ""
             colBackground: "transparent"
             colBackgroundHover: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1, 0.15)
             colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1, 0.2)
 
-            contentItem: MaterialSymbol { anchors.centerIn: parent; text: "shuffle"; color: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1; iconSize: 22 }
+            mainContentComponent: Component { Item {} }
+
             onClicked: rootContext.openAndPlayPlaylist(root.playlistModel.id, true)
         }
     }

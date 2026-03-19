@@ -54,58 +54,16 @@ StyledFlickable {
                 Repeater {
                     model: rootContext.artistResults
 
-                    delegate: Item {
+                    delegate: MusicMediaCard {
                         width: 120
                         height: 140
+                        rootContext: root.rootContext
+                        itemData: model
+                        hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                        artPlaceholderColor: ColorUtils.transparentize(rootContext.pillColor, 0.4)
 
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 12
-                            color: artistHoverHandler.hovered ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "transparent"
-                        }
-
-                        Column {
-                            anchors.fill: parent
-                            anchors.margins: 4
-                            spacing: 8
-
-                            Rectangle {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                width: 100
-                                height: 100
-                                radius: 50
-                                color: ColorUtils.transparentize(rootContext.pillColor, 0.4)
-
-                                RoundedImage {
-                                    anchors.fill: parent
-                                    source: model.artUrl || ""
-                                    sourceSize.width: 200
-                                    sourceSize.height: 200
-                                    fillMode: Image.PreserveAspectCrop
-                                    radius: 50
-                                    cache: true
-                                }
-                            }
-
-                            StyledText {
-                                width: parent.width
-                                horizontalAlignment: Text.AlignHCenter
-                                text: model.title || ""
-                                font.weight: 600
-                                color: rootContext.contentColor
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        HoverHandler {
-                            id: artistHoverHandler
-                            cursorShape: Qt.PointingHandCursor
-                        }
-
-                        TapHandler {
-                            onTapped: {
-                                rootContext.openArtist(model.videoId || "")
-                            }
+                        onClicked: {
+                            rootContext.openArtist(model.videoId || "")
                         }
                     }
                 }

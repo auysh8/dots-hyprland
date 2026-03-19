@@ -84,25 +84,20 @@ Item {
                 }
             }
             
-            RippleButton {
+            RippleButtonWithIcon {
                 visible: searchInput.text.length > 0
                 Layout.preferredWidth: 32
                 Layout.preferredHeight: 32
                 Layout.alignment: Qt.AlignVCenter
                 buttonRadius: 16
+                materialIcon: "close"
+                materialIconFill: false
+                mainText: ""
                 colBackground: "transparent"
                 colBackgroundHover: ColorUtils.transparentize(rootContext.pillContentColor, 0.85)
-                
-                contentItem: Item {
-                    anchors.fill: parent
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "close"
-                        color: rootContext.pillContentColor
-                        iconSize: 18
-                    }
-                }
-                
+
+                mainContentComponent: Component { Item {} }
+
                 onClicked: {
                     searchInput.text = ""
                     rootContext.suppressSuggestionResponses = false
