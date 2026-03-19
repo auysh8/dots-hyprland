@@ -84,19 +84,25 @@ Item {
                 }
             }
             
-            RippleButtonWithIcon {
+            RippleButton {
                 visible: searchInput.text.length > 0
                 Layout.preferredWidth: 32
                 Layout.preferredHeight: 32
                 Layout.alignment: Qt.AlignVCenter
                 buttonRadius: 16
-                materialIcon: "close"
-                materialIconFill: false
-                mainText: ""
                 colBackground: "transparent"
                 colBackgroundHover: ColorUtils.transparentize(rootContext.pillContentColor, 0.85)
+                horizontalPadding: 0
+                verticalPadding: 0
 
-                mainContentComponent: Component { Item {} }
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "close"
+                    color: rootContext.pillContentColor
+                    iconSize: 18
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
 
                 onClicked: {
                     searchInput.text = ""
@@ -132,10 +138,13 @@ Item {
             id: suggestionsList
             anchors.fill: parent
             anchors.margins: 8
+            implicitHeight: Math.min(suggestionsList.contentHeight + 16, 300)
             clip: true
             model: rootContext.searchSuggestions
             spacing: 4
             animateAppearance: false
+            interactive: true
+            acceptedButtons: Qt.NoButton
             delegate: Item {
                 width: ListView.view.width
                 height: 40

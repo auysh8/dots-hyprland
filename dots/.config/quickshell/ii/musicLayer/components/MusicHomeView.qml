@@ -26,6 +26,7 @@ StyledFlickable {
     property bool show: queryText.length === 0 && rootContext.currentView === "home" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
+    enabled: show
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 
     clip: true
@@ -131,12 +132,15 @@ StyledFlickable {
                 Layout.fillWidth: true
                 property int columns: Math.max(1, Math.floor(width / 240))
                 Layout.preferredHeight: Math.min(2, Math.ceil(rootContext.homeContent.count / columns)) * cellHeight
+                implicitHeight: Layout.preferredHeight
                 cellWidth: 240
                 cellHeight: 280
                 flow: GridView.FlowTopToBottom
                 clip: true
                 flickableDirection: Flickable.HorizontalFlick
                 cacheBuffer: 1200
+                interactive: true
+                acceptedButtons: Qt.NoButton
 
                 model: rootContext.homeContent
 
@@ -243,6 +247,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 property int columns: Math.max(1, Math.floor(width / 240))
                 Layout.preferredHeight: Math.min(2, Math.ceil(rootContext.shortsContent.count / columns)) * cellHeight
+                implicitHeight: Layout.preferredHeight
                 cellWidth: 240
                 cellHeight: 280
                 flow: GridView.FlowTopToBottom
@@ -250,6 +255,8 @@ StyledFlickable {
                 flickableDirection: Flickable.HorizontalFlick
                 visible: rootContext.shortsContent.count > 0
                 cacheBuffer: 1200
+                interactive: true
+                acceptedButtons: Qt.NoButton
 
                 model: rootContext.shortsContent
 

@@ -15,6 +15,7 @@ StyledFlickable {
     property bool show: rootContext && rootContext.currentView === "artist" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
+    enabled: show
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 
     anchors.fill: parent
@@ -143,10 +144,10 @@ StyledFlickable {
 
                 // Shuffle all / Play buttons
                 MusicActionButtons {
-                    rootContext: rootContext
-                    tracksModel: rootContext ? rootContext.activeArtistSongs : null
-                    coverUrl: rootContext ? rootContext.activeArtistThumbnail : ""
-                    authorName: rootContext ? rootContext.activeArtistName : ""
+                    rootContext: root.rootContext
+                    tracksModel: root.rootContext ? root.rootContext.activeArtistSongs : null
+                    coverUrl: root.rootContext ? root.rootContext.activeArtistThumbnail : ""
+                    authorName: root.rootContext ? root.rootContext.activeArtistName : ""
                 }
             }
         }
@@ -171,7 +172,7 @@ StyledFlickable {
                     Layout.preferredHeight: 32
                     buttonRadius: 16
                     colBackground: rootContext ? rootContext.pillColor : "transparent"
-                    colBackgroundHover: rootContext ? Qt.binding(function() { return ColorUtils.transparentize(rootContext.pillColor, 0.5) }) : Appearance.colors.colLayer1Hover
+                    colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer1Hover
                     visible: rootContext && (rootContext.activeArtistSongsBrowseId.length > 0 || rootContext.activeArtistSongsFull) && rootContext.activeArtistSongs.count > 0
 
                     contentItem: StyledText {
@@ -278,7 +279,7 @@ StyledFlickable {
                     Layout.preferredHeight: 32
                     buttonRadius: 16
                     colBackground: rootContext ? rootContext.pillColor : "transparent"
-                    colBackgroundHover: rootContext ? Qt.binding(function() { return ColorUtils.transparentize(rootContext.pillColor, 0.5) }) : Appearance.colors.colLayer1Hover
+                    colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer1Hover
                     visible: rootContext && (rootContext.activeArtistAlbumsParams.length > 0 || rootContext.activeArtistAlbumsFull) && rootContext.activeArtistAlbums.count > 0
 
                     contentItem: StyledText {
@@ -313,9 +314,12 @@ StyledFlickable {
             ListView {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
+                implicitHeight: 280
                 orientation: ListView.Horizontal
                 spacing: 0
                 clip: true
+                interactive: true
+                acceptedButtons: Qt.NoButton
 
                 model: rootContext ? rootContext.activeArtistAlbums : null
 
@@ -326,7 +330,7 @@ StyledFlickable {
                     itemData: model
                     hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
                     artPlaceholderColor: root.artPlaceholderColor
-                    
+
                     customSubtitle: {
                         let parts = []
                         if (model.year) parts.push(model.year)
@@ -363,7 +367,7 @@ StyledFlickable {
                     Layout.preferredHeight: 32
                     buttonRadius: 16
                     colBackground: rootContext ? rootContext.pillColor : "transparent"
-                    colBackgroundHover: rootContext ? Qt.binding(function() { return ColorUtils.transparentize(rootContext.pillColor, 0.5) }) : Appearance.colors.colLayer1Hover
+                    colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer1Hover
                     visible: rootContext && (rootContext.activeArtistSinglesParams.length > 0 || rootContext.activeArtistSinglesFull) && rootContext.activeArtistSingles.count > 0
 
                     contentItem: StyledText {
@@ -398,9 +402,12 @@ StyledFlickable {
             ListView {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
+                implicitHeight: 280
                 orientation: ListView.Horizontal
                 spacing: 0
                 clip: true
+                interactive: true
+                acceptedButtons: Qt.NoButton
 
                 model: rootContext ? rootContext.activeArtistSingles : null
 
@@ -411,7 +418,7 @@ StyledFlickable {
                     itemData: model
                     hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
                     artPlaceholderColor: root.artPlaceholderColor
-                    
+
                     customSubtitle: {
                         let parts = []
                         if (model.year) parts.push(model.year)
@@ -444,9 +451,12 @@ StyledFlickable {
             ListView {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 260
+                implicitHeight: 260
                 orientation: ListView.Horizontal
                 spacing: 0
                 clip: true
+                interactive: true
+                acceptedButtons: Qt.NoButton
 
                 model: rootContext ? rootContext.activeArtistRelated : null
 

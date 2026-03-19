@@ -9,6 +9,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import Quickshell
 import "modules/common"
+import "modules/common/functions"
 import "services"
 import "modules/common/widgets"
 import "musicLayer"

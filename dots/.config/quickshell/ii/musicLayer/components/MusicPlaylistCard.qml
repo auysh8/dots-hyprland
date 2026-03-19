@@ -91,38 +91,49 @@ Item {
         spacing: 8
 
         // Play button - highly contrasting adapted white with punched-out icon
-        RippleButtonWithIcon {
+        RippleButton {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 40
             Layout.preferredHeight: 40
             buttonRadius: 20
-            materialIcon: "play_arrow"
-            materialIconFill: true
-            mainText: ""
             colBackground: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1
             colBackgroundHover: rootContext ? ColorUtils.mix(rootContext.contentColor, rootContext.pillColor, 0.15) : Appearance.colors.colOnLayer1Hover
             colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.pillColor : Appearance.colors.colLayer0, 0.2)
+            horizontalPadding: 0
+            verticalPadding: 0
 
-            mainContentComponent: Component { Item {} }
-
+            contentItem: MaterialSymbol {
+                anchors.centerIn: parent
+                text: "play_arrow"
+                color: rootContext ? rootContext.pillColor : Appearance.colors.colLayer1Base
+                iconSize: 26
+                fill: 1
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
             onClicked: rootContext.openAndPlayPlaylist(root.playlistModel.id, false)
         }
 
         // Shuffle button
-        RippleButtonWithIcon {
+        RippleButton {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 36
             Layout.preferredHeight: 36
             buttonRadius: 18
-            materialIcon: "shuffle"
-            materialIconFill: false
-            mainText: ""
             colBackground: "transparent"
             colBackgroundHover: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1, 0.15)
             colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1, 0.2)
+            horizontalPadding: 0
+            verticalPadding: 0
 
-            mainContentComponent: Component { Item {} }
-
+            contentItem: MaterialSymbol {
+                anchors.centerIn: parent
+                text: "shuffle"
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1
+                iconSize: 22
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
             onClicked: rootContext.openAndPlayPlaylist(root.playlistModel.id, true)
         }
     }

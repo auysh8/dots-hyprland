@@ -106,26 +106,32 @@ Item {
         }
 
         // Collapse button (Top right)
-        RippleButtonWithIcon {
+        RippleButton {
             anchors.top: parent.top
             anchors.right: parent.right
             anchors.margins: 24
             implicitWidth: 48
             implicitHeight: 48
             buttonRadius: 24
-            materialIcon: "expand_more"
-            materialIconFill: false
-            mainText: ""
             colBackground: ColorUtils.transparentize(rootContext.contentColor, 0.9)
             colBackgroundHover: ColorUtils.transparentize(rootContext.contentColor, 0.8)
             colRipple: rootContext.contentColor
+            horizontalPadding: 0
+            verticalPadding: 0
+            z: 10
 
-            mainContentComponent: Component { Item {} }
+            contentItem: MaterialSymbol {
+                anchors.centerIn: parent
+                text: "expand_more"
+                iconSize: 28
+                color: rootContext.contentColor
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
 
             onClicked: {
                 rootContext.currentView = rootContext.previousView || "home"
             }
-            z: 10
         }
 
     // Main Content
@@ -331,29 +337,11 @@ Item {
                 spacing: 6
 
                 // Previous Button
-                RippleButtonWithIcon {
-                    Layout.preferredWidth: 64
-                    Layout.preferredHeight: 64
-                    buttonRadius: 32
-                    materialIcon: "skip_previous"
-                    materialIconFill: true
-                    mainText: ""
-                    rippleEnabled: false
-                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
-                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
-                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+                RippleButton {
+                    id: prevBtnContainer
+                    property bool isPressed: down
 
-                    mainContentComponent: Component { Item {} }
-
-                    onClicked: rootContext.sendCommand({"command": "previous"})
-                }
-
-                // Play/Pause Button
-                Item {
-                    id: playBtnContainer
-                    property bool isPressed: playArea.pressed
-
-                    implicitWidth: 130 + (isPressed ? 20 : (prevBtnContainer.isPressed ? -10 : (nextBtnContainer.isPressed ? -10 : 0)))
+                    implicitWidth: 64 + (isPressed ? 16 : (playBtnContainer.isPressed ? -10 : 0))
                     implicitHeight: 64
 
                     Behavior on implicitWidth {
@@ -367,51 +355,105 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: playBtnContainer.isPressed ? 20 : 32
-                        color: rootContext.pillColor
+                    buttonRadius: 32
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+                    horizontalPadding: 0
+                    verticalPadding: 0
 
-                        Behavior on radius { NumberAnimation { duration: 200 } }
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 28
+                        fill: 1
+                        color: rootContext.contentColor
+                        text: "skip_previous"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
 
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            iconSize: 40
-                            fill: 1
-                            color: rootContext.pillContentColor
-                            text: rootContext.playbackPaused ? "play_arrow" : "pause"
+                    onClicked: rootContext.sendCommand({"command": "previous"})
+                }
+
+                // Play/Pause Button
+                RippleButton {
+                    id: playBtnContainer
+                    property bool isPressed: down
+
+                    implicitWidth: 130 + (isPressed ? 20 : (prevBtnContainer.isPressed ? -16 : (nextBtnContainer.isPressed ? -16 : 0)))
+                    implicitHeight: 64
+
+                    Behavior on implicitWidth {
+                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
+                    }
+                    Behavior on implicitHeight {
+                        NumberAnimation {
+                            duration: 300
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 2
                         }
                     }
 
-                    MouseArea {
-                        id: playArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (rootContext.playbackPaused)
-                                rootContext.sendCommand({"command": "resume"})
-                            else
-                                rootContext.sendCommand({"command": "pause"})
-                        }
+                    buttonRadius: isPressed ? 20 : 32
+                    colBackground: rootContext.pillColor
+                    colBackgroundHover: ColorUtils.mix(rootContext.pillColor, rootContext.pillContentColor, 0.1)
+                    colRipple: ColorUtils.applyAlpha(rootContext.pillContentColor, 0.3)
+                    horizontalPadding: 0
+                    verticalPadding: 0
+
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 40
+                        fill: 1
+                        color: rootContext.pillContentColor
+                        text: rootContext.playbackPaused ? "play_arrow" : "pause"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    onClicked: {
+                        if (rootContext.playbackPaused)
+                            rootContext.sendCommand({"command": "resume"})
+                        else
+                            rootContext.sendCommand({"command": "pause"})
                     }
                 }
 
                 // Next Button
-                RippleButtonWithIcon {
-                    Layout.preferredWidth: 64
-                    Layout.preferredHeight: 64
+                RippleButton {
+                    id: nextBtnContainer
+                    property bool isPressed: down
+
+                    implicitWidth: 64 + (isPressed ? 16 : (playBtnContainer.isPressed ? -10 : 0))
+                    implicitHeight: 64
+
+                    Behavior on implicitWidth {
+                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
+                    }
+                    Behavior on implicitHeight {
+                        NumberAnimation {
+                            duration: 300
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 2
+                        }
+                    }
+
                     buttonRadius: 32
-                    materialIcon: "skip_next"
-                    materialIconFill: true
-                    mainText: ""
-                    rippleEnabled: false
                     colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
                     colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
                     colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+                    horizontalPadding: 0
+                    verticalPadding: 0
 
-                    mainContentComponent: Component { Item {} }
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 28
+                        fill: 1
+                        color: rootContext.contentColor
+                        text: "skip_next"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
 
                     onClicked: rootContext.sendCommand({"command": "next"})
                 }
@@ -778,18 +820,24 @@ Item {
                         color: rootContext.contentColor
                         Layout.fillWidth: true
                     }
-                    RippleButtonWithIcon {
+                    RippleButton {
                         implicitWidth: 40
                         implicitHeight: 40
                         buttonRadius: 20
-                        materialIcon: "close"
-                        materialIconFill: false
-                        mainText: ""
                         colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.1)
                         colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
                         colRipple: rootContext.contentColor
+                        horizontalPadding: 0
+                        verticalPadding: 0
 
-                        mainContentComponent: Component { Item {} }
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "close"
+                            iconSize: 24
+                            color: rootContext.contentColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
 
                         onClicked: root.queueExpanded = false
                     }
@@ -806,9 +854,12 @@ Item {
                         id: queueListView
                         anchors.fill: parent
                         anchors.margins: 8
+                        implicitHeight: parent.height - 16
                         clip: true
                         spacing: 4
-                    
+                        interactive: true
+                        acceptedButtons: Qt.NoButton
+
                     model: rootContext.queueList
 
                     move: Transition { NumberAnimation { properties: "x,y"; duration: 600; easing.type: Easing.OutQuart } }

@@ -4,7 +4,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 
-RippleButtonWithIcon {
+RippleButton {
     id: root
 
     property var rootContext
@@ -12,13 +12,18 @@ RippleButtonWithIcon {
     Layout.preferredWidth: 40
     Layout.preferredHeight: 40
     buttonRadius: 20
-    materialIcon: "arrow_back"
-    materialIconFill: false
-    mainText: ""
     colBackground: rootContext ? ColorUtils.transparentize(rootContext.contentColor, 0.9) : "transparent"
+    colBackgroundHover: rootContext ? ColorUtils.transparentize(rootContext.contentColor, 0.8) : "transparent"
     colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.2)
+    horizontalPadding: 0
+    verticalPadding: 0
 
-    mainContentComponent: Component {
-        Item {}
+    contentItem: MaterialSymbol {
+        anchors.centerIn: parent
+        text: "arrow_back"
+        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
+        iconSize: 24
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
     }
 }

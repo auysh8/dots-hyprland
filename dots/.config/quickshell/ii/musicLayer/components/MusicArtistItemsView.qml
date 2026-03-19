@@ -16,6 +16,7 @@ StyledFlickable {
     property bool show: rootContext && rootContext.currentView === "artist_items" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
+    enabled: show
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 
     anchors.fill: parent

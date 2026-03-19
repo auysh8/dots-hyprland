@@ -17,6 +17,7 @@ StyledFlickable {
     property bool show: queryText.length === 0 && rootContext.currentView === "library" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
+    enabled: show
     Behavior on opacity { NumberAnimation { duration: 280; easing.type: Easing.InOutQuad } }
 
     anchors.fill: parent
@@ -47,18 +48,21 @@ StyledFlickable {
                 color: rootContext.contentColor
             }
             Item { Layout.fillWidth: true }
-            RippleButtonWithIcon {
+            RippleButton {
                 Layout.preferredHeight: 36
                 buttonRadius: 18
-                materialIcon: rootContext.isAuthenticated ? "sync" : "account_circle"
-                materialIconFill: false
-                mainText: rootContext.isAuthenticated ? "Refresh" : "Sign In"
                 colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2Base
                 colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
 
-                mainContentComponent: Component {
+                contentItem: RowLayout {
+                    spacing: 8
+                    MaterialSymbol {
+                        text: rootContext.isAuthenticated ? "sync" : "account_circle"
+                        font.pixelSize: 18
+                        color: rootContext.contentColor
+                    }
                     StyledText {
-                        text: parent.parent.mainText
+                        text: rootContext.isAuthenticated ? "Refresh" : "Sign In"
                         font.pixelSize: 14
                         font.weight: 600
                         color: rootContext.contentColor
@@ -111,16 +115,19 @@ StyledFlickable {
                     lineHeight: 1.4
                 }
                 
-                RippleButtonWithIcon {
+                RippleButton {
                     Layout.preferredHeight: 38
                     buttonRadius: 19
-                    materialIcon: "link"
-                    materialIconFill: false
-                    mainText: "Connect Account"
                     colBackground: rootContext.extractedColor || rootContext.pillColor
                     colRipple: ColorUtils.applyAlpha(rootContext.extractedForeground, 0.2)
 
-                    mainContentComponent: Component {
+                    contentItem: RowLayout {
+                        spacing: 8
+                        MaterialSymbol {
+                            text: "link"
+                            font.pixelSize: 18
+                            color: rootContext ? rootContext.extractedForeground : Appearance.colors.colOnSecondaryContainer
+                        }
                         StyledText {
                             text: "Connect Account"
                             font.pixelSize: 14
@@ -151,14 +158,17 @@ StyledFlickable {
                 color: rootContext.contentColor
             }
 
-                                    ListView {
+            ListView {
                 id: recentGrid
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
+                implicitHeight: 280
                 orientation: ListView.Horizontal
                 spacing: 0
                 clip: true
                 cacheBuffer: 1200
+                interactive: true
+                acceptedButtons: Qt.NoButton
 
                 model: rootContext.libraryRecentTracks
 
@@ -169,7 +179,7 @@ StyledFlickable {
                     itemData: model
                     hoverColor: root.cardHoverColor
                     artPlaceholderColor: root.artPlaceholderColor
-                    
+
                     onClicked: {
                         rootContext.playTrack(model.videoId, model.title, model.artist, model.cover)
                     }
@@ -235,15 +245,18 @@ StyledFlickable {
                 color: rootContext.contentColor
             }
 
-                        ListView {
+            ListView {
                 id: communityRow
                 Layout.fillWidth: true
                 Layout.preferredHeight: 220
+                implicitHeight: 220
                 orientation: ListView.Horizontal
                 spacing: 16
                 clip: true
                 cacheBuffer: 1200
-                
+                interactive: true
+                acceptedButtons: Qt.NoButton
+
                 model: rootContext.libraryCommunityPlaylists
 
                 delegate: MusicPlaylistCard {

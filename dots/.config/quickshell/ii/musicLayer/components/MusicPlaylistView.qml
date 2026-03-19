@@ -15,6 +15,7 @@ StyledFlickable {
     property bool show: rootContext && rootContext.currentView === "playlist" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
+    enabled: show
     Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 
     anchors.fill: parent
@@ -166,10 +167,10 @@ StyledFlickable {
 
                 // Play/Shuffle buttons
                 MusicActionButtons {
-                    rootContext: rootContext
-                    tracksModel: rootContext ? rootContext.activePlaylistTracks : null
-                    coverUrl: rootContext ? rootContext.activePlaylistCover : ""
-                    authorName: rootContext ? rootContext.activePlaylistAuthor : ""
+                    rootContext: root.rootContext
+                    tracksModel: root.rootContext ? root.rootContext.activePlaylistTracks : null
+                    coverUrl: root.rootContext ? root.rootContext.activePlaylistCover : ""
+                    authorName: root.rootContext ? root.rootContext.activePlaylistAuthor : ""
                 }
             }
         }

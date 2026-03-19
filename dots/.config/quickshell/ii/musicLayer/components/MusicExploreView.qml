@@ -19,6 +19,7 @@ StyledFlickable {
     property bool show: queryText.length === 0 && rootContext.currentView === "explore" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
+    enabled: show
     Behavior on opacity { NumberAnimation { duration: 280; easing.type: Easing.InOutQuad } }
 
     anchors.fill: parent
@@ -80,10 +81,13 @@ StyledFlickable {
                 id: newReleaseRow
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
+                implicitHeight: 280
                 orientation: ListView.Horizontal
                 spacing: 0
                 clip: true
                 cacheBuffer: 1200
+                interactive: true
+                acceptedButtons: Qt.NoButton
                 model: root.releaseCount
 
                 delegate: MusicMediaCard {
@@ -93,7 +97,7 @@ StyledFlickable {
                     itemData: rootContext.exploreNewReleases.get(index)
                     hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
                     artPlaceholderColor: root.artPlaceholderColor
-                    
+
                     onClicked: {
                         root.handlePlayTrack(itemData)
                     }

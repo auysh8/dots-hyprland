@@ -24,17 +24,23 @@ Item {
         spacing: 16
 
         // Play button
-        RippleButtonWithIcon {
-            Layout.preferredWidth: playContent.implicitWidth + 32
+        RippleButton {
+            Layout.preferredWidth: playRow.implicitWidth + 32
             Layout.preferredHeight: 48
             buttonRadius: 24
-            materialIcon: "play_arrow"
-            materialIconFill: true
             colBackground: root.primaryBgColor
+            colBackgroundHover: ColorUtils.mix(root.primaryBgColor, root.primaryContentColor, 0.15)
             colRipple: ColorUtils.applyAlpha(root.primaryContentColor, 0.2)
 
-            mainContentComponent: Component {
-                id: playContent
+            contentItem: RowLayout {
+                id: playRow
+                spacing: 8
+                MaterialSymbol {
+                    text: "play_arrow"
+                    color: root.primaryContentColor
+                    iconSize: 24
+                    fill: 1
+                }
                 StyledText {
                     text: "Play"
                     color: root.primaryContentColor
@@ -44,11 +50,11 @@ Item {
             }
 
             onClicked: {
-                if (rootContext && rootContext.tracksModel && rootContext.tracksModel.count > 0) {
-                    let first = rootContext.tracksModel.get(0)
+                if (rootContext && tracksModel && tracksModel.count > 0) {
+                    let first = tracksModel.get(0)
                     let queueTracks = []
-                    for (let i = 1; i < rootContext.tracksModel.count; i++) {
-                        let t = rootContext.tracksModel.get(i)
+                    for (let i = 1; i < tracksModel.count; i++) {
+                        let t = tracksModel.get(i)
                         queueTracks.push({
                             videoId: t.videoId,
                             title: t.title,
@@ -63,17 +69,22 @@ Item {
         }
 
         // Shuffle button
-        RippleButtonWithIcon {
-            Layout.preferredWidth: shuffleContent.implicitWidth + 32
+        RippleButton {
+            Layout.preferredWidth: shuffleRow.implicitWidth + 32
             Layout.preferredHeight: 48
             buttonRadius: 24
-            materialIcon: "shuffle"
-            materialIconFill: false
             colBackground: root.secondaryBgColor
+            colBackgroundHover: ColorUtils.mix(root.secondaryBgColor, root.primaryContentColor, 0.2)
             colRipple: ColorUtils.applyAlpha(root.primaryContentColor, 0.2)
 
-            mainContentComponent: Component {
-                id: shuffleContent
+            contentItem: RowLayout {
+                id: shuffleRow
+                spacing: 8
+                MaterialSymbol {
+                    text: "shuffle"
+                    color: root.primaryContentColor
+                    iconSize: 24
+                }
                 StyledText {
                     text: "Shuffle"
                     color: root.primaryContentColor
@@ -83,10 +94,10 @@ Item {
             }
 
             onClicked: {
-                if (rootContext && rootContext.tracksModel && rootContext.tracksModel.count > 0) {
+                if (rootContext && tracksModel && tracksModel.count > 0) {
                     let tracksToPlay = []
-                    for (let i = 0; i < rootContext.tracksModel.count; i++) {
-                        let t = rootContext.tracksModel.get(i)
+                    for (let i = 0; i < tracksModel.count; i++) {
+                        let t = tracksModel.get(i)
                         tracksToPlay.push({
                             videoId: t.videoId,
                             title: t.title,

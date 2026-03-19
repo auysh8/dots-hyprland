@@ -304,34 +304,6 @@ FocusScope {
         return null
     }
 
-    function forwardWheelEvent(event) {
-        const flick = activeContentFlickable()
-        if (!flick) {
-            event.accepted = false
-            return
-        }
-
-        const angleY = event.angleDelta ? event.angleDelta.y : 0
-        const pixelY = event.pixelDelta ? event.pixelDelta.y : 0
-        if (angleY === 0 && pixelY === 0) {
-            event.accepted = false
-            return
-        }
-
-        const threshold = flick.mouseScrollDeltaThreshold ?? 120
-        const mouseFactor = flick.mouseScrollFactor ?? 50
-        const touchpadFactor = flick.touchpadScrollFactor ?? 100
-        const unitDelta = angleY !== 0 ? (angleY / threshold) : (pixelY / 15)
-        const scrollFactor = Math.abs(angleY) >= threshold ? mouseFactor : touchpadFactor
-
-        const maxY = Math.max(0, flick.contentHeight - flick.height)
-        const baseY = (flick.scrollTargetY !== undefined) ? flick.scrollTargetY : flick.contentY
-        const targetY = Math.max(0, Math.min(baseY - (unitDelta * scrollFactor), maxY))
-
-        flick.scrollTargetY = targetY
-        flick.contentY = targetY
-        event.accepted = true
-    }
     
     IpcHandler {
         target: "music"
@@ -1051,10 +1023,6 @@ FocusScope {
                             Layout.fillHeight: true
                             clip: true
 
-                            WheelHandler {
-                                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                                onWheel: (event) => root.forwardWheelEvent(event)
-                            }
 
                             MusicSearchView {
                                 id: searchView

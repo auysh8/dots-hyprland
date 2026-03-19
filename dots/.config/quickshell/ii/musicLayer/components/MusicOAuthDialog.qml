@@ -74,15 +74,23 @@ Rectangle {
                 radius: 12
                 color: rootContext.oauthCopied ? rootContext.extractedColor : rootContext.pillColor
 
-                RippleButtonWithIcon {
+                RippleButton {
                     anchors.fill: parent
                     anchors.margins: 4
                     buttonRadius: 8
-                    materialIcon: rootContext.oauthCopied ? "check" : "content_copy"
-                    mainText: ""
-                    implicitHeight: parent.height - 8
                     colBackground: "transparent"
                     colBackgroundHover: ColorUtils.transparentize(rootContext.oauthCopied ? rootContext.extractedForeground : rootContext.pillContentColor, 0.85)
+                    horizontalPadding: 0
+                    verticalPadding: 0
+
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: rootContext.oauthCopied ? "check" : "content_copy"
+                        font.pixelSize: 24
+                        color: rootContext.oauthCopied ? rootContext.extractedForeground : rootContext.pillContentColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
 
                     onClicked: {
                         rootContext.sendCommand({ "command": "copy_clipboard", "text": rootContext.oauthCode })

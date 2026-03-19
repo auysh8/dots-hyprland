@@ -16,7 +16,7 @@ Item {
 
     signal clicked()
 
-    property bool isArtist: (itemData.browseId || "").startsWith("UC")
+    property bool isArtist: (itemData.browseId || "").startsWith("UC") || (itemData.videoId || "").startsWith("UC")
     property bool isAlbum: (itemData.browseId || "").startsWith("MPRE")
     property bool isPlaylist: !!(itemData.playlistId) && !(itemData.actualVideoId)
     property bool isSong: !!(itemData.actualVideoId)
