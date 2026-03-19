@@ -273,6 +273,7 @@ Item {
                     id: heartArea
                     anchors.fill: parent
                     hoverEnabled: true
+                    scrollGestureEnabled: false
                     onClicked: rootContext.toggleCurrentTrackLike()
                 }
             }
@@ -788,7 +789,8 @@ Item {
             // Catch clicks inside the panel so they don't fall through and close it
             MouseArea {
                 anchors.fill: parent
-                hoverEnabled: true    
+                hoverEnabled: true
+                scrollGestureEnabled: false
             }
             
             Rectangle {
@@ -977,6 +979,7 @@ Item {
                                         id: dragHandle
                                         anchors.fill: parent
                                         anchors.margins: -8  // Expand hit area slightly for easier grab
+                                        scrollGestureEnabled: false
                                         cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
 
                                         drag.target: contentRect
@@ -1025,6 +1028,7 @@ Item {
                                 id: clickArea
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                scrollGestureEnabled: false
                                 z: -1
 
                                 onClicked: {

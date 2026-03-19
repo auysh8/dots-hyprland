@@ -22,7 +22,11 @@ StyledFlickable {
     anchors.fill: parent
     clip: true
     contentHeight: itemsContainer.implicitHeight + (rootContext && rootContext.currentTrack ? 120 : 32)
+    contentWidth: width
     flickableDirection: Flickable.VerticalFlick
+    // This view is dense with full-card tap targets, so give the page flick
+    // a bit more time to win before card taps are recognized.
+    pressDelay: 250
 
     ColumnLayout {
         id: itemsContainer
@@ -58,40 +62,38 @@ StyledFlickable {
             }
         }
 
-        GridView {
+        Flow {
             id: itemsGrid
             Layout.fillWidth: true
-            
-            property int columns: Math.max(1, Math.floor((width - 20) / 220))
-            property int rows: Math.ceil((rootContext && rootContext.activeArtistItemsModel ? rootContext.activeArtistItemsModel.count : 0) / columns)
-            Layout.preferredHeight: rows * cellHeight
-            
-            cellWidth: Math.floor(width / columns)
-            cellHeight: 280
-            flow: GridView.FlowLeftToRight
-            clip: true
-            interactive: false
+            Layout.preferredHeight: childrenRect.height
+            width: parent.width
+            spacing: 0
+            property int targetCellWidth: 220
+            property int columns: Math.max(1, Math.floor(width / targetCellWidth))
+            property int cellWidth: Math.floor(width / columns)
 
-            model: rootContext && rootContext.activeArtistItemsModel ? rootContext.activeArtistItemsModel : null
+            Repeater {
+                model: rootContext && rootContext.activeArtistItemsModel ? rootContext.activeArtistItemsModel : null
 
-            delegate: MusicMediaCard {
-                width: itemsGrid.cellWidth
-                height: itemsGrid.cellHeight
-                rootContext: root.rootContext
-                itemData: model
-                hoverColor: root.cardHoverColor
-                artPlaceholderColor: root.artPlaceholderColor
-                
-                customSubtitle: {
-                    let parts = []
-                    if (model.year) parts.push(model.year)
-                    if (model.type) parts.push(model.type)
-                    return parts.join(" • ")
-                }
-                
-                onClicked: {
-                    if (model.browseId && rootContext) {
-                        rootContext.openPlaylist(model.browseId)
+                delegate: MusicMediaCard {
+                    width: itemsGrid.cellWidth
+                    height: 280
+                    rootContext: root.rootContext
+                    itemData: model
+                    hoverColor: root.cardHoverColor
+                    artPlaceholderColor: root.artPlaceholderColor
+
+                    customSubtitle: {
+                        let parts = []
+                        if (model.year) parts.push(model.year)
+                        if (model.type) parts.push(model.type)
+                        return parts.join(" • ")
+                    }
+
+                    onClicked: {
+                        if (model.browseId && rootContext) {
+                            rootContext.openPlaylist(model.browseId)
+                        }
                     }
                 }
             }

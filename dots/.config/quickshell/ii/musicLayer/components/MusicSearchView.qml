@@ -14,6 +14,8 @@ StyledFlickable {
 
     anchors.fill: parent
     contentHeight: resultsColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
+    contentWidth: width
+    pressDelay: 150
 
     property bool show: queryText.length > 0 && rootContext.currentView !== "playlist" && rootContext.currentView !== "artist" && rootContext.currentView !== "artist_items" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
@@ -47,29 +49,35 @@ StyledFlickable {
                 color: rootContext.contentColor
             }
 
-            ListView {
+            MusicHorizontalFlickable {
                 id: artistList
                 Layout.fillWidth: true
                 Layout.preferredHeight: 220
                 implicitHeight: 220
-                orientation: ListView.Horizontal
-                spacing: 0
+                contentWidth: artistRow.implicitWidth
+                contentHeight: artistRow.implicitHeight
                 clip: true
-                interactive: true
-                acceptedButtons: Qt.NoButton  // Disable drag, use wheel only
+                interactive: contentWidth > width
 
-                model: rootContext.artistResults
+                Row {
+                    id: artistRow
+                    spacing: 0
 
-                delegate: MusicMediaCard {
-                    width: 180
-                    height: 220
-                    rootContext: root.rootContext
-                    itemData: model
-                    hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.5)
-                    artPlaceholderColor: ColorUtils.transparentize(rootContext.pillColor, 0.4)
+                    Repeater {
+                        model: rootContext.artistResults
 
-                    onClicked: {
-                        rootContext.openArtist(model.videoId || "")
+                        delegate: MusicMediaCard {
+                            width: 180
+                            height: 220
+                            rootContext: root.rootContext
+                            itemData: model
+                            hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                            artPlaceholderColor: ColorUtils.transparentize(rootContext.pillColor, 0.4)
+
+                            onClicked: {
+                                rootContext.openArtist(model.videoId || "")
+                            }
+                        }
                     }
                 }
             }
@@ -165,15 +173,20 @@ StyledFlickable {
             }
 
             Flow {
+                id: albumGrid
                 Layout.fillWidth: true
                 Layout.preferredHeight: childrenRect.height
+                width: parent.width
                 spacing: 16
+                property int targetCellWidth: 200
+                property int columns: Math.max(1, Math.floor((width + spacing) / (targetCellWidth + spacing)))
+                property int cellWidth: Math.floor((width - Math.max(0, columns - 1) * spacing) / columns)
 
                 Repeater {
                     model: rootContext.albumResults
 
                     delegate: MusicMediaCard {
-                        width: (parent.width - 64) / 5
+                        width: albumGrid.cellWidth
                         rootContext: root.rootContext
                         itemData: model
                         hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.3)

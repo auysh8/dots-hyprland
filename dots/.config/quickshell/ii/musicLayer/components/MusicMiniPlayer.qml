@@ -59,6 +59,7 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
+        scrollGestureEnabled: false
         enabled: !root.isExpanding
         onClicked: {
             if (rootContext && rootContext.currentTrack) {

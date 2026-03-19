@@ -108,6 +108,7 @@ Item {
             id: cardHover
             anchors.fill: parent
             hoverEnabled: true
+            scrollGestureEnabled: false
             cursorShape: Qt.PointingHandCursor
             onClicked: root.clicked()
         }

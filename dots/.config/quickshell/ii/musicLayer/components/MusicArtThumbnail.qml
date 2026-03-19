@@ -77,9 +77,14 @@ Item {
             MouseArea {
                 id: artMouse
                 anchors.fill: parent
+                acceptedButtons: Qt.NoButton
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.clicked()
+            }
+
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                onTapped: root.clicked()
             }
         }
     }

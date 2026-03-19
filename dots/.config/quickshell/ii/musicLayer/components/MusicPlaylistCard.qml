@@ -10,76 +10,88 @@ Item {
     property var rootContext
     property var playlistModel
     property color artPlaceholderColor: "transparent"
+    property bool hovered: cardHover.containsMouse
 
     implicitWidth: 180
     implicitHeight: 220
 
-    // The main card button with ripple
-    RippleButton {
-        id: mainBtn
+    Rectangle {
+        id: mainCard
         anchors.fill: parent
-        buttonRadius: 20
-        colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer1
-        padding: 0
-        
-        onClicked: rootContext.openPlaylist(root.playlistModel.id)
-        
-        contentItem: Item {
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                
-                Rectangle {
-                    id: playlistArtContainer
-                    width: 60; height: 60; radius: 10
-                    color: root.playlistModel.isLikedSongs 
-                           ? (rootContext ? ColorUtils.applyAlpha(rootContext.contentColor, 0.15) : ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.15)) 
-                           : root.artPlaceholderColor
+        radius: 20
+        color: root.hovered
+            ? (rootContext ? ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.08) : Appearance.colors.colLayer1Hover)
+            : (rootContext ? rootContext.pillColor : Appearance.colors.colLayer1)
 
-                    RoundedImage {
-                        anchors.fill: parent
-                        source: root.playlistModel.cover || ""
-                        sourceSize.width: 120
-                        sourceSize.height: 120
-                        fillMode: Image.PreserveAspectCrop
-                        radius: 10
-                        asynchronous: true
-                        cache: true
-                        visible: !root.playlistModel.isLikedSongs
-                    }
-                    
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "favorite"
-                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1
-                        iconSize: 32
-                        fill: 1
-                        visible: root.playlistModel.isLikedSongs === true
-                    }
-                }
-                Item { Layout.fillHeight: true }
-                
-                StyledText {
-                    text: root.playlistModel.title || ""
-                    font.pixelSize: 18
-                    font.weight: 700
-                    color: rootContext.contentColor
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                    maximumLineCount: 2
-                    wrapMode: Text.WordWrap
+        Behavior on color { ColorAnimation { duration: 150 } }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 16
+            
+            Rectangle {
+                id: playlistArtContainer
+                width: 60; height: 60; radius: 10
+                color: root.playlistModel.isLikedSongs 
+                       ? (rootContext ? ColorUtils.applyAlpha(rootContext.contentColor, 0.15) : ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.15)) 
+                       : root.artPlaceholderColor
+
+                RoundedImage {
+                    anchors.fill: parent
+                    source: root.playlistModel.cover || ""
+                    sourceSize.width: 120
+                    sourceSize.height: 120
+                    fillMode: Image.PreserveAspectCrop
+                    radius: 10
+                    asynchronous: true
+                    cache: true
+                    visible: !root.playlistModel.isLikedSongs
                 }
                 
-                StyledText {
-                    text: root.playlistModel.count !== undefined ? (root.playlistModel.count + " songs") : (root.playlistModel.artist || "")
-                    font.pixelSize: 13
-                    color: rootContext.secondaryContentColor
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                    maximumLineCount: 1
-                    visible: text.length > 0 && root.playlistModel.count !== "0"
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "favorite"
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1
+                    iconSize: 32
+                    fill: 1
+                    visible: root.playlistModel.isLikedSongs === true
                 }
             }
+            Item { Layout.fillHeight: true }
+            
+            StyledText {
+                text: root.playlistModel.title || ""
+                font.pixelSize: 18
+                font.weight: 700
+                color: rootContext.contentColor
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+                maximumLineCount: 2
+                wrapMode: Text.WordWrap
+            }
+            
+            StyledText {
+                text: root.playlistModel.count !== undefined ? (root.playlistModel.count + " songs") : (root.playlistModel.artist || "")
+                font.pixelSize: 13
+                color: rootContext.secondaryContentColor
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+                maximumLineCount: 1
+                visible: text.length > 0 && root.playlistModel.count !== "0"
+            }
+        }
+
+        MouseArea {
+            id: cardHover
+            anchors.fill: parent
+            acceptedButtons: Qt.NoButton
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+        }
+
+        TapHandler {
+            acceptedButtons: Qt.LeftButton
+            onTapped: rootContext.openPlaylist(root.playlistModel.id)
         }
     }
 

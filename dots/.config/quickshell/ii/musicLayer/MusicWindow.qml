@@ -68,8 +68,16 @@ Scope {
                 }
 
                 MouseArea {
+                    id: backgroundClickArea
                     anchors.fill: parent
-                    onClicked: root.closeWindow()
+                    scrollGestureEnabled: false
+                    onClicked: (mouse) => {
+                        const panelBounds = musicPanel.mapToItem(backgroundClickArea, 0, 0, musicPanel.width, musicPanel.height);
+                        const clickInPanel = mouse.x >= panelBounds.x && mouse.x <= panelBounds.x + panelBounds.width &&
+                                             mouse.y >= panelBounds.y && mouse.y <= panelBounds.y + panelBounds.height;
+                        if (!clickInPanel)
+                            root.closeWindow();
+                    }
                 }
             }
 
@@ -106,8 +114,6 @@ Scope {
                         easing.type: Appearance.animation.elementMoveFast.easing
                     }
                 }
-
-                MouseArea { anchors.fill: parent; onClicked: {} }
 
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Escape) {

@@ -25,6 +25,8 @@ StyledFlickable {
     anchors.fill: parent
     clip: true
     contentHeight: exploreColumn.implicitHeight + bottomPadding
+    contentWidth: width
+    pressDelay: 150
 
     function handlePlayTrack(trackData) {
         if (!trackData || !trackData.videoId) return;
@@ -77,29 +79,35 @@ StyledFlickable {
                 }
             }
 
-            ListView {
+            MusicHorizontalFlickable {
                 id: newReleaseRow
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
                 implicitHeight: 280
-                orientation: ListView.Horizontal
-                spacing: 0
+                contentWidth: newReleaseContentRow.implicitWidth
+                contentHeight: newReleaseContentRow.implicitHeight
                 clip: true
-                cacheBuffer: 1200
-                interactive: true
-                acceptedButtons: Qt.NoButton
-                model: root.releaseCount
+                interactive: contentWidth > width
 
-                delegate: MusicMediaCard {
-                    width: 240
-                    height: 280
-                    rootContext: root.rootContext
-                    itemData: rootContext.exploreNewReleases.get(index)
-                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
-                    artPlaceholderColor: root.artPlaceholderColor
+                Row {
+                    id: newReleaseContentRow
+                    spacing: 0
 
-                    onClicked: {
-                        root.handlePlayTrack(itemData)
+                    Repeater {
+                        model: root.releaseCount
+
+                        delegate: MusicMediaCard {
+                            width: 240
+                            height: 280
+                            rootContext: root.rootContext
+                            itemData: rootContext.exploreNewReleases.get(index)
+                            hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
+                            artPlaceholderColor: root.artPlaceholderColor
+
+                            onClicked: {
+                                root.handlePlayTrack(itemData)
+                            }
+                        }
                     }
                 }
             }

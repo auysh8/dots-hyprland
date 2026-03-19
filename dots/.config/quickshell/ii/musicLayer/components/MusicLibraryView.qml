@@ -23,6 +23,8 @@ StyledFlickable {
     anchors.fill: parent
     clip: true
     contentHeight: libraryLayout.implicitHeight + (rootContext.currentTrack ? 120 : 32)
+    contentWidth: width
+    pressDelay: 150
     
     // The dummy array was removed.
 
@@ -158,30 +160,35 @@ StyledFlickable {
                 color: rootContext.contentColor
             }
 
-            ListView {
+            MusicHorizontalFlickable {
                 id: recentGrid
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
                 implicitHeight: 280
-                orientation: ListView.Horizontal
-                spacing: 0
+                contentWidth: recentRow.implicitWidth
+                contentHeight: recentRow.implicitHeight
                 clip: true
-                cacheBuffer: 1200
-                interactive: true
-                acceptedButtons: Qt.NoButton
+                interactive: contentWidth > width
 
-                model: rootContext.libraryRecentTracks
+                Row {
+                    id: recentRow
+                    spacing: 0
 
-                delegate: MusicMediaCard {
-                    width: 240
-                    height: 280
-                    rootContext: root.rootContext
-                    itemData: model
-                    hoverColor: root.cardHoverColor
-                    artPlaceholderColor: root.artPlaceholderColor
+                    Repeater {
+                        model: rootContext.libraryRecentTracks
 
-                    onClicked: {
-                        rootContext.playTrack(model.videoId, model.title, model.artist, model.cover)
+                        delegate: MusicMediaCard {
+                            width: 240
+                            height: 280
+                            rootContext: root.rootContext
+                            itemData: model
+                            hoverColor: root.cardHoverColor
+                            artPlaceholderColor: root.artPlaceholderColor
+
+                            onClicked: {
+                                rootContext.playTrack(model.videoId, model.title, model.artist, model.cover)
+                            }
+                        }
                     }
                 }
             }
@@ -196,12 +203,15 @@ StyledFlickable {
             property bool hasData: rootContext.libraryPlaylists.count > 0 || rootContext.libraryLikedSongCount > 0
             visible: hasData
             Layout.topMargin: 32
+            property int targetCellWidth: 180
+            property int columns: Math.max(1, Math.floor((width + spacing) / (targetCellWidth + spacing)))
+            property int cellWidth: Math.floor((width - Math.max(0, columns - 1) * spacing) / columns)
             
             // Liked Songs Card
             MusicPlaylistCard {
                 id: likedCard
                 rootContext: root.rootContext
-                width: Math.max(180, (parent.width - 16 * 4) / 4)
+                width: playlistsSection.cellWidth
                 
                 // Construct a dummy model that mimics what MusicPlaylistCard expects
                 playlistModel: ({
@@ -221,7 +231,7 @@ StyledFlickable {
                 
                 delegate: MusicPlaylistCard {
                     rootContext: root.rootContext
-                    width: Math.max(180, (parent.width - 16 * 4) / 4)
+                    width: playlistsSection.cellWidth
                     playlistModel: model
                     artPlaceholderColor: root.artPlaceholderColor
                 }
@@ -245,24 +255,30 @@ StyledFlickable {
                 color: rootContext.contentColor
             }
 
-            ListView {
+            MusicHorizontalFlickable {
                 id: communityRow
                 Layout.fillWidth: true
                 Layout.preferredHeight: 220
                 implicitHeight: 220
-                orientation: ListView.Horizontal
-                spacing: 16
+                contentWidth: communityContentRow.implicitWidth
+                contentHeight: communityContentRow.implicitHeight
                 clip: true
-                cacheBuffer: 1200
-                interactive: true
-                acceptedButtons: Qt.NoButton
+                interactive: contentWidth > width
 
-                model: rootContext.libraryCommunityPlaylists
+                Row {
+                    id: communityContentRow
+                    spacing: 16
 
-                delegate: MusicPlaylistCard {
-                    rootContext: root.rootContext
-                    playlistModel: model
-                    artPlaceholderColor: root.artPlaceholderColor
+                    Repeater {
+                        model: rootContext.libraryCommunityPlaylists
+
+                        delegate: MusicPlaylistCard {
+                            rootContext: root.rootContext
+                            width: 180
+                            playlistModel: model
+                            artPlaceholderColor: root.artPlaceholderColor
+                        }
+                    }
                 }
             }
         }

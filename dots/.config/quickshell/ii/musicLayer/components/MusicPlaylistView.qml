@@ -21,7 +21,9 @@ StyledFlickable {
     anchors.fill: parent
     clip: true
     contentHeight: Math.max(height, playlistContainer.implicitHeight + (rootContext && rootContext.currentTrack ? 120 : 32))
+    contentWidth: width
     flickableDirection: Flickable.VerticalFlick
+    pressDelay: 150
 
     onDraggingChanged: {
         if (!dragging && contentY <= -100 && !rootContext.refreshing && !rootContext.isLoading) {

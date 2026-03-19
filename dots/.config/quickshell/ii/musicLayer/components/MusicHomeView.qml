@@ -21,7 +21,9 @@ StyledFlickable {
 
     anchors.fill: parent
     contentHeight: homeColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
+    contentWidth: width
     flickableDirection: Flickable.VerticalFlick
+    pressDelay: 150
 
     property bool show: queryText.length === 0 && rootContext.currentView === "home" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
@@ -127,31 +129,36 @@ StyledFlickable {
                 Item { Layout.fillWidth: true }
             }
 
-            GridView {
+            MusicHorizontalFlickable {
                 id: recGrid
                 Layout.fillWidth: true
-                property int columns: Math.max(1, Math.floor(width / 240))
-                Layout.preferredHeight: Math.min(2, Math.ceil(rootContext.homeContent.count / columns)) * cellHeight
-                implicitHeight: Layout.preferredHeight
-                cellWidth: 240
-                cellHeight: 280
-                flow: GridView.FlowTopToBottom
+                Layout.preferredHeight: recContent.implicitHeight
+                implicitHeight: recContent.implicitHeight
+                contentWidth: recContent.implicitWidth
+                contentHeight: recContent.implicitHeight
                 clip: true
-                flickableDirection: Flickable.HorizontalFlick
-                cacheBuffer: 1200
-                interactive: true
-                acceptedButtons: Qt.NoButton
+                interactive: contentWidth > width
 
-                model: rootContext.homeContent
+                Grid {
+                    id: recContent
+                    rows: Math.min(2, Math.max(1, rootContext.homeContent.count))
+                    flow: Grid.TopToBottom
+                    rowSpacing: 0
+                    columnSpacing: 0
 
-                delegate: MusicMediaCard {
-                    width: recGrid.cellWidth
-                    height: recGrid.cellHeight
-                    rootContext: root.rootContext
-                    itemData: model
-                    hoverColor: root.cardHoverColor
-                    artPlaceholderColor: root.artPlaceholderColor
-                    onClicked: root.handleItemClick(model)
+                    Repeater {
+                        model: rootContext.homeContent
+
+                        delegate: MusicMediaCard {
+                            width: 240
+                            height: 280
+                            rootContext: root.rootContext
+                            itemData: model
+                            hoverColor: root.cardHoverColor
+                            artPlaceholderColor: root.artPlaceholderColor
+                            onClicked: root.handleItemClick(model)
+                        }
+                    }
                 }
             }
         }
@@ -242,32 +249,37 @@ StyledFlickable {
                 }
             }
 
-            GridView {
+            MusicHorizontalFlickable {
                 id: shortGrid
                 Layout.fillWidth: true
-                property int columns: Math.max(1, Math.floor(width / 240))
-                Layout.preferredHeight: Math.min(2, Math.ceil(rootContext.shortsContent.count / columns)) * cellHeight
-                implicitHeight: Layout.preferredHeight
-                cellWidth: 240
-                cellHeight: 280
-                flow: GridView.FlowTopToBottom
-                clip: true
-                flickableDirection: Flickable.HorizontalFlick
+                Layout.preferredHeight: shortContent.implicitHeight
+                implicitHeight: shortContent.implicitHeight
                 visible: rootContext.shortsContent.count > 0
-                cacheBuffer: 1200
-                interactive: true
-                acceptedButtons: Qt.NoButton
+                contentWidth: shortContent.implicitWidth
+                contentHeight: shortContent.implicitHeight
+                clip: true
+                interactive: contentWidth > width
 
-                model: rootContext.shortsContent
+                Grid {
+                    id: shortContent
+                    rows: Math.min(2, Math.max(1, rootContext.shortsContent.count))
+                    flow: Grid.TopToBottom
+                    rowSpacing: 0
+                    columnSpacing: 0
 
-                delegate: MusicMediaCard {
-                    width: shortGrid.cellWidth
-                    height: shortGrid.cellHeight
-                    rootContext: root.rootContext
-                    itemData: model
-                    hoverColor: root.cardHoverColor
-                    artPlaceholderColor: root.artPlaceholderColor
-                    onClicked: root.handleItemClick(model)
+                    Repeater {
+                        model: rootContext.shortsContent
+
+                        delegate: MusicMediaCard {
+                            width: 240
+                            height: 280
+                            rootContext: root.rootContext
+                            itemData: model
+                            hoverColor: root.cardHoverColor
+                            artPlaceholderColor: root.artPlaceholderColor
+                            onClicked: root.handleItemClick(model)
+                        }
+                    }
                 }
             }
         }

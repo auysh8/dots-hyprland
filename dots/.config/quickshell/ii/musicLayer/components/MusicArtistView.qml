@@ -21,6 +21,7 @@ StyledFlickable {
     anchors.fill: parent
     contentWidth: width
     contentHeight: artistContainer.implicitHeight + 32
+    pressDelay: 150
 
     onDraggingChanged: {
         if (!dragging && contentY <= -100 && !rootContext.refreshing && !rootContext.isLoading) {
@@ -311,36 +312,43 @@ StyledFlickable {
                 }
             }
 
-            ListView {
+            MusicHorizontalFlickable {
+                id: albumsList
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
                 implicitHeight: 280
-                orientation: ListView.Horizontal
-                spacing: 0
+                contentWidth: albumsRow.implicitWidth
+                contentHeight: albumsRow.implicitHeight
                 clip: true
-                interactive: true
-                acceptedButtons: Qt.NoButton
+                interactive: contentWidth > width
 
-                model: rootContext ? rootContext.activeArtistAlbums : null
+                Row {
+                    id: albumsRow
+                    spacing: 0
 
-                delegate: MusicMediaCard {
-                    width: 240
-                    height: 280
-                    rootContext: root.rootContext
-                    itemData: model
-                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
-                    artPlaceholderColor: root.artPlaceholderColor
+                    Repeater {
+                        model: rootContext ? rootContext.activeArtistAlbums : null
 
-                    customSubtitle: {
-                        let parts = []
-                        if (model.year) parts.push(model.year)
-                        if (model.type) parts.push(model.type)
-                        return parts.join(" • ")
-                    }
+                        delegate: MusicMediaCard {
+                            width: 240
+                            height: 280
+                            rootContext: root.rootContext
+                            itemData: model
+                            hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
+                            artPlaceholderColor: root.artPlaceholderColor
 
-                    onClicked: {
-                        if (model.browseId && rootContext) {
-                            rootContext.openPlaylist(model.browseId)
+                            customSubtitle: {
+                                let parts = []
+                                if (model.year) parts.push(model.year)
+                                if (model.type) parts.push(model.type)
+                                return parts.join(" • ")
+                            }
+
+                            onClicked: {
+                                if (model.browseId && rootContext) {
+                                    rootContext.openPlaylist(model.browseId)
+                                }
+                            }
                         }
                     }
                 }
@@ -399,36 +407,43 @@ StyledFlickable {
                 }
             }
 
-            ListView {
+            MusicHorizontalFlickable {
+                id: singlesList
                 Layout.fillWidth: true
                 Layout.preferredHeight: 280
                 implicitHeight: 280
-                orientation: ListView.Horizontal
-                spacing: 0
+                contentWidth: singlesRow.implicitWidth
+                contentHeight: singlesRow.implicitHeight
                 clip: true
-                interactive: true
-                acceptedButtons: Qt.NoButton
+                interactive: contentWidth > width
 
-                model: rootContext ? rootContext.activeArtistSingles : null
+                Row {
+                    id: singlesRow
+                    spacing: 0
 
-                delegate: MusicMediaCard {
-                    width: 240
-                    height: 280
-                    rootContext: root.rootContext
-                    itemData: model
-                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
-                    artPlaceholderColor: root.artPlaceholderColor
+                    Repeater {
+                        model: rootContext ? rootContext.activeArtistSingles : null
 
-                    customSubtitle: {
-                        let parts = []
-                        if (model.year) parts.push(model.year)
-                        if (model.type) parts.push(model.type)
-                        return parts.join(" • ")
-                    }
+                        delegate: MusicMediaCard {
+                            width: 240
+                            height: 280
+                            rootContext: root.rootContext
+                            itemData: model
+                            hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
+                            artPlaceholderColor: root.artPlaceholderColor
 
-                    onClicked: {
-                        if (model.browseId && rootContext) {
-                            rootContext.openPlaylist(model.browseId)
+                            customSubtitle: {
+                                let parts = []
+                                if (model.year) parts.push(model.year)
+                                if (model.type) parts.push(model.type)
+                                return parts.join(" • ")
+                            }
+
+                            onClicked: {
+                                if (model.browseId && rootContext) {
+                                    rootContext.openPlaylist(model.browseId)
+                                }
+                            }
                         }
                     }
                 }
@@ -448,31 +463,38 @@ StyledFlickable {
                 color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
 
-            ListView {
+            MusicHorizontalFlickable {
+                id: relatedArtistsList
                 Layout.fillWidth: true
                 Layout.preferredHeight: 260
                 implicitHeight: 260
-                orientation: ListView.Horizontal
-                spacing: 0
+                contentWidth: relatedArtistsRow.implicitWidth
+                contentHeight: relatedArtistsRow.implicitHeight
                 clip: true
-                interactive: true
-                acceptedButtons: Qt.NoButton
+                interactive: contentWidth > width
 
-                model: rootContext ? rootContext.activeArtistRelated : null
+                Row {
+                    id: relatedArtistsRow
+                    spacing: 0
 
-                delegate: MusicMediaCard {
-                    width: 180
-                    height: 260
-                    rootContext: root.rootContext
-                    itemData: model
-                    hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
-                    artPlaceholderColor: root.artPlaceholderColor
+                    Repeater {
+                        model: rootContext ? rootContext.activeArtistRelated : null
 
-                    customSubtitle: model.subscribers || ""
+                        delegate: MusicMediaCard {
+                            width: 180
+                            height: 260
+                            rootContext: root.rootContext
+                            itemData: model
+                            hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.55) : "transparent"
+                            artPlaceholderColor: root.artPlaceholderColor
 
-                    onClicked: {
-                        if (model.browseId && rootContext) {
-                            rootContext.openArtist(model.browseId)
+                            customSubtitle: model.subscribers || ""
+
+                            onClicked: {
+                                if (model.browseId && rootContext) {
+                                    rootContext.openArtist(model.browseId)
+                                }
+                            }
                         }
                     }
                 }
