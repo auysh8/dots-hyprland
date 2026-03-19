@@ -142,25 +142,21 @@ Rectangle {
         RowLayout {
             spacing: 8
 
-            RippleButton {
+            RippleButtonWithIcon {
                 Layout.preferredWidth: 48
                 Layout.preferredHeight: 48
                 buttonRadius: 24
+                materialIcon: "skip_previous"
+                materialIconFill: false
+                mainText: ""
                 rippleEnabled: false
                 colBackground: "transparent"
-                colBackgroundHover: "transparent"
-                colBackgroundToggled: "transparent"
-                colBackgroundToggledHover: "transparent"
-                colRipple: "transparent"
-                colRippleToggled: "transparent"
-                onClicked: rootContext.sendCommand({"command": "previous"})
+                colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
 
-                contentItem: MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "skip_previous"
-                    color: rootContext.contentColor
-                    iconSize: 24
-                }
+                mainContentComponent: Component { Item {} }
+
+                onClicked: rootContext.sendCommand({"command": "previous"})
             }
 
             RippleButton {
@@ -170,11 +166,8 @@ Rectangle {
                 rippleEnabled: false
                 pointingHandCursor: !rootContext.isTrackLoading
                 colBackground: "transparent"
-                colBackgroundHover: "transparent"
-                colBackgroundToggled: "transparent"
-                colBackgroundToggledHover: "transparent"
-                colRipple: "transparent"
-                colRippleToggled: "transparent"
+                colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
 
                 onClicked: {
                     if (rootContext.isTrackLoading) return
@@ -205,25 +198,21 @@ Rectangle {
                 }
             }
 
-            RippleButton {
+            RippleButtonWithIcon {
                 Layout.preferredWidth: 48
                 Layout.preferredHeight: 48
                 buttonRadius: 24
+                materialIcon: "skip_next"
+                materialIconFill: false
+                mainText: ""
                 rippleEnabled: false
                 colBackground: "transparent"
-                colBackgroundHover: "transparent"
-                colBackgroundToggled: "transparent"
-                colBackgroundToggledHover: "transparent"
-                colRipple: "transparent"
-                colRippleToggled: "transparent"
-                onClicked: rootContext.sendCommand({"command": "next"})
+                colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
 
-                contentItem: MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "skip_next"
-                    color: rootContext.contentColor
-                    iconSize: 24
-                }
+                mainContentComponent: Component { Item {} }
+
+                onClicked: rootContext.sendCommand({"command": "next"})
             }
         }
     }
