@@ -736,12 +736,6 @@ FocusScope {
                 }
             }
 
-            Rectangle {
-                anchors.fill: parent
-                color: root.backgroundColor
-                opacity: root.isAppMode ? 1.0 : 0.85
-            }
-
             RowLayout {
                 anchors.fill: parent
                 anchors.margins: 0
@@ -829,12 +823,10 @@ FocusScope {
                 }
                 
                 // Main Content
-                Rectangle {
+                Item {
+                    id: mainContentShell
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    color: root.surfaceColor
-                    radius: root.isAppMode ? (Appearance.rounding.windowRounding - 8) : 20
-                    clip: true
                     
                     ColumnLayout {
                         anchors.fill: parent

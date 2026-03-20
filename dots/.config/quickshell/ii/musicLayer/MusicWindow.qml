@@ -81,7 +81,7 @@ Scope {
                 }
             }
 
-            Rectangle {
+            Item {
                 id: musicPanel
                 anchors.horizontalCenter: parent.horizontalCenter
 
@@ -91,11 +91,6 @@ Scope {
                 y: floatingY
                 width: Math.min(parent.width * 0.7, 1100)
                 height: floatingHeight
-                radius: Appearance.rounding.large
-                color: Appearance.colors.colLayer0
-                clip: true
-                border.width: 1
-                border.color: Appearance.colors.colOutlineVariant
 
                 opacity: root.showMusic ? 1 : 0
                 scale: root.showMusic ? 1 : 0.9
@@ -122,12 +117,33 @@ Scope {
                     }
                 }
 
-                MusicApp {
+                Item {
+                    id: panelContent
                     anchors.fill: parent
-                    isAppMode: false
-                    showMusic: root.showMusic
-                    closing: root.closing
-                    onCloseRequested: root.closeWindow()
+                    layer.enabled: true
+                    layer.effect: OpacityMask {
+                        maskSource: Rectangle {
+                            width: panelContent.width
+                            height: panelContent.height
+                            radius: Appearance.rounding.large
+                        }
+                    }
+
+                    MusicApp {
+                        anchors.fill: parent
+                        isAppMode: false
+                        showMusic: root.showMusic
+                        closing: root.closing
+                        onCloseRequested: root.closeWindow()
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: Appearance.rounding.large
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Appearance.colors.colOutlineVariant
                 }
             }
         }
