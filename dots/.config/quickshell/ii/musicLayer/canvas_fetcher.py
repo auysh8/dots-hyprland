@@ -8,6 +8,7 @@ Mirrors vivi-music's two-provider fallback chain:
 
 Usage:
     python3 canvas_fetcher.py <song_title> <artist_name> [album] [storefront]
+    python3 canvas_fetcher.py --album-id <album_id>
 
 Output (stdout): JSON with keys:
     { "animated": <url or null>, "videoUrl": <url or null>, "source": <"archivetune"|"monochrome"|null> }
@@ -64,11 +65,15 @@ def _normalize_artist(raw):
     return re.sub(r"\s+", " ", first).strip()
 
 
-def _fetch_archivetune(song, artist, album=None, storefront="us"):
+def _fetch_archivetune(song, artist, album=None, storefront="us", album_id=None):
     """Hit the ArchiveTune API and return (animated_url, video_url) or (None, None)."""
-    params = {"s": song, "a": artist, "storefront": storefront}
-    if album:
-        params["al"] = album
+    # Support album ID only lookup
+    if album_id:
+        params = {"id": album_id}
+    else:
+        params = {"s": song, "a": artist, "storefront": storefront}
+        if album:
+            params["al"] = album
     url = ARCHIVETUNE_BASE + "?" + urllib.parse.urlencode(params)
     data = _get_json(url)
     if not data:
@@ -182,7 +187,54 @@ def fetch_canvas(song_raw, artist_raw, album=None, storefront="us"):
     return {"animated": None, "videoUrl": None, "source": None}
 
 
+def fetch_canvas_by_album_id(album_id):
+    """
+    Fetch canvas for an entire album by Apple Music album ID.
+    Returns dict: { animated, videoUrl, source, albumName, artist }
+    """
+    if not album_id:
+        return {"animated": None, "videoUrl": None, "source": None, "albumName": None, "artist": None}
+
+    # Fetch album info from ArchiveTune
+    url = ARCHIVETUNE_BASE + "?" + urllib.parse.urlencode({"id": album_id})
+    data = _get_json(url)
+    
+    album_name = data.get("name") if data else None
+    artist = data.get("artist") if data else None
+    animated = data.get("animated") if data else None
+    video_url = data.get("videoUrl") if data else None
+    
+    if animated or video_url:
+        return {
+            "animated": animated,
+            "videoUrl": video_url,
+            "source": "archivetune",
+            "albumName": album_name,
+            "artist": artist
+        }
+
+    # No canvas found, but return album info anyway
+    return {
+        "animated": None,
+        "videoUrl": None,
+        "source": None,
+        "albumName": album_name,
+        "artist": artist
+    }
+
+
 if __name__ == "__main__":
+    # Support --album-id flag for album-only lookup
+    if "--album-id" in sys.argv:
+        try:
+            idx = sys.argv.index("--album-id")
+            album_id = sys.argv[idx + 1] if idx + 1 < len(sys.argv) else None
+            result = fetch_canvas_by_album_id(album_id)
+            print(json.dumps(result))
+        except (IndexError, ValueError):
+            print(json.dumps({"animated": None, "videoUrl": None, "source": None}))
+        sys.exit(0)
+
     if len(sys.argv) < 3:
         print(json.dumps({"animated": None, "videoUrl": None, "source": None}))
         sys.exit(0)
