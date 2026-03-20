@@ -101,6 +101,7 @@ FocusScope {
     property bool isLoading: true
     property bool refreshing: false
     property var currentTrack: null
+    property string currentCanvasUrl: ""  // Animated canvas art URL for the current track
     property bool currentTrackLiked: false
     property bool isTrackLoading: false
     property bool playbackPaused: false
@@ -645,6 +646,7 @@ FocusScope {
                         root.isTrackLoading = true
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
+                        root.currentCanvasUrl = ""  // Clear canvas on new track load
                         root.currentTrack = {
                             videoId: data.videoId,
                             title: data.title,
@@ -653,6 +655,7 @@ FocusScope {
                         }
                     } else if (data.type === "playback_started") {
                         root.isTrackLoading = false
+                        root.currentCanvasUrl = ""  // Reset; canvas_url event will arrive separately
                         root.currentTrack = {
                             videoId: data.videoId,
                             title: data.title,
@@ -663,10 +666,16 @@ FocusScope {
                         root.playbackPaused = false
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
+                    } else if (data.type === "canvas_url") {
+                        // Only apply if it matches the currently playing track
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
+                            root.currentCanvasUrl = data.url || ""
+                        }
                     } else if (data.type === "playback_stopped") {
                         if (!root.isTrackLoading) {
                             root.currentTrack = null
                         }
+                        root.currentCanvasUrl = ""
                         root.playbackPaused = false
                     } else if (data.type === "playback_paused") {
                         root.playbackPaused = true
@@ -723,11 +732,11 @@ FocusScope {
         anchors.fill: parent
         radius: root.isAppMode ? 0 : 32
         color: "transparent"
-        clip: !root.isAppMode
-        
+        clip: true
+
         Item {
             anchors.fill: parent
-            layer.enabled: !root.isAppMode
+            layer.enabled: true
             layer.effect: OpacityMask {
                 maskSource: Rectangle {
                     width: musicPanel.width

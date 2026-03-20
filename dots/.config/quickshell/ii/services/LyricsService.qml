@@ -13,13 +13,41 @@ Singleton {
     readonly property string stateFilePath: "/tmp/quickshell_lyrics_state.json"
 
     // Shared state between LyricsWindow and MusicPlayerView
-    property ListModel model: ListModel {}
+    property var model: null
     property int count: 0
     property int currentLine: -1
     property bool loaded: false
     property real position: 0
     property string sourceName: ""
+    property int revision: 0
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
+
+    function normalizeWords(words) {
+        return typeof words === "string" ? words : JSON.stringify(words || [])
+    }
+
+    function createLyricsModel(lines) {
+        const model = Qt.createQmlObject("import QtQuick; ListModel {}", root, "LyricsServiceModel")
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i] || {}
+            model.append({
+                time: Number(line.time || 0),
+                text: line.text || "",
+                words: normalizeWords(line.words),
+            })
+        }
+        return model
+    }
+
+    function replaceLyricsModel(lines) {
+        const oldModel = root.model
+        root.model = createLyricsModel(lines)
+        root.revision += 1
+
+        if (oldModel && oldModel.destroy) {
+            oldModel.destroy()
+        }
+    }
 
     function toggle() {
         open = !open
@@ -28,6 +56,10 @@ Singleton {
     function applyState(data) {
         if (!data)
             return
+
+        if (!root.model) {
+            root.model = createLyricsModel([])
+        }
 
         root.count = data.count || 0
         root.currentLine = data.currentLine !== undefined ? data.currentLine : -1
@@ -45,7 +77,7 @@ Singleton {
                 if (!oldLine ||
                     oldLine.text !== (newLine.text || "") ||
                     Math.abs(Number(oldLine.time || 0) - Number(newLine.time || 0)) > 0.001 ||
-                    (oldLine.words || "[]") !== (newLine.words || "[]")) {
+                    (oldLine.words || "[]") !== normalizeWords(newLine.words)) {
                     needsModelUpdate = true
                     break
                 }
@@ -53,10 +85,13 @@ Singleton {
         }
 
         if (needsModelUpdate) {
-            root.model.clear()
-            for (let i = 0; i < incomingLyrics.length; i++) {
-                root.model.append(incomingLyrics[i])
-            }
+            replaceLyricsModel(incomingLyrics)
+        }
+    }
+
+    Component.onCompleted: {
+        if (!root.model) {
+            root.model = createLyricsModel([])
         }
     }
 

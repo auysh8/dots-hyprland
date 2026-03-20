@@ -1206,6 +1206,38 @@ class MusicBackend:
                 }
             )
 
+            # 4b. Fetch canvas animated art in background (non-blocking)
+            def _fetch_canvas():
+                try:
+                    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "canvas_fetcher.py")
+                    python = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv", "bin", "python3")
+                    if not os.path.exists(python):
+                        python = sys.executable
+                    result = subprocess.run(
+                        [python, script, title, artist],
+                        capture_output=True, text=True, timeout=25,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        canvas_data = json.loads(result.stdout.strip())
+                        # Prefer direct MP4 (videoUrl) over complex HLS manifests (animated)
+                        canvas_url = canvas_data.get("videoUrl") or canvas_data.get("animated")
+                        if canvas_url:
+                            self.log(f"Canvas art found for '{title}' via {canvas_data.get('source')}: {canvas_url[:80]}")
+                            with self._state_lock:
+                                still_current = self._playback_token == token
+                            if still_current:
+                                self.send_response({
+                                    "type": "canvas_url",
+                                    "videoId": video_id,
+                                    "url": canvas_url,
+                                    "isAnimated": bool(canvas_data.get("animated")),
+                                })
+                        else:
+                            self.log(f"No canvas art found for '{title}'")
+                except Exception as e:
+                    self.log(f"Canvas fetch error: {e}")
+            threading.Thread(target=_fetch_canvas, daemon=True).start()
+
             # 5. Publish MPRIS on D-Bus
             self.mpris.publish()
             self.mpris.update(

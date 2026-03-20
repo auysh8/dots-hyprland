@@ -25,7 +25,7 @@ ApplicationWindow {
     width: 1100
     height: 800
     color: musicApp.backgroundColor || Appearance.colors.colLayer0Base
-    
+
     Behavior on color { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
 
     Component.onCompleted: {
@@ -46,7 +46,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: false
             implicitHeight: Math.max(titleText.implicitHeight, windowControlsRow.implicitHeight)
-            
+
             WindowDialogTitle {
                 id: titleText
                 anchors {
@@ -58,12 +58,12 @@ ApplicationWindow {
                 color: musicApp.contentColor || Appearance.colors.colOnLayer0
                 text: Translation.tr("Music")
             }
-            
+
             WindowDialogButtonRow { // Window controls row
                 id: windowControlsRow
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
-                
+
                 RippleButton {
                     buttonRadius: Appearance.rounding.full
                     implicitWidth: 35
@@ -73,7 +73,7 @@ ApplicationWindow {
                     colBackgroundHover: ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.1)
                     colRipple: ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.2)
                     onClicked: root.close()
-                    
+
                     contentItem: MaterialSymbol {
                         anchors.centerIn: parent
                         anchors.verticalCenterOffset: -2

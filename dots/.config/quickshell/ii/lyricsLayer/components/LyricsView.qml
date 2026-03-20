@@ -18,7 +18,7 @@ Item {
     property color loaderColor: "white"
     
     property var activePlayer: null
-    property ListModel lyricsModel: ListModel {}
+    property var lyricsModel: null
     property int lyricsCount: 0
     readonly property int resolvedLyricsCount: (
         lyricsModel && lyricsModel.count !== undefined
@@ -214,9 +214,10 @@ Item {
             animateMovement: false
             popin: false
             
-            // Performance optimizations for large lyrics models
+            // Reusing delegates here causes stale lyric lines to linger visually
+            // when the model is replaced for a new song.
             cacheBuffer: 600
-            reuseItems: true
+            reuseItems: false
             
             // Manual scroll tracking
             onFlickStarted: {
@@ -351,11 +352,13 @@ Item {
                     Behavior on opacity { NumberAnimation { duration: 150 } }
                 }
                 
-                StyledText {
+                Text {
                     id: lyricText
                     anchors.centerIn: parent
                     width: parent.width - 48
                     horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    renderType: Text.QtRendering
                     
                     // KARAOKE LOGIC
                     property var wordList: {

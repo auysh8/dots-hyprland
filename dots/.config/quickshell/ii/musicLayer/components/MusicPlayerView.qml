@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Effects
+import QtMultimedia
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -112,10 +113,80 @@ Item {
     }
 
     Item {
+        id: bgLayer
         anchors.fill: parent
         opacity: root.elementsVisible ? 1.0 : 0.0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
 
+        // --- Canvas animated background ---
+        property bool canvasReady: false
+
+        MediaPlayer {
+            id: canvasPlayer
+            source: rootContext.currentCanvasUrl || ""
+            loops: MediaPlayer.Infinite
+            autoPlay: true
+            videoOutput: canvasOutput
+            // No audioOutput — muted, visual only
+
+            onPlaybackStateChanged: {
+                console.log("[CanvasPlayer] Playback state changed:", playbackState, "hasVideo=", hasVideo)
+                if (playbackState === MediaPlayer.PlayingState) {
+                    if (hasVideo) bgLayer.canvasReady = true
+                } else if (playbackState === MediaPlayer.StoppedState) {
+                    bgLayer.canvasReady = false
+                }
+            }
+            onMediaStatusChanged: {
+                console.log("[CanvasPlayer] Media status changed:", mediaStatus)
+                if (mediaStatus === MediaPlayer.LoadedMedia || mediaStatus === MediaPlayer.BufferedMedia) {
+                    canvasPlayer.play()
+                }
+            }
+            onHasVideoChanged: {
+                console.log("[CanvasPlayer] hasVideo changed:", hasVideo)
+                if (hasVideo && playbackState === MediaPlayer.PlayingState) {
+                    bgLayer.canvasReady = true
+                }
+            }
+
+            onSourceChanged: {
+                console.log("[CanvasPlayer] Source changed:", source)
+                bgLayer.canvasReady = false
+            }
+            onErrorOccurred: (error, errorString) => {
+                console.error("[CanvasPlayer] Error:", errorString)
+            }
+        }
+
+
+        // Mask the live video to the same rounded shape as the player surface.
+        // `clip: true` only clips to a rectangle, so the canvas was still visible
+        // in the transparent corner pixels while playing.
+        Item {
+            id: canvasClip
+            anchors.fill: parent
+            layer.enabled: true
+            layer.effect: OpacityMask {
+                maskSource: Rectangle {
+                    width: canvasClip.width
+                    height: canvasClip.height
+                    radius: root.currentRadius
+                }
+            }
+
+            VideoOutput {
+                id: canvasOutput
+                anchors.fill: parent
+                fillMode: VideoOutput.PreserveAspectCrop
+            }
+
+            opacity: bgLayer.canvasReady ? 1.0 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+        }
+
+
+        // --- Static blurred album art (fades out when canvas is active) ---
         Image {
             id: bgArt
             anchors.fill: parent
@@ -136,6 +207,8 @@ Item {
             anchors.fill: parent
             source: bgArt
             maskSource: bgMask
+            opacity: bgLayer.canvasReady ? 0.0 : 1.0
+            Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
         }
 
         // Overlay to guarantee contrast
@@ -145,7 +218,7 @@ Item {
             opacity: 0.7
             radius: root.currentRadius
         }
-        
+
         // Gradient overlay utilizing quantized colors
         Rectangle {
             anchors.fill: parent
@@ -157,6 +230,7 @@ Item {
             }
         }
     }
+
 
     Item {
         anchors.fill: parent

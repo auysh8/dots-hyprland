@@ -244,7 +244,9 @@ Scope {
         lyricsModel.clear()
         lyricsCount = 0
         currentLine = -1
+        lyricsSource = ""
         currentSongTitle = ""
+        root.syncSharedLyricsState()
     }
 
     // Watch both title and artist; compare via stable key to avoid flicker from metadata jitter.
@@ -412,7 +414,7 @@ Scope {
         root.syncSharedLyricsState()
     }
     
-    property ListModel lyricsModel: LyricsService.model
+    property var lyricsModel: LyricsService.model
     
     function toggle() {
         LyricsService.toggle()
