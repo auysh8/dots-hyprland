@@ -60,6 +60,9 @@ Item {
             if (rootContext) {
                 root.inlineLyricsPosition = rootContext.trackPositionSec || 0
             }
+            if (bgLayer && typeof bgLayer.updateCanvasPlayback === "function") {
+                bgLayer.updateCanvasPlayback()
+            }
         }
 
         function onCurrentTrackChanged() {
@@ -111,6 +114,11 @@ Item {
             root.elementsVisible = false
         }
     }
+    onElementsVisibleChanged: {
+        if (bgLayer && typeof bgLayer.updateCanvasPlayback === "function") {
+            bgLayer.updateCanvasPlayback()
+        }
+    }
 
     Item {
         id: bgLayer
@@ -121,11 +129,31 @@ Item {
         // --- Canvas animated background ---
         property bool canvasReady: false
 
+        function updateCanvasPlayback() {
+            if (!canvasPlayer.source || canvasPlayer.source.toString() === "") {
+                return
+            }
+            
+            const shouldPlay = root.elementsVisible && rootContext && !rootContext.playbackPaused
+            
+            if (shouldPlay) {
+                if (canvasPlayer.mediaStatus === MediaPlayer.LoadedMedia || canvasPlayer.mediaStatus === MediaPlayer.BufferedMedia) {
+                    canvasPlayer.play()
+                }
+            } else {
+                canvasPlayer.pause()
+            }
+        }
+
         MediaPlayer {
             id: canvasPlayer
-            source: rootContext.currentCanvasUrl || ""
+            // Only set source if we have a valid non-empty URL
+            source: {
+                const url = rootContext ? rootContext.currentCanvasUrl : ""
+                return (url && url.length > 0 && url !== "about:blank") ? url : ""
+            }
             loops: MediaPlayer.Infinite
-            autoPlay: true
+            autoPlay: false  // Manual control to prevent race conditions
             videoOutput: canvasOutput
             // No audioOutput — muted, visual only
 
@@ -133,29 +161,43 @@ Item {
                 console.log("[CanvasPlayer] Playback state changed:", playbackState, "hasVideo=", hasVideo)
                 if (playbackState === MediaPlayer.PlayingState) {
                     if (hasVideo) bgLayer.canvasReady = true
-                } else if (playbackState === MediaPlayer.StoppedState) {
+                } else if (playbackState === MediaPlayer.StoppedState || playbackState === MediaPlayer.StalledState) {
                     bgLayer.canvasReady = false
                 }
             }
             onMediaStatusChanged: {
                 console.log("[CanvasPlayer] Media status changed:", mediaStatus)
+                // Only auto-play when media is fully loaded/buffered
                 if (mediaStatus === MediaPlayer.LoadedMedia || mediaStatus === MediaPlayer.BufferedMedia) {
-                    canvasPlayer.play()
+                    bgLayer.updateCanvasPlayback()
+                } else if (mediaStatus === MediaPlayer.InvalidMedia || mediaStatus === MediaPlayer.EndOfMedia) {
+                    bgLayer.canvasReady = false
+                    canvasPlayer.stop()
                 }
             }
             onHasVideoChanged: {
                 console.log("[CanvasPlayer] hasVideo changed:", hasVideo)
                 if (hasVideo && playbackState === MediaPlayer.PlayingState) {
                     bgLayer.canvasReady = true
+                } else if (!hasVideo) {
+                    bgLayer.canvasReady = false
                 }
             }
 
             onSourceChanged: {
                 console.log("[CanvasPlayer] Source changed:", source)
                 bgLayer.canvasReady = false
+                // Reset player state when source changes
+                if (!source || source.length === 0) {
+                    canvasPlayer.stop()
+                }
             }
             onErrorOccurred: (error, errorString) => {
-                console.error("[CanvasPlayer] Error:", errorString)
+                console.error("[CanvasPlayer] Error:", error, errorString)
+                bgLayer.canvasReady = false
+                // Stop playback on error to prevent cascading failures
+                canvasPlayer.stop()
+                canvasPlayer.source = ""
             }
         }
 

@@ -670,7 +670,14 @@ FocusScope {
                     } else if (data.type === "canvas_url") {
                         // Only apply if it matches the currently playing track
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
-                            root.currentCanvasUrl = data.url || ""
+                            // Validate URL before assigning - prevent empty/invalid URLs
+                            const url = data.url || ""
+                            if (url && url.length > 0 && url !== "about:blank" && url.startsWith("http")) {
+                                root.currentCanvasUrl = url
+                            } else {
+                                console.log("[MusicApp] Invalid canvas URL received:", url)
+                                root.currentCanvasUrl = ""
+                            }
                         }
                     } else if (data.type === "playback_stopped") {
                         if (!root.isTrackLoading) {

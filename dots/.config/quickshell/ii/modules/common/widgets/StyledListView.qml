@@ -55,19 +55,26 @@ ListView {
             var targetY = Math.max(0, Math.min(base - delta * scrollFactor, maxY));
 
             root.scrollTargetY = targetY;
-            root.contentY = targetY;
+            scrollAnim.stop();
+            scrollAnim.to = targetY;
+            scrollAnim.start();
             wheelEvent.accepted = true;
         }
     }
 
-    Behavior on contentY {
-        NumberAnimation {
-            id: scrollAnim
-            alwaysRunToEnd: true
-            duration: Appearance.animation.scroll.duration
-            easing.type: Appearance.animation.scroll.type
-            easing.bezierCurve: Appearance.animation.scroll.bezierCurve
-        }
+    onMovementStarted: {
+        scrollAnim.stop()
+        root.scrollTargetY = root.contentY
+    }
+
+    NumberAnimation {
+        id: scrollAnim
+        target: root
+        property: "contentY"
+        alwaysRunToEnd: false
+        duration: Appearance.animation.scroll.duration
+        easing.type: Appearance.animation.scroll.type
+        easing.bezierCurve: Appearance.animation.scroll.bezierCurve
     }
 
     // Keep target synced when not animating (e.g., drag/flick or programmatic changes)

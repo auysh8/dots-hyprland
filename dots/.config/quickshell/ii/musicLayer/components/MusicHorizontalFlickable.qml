@@ -30,7 +30,8 @@ Flickable {
         onWheel: function(wheelEvent) {
             const absX = Math.abs(wheelEvent.angleDelta.x);
             const absY = Math.abs(wheelEvent.angleDelta.y);
-            if (absY > absX) {
+            // Relax the angle to allow slight vertical deviation (e.g. up to 1.5x) when scrolling horizontally
+            if (absY > absX * 1.5) {
                 wheelEvent.accepted = false;
                 return;
             }
@@ -44,18 +45,25 @@ Flickable {
             const targetX = Math.max(0, Math.min(base - delta * scrollFactor, maxX));
 
             root.scrollTargetX = targetX;
-            root.contentX = targetX;
+            scrollAnim.stop();
+            scrollAnim.to = targetX;
+            scrollAnim.start();
             wheelEvent.accepted = true;
         }
     }
 
-    Behavior on contentX {
-        NumberAnimation {
-            id: scrollAnim
-            duration: Appearance.animation.scroll.duration
-            easing.type: Appearance.animation.scroll.type
-            easing.bezierCurve: Appearance.animation.scroll.bezierCurve
-        }
+    onMovementStarted: {
+        scrollAnim.stop()
+        root.scrollTargetX = root.contentX
+    }
+
+    NumberAnimation {
+        id: scrollAnim
+        target: root
+        property: "contentX"
+        duration: Appearance.animation.scroll.duration
+        easing.type: Appearance.animation.scroll.type
+        easing.bezierCurve: Appearance.animation.scroll.bezierCurve
     }
 
     onContentXChanged: {

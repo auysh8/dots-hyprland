@@ -18,7 +18,14 @@ Flickable {
     MouseArea {
         visible: Config?.options?.interactions?.scrolling?.fasterTouchpadScroll ?? true
         anchors.fill: parent
-        acceptedButtons: Qt.NoButton
+        acceptedButtons: Qt.AllButtons
+        propagateComposedEvents: true
+
+        onPressed: mouse => mouse.accepted = false
+        onReleased: mouse => mouse.accepted = false
+        onClicked: mouse => mouse.accepted = false
+        onDoubleClicked: mouse => mouse.accepted = false
+        onPressAndHold: mouse => mouse.accepted = false
         onWheel: function(wheelEvent) {
             const delta = wheelEvent.angleDelta.y / root.mouseScrollDeltaThreshold;
             var scrollFactor = Math.abs(wheelEvent.angleDelta.y) >= root.mouseScrollDeltaThreshold ? root.mouseScrollFactor : root.touchpadScrollFactor;
@@ -28,18 +35,25 @@ Flickable {
             var targetY = Math.max(0, Math.min(base - delta * scrollFactor, maxY));
 
             root.scrollTargetY = targetY;
-            root.contentY = targetY;
+            scrollAnim.stop();
+            scrollAnim.to = targetY;
+            scrollAnim.start();
             wheelEvent.accepted = true;
         }
     }
 
-    Behavior on contentY {
-        NumberAnimation {
-            id: scrollAnim
-            duration: Appearance.animation.scroll.duration
-            easing.type: Appearance.animation.scroll.type
-            easing.bezierCurve: Appearance.animation.scroll.bezierCurve
-        }
+    onMovementStarted: {
+        scrollAnim.stop()
+        root.scrollTargetY = root.contentY
+    }
+
+    NumberAnimation {
+        id: scrollAnim
+        target: root
+        property: "contentY"
+        duration: Appearance.animation.scroll.duration
+        easing.type: Appearance.animation.scroll.type
+        easing.bezierCurve: Appearance.animation.scroll.bezierCurve
     }
 
     onContentYChanged: {
