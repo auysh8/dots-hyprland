@@ -45,7 +45,7 @@ Item {
             width: 40
             height: 40
             radius: 8
-            color: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer2
+            color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer2
 
             RoundedImage {
                 anchors.fill: parent
@@ -66,7 +66,7 @@ Item {
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: (rootContext && rootContext.currentTrack && rootContext.currentTrack.videoId === root.track.videoId) ? (rootContext.playbackPaused ? "play_arrow" : "pause") : "play_arrow"
-                    color: Appearance.colors.colOnSurface
+                    color: rootContext.contentColor
                     iconSize: 24
                 }
             }

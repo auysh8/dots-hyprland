@@ -17,7 +17,7 @@ Item {
 
     property color primaryBgColor: rootContext ? rootContext.pillColor : Appearance.colors.colPrimaryContainer
     property color primaryContentColor: rootContext ? rootContext.pillContentColor : Appearance.colors.colOnSecondaryContainer
-    property color secondaryBgColor: rootContext ? ColorUtils.mix(rootContext.pillColor, rootContext.surfaceColor, 0.3) : Appearance.colors.colLayer2
+    property color secondaryBgColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer2
 
     RowLayout {
         anchors.fill: parent
@@ -74,20 +74,20 @@ Item {
             Layout.preferredHeight: 48
             buttonRadius: 24
             colBackground: root.secondaryBgColor
-            colBackgroundHover: ColorUtils.mix(root.secondaryBgColor, root.primaryContentColor, 0.2)
-            colRipple: ColorUtils.applyAlpha(root.primaryContentColor, 0.2)
+            colBackgroundHover: ColorUtils.mix(root.secondaryBgColor, rootContext ? rootContext.contentColor : root.primaryContentColor, 0.1)
+            colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : root.primaryContentColor, 0.2)
 
             contentItem: RowLayout {
                 id: shuffleRow
                 spacing: 8
                 MaterialSymbol {
                     text: "shuffle"
-                    color: root.primaryContentColor
+                    color: rootContext ? rootContext.contentColor : root.primaryContentColor
                     iconSize: 24
                 }
                 StyledText {
                     text: "Shuffle"
-                    color: root.primaryContentColor
+                    color: rootContext ? rootContext.contentColor : root.primaryContentColor
                     font.pixelSize: 16
                     font.weight: 800
                 }

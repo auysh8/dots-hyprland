@@ -10,7 +10,7 @@ StyledFlickable {
 
     property var rootContext
     readonly property var flickable: root
-    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer1
+    readonly property color artPlaceholderColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
 
     property bool show: rootContext && rootContext.currentView === "artist" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
@@ -217,7 +217,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: songsColumn.implicitHeight + 16
                 radius: 20
-                color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.85) : ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
+                color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
 
                 ColumnLayout {
                     id: songsColumn

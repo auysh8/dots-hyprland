@@ -257,7 +257,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             color: Appearance.colors.colScrim
-            opacity: 0.7
+            opacity: 0.85
             radius: root.currentRadius
         }
 
@@ -363,7 +363,7 @@ Item {
                 height: width
                 anchors.centerIn: parent
                 radius: 32
-                color: ColorUtils.transparentize(rootContext.pillColor, 0.5)
+                color: rootContext.surfaceColor
 
                 layer.enabled: true
                 layer.effect: MultiEffect {
@@ -1054,7 +1054,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: 20
-                    color: ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.5)
+                    color: rootContext.surfaceColor
 
                     ListView {
                         id: queueListView

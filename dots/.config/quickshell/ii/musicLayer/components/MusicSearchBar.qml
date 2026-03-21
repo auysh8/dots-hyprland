@@ -49,7 +49,7 @@ Item {
                 
                 StyledText {
                     text: "Search YouTube Music..."
-                    color: ColorUtils.transparentize(rootContext.pillContentColor, 0.5)
+                    color: ColorUtils.applyAlpha(rootContext.pillContentColor, 0.6)
                     visible: searchInput.text.length === 0
                     anchors.fill: parent
                     verticalAlignment: Text.AlignVCenter
@@ -152,7 +152,7 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: 12
-                    color: suggMouse.containsMouse ? ColorUtils.applyAlpha(rootContext.contentColor, 0.08) : "transparent"
+                    color: suggMouse.containsMouse ? ColorUtils.applyAlpha(rootContext.pillContentColor, 0.15) : "transparent"
                     clip: true
 
                     RowLayout {
@@ -162,13 +162,13 @@ Item {
                         spacing: 12
                         MaterialSymbol {
                             text: "search"
-                            color: suggMouse.containsMouse ? rootContext.contentColor : rootContext.secondaryContentColor
+                            color: suggMouse.containsMouse ? rootContext.pillContentColor : ColorUtils.applyAlpha(rootContext.pillContentColor, 0.7)
                             iconSize: 18
                             Layout.alignment: Qt.AlignVCenter
                         }
                         StyledText {
                             text: model.text
-                            color: suggMouse.containsMouse ? rootContext.contentColor : rootContext.secondaryContentColor
+                            color: suggMouse.containsMouse ? rootContext.pillContentColor : ColorUtils.applyAlpha(rootContext.pillContentColor, 0.7)
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }

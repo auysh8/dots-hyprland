@@ -10,9 +10,7 @@ Rectangle {
 
     property var rootContext
     property bool navRailExpanded: false
-    readonly property color elevatedPanelColor: rootContext
-        ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.05)
-        : Appearance.colors.colLayer1
+    readonly property color elevatedPanelColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
 
     property bool isExpanding: rootContext && rootContext.currentView === "player"
 
@@ -111,7 +109,7 @@ Rectangle {
                 Layout.preferredWidth: 56
                 Layout.preferredHeight: 56
                 radius: 12
-                color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2
+                color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer2
                 clip: true
 
                 RoundedImage {

@@ -157,7 +157,7 @@ class MusicBackend:
         elif cmd == "get_suggestions":
             query = req.get("query", "")
             if query:
-                threading.Thread(target=self.api.search, args=(query, 5), daemon=True).start()
+                self.api.get_search_suggestions(query)
 
         elif cmd == "get_artist":
             channel_id = req.get("channelId")

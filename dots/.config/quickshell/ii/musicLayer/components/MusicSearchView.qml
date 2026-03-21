@@ -72,7 +72,7 @@ StyledFlickable {
                             rootContext: root.rootContext
                             itemData: model
                             hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.5)
-                            artPlaceholderColor: ColorUtils.transparentize(rootContext.pillColor, 0.4)
+                            artPlaceholderColor: rootContext.surfaceColor
 
                             onClicked: {
                                 rootContext.openArtist(model.videoId || "")
@@ -125,7 +125,7 @@ StyledFlickable {
                 implicitHeight: songResultsColumn.height + 32
                 Layout.preferredHeight: implicitHeight
                 radius: 24
-                color: ColorUtils.transparentize(rootContext.pillColor, 0.85)
+                color: rootContext.surfaceColor
                 clip: true
 
                 Behavior on Layout.preferredHeight {
@@ -192,7 +192,7 @@ StyledFlickable {
                         rootContext: root.rootContext
                         itemData: model
                         hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.3)
-                        artPlaceholderColor: ColorUtils.transparentize(rootContext.pillColor, 0.4)
+                        artPlaceholderColor: rootContext.surfaceColor
 
                         customSubtitle: model.artist
 

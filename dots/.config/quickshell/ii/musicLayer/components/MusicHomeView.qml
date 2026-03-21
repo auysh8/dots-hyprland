@@ -12,7 +12,7 @@ StyledFlickable {
     property string queryText: ""
     readonly property var flickable: root
     
-    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer2
+    readonly property color artPlaceholderColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
     readonly property color cardHoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
 
     readonly property real refreshThreshold: -100
@@ -190,7 +190,7 @@ StyledFlickable {
                 implicitHeight: quickPicksColumn.height + 32
                 Layout.preferredHeight: implicitHeight
                 radius: 24
-                color: ColorUtils.transparentize(rootContext.pillColor, 0.85)
+                color: rootContext.surfaceColor
 
                 ColumnLayout {
                     id: quickPicksColumn

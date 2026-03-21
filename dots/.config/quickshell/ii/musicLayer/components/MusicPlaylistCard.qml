@@ -20,8 +20,8 @@ Item {
         anchors.fill: parent
         radius: 20
         color: root.hovered
-            ? (rootContext ? ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.08) : Appearance.colors.colLayer1Hover)
-            : (rootContext ? rootContext.pillColor : Appearance.colors.colLayer1)
+            ? (rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.contentColor, 0.08) : Appearance.colors.colLayer1Hover)
+            : (rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1)
 
         Behavior on color { ColorAnimation { duration: 150 } }
 

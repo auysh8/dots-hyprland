@@ -72,7 +72,7 @@ Item {
                     MaterialSymbol {
                         anchors.centerIn: parent
                         text: root.isArtist ? "person" : "play_arrow"
-                        color: Appearance.colors.colOnSurface
+                        color: rootContext.contentColor
                         iconSize: 42
                         scale: cardHover.containsMouse ? 1.0 : 0.5
                         Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }

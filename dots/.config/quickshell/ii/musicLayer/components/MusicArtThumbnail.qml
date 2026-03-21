@@ -41,7 +41,7 @@ Item {
             width: root.size
             height: root.size
             radius: 8
-            color: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer2
+            color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer2
 
             RoundedImage {
                 anchors.fill: parent
@@ -69,7 +69,7 @@ Item {
                         }
                         return "play_arrow"
                     }
-                    color: Appearance.colors.colOnSurface
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     iconSize: 24
                 }
             }

@@ -1343,6 +1343,28 @@ class YTMClient:
         except Exception as e:
             self.log(f"Search error: {e}")
 
+    def get_search_suggestions(self, query):
+        threading.Thread(target=self._search_suggestions_task, args=(query,), daemon=True).start()
+
+    def _search_suggestions_task(self, query):
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed: {e}")
+                return
+
+        try:
+            self.log(f"Fetching suggestions for: {query}")
+            results = self.ytm.get_search_suggestions(query)
+            self.send_response({
+                "type": "suggestions",
+                "query": query,
+                "results": results
+            })
+        except Exception as e:
+            self.log(f"Suggestions search error for '{query}': {e}")
+
     def refresh_auth(self):
         """Extract fresh cookies from browser and re-init YTMusic client."""
         threading.Thread(target=self._refresh_auth_task, daemon=True).start()

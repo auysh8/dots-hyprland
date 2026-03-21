@@ -10,8 +10,8 @@ StyledFlickable {
     property var rootContext
     property string queryText: ""
     readonly property var flickable: root
-    readonly property color sectionCardColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.85) : Appearance.colors.colLayer1
-    readonly property color artPlaceholderColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.pillColor, 0.4) : Appearance.colors.colLayer2
+    readonly property color sectionCardColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
+    readonly property color artPlaceholderColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
     readonly property int releaseCount: Math.min(rootContext ? rootContext.exploreNewReleases.count : 0, 16)
     readonly property int trendingCount: Math.min(rootContext ? rootContext.exploreTrending.count : 0, 12)
     readonly property int bottomPadding: rootContext.currentTrack ? 120 : 32

@@ -450,38 +450,23 @@ FocusScope {
     property bool downloaded: mediaContext.downloaded
     property string displayedArtFilePath: mediaContext.displayedArtFilePath
 
-    // Hardcoded color exception for dynamic extracted art contrast
-    readonly property color _fallbackLight: "white"
-    readonly property color _fallbackDark: "black"
-
     // Check if we have a valid track playing (for color fallback)
     readonly property bool _hasTrack: root.currentTrack !== null && root.currentTrack.artUrl !== ""
 
-    // Album art dominant blending (heavily darkened for better contrast)
-    // We use the opaque colLayer0Base as the fallback and mix target to ensure App mode doesn't become transparent.
-    readonly property color _srcBackgroundColor: _hasTrack ? ColorUtils.mix(ColorUtils.mix(mediaContext._srcBackgroundColor, "black", 0.7), Appearance.colors.colLayer0Base, 0.5) : Appearance.colors.colLayer0Base
-
-    // High vibrancy: 80% album art colors, 20% system theme for readability
-    // Content colors always maintain contrast by using system foreground as base
-    readonly property color _srcContentColor: _hasTrack ? (ColorUtils.isDark(_srcSurfaceColor) ? ColorUtils.mix(_fallbackLight, Appearance.colors.colOnLayer0, 0.3) : ColorUtils.mix(_fallbackDark, Appearance.colors.colOnLayer0, 0.3)) : Appearance.colors.colOnLayer0
-    readonly property color _srcSecondaryContentColor: _hasTrack ? (ColorUtils.isDark(_srcSurfaceColor) ? ColorUtils.mix(_fallbackLight, Appearance.colors.colSubtext, 0.3) : ColorUtils.mix(_fallbackDark, Appearance.colors.colSubtext, 0.3)) : Appearance.colors.colSubtext
-    // Ensure pill content has high contrast - always use system-safe contrast colors
-    // We force white (_fallbackLight) in dark mode because the extracted pillColor is too dark/murky
-    readonly property color _srcPillContentColor: _hasTrack ? (Appearance.m3colors.darkmode ? _fallbackLight : _fallbackDark) : Appearance.colors.colOnSecondaryContainer
-    
-    // Create a dark elevated surface by mixing the blended color heavily with the dark system layer
-    readonly property color _srcSurfaceColor: _hasTrack ? ColorUtils.mix(mediaContext.blendedColors.colSurface, Appearance.colors.colLayer2Base, 0.8) : Appearance.colors.colLayer2Base
-
-    // Create a darker accent color so the nav rail, mini player, and search bar aren't overwhelmingly bright
-    // Purely derives from the album art, completely ignoring system accent colors when playing
-    readonly property color _srcPillColor: _hasTrack ? ColorUtils.mix(mediaContext._srcPillColor, Appearance.colors.colLayer0Base, 0.4) : Appearance.colors.colSecondaryContainer
+    // Direct pipeline from AdaptedMaterialScheme (no extra mixing)
+    readonly property color _srcBackgroundColor: _hasTrack ? mediaContext.blendedColors.colLayer0 : Appearance.colors.colLayer0Base
+    readonly property color _srcContentColor: _hasTrack ? mediaContext.blendedColors.colOnLayer0 : Appearance.colors.colOnLayer0
+    readonly property color _srcSecondaryContentColor: _hasTrack ? mediaContext.blendedColors.colSubtext : Appearance.colors.colSubtext
+    readonly property color _srcPillContentColor: _hasTrack ? mediaContext.blendedColors.colOnPrimary : Appearance.colors.colOnSecondaryContainer
+    readonly property color _srcSurfaceColor: _hasTrack ? mediaContext.blendedColors.colLayer1 : Appearance.colors.colLayer2Base
+    readonly property color _srcPillColor: _hasTrack ? mediaContext.blendedColors.colPrimary : Appearance.colors.colSecondaryContainer
 
     // Animated colors (smooth transitions)
     property color backgroundColor: _srcBackgroundColor
     property color contentColor: _srcContentColor
     property color secondaryContentColor: _srcSecondaryContentColor
     property color pillColor: _srcPillColor
-    property color pillColorHover: ColorUtils.mix(_srcPillColor, _srcPillContentColor, 0.15)
+    property color pillColorHover: _hasTrack ? mediaContext.blendedColors.colPrimaryHover : ColorUtils.mix(_srcPillColor, _srcPillContentColor, 0.15)
     property color pillContentColor: _srcPillContentColor
     property color surfaceColor: _srcSurfaceColor
     property color loaderAccentColor: _hasTrack ? mediaContext.blendedColors.colPrimary : Appearance.colors.colPrimary
@@ -890,7 +875,7 @@ FocusScope {
                                         
                                         Text {
                                             text: "Search YouTube Music..."
-                                            color: ColorUtils.transparentize(root.pillContentColor, 0.5)
+                                            color: ColorUtils.applyAlpha(root.pillContentColor, 0.6)
                                             visible: searchInput.text.length === 0
                                             anchors.fill: parent
                                             verticalAlignment: Text.AlignVCenter
@@ -973,14 +958,16 @@ FocusScope {
                                 visible: root.searchSuggestions.count > 0 && searchInput.text.length > 0
                                 z: 200
 
-                                StyledListView {
+                                ListView {
                                     id: suggestionsList
                                     anchors.fill: parent
                                     anchors.margins: 8
                                     clip: true
                                     model: root.searchSuggestions
                                     spacing: 4
-                                    animateAppearance: false
+                                    add: null
+                                    remove: null
+                                    displaced: null
                                     delegate: Item {
                                         width: ListView.view.width
                                         height: 40
@@ -988,7 +975,7 @@ FocusScope {
                                         Rectangle {
                                             anchors.fill: parent
                                             radius: 12
-                                            color: suggMouse.containsMouse ? root.pillColorHover : "transparent"
+                                            color: suggMouse.containsMouse ? ColorUtils.applyAlpha(root.pillContentColor, 0.15) : "transparent"
                                             clip: true
 
                                             RowLayout {
@@ -998,13 +985,13 @@ FocusScope {
                                                 spacing: 12
                                                 MaterialSymbol {
                                                     text: "search"
-                                                    color: suggMouse.containsMouse ? root.backgroundColor : root.secondaryContentColor
+                                                    color: suggMouse.containsMouse ? root.pillContentColor : ColorUtils.applyAlpha(root.pillContentColor, 0.7)
                                                     iconSize: 18
                                                     Layout.alignment: Qt.AlignVCenter
                                                 }
                                                 StyledText {
                                                     text: model.text
-                                                    color: suggMouse.containsMouse ? root.backgroundColor : root.secondaryContentColor
+                                                    color: suggMouse.containsMouse ? root.pillContentColor : ColorUtils.applyAlpha(root.pillContentColor, 0.7)
                                                     elide: Text.ElideRight
                                                     Layout.fillWidth: true
                                                 }
