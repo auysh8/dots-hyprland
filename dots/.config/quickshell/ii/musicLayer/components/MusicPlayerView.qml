@@ -395,66 +395,44 @@ Item {
                     }
                 }
 
-                // Buttons (right side)
-                RowLayout {
-                    spacing: 8
+                ButtonGroup {
+                    id: playbackActionGroup
+                    spacing: 4
 
                     // Heart/Like button
-                    GroupButton {
+                    SelectionGroupButton {
                         Layout.preferredWidth: 44
-                        Layout.preferredHeight: 36
+                        Layout.preferredHeight: 44
                         visible: rootContext.currentTrack !== null
-                        baseWidth: 44
-                        baseHeight: 36
-                        buttonRadius: 18
-                        buttonRadiusPressed: 14
+                        leftmost: true
+                        toggled: rootContext.currentTrackLiked
+                        buttonIcon: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
+                        
                         colBackground: rootContext.pillColor
                         colBackgroundHover: rootContext.pillColorHover
                         colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
                         colBackgroundToggled: Appearance.colors.colError
                         colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colError, "white", 0.1)
                         colBackgroundToggledActive: ColorUtils.mix(Appearance.colors.colError, "black", 0.1)
-                        toggled: rootContext.currentTrackLiked
-
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
-                            iconSize: 22
-                            fill: rootContext.currentTrackLiked ? 1 : 0
-                            color: rootContext.currentTrackLiked ? rootContext.pillContentColor : rootContext.contentColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
 
                         releaseAction: () => { rootContext.toggleCurrentTrackLike() }
                     }
 
                     // Queue/Radio button
-                    GroupButton {
+                    SelectionGroupButton {
                         Layout.preferredWidth: 44
-                        Layout.preferredHeight: 36
+                        Layout.preferredHeight: 44
                         visible: rootContext.currentTrack !== null
-                        baseWidth: 44
-                        baseHeight: 36
-                        buttonRadius: 18
-                        buttonRadiusPressed: 14
+                        rightmost: true
+                        toggled: rootContext.radioTrayVisible
+                        buttonIcon: "queue_music"
+                        
                         colBackground: rootContext.pillColor
                         colBackgroundHover: rootContext.pillColorHover
                         colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
                         colBackgroundToggled: rootContext.pillColor
                         colBackgroundToggledHover: rootContext.pillColorHover
                         colBackgroundToggledActive: rootContext.pillColor
-                        toggled: rootContext.radioTrayVisible
-
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "queue_music"
-                            iconSize: 22
-                            fill: 1
-                            color: rootContext.radioTrayVisible ? rootContext.pillContentColor : rootContext.contentColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
 
                         releaseAction: () => { rootContext.radioTrayVisible = !rootContext.radioTrayVisible }
                     }
@@ -947,7 +925,7 @@ Item {
             }
         }
     }
-    }
+}
 
     // Catch clicks outside the panel to close it (Disabled)
     // removed MouseArea here so queue doesn't close on outside clicks
@@ -1248,7 +1226,7 @@ Item {
                         color: rootContext.secondaryContentColor
                         horizontalAlignment: Text.AlignHCenter
                     }
-                    }
+                }
                 }
             }
         }
