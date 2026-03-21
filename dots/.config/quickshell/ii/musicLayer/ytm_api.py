@@ -15,9 +15,10 @@ class YTMClient:
     _OAUTH_CLIENT_ID = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
     _OAUTH_CLIENT_SECRET = "SboVhoG9s0rNafixCSGGKXAT"
 
-    def __init__(self, send_response_callback, logger):
+    def __init__(self, send_response_callback, logger, player_ref=None):
         self.send_response = send_response_callback
         self.log = logger
+        self.player = player_ref  # Reference to Player for accessing _play_stack
         
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.oauth_path = os.path.join(script_dir, "oauth.json")
@@ -555,7 +556,7 @@ class YTMClient:
 
         self.log("Executing fully personalized home fetch...")
         sent_ids = set()
-        recent_history = list(reversed(self._play_stack[-8:]))
+        recent_history = list(reversed(self.player._play_stack[-8:])) if self.player and hasattr(self.player, '_play_stack') else []
 
         home_data = self._get_home_data()
 

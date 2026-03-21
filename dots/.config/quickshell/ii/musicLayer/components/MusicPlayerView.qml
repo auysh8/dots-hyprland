@@ -342,13 +342,13 @@ Item {
             }
         }
 
-        // Track Info
+        // Track Info and Buttons Row
         RowLayout {
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
-            Layout.maximumWidth: 400
+            Layout.maximumWidth: 500
             spacing: 16
-            
+
             property string _trackId: rootContext.currentTrack ? rootContext.currentTrack.videoId : ""
             on_TrackIdChanged: {
                 if (_trackId !== "") {
@@ -359,80 +359,126 @@ Item {
             SequentialAnimation {
                 id: infoAnim
                 ParallelAnimation {
-                    NumberAnimation { target: trackInfoCol; property: "opacity"; from: 0.0; to: 1.0; duration: 400; easing.type: Easing.OutCubic }
-                    NumberAnimation { target: trackInfoCol; property: "scale"; from: 0.95; to: 1.0; duration: 400; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+                    NumberAnimation { target: trackInfoRow; property: "opacity"; from: 0.0; to: 1.0; duration: 400; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: trackInfoRow; property: "scale"; from: 0.95; to: 1.0; duration: 400; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
                 }
             }
-            
-            ColumnLayout {
-                id: trackInfoCol
+
+            RowLayout {
+                id: trackInfoRow
                 Layout.fillWidth: true
-                spacing: 4
-                
-                StyledText {
+                spacing: 16
+
+                // Title and Artist (left side)
+                ColumnLayout {
                     Layout.fillWidth: true
-                    text: rootContext.currentTrack ? rootContext.currentTrack.title : "Not Playing"
-                    font.pixelSize: 26
-                    font.weight: 800
-                    color: rootContext.contentColor
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignLeft
+                    spacing: 4
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: rootContext.currentTrack ? rootContext.currentTrack.title : "Not Playing"
+                        font.pixelSize: 26
+                        font.weight: 800
+                        color: rootContext.contentColor
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignLeft
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: rootContext.currentTrack ? rootContext.currentTrack.artist : ""
+                        font.pixelSize: 16
+                        font.weight: 500
+                        color: rootContext.secondaryContentColor
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignLeft
+                    }
                 }
 
-                StyledText {
-                    Layout.fillWidth: true
-                    text: rootContext.currentTrack ? rootContext.currentTrack.artist : ""
-                    font.pixelSize: 16
-                    font.weight: 500
-                    color: rootContext.secondaryContentColor
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignLeft
-                }
-            }
-            
-            Item {
-                Layout.alignment: Qt.AlignVCenter
-                width: 32
-                height: 32
-                visible: rootContext.currentTrack !== null
-                
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
-                    iconSize: 28
-                    color: rootContext.currentTrackLiked ? Appearance.colors.colError : rootContext.contentColor
-                    opacity: heartArea.containsMouse ? 1.0 : (rootContext.currentTrackLiked ? 1.0 : 0.6)
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                }
-                
-                MouseArea {
-                    id: heartArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    scrollGestureEnabled: false
-                    onClicked: rootContext.toggleCurrentTrackLike()
+                // Buttons (right side)
+                RowLayout {
+                    spacing: 8
+
+                    // Heart/Like button
+                    GroupButton {
+                        Layout.preferredWidth: 44
+                        Layout.preferredHeight: 36
+                        visible: rootContext.currentTrack !== null
+                        baseWidth: 44
+                        baseHeight: 36
+                        buttonRadius: 18
+                        buttonRadiusPressed: 14
+                        colBackground: rootContext.pillColor
+                        colBackgroundHover: rootContext.pillColorHover
+                        colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+                        colBackgroundToggled: Appearance.colors.colError
+                        colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colError, "white", 0.1)
+                        colBackgroundToggledActive: ColorUtils.mix(Appearance.colors.colError, "black", 0.1)
+                        toggled: rootContext.currentTrackLiked
+
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
+                            iconSize: 22
+                            fill: rootContext.currentTrackLiked ? 1 : 0
+                            color: rootContext.currentTrackLiked ? rootContext.pillContentColor : rootContext.contentColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        releaseAction: () => { rootContext.toggleCurrentTrackLike() }
+                    }
+
+                    // Queue/Radio button
+                    GroupButton {
+                        Layout.preferredWidth: 44
+                        Layout.preferredHeight: 36
+                        visible: rootContext.currentTrack !== null
+                        baseWidth: 44
+                        baseHeight: 36
+                        buttonRadius: 18
+                        buttonRadiusPressed: 14
+                        colBackground: rootContext.pillColor
+                        colBackgroundHover: rootContext.pillColorHover
+                        colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+                        colBackgroundToggled: rootContext.pillColor
+                        colBackgroundToggledHover: rootContext.pillColorHover
+                        colBackgroundToggledActive: rootContext.pillColor
+                        toggled: rootContext.radioTrayVisible
+
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "queue_music"
+                            iconSize: 22
+                            fill: 1
+                            color: rootContext.radioTrayVisible ? rootContext.pillContentColor : rootContext.contentColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        releaseAction: () => { rootContext.radioTrayVisible = !rootContext.radioTrayVisible }
+                    }
                 }
             }
         }
 
-        // Timeline Slider
+        // Timeline Slider (full width)
         ColumnLayout {
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
-            Layout.maximumWidth: 400
+            Layout.maximumWidth: 500
             spacing: 8
 
             StyledSlider {
                 id: trackSlider
                 Layout.fillWidth: true
                 Layout.preferredHeight: 32
-                
+
                 configuration: (!rootContext.isTrackLoading && !rootContext.playbackPaused) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
                 highlightColor: rootContext.contentColor
-                trackColor: ColorUtils.transparentize(rootContext.contentColor, 0.7)
+                trackColor: ColorUtils.applyAlpha(rootContext.contentColor, 0.3)
                 handleColor: rootContext.contentColor
-                
+
                 value: rootContext.trackDurationSec > 0 ? rootContext.trackPositionSec / rootContext.trackDurationSec : 0
                 Behavior on value { NumberAnimation { duration: 1000; easing.type: Easing.Linear } }
 
@@ -447,18 +493,18 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                
+
                 StyledText {
                     text: StringUtils.friendlyTimeForSeconds(rootContext.trackPositionSec)
-                    font.pixelSize: 14
+                    font.pixelSize: 12
                     color: rootContext.secondaryContentColor
                 }
-                
+
                 Item { Layout.fillWidth: true }
-                
+
                 StyledText {
                     text: StringUtils.friendlyTimeForSeconds(rootContext.trackDurationSec)
-                    font.pixelSize: 14
+                    font.pixelSize: 12
                     color: rootContext.secondaryContentColor
                 }
             }

@@ -114,6 +114,7 @@ FocusScope {
     property string currentView: "home"
     property string previousView: "home"
     property string returnView: "home"
+    property bool radioTrayVisible: false
     
     onCurrentViewChanged: {
         if (currentView !== "player") {
@@ -1111,6 +1112,13 @@ FocusScope {
         MusicOAuthDialog {
             id: oauthDialog
             rootContext: root
+        }
+
+        // Radio Actions Tray
+        MusicRadioTray {
+            id: radioTray
+            rootContext: root
+            trayVisible: root.radioTrayVisible
         }
     }
 }

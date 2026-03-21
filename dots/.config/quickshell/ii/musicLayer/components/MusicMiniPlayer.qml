@@ -68,11 +68,11 @@ Rectangle {
         }
     }
 
-    RowLayout {
+    ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
-        spacing: 16
-        
+        spacing: 8
+
         opacity: root.isExpanding ? 0.0 : 1.0
         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
 
@@ -95,134 +95,258 @@ Rectangle {
         SequentialAnimation {
             id: miniInfoAnim
             ParallelAnimation {
-                NumberAnimation { target: miniInfoCol; property: "opacity"; from: 0.0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
-                NumberAnimation { target: miniInfoCol; property: "scale"; from: 0.95; to: 1.0; duration: 400; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+                NumberAnimation { target: miniInfoRow; property: "opacity"; from: 0.0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
+                NumberAnimation { target: miniInfoRow; property: "scale"; from: 0.95; to: 1.0; duration: 400; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
             }
         }
 
-        Rectangle {
-            id: miniArtRect
-            width: 56
-            height: 56
-            radius: 12
-            color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2
-            clip: true
-            
-            RoundedImage {
-                anchors.fill: parent
-                source: rootContext.displayedArtFilePath
-                fillMode: Image.PreserveAspectCrop
-                visible: rootContext.displayedArtFilePath !== ""
-                radius: 12
-            }
-        }
-
-        ColumnLayout {
-            id: miniInfoCol
-            Layout.fillWidth: true
-            spacing: 2
-
-            StyledText {
-                Layout.fillWidth: true
-                text: rootContext.currentTrack ? rootContext.currentTrack.title : ""
-                font.pixelSize: Appearance.font.pixelSize.large
-                font.weight: 600
-                color: rootContext.contentColor
-                elide: Text.ElideRight
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                text: rootContext.currentTrack ? rootContext.currentTrack.artist : ""
-                font.pixelSize: Appearance.font.pixelSize.normal
-                color: rootContext.secondaryContentColor
-                elide: Text.ElideRight
-            }
-        }
-
+        // Top row: Art + Title/Artist + Buttons
         RowLayout {
-            spacing: 8
+            Layout.fillWidth: true
+            spacing: 12
 
-            RippleButton {
-                Layout.preferredWidth: 48
-                Layout.preferredHeight: 48
-                buttonRadius: 24
-                rippleEnabled: false
-                colBackground: "transparent"
-                colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
-                colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
-                horizontalPadding: 0
-                verticalPadding: 0
+            // Album Art
+            Rectangle {
+                id: miniArtRect
+                Layout.preferredWidth: 56
+                Layout.preferredHeight: 56
+                radius: 12
+                color: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : Appearance.colors.colLayer2
+                clip: true
 
-                contentItem: MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "skip_previous"
-                    iconSize: 24
-                    fill: 1
-                    color: rootContext.contentColor
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                onClicked: rootContext.sendCommand({"command": "previous"})
-            }
-
-            RippleButton {
-                Layout.preferredWidth: 48
-                Layout.preferredHeight: 48
-                buttonRadius: 24
-                rippleEnabled: false
-                pointingHandCursor: !rootContext.isTrackLoading
-                colBackground: "transparent"
-                colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
-                colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
-                horizontalPadding: 0
-                verticalPadding: 0
-
-                contentItem: Item {
+                RoundedImage {
                     anchors.fill: parent
+                    source: rootContext.displayedArtFilePath
+                    fillMode: Image.PreserveAspectCrop
+                    visible: rootContext.displayedArtFilePath !== ""
+                    radius: 12
+                }
+            }
 
-                    MaterialLoadingIndicator {
+            // Title and Artist (left side)
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 200
+                spacing: 2
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: rootContext.currentTrack ? rootContext.currentTrack.title : ""
+                    font.pixelSize: Appearance.font.pixelSize.large
+                    font.weight: 600
+                    color: rootContext.contentColor
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: rootContext.currentTrack ? rootContext.currentTrack.artist : ""
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                    color: rootContext.secondaryContentColor
+                    elide: Text.ElideRight
+                }
+            }
+
+            // Buttons (right side)
+            RowLayout {
+                Layout.preferredWidth: 320
+                spacing: 6
+
+                // Heart/Like button
+                GroupButton {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 36
+                    baseWidth: 44
+                    baseHeight: 36
+                    buttonRadius: 18
+                    buttonRadiusPressed: 14
+                    colBackground: rootContext.pillColor
+                    colBackgroundHover: rootContext.pillColorHover
+                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+                    colBackgroundToggled: Appearance.colors.colError
+                    colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colError, "white", 0.1)
+                    colBackgroundToggledActive: ColorUtils.mix(Appearance.colors.colError, "black", 0.1)
+                    toggled: rootContext.currentTrackLiked
+
+                    contentItem: MaterialSymbol {
                         anchors.centerIn: parent
-                        implicitSize: 24
-                        loading: rootContext.isTrackLoading
-                        visible: rootContext.isTrackLoading
-                        color: ColorUtils.applyAlpha(rootContext.loaderAccentColor, 0.2)
-                        shapeColor: rootContext.loaderAccentColor
+                        text: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
+                        iconSize: 22
+                        fill: rootContext.currentTrackLiked ? 1 : 0
+                        color: rootContext.currentTrackLiked ? rootContext.pillContentColor : rootContext.contentColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
 
-                    MaterialSymbol {
+                    releaseAction: () => { rootContext.toggleCurrentTrackLike() }
+                }
+
+                // Queue/Radio button
+                GroupButton {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 36
+                    baseWidth: 44
+                    baseHeight: 36
+                    buttonRadius: 18
+                    buttonRadiusPressed: 14
+                    colBackground: rootContext.pillColor
+                    colBackgroundHover: rootContext.pillColorHover
+                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+                    colBackgroundToggled: rootContext.pillColor
+                    colBackgroundToggledHover: rootContext.pillColorHover
+                    colBackgroundToggledActive: rootContext.pillColor
+                    toggled: rootContext.radioTrayVisible
+
+                    contentItem: MaterialSymbol {
                         anchors.centerIn: parent
-                        text: rootContext.playbackPaused ? "play_arrow" : "pause"
+                        text: "queue_music"
+                        iconSize: 22
+                        fill: 1
+                        color: rootContext.radioTrayVisible ? rootContext.pillContentColor : rootContext.contentColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    releaseAction: () => { rootContext.radioTrayVisible = !rootContext.radioTrayVisible }
+                }
+
+                // Previous button
+                GroupButton {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 36
+                    baseWidth: 44
+                    baseHeight: 36
+                    buttonRadius: 18
+                    buttonRadiusPressed: 14
+                    colBackground: rootContext.pillColor
+                    colBackgroundHover: rootContext.pillColorHover
+                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "skip_previous"
+                        iconSize: 22
+                        fill: 1
                         color: rootContext.contentColor
-                        iconSize: 24
-                        visible: !rootContext.isTrackLoading
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    releaseAction: () => { rootContext.sendCommand({"command": "previous"}) }
+                }
+
+                // Play/Pause button
+                GroupButton {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 36
+                    baseWidth: 44
+                    baseHeight: 36
+                    buttonRadius: 18
+                    buttonRadiusPressed: 14
+                    colBackground: rootContext.pillColor
+                    colBackgroundHover: rootContext.pillColorHover
+                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+
+                    contentItem: Item {
+                        anchors.fill: parent
+
+                        MaterialLoadingIndicator {
+                            anchors.centerIn: parent
+                            implicitSize: 20
+                            loading: rootContext.isTrackLoading
+                            visible: rootContext.isTrackLoading
+                            color: ColorUtils.applyAlpha(rootContext.loaderAccentColor, 0.2)
+                            shapeColor: rootContext.loaderAccentColor
+                        }
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: rootContext.playbackPaused ? "play_arrow" : "pause"
+                            color: rootContext.contentColor
+                            iconSize: 22
+                            visible: !rootContext.isTrackLoading
+                        }
+                    }
+
+                    releaseAction: () => {
+                        if (rootContext.isTrackLoading) return
+                        if (rootContext.playbackPaused) {
+                            rootContext.sendCommand({"command": "resume"})
+                        } else {
+                            rootContext.sendCommand({"command": "pause"})
+                        }
+                    }
+                }
+
+                // Next button
+                GroupButton {
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 36
+                    baseWidth: 44
+                    baseHeight: 36
+                    buttonRadius: 18
+                    buttonRadiusPressed: 14
+                    colBackground: rootContext.pillColor
+                    colBackgroundHover: rootContext.pillColorHover
+                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "skip_next"
+                        iconSize: 22
+                        fill: 1
+                        color: rootContext.contentColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    releaseAction: () => { rootContext.sendCommand({"command": "next"}) }
+                }
+            }
+        }
+
+        // Progress bar (full width at bottom)
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 4
+
+            StyledSlider {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 28
+
+                configuration: (!rootContext.isTrackLoading && !rootContext.playbackPaused) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
+                highlightColor: rootContext.contentColor
+                trackColor: ColorUtils.applyAlpha(rootContext.contentColor, 0.3)
+                handleColor: rootContext.contentColor
+
+                value: rootContext.trackDurationSec > 0 ? rootContext.trackPositionSec / rootContext.trackDurationSec : 0
+                Behavior on value { NumberAnimation { duration: 1000; easing.type: Easing.Linear } }
+
+                enabled: rootContext.trackDurationSec > 0
+                onMoved: {
+                    if (rootContext.trackDurationSec > 0) {
+                        let seekPos = value * rootContext.trackDurationSec
+                        rootContext.sendCommand({"command": "seek", "position": seekPos})
                     }
                 }
             }
 
-            RippleButton {
-                Layout.preferredWidth: 48
-                Layout.preferredHeight: 48
-                buttonRadius: 24
-                rippleEnabled: false
-                colBackground: "transparent"
-                colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
-                colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
-                horizontalPadding: 0
-                verticalPadding: 0
+            RowLayout {
+                Layout.fillWidth: true
 
-                contentItem: MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "skip_next"
-                    iconSize: 24
-                    fill: 1
-                    color: rootContext.contentColor
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                StyledText {
+                    text: StringUtils.friendlyTimeForSeconds(rootContext.trackPositionSec)
+                    font.pixelSize: 11
+                    color: rootContext.secondaryContentColor
                 }
 
-                onClicked: rootContext.sendCommand({"command": "next"})
+                Item { Layout.fillWidth: true }
+
+                StyledText {
+                    text: StringUtils.friendlyTimeForSeconds(rootContext.trackDurationSec)
+                    font.pixelSize: 11
+                    color: rootContext.secondaryContentColor
+                }
             }
         }
     }
