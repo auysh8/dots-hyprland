@@ -171,6 +171,14 @@ class MusicBackend:
             if channel_id and params and item_type:
                 threading.Thread(target=self.api.get_artist_items, args=(channel_id, params, item_type), daemon=True).start()
 
+        elif cmd == "get_artist_full_items":
+            # Alias for get_artist_items - used by MusicArtistView for "See all" actions
+            channel_id = req.get("channelId")
+            params = req.get("params")
+            item_type = req.get("itemType")
+            if channel_id and params and item_type:
+                threading.Thread(target=self.api.get_artist_items, args=(channel_id, params, item_type), daemon=True).start()
+
         elif cmd == "get_artist_full_songs":
             channel_id = req.get("channelId")
             songs_browse_id = req.get("songsBrowseId")
