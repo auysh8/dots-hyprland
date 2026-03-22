@@ -111,6 +111,30 @@ FocusScope {
     property int trackDurationSec: 0
     property int repeatMode: 0  // 0: Off, 1: Repeat All, 2: Repeat One
     property bool shuffleToggled: false
+
+    // ---- Inline lyrics (own pipeline, no conflict with other players) ----
+    property var localLyricsModel: ListModel {}
+    property int localLyricsCount: 0
+    property int localLyricsCurrentLine: -1
+    property bool localLyricsLoaded: false
+    property string localLyricsSource: ""
+
+    function _applyLocalLyrics(data) {
+        localLyricsModel.clear()
+        const lines = data.lyrics || []
+        for (let i = 0; i < lines.length; i++) {
+            const l = lines[i]
+            localLyricsModel.append({
+                time: Number(l.time || 0),
+                text: l.text || "",
+                words: l.words ? JSON.stringify(l.words) : "[]"
+            })
+        }
+        localLyricsCount = lines.length
+        localLyricsCurrentLine = data.currentLine !== undefined ? data.currentLine : -1
+        localLyricsLoaded = lines.length > 0
+        localLyricsSource = data.lyricsSource || ""
+    }
     property string currentView: "home"
     property string previousView: "home"
     property string returnView: "home"
@@ -702,6 +726,10 @@ FocusScope {
                         if (data.accountName) root.accountName = data.accountName
                         root.getHome()
                         root.getLibrary()
+                    } else if (data.type === "lyrics") {
+                        root._applyLocalLyrics(data)
+                    } else if (data.type === "lyrics_line") {
+                        root.localLyricsCurrentLine = data.currentLine !== undefined ? data.currentLine : -1
                     } else if (data.type === "auth_refreshed") {
                         if (data.success) {
                             root.isAuthenticated = true

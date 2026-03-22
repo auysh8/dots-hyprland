@@ -682,23 +682,29 @@ Item {
             LyricsComponents.LyricsView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                
+
                 showWindowControls: false
-                
+
                 contentColor: rootContext.contentColor
                 secondaryContentColor: rootContext.secondaryContentColor
                 pillColor: rootContext.pillColor
                 pillContentColor: rootContext.pillContentColor
                 loaderColor: rootContext.loaderAccentColor
-                
-                lyricsModel: LyricsService.model
-                lyricsCount: LyricsService.count
-                currentLine: LyricsService.currentLine
-                lyricsLoaded: LyricsService.loaded
+
+                // Use the Music app's own isolated lyrics pipeline.
+                // No LyricsService dependency — zero conflict with other players.
+                lyricsModel: rootContext.localLyricsModel
+                lyricsCount: rootContext.localLyricsCount
+                currentLine: rootContext.localLyricsCurrentLine
+                lyricsLoaded: rootContext.localLyricsLoaded
                 position: root.inlineLyricsPosition
-                lyricsSource: LyricsService.sourceName
-                activePlayer: LyricsService.activePlayer
+                lyricsSource: rootContext.localLyricsSource
+                activePlayer: null
                 isPlaying: !rootContext.playbackPaused
+
+                onSeekRequested: (time) => {
+                    rootContext.sendCommand({ "command": "seek", "position": time })
+                }
             }
 
             // Mini Bar

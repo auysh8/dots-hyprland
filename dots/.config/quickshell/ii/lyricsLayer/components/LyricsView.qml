@@ -35,6 +35,8 @@ Item {
     
     signal fullscreenToggled()
     signal closeRequested()
+    signal seekRequested(real time)  // Emitted when activePlayer is null (e.g. Music app inline)
+
     
     // Prettify provider names for display
     function providerDisplayName(source) {
@@ -325,12 +327,16 @@ Item {
                     hoverEnabled: true
                     scrollGestureEnabled: false
                     onClicked: {
-                        if (root.activePlayer && model.time !== undefined) {
-                            console.log("[Lyrics] Seeking to:", model.time)
-                            // Click feedback animation
+                        if (model.time !== undefined) {
                             lyricItem.clickScale = 0.95
                             clickResetTimer.start()
-                            root.activePlayer.position = model.time
+                            if (root.activePlayer) {
+                                console.log("[Lyrics] Seeking via MPRIS to:", model.time)
+                                root.activePlayer.position = model.time
+                            } else {
+                                console.log("[Lyrics] Seeking via signal to:", model.time)
+                                root.seekRequested(model.time)
+                            }
                         }
                     }
                     

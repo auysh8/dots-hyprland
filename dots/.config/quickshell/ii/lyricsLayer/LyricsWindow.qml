@@ -47,6 +47,9 @@ Scope {
             loaded: root.lyricsLoaded,
             position: root.position,
             sourceName: root.lyricsSource,
+            title: root.displayTitle,
+            artist: root.displayArtist,
+            identity: root.activePlayer?.identity || "",
         }
     }
 
@@ -61,7 +64,25 @@ Scope {
     // Use native MPRIS for UI updates only (art, progress)
     readonly property var availablePlayers: MprisController.players
     property MprisPlayer selectedPlayer: null
-    readonly property MprisPlayer activePlayer: selectedPlayer ? selectedPlayer : MprisController.activePlayer
+
+    // If music-backend is registered as an MPRIS player, it ALWAYS takes priority.
+    // We only fall back to the system active player when music-backend is completely gone.
+    // This avoids any oscillation — there is no playback-state check here, so nothing
+    // can cause a rapid switch. The only way to yield to another player is to close
+    // the music backend entirely.
+    readonly property MprisPlayer _musicBackendPlayer: {
+        for (let i = 0; i < availablePlayers.length; i++) {
+            if (availablePlayers[i].identity === "music-backend")
+                return availablePlayers[i]
+        }
+        return null
+    }
+
+    readonly property MprisPlayer activePlayer: {
+        if (selectedPlayer) return selectedPlayer
+        if (_musicBackendPlayer) return _musicBackendPlayer
+        return MprisController.activePlayer
+    }
 
     property real position: 0
     property real maxPositionDrift: 0.12
@@ -271,6 +292,7 @@ Scope {
     // Cleanup other state variables/functions
     property int lyricsCount: 0
     property int currentLine: -1
+    property real _lastLineAdvanceMs: 0  // Hysteresis guard for currentLine updates
     property int colorUpdateTrigger: 0
     property string currentSongTitle: ""
 
@@ -326,7 +348,18 @@ Scope {
         root.syncSharedLyricsState()
     }    
     function parseUpdate(data) {
-        if (!data) return
+        if (!data) {
+            lyricsLoaded = false
+            lyricsModel.clear()
+            lyricsCount = 0
+            currentLine = -1
+            lyricsSource = ""
+            currentSongTitle = ""
+            cleanedTitle = ""
+            artist = ""
+            root.syncSharedLyricsState()
+            return
+        }
 
         var incomingSong = data.song || ""
         var incomingArtist = data.artist || ""
@@ -396,10 +429,24 @@ Scope {
             }
         }
         
-        // Update current line
+        // Update current line — with hysteresis to prevent pill bounce.
+        // Moving forward is always allowed immediately.
+        // Moving backward by just 1 is suppressed for 400ms to absorb position jitter
+        // from MPRIS float precision at lyric timestamp boundaries.
         if (data.currentLine !== undefined && data.currentLine !== currentLine) {
-            currentLine = data.currentLine
-            // Auto-scroll logic handled inside LyricsView via currentLine binding
+            var incoming = data.currentLine
+            var allowUpdate = true
+            if (incoming >= 0 && incoming < currentLine) {
+                // backward move — only allow if it's a real seek (>1 step) or enough time passed
+                var now = Date.now()
+                if (currentLine - incoming <= 1 && (now - root._lastLineAdvanceMs) < 400) {
+                    allowUpdate = false
+                }
+            }
+            if (allowUpdate) {
+                root._lastLineAdvanceMs = Date.now()
+                currentLine = incoming
+            }
         }
         
         // Update tracked info

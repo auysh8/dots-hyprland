@@ -10,6 +10,7 @@ import shutil
 import socket
 import sys
 from cache_manager import CacheManager
+from lyrics_fetcher import LyricsSyncEngine, fetch_lyrics
 
 
 class Player:
@@ -47,6 +48,9 @@ class Player:
         self._current_art = ""
         self._current_art_url = ""
         self._is_auto_advancing = False
+
+        # Independent lyrics engine — completely isolated from global LyricsService
+        self._lyrics_engine = LyricsSyncEngine(self.send_response)
 
     def _sigterm_handler(self, signum, frame):
         self._cleanup_on_exit()
@@ -340,8 +344,21 @@ class Player:
                     pos = self._ipc_get("time-pos")
                     dur = self._ipc_get("duration")
                     if pos is not None:
-                        self.send_response({"type": "playback_progress", "positionSec": int(float(pos)), "durationSec": int(float(dur)) if dur else 0})
+                        pos_f = float(pos)
+                        self.send_response({"type": "playback_progress", "positionSec": int(pos_f), "durationSec": int(float(dur)) if dur else 0})
+                        self._lyrics_engine.set_position(pos_f)
             threading.Thread(target=_poll_position, daemon=True).start()
+
+            def _fetch_lyrics():
+                try:
+                    lyrics, source = fetch_lyrics(title, artist, duration=0)
+                    with self._state_lock:
+                        if self._playback_token != token:
+                            return
+                    self._lyrics_engine.load(lyrics or [], source, token)
+                except Exception as e:
+                    self.log(f"Lyrics fetch error: {e}")
+            threading.Thread(target=_fetch_lyrics, daemon=True).start()
 
             def _monitor():
                 code = process.wait()
@@ -432,6 +449,7 @@ class Player:
                 except Exception:
                     pass
         self._cleanup_socket()
+        self._lyrics_engine.clear()
         self.mpris.update("Stopped")
         self.mpris.unpublish()
         if notify:

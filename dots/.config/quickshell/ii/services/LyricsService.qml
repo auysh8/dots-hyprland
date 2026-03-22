@@ -19,6 +19,9 @@ Singleton {
     property bool loaded: false
     property real position: 0
     property string sourceName: ""
+    property string currentTitle: ""
+    property string currentArtist: ""
+    property string activePlayerIdentity: ""
     property int revision: 0
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
 
@@ -66,6 +69,9 @@ Singleton {
         root.loaded = !!data.loaded
         root.position = data.position || 0
         root.sourceName = data.sourceName || ""
+        root.currentTitle = data.title || ""
+        root.currentArtist = data.artist || ""
+        root.activePlayerIdentity = data.identity || ""
 
         const incomingLyrics = Array.isArray(data.lyrics) ? data.lyrics : []
         let needsModelUpdate = incomingLyrics.length !== root.model.count
