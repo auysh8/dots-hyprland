@@ -130,6 +130,7 @@ Scope {
                     }
 
                     MusicApp {
+                        id: musicApp
                         anchors.fill: parent
                         isAppMode: false
                         showMusic: root.showMusic

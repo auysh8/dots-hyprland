@@ -477,13 +477,31 @@ FocusScope {
     // Check if we have a valid track playing (for color fallback)
     readonly property bool _hasTrack: root.currentTrack !== null && root.currentTrack.artUrl !== ""
 
-    // Direct pipeline from AdaptedMaterialScheme (no extra mixing)
-    readonly property color _srcBackgroundColor: _hasTrack ? mediaContext.blendedColors.colLayer0 : Appearance.colors.colLayer0Base
-    readonly property color _srcContentColor: _hasTrack ? mediaContext.blendedColors.colOnLayer0 : Appearance.colors.colOnLayer0
-    readonly property color _srcSecondaryContentColor: _hasTrack ? mediaContext.blendedColors.colSubtext : Appearance.colors.colSubtext
-    readonly property color _srcPillContentColor: _hasTrack ? mediaContext.blendedColors.colOnPrimary : Appearance.colors.colOnSecondaryContainer
-    readonly property color _srcSurfaceColor: _hasTrack ? mediaContext.blendedColors.colLayer1 : Appearance.colors.colLayer2Base
-    readonly property color _srcPillColor: _hasTrack ? mediaContext.blendedColors.colPrimary : Appearance.colors.colSecondaryContainer
+    // Dynamic Lightness Detection
+    readonly property bool _isLightScheme: mediaContext.blendedColors.colLayer0.hslLightness > 0.45
+
+    // Direct pipeline from AdaptedMaterialScheme (forced opaque, with dynamic darkening for bright albums)
+    readonly property color _srcBackgroundColor: _hasTrack 
+        ? (_isLightScheme 
+            ? ColorUtils.mix(ColorUtils.applyAlpha(mediaContext.blendedColors.colLayer0, 1.0), "black", 0.6) 
+            : ColorUtils.applyAlpha(mediaContext.blendedColors.colLayer0, 1.0))
+        : Appearance.colors.colLayer0Base
+
+    readonly property color _srcContentColor: _hasTrack ? ColorUtils.applyAlpha(mediaContext.blendedColors.colOnLayer0, 1.0) : Appearance.colors.colOnLayer0
+    readonly property color _srcSecondaryContentColor: _hasTrack ? ColorUtils.applyAlpha(mediaContext.blendedColors.colSubtext, 1.0) : Appearance.colors.colSubtext
+    readonly property color _srcPillContentColor: _hasTrack ? ColorUtils.applyAlpha(mediaContext.blendedColors.colOnPrimary, 1.0) : Appearance.colors.colOnSecondaryContainer
+
+    readonly property color _srcSurfaceColor: _hasTrack 
+        ? (_isLightScheme 
+            ? ColorUtils.mix(ColorUtils.applyAlpha(mediaContext.blendedColors.colLayer1, 1.0), "black", 0.6) 
+            : ColorUtils.applyAlpha(mediaContext.blendedColors.colLayer1, 1.0))
+        : Appearance.colors.colLayer2Base
+
+    readonly property color _srcPillColor: _hasTrack 
+        ? (_isLightScheme 
+            ? ColorUtils.mix(ColorUtils.applyAlpha(mediaContext.blendedColors.colPrimary, 1.0), "black", 0.45) 
+            : ColorUtils.applyAlpha(mediaContext.blendedColors.colPrimary, 1.0))
+        : Appearance.colors.colSecondaryContainer
 
     // Animated colors (smooth transitions)
     property color backgroundColor: _srcBackgroundColor

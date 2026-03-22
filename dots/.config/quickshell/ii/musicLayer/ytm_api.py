@@ -120,7 +120,7 @@ class YTMClient:
                 return self._home_cache
 
         try:
-            home_data = self.ytm.get_home(limit=6)
+            home_data = self.ytm.get_home(limit=20)
             with self._home_cache_lock:
                 self._home_cache = home_data
                 self._home_cache_ts = now

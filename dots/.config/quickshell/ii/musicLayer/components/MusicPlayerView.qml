@@ -253,22 +253,14 @@ Item {
             Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
         }
 
-        // Overlay to guarantee contrast
-        Rectangle {
-            anchors.fill: parent
-            color: Appearance.colors.colScrim
-            opacity: 0.85
-            radius: root.currentRadius
-        }
-
         // Gradient overlay utilizing quantized colors
         Rectangle {
             anchors.fill: parent
             radius: root.currentRadius
             gradient: Gradient {
-                GradientStop { position: 0.0; color: ColorUtils.transparentize(rootContext.pillColor, 0.2) }
-                GradientStop { position: 0.6; color: ColorUtils.transparentize(rootContext.backgroundColor, 0.4) }
-                GradientStop { position: 1.0; color: rootContext.backgroundColor }
+                GradientStop { position: 0.0; color: ColorUtils.applyAlpha(rootContext.pillColor, 0.15) }
+                GradientStop { position: 0.6; color: ColorUtils.applyAlpha(rootContext.backgroundColor, 0.4) }
+                GradientStop { position: 1.0; color: ColorUtils.applyAlpha(rootContext.backgroundColor, 0.85) }
             }
         }
     }
@@ -292,8 +284,8 @@ Item {
             implicitWidth: 48
             implicitHeight: 48
             buttonRadius: 24
-            colBackground: ColorUtils.transparentize(rootContext.contentColor, 0.9)
-            colBackgroundHover: ColorUtils.transparentize(rootContext.contentColor, 0.8)
+            colBackground: ColorUtils.applyAlpha(rootContext.surfaceColor, 0.5)
+            colBackgroundHover: ColorUtils.applyAlpha(rootContext.surfaceColor, 0.8)
             colRipple: rootContext.contentColor
             horizontalPadding: 0
             verticalPadding: 0

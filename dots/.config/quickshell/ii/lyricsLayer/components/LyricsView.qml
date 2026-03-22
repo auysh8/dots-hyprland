@@ -416,7 +416,7 @@ Item {
 
                     z: 2
                     
-                    color: lyricItem.isCurrent ? root.pillContentColor : root.secondaryContentColor
+                    color: root.pillContentColor
 
                     Behavior on color { 
                         ColorAnimation { duration: 400; easing.type: Easing.InOutQuad } 
@@ -430,9 +430,9 @@ Item {
                     
                     opacity: {
                         if (lyricItem.isCurrent) return 1.0
-                        if (lyricItem.distance === 1) return 0.6
-                        if (lyricItem.distance === 2) return 0.35
-                        return 0.15
+                        if (lyricItem.distance === 1) return 0.75
+                        if (lyricItem.distance === 2) return 0.5
+                        return 0.3
                     }
                     
                     Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.InOutQuad } }
