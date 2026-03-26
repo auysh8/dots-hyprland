@@ -341,24 +341,18 @@ Singleton {
     }
     property ApiStrategy currentApiStrategy: apiStrategies[models[currentModelId]?.api_format || "openai"]
 
-    function loadExtraModels() {
-        if (!Config.ready) return;
-        const extra = Config.options.ai.extraModels ?? [];
-        extra.forEach(model => {
+    function addUserModels() {
+        (Config?.options.ai?.extraModels ?? []).forEach(model => {
             const safeModelName = root.safeModelName(model["model"]);
-            // Only add if not already present (prevents duplicates if called multiple times, though overwriting is usually fine)
             root.addModel(safeModelName, model)
         });
-        // Force update model list
-        root.modelList = Object.keys(root.models);
     }
-
-    onModelsChanged: loadExtraModels()
 
     Connections {
         target: Config
         function onReadyChanged() {
-            if (Config.ready) root.loadExtraModels();
+            if (!Config.ready) return;
+            root.addUserModels()
         }
     }
 
@@ -366,8 +360,8 @@ Singleton {
     property string pendingFilePath: ""
 
     Component.onCompleted: {
-        if (Config.ready) root.loadExtraModels();
         setModel(currentModelId, false, false); // Do necessary setup for model
+        root.addUserModels() // Config onReadyChanged above might not fire if config is loaded before this service
     }
 
     function guessModelLogo(model) {
@@ -392,8 +386,9 @@ Singleton {
     }
 
     function addModel(modelName, data) {
-        root.models[modelName] = aiModelComponent.createObject(this, data);
-        root.modelList = Object.keys(root.models);
+        root.models = Object.assign({}, root.models, {
+            [modelName]: aiModelComponent.createObject(this, data)
+        });
     }
 
     Process {

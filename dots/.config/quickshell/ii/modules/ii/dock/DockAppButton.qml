@@ -22,6 +22,14 @@ DockButton {
     enabled: !isSeparator
     implicitWidth: isSeparator ? 1 : implicitHeight - topInset - bottomInset
 
+    Connections {
+        target: DesktopEntries
+
+        function onApplicationsChanged() {
+            root.desktopEntry = DesktopEntries.heuristicLookup(appToplevel.appId);
+        }
+    }
+
     Loader {
         active: isSeparator
         anchors {

@@ -190,9 +190,6 @@ switch() {
 
     # Handle wallpaper switching immediately in main thread
     if [[ "$color_flag" != "1" ]]; then
-        # Tell compositor to expect heavy load
-        hyprctl keyword animations:enabled 0 2>/dev/null
-        sleep 0.05
 
         check_and_prompt_upscale "$imgpath" &
         kill_existing_mpvpaper
@@ -220,9 +217,6 @@ switch() {
     pkill -f "generate_colors_material.py" 2>/dev/null
     pkill -f "matugen" 2>/dev/null
     pkill -f "gemini-categorize-wallpaper.sh" 2>/dev/null
-
-    # Re-enable animations after switch completes
-    (sleep 2 && hyprctl keyword animations:enabled 1 2>/dev/null) &
 
     # Background the heavy tasks: Gemini, Thumbnail, Color Gen
     (
