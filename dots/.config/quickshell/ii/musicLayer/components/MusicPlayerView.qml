@@ -460,11 +460,10 @@ Item {
                                 MaterialSymbol {
                                     id: matIcon2
                                     anchors.centerIn: parent
-                                    text: "queue_music"
+                                    text: "more_vert"
                                     iconSize: Appearance.font.pixelSize.larger
                                     color: rootContext.pillContentColor
-                                }
-                            }
+                                }                            }
                         }
 
                         releaseAction: () => { rootContext.radioTrayVisible = !rootContext.radioTrayVisible }

@@ -14,23 +14,24 @@ Item {
 
     anchors.fill: parent
     z: 1000
-    visible: trayVisible  // Only visible when tray is shown
+    visible: overlayRect.opacity > 0 || trayTranslate.y < tray.height + 40
 
     // Overlay background (dimming)
     Rectangle {
+        id: overlayRect
         anchors.fill: parent
         color: ColorUtils.applyAlpha("black", 0.5)
         opacity: root.trayVisible ? 1 : 0
         visible: opacity > 0
 
         Behavior on opacity {
-            NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
         }
 
         MouseArea {
             anchors.fill: parent
             enabled: root.trayVisible
-            onClicked: root.trayVisible = false
+            onClicked: rootContext.radioTrayVisible = false
         }
     }
 
@@ -45,12 +46,11 @@ Item {
         radius: 24
         color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer2
 
-        y: root.trayVisible ? 0 : height + 24
-
-        Behavior on y {
-            NumberAnimation {
-                duration: 300
-                easing.type: Easing.OutCubic
+        transform: Translate {
+            id: trayTranslate
+            y: root.trayVisible ? 0 : tray.height + 40
+            Behavior on y {
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
             }
         }
 
@@ -112,7 +112,7 @@ Item {
                 }
 
                 onClicked: {
-                    root.trayVisible = false
+                    rootContext.radioTrayVisible = false
                     if (rootContext && rootContext.currentTrack) {
                         rootContext.sendCommand({
                             "command": "populate_radio",
@@ -128,6 +128,6 @@ Item {
     Shortcut {
         sequence: "Escape"
         enabled: root.trayVisible
-        onActivated: root.trayVisible = false
+        onActivated: rootContext.radioTrayVisible = false
     }
 }
