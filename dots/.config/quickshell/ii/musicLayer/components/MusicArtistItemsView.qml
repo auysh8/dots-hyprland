@@ -11,7 +11,7 @@ StyledFlickable {
     property var rootContext
     readonly property var flickable: root
     readonly property color artPlaceholderColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
-    readonly property color cardHoverColor: rootContext ? rootContext.pillColorHover : "transparent"
+    readonly property color cardHoverColor: rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.contentColor, 0.92) : "transparent"
 
     property bool show: rootContext && rootContext.currentView === "artist_items" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0

@@ -366,7 +366,7 @@ class YTMClient:
             t_lower = title.lower()
             contents = section.get("contents", [])
 
-            playable = [c for c in contents if c.get("videoId") or c.get("playlistId") or c.get("browseId")]
+            playable = [c for c in contents if isinstance(c, dict) and (c.get("videoId") or c.get("playlistId") or c.get("browseId"))]
 
             matched = False
             if any(k in t_lower for k in pick_keywords):
@@ -385,6 +385,8 @@ class YTMClient:
                 other_playable.append(playable)
 
             for c in contents:
+                if not isinstance(c, dict):
+                    continue
                 pid = c.get("playlistId") or c.get("browseId")
                 if pid and pid.startswith("VL"):
                     pid = pid[2:]

@@ -58,16 +58,42 @@ Item {
             }
 
             Rectangle {
+                id: overlayRect
+                property bool isCurrentTrack: rootContext && rootContext.currentTrack && rootContext.currentTrack.videoId === root.track.videoId
+                property bool isPlaying: isCurrentTrack && !rootContext.playbackPaused
+
                 anchors.fill: parent
                 color: ColorUtils.applyAlpha(Appearance.colors.colShadow, 0.25)
                 radius: 8
-                visible: trackHover.containsMouse || (rootContext && rootContext.currentTrack && rootContext.currentTrack.videoId === root.track.videoId)
+                visible: trackHover.containsMouse || overlayRect.isCurrentTrack
+
+                WaveVisualizer {
+                    anchors.centerIn: parent
+                    width: 24
+                    height: 24
+                    visible: overlayRect.isPlaying && !trackHover.containsMouse
+                    style: "pills"
+                    live: overlayRect.isPlaying
+                    points: {
+                        let src = rootContext ? rootContext.visualizerPoints : [];
+                        if (!src || src.length === 0) return [];
+                        let arr = [];
+                        for (let i = 0; i < 5; i++) {
+                            arr.push(src[1 + (i * 3)] || 0);
+                        }
+                        return arr;
+                    }
+                    maxVisualizerValue: 500
+                    smoothing: 0
+                    color: rootContext ? rootContext.contentColor : "white"
+                }
 
                 MaterialSymbol {
                     anchors.centerIn: parent
-                    text: (rootContext && rootContext.currentTrack && rootContext.currentTrack.videoId === root.track.videoId) ? (rootContext.playbackPaused ? "play_arrow" : "pause") : "play_arrow"
-                    color: rootContext.contentColor
+                    text: overlayRect.isCurrentTrack ? (rootContext.playbackPaused ? "play_arrow" : "pause") : "play_arrow"
+                    color: rootContext ? rootContext.contentColor : "white"
                     iconSize: 24
+                    visible: !overlayRect.isPlaying || trackHover.containsMouse
                 }
             }
         }

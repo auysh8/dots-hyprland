@@ -21,6 +21,9 @@ Item {
     property bool isPlaylist: !!(itemData.playlistId) && !(itemData.actualVideoId)
     property bool isSong: !!(itemData.actualVideoId)
 
+    property bool isCurrentSong: root.isSong && rootContext && rootContext.currentTrack && rootContext.currentTrack.videoId === itemData.actualVideoId
+    property bool isPlaying: isCurrentSong && !rootContext.playbackPaused
+
     Rectangle {
         id: card
         anchors.fill: parent
@@ -65,16 +68,38 @@ Item {
                     anchors.fill: parent
                     radius: artContainer.radius
                     color: ColorUtils.applyAlpha(Appearance.colors.colShadow, 0.38)
-                    opacity: cardHover.containsMouse ? 1.0 : 0.0
+                    opacity: cardHover.containsMouse || root.isCurrentSong ? 1.0 : 0.0
                     
                     Behavior on opacity { NumberAnimation { duration: 200 } }
 
+                    WaveVisualizer {
+                        anchors.centerIn: parent
+                        width: 36
+                        height: 36
+                        visible: root.isPlaying && !cardHover.containsMouse
+                        style: "pills"
+                        live: root.isPlaying
+                        points: {
+                            let src = rootContext ? rootContext.visualizerPoints : [];
+                            if (!src || src.length === 0) return [];
+                            let arr = [];
+                            for (let i = 0; i < 5; i++) {
+                                arr.push(src[1 + (i * 3)] || 0);
+                            }
+                            return arr;
+                        }
+                        maxVisualizerValue: 500
+                        smoothing: 0
+                        color: typeof rootContext !== "undefined" && rootContext ? rootContext.contentColor : "white"
+                    }
+
                     MaterialSymbol {
                         anchors.centerIn: parent
-                        text: root.isArtist ? "person" : "play_arrow"
+                        text: root.isCurrentSong ? (rootContext.playbackPaused ? "play_arrow" : "pause") : (root.isArtist ? "person" : "play_arrow")
                         color: rootContext.contentColor
                         iconSize: 42
-                        scale: cardHover.containsMouse ? 1.0 : 0.5
+                        scale: cardHover.containsMouse || root.isCurrentSong ? 1.0 : 0.5
+                        visible: !root.isPlaying || cardHover.containsMouse
                         Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
                     }
                 }

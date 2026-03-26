@@ -416,7 +416,7 @@ Item {
 
                     z: 2
                     
-                    color: root.pillContentColor
+                    color: lyricItem.isCurrent ? root.pillContentColor : root.contentColor
 
                     Behavior on color { 
                         ColorAnimation { duration: 400; easing.type: Easing.InOutQuad } 

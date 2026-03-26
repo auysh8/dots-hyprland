@@ -263,8 +263,12 @@ FocusScope {
             "artist": artist,
             "artUrl": artUrl
         }
-        if (queueTracks && Array.isArray(queueTracks)) {
+        
+        // If queueTracks is explicitly provided, send it. If undefined, send empty to clear.
+        if (queueTracks !== undefined && queueTracks !== null) {
             msg["queue"] = queueTracks;
+        } else {
+            msg["queue"] = [];
         }
         sendCommand(msg)
     }
@@ -477,38 +481,30 @@ FocusScope {
     // Check if we have a valid track playing (for color fallback)
     readonly property bool _hasTrack: root.currentTrack !== null && root.currentTrack.artUrl !== ""
 
-    // Dynamic Lightness Detection
-    readonly property bool _isLightScheme: mediaContext.blendedColors.colLayer0.hslLightness > 0.45
-
-    // Direct pipeline from AdaptedMaterialScheme (forced opaque, with dynamic darkening for bright albums)
-    readonly property color _srcBackgroundColor: _hasTrack 
-        ? (_isLightScheme 
-            ? ColorUtils.mix(ColorUtils.applyAlpha(mediaContext.blendedColors.colLayer0, 1.0), "black", 0.6) 
-            : ColorUtils.applyAlpha(mediaContext.blendedColors.colLayer0, 1.0))
-        : Appearance.colors.colLayer0Base
-
+    // Direct pipeline from AdaptedMaterialScheme
+    // For background/surfaces, we adapt the pure extracted color to the system's baseline lightness
+    // This perfectly matches the desktop's contrast strategy!
+    readonly property color _srcBackgroundColor: _hasTrack ? ColorUtils.applyAlpha(ColorUtils.adaptToAccent(Appearance.colors.colLayer0Base, mediaContext.extractedColor), 1.0) : Appearance.colors.colLayer0Base
+    
+    // Restore dynamic text colors that map directly to the album art hues!
     readonly property color _srcContentColor: _hasTrack ? ColorUtils.applyAlpha(mediaContext.blendedColors.colOnLayer0, 1.0) : Appearance.colors.colOnLayer0
     readonly property color _srcSecondaryContentColor: _hasTrack ? ColorUtils.applyAlpha(mediaContext.blendedColors.colSubtext, 1.0) : Appearance.colors.colSubtext
-    readonly property color _srcPillContentColor: _hasTrack ? ColorUtils.applyAlpha(mediaContext.blendedColors.colOnPrimary, 1.0) : Appearance.colors.colOnSecondaryContainer
-
-    readonly property color _srcSurfaceColor: _hasTrack 
-        ? (_isLightScheme 
-            ? ColorUtils.mix(ColorUtils.applyAlpha(mediaContext.blendedColors.colLayer1, 1.0), "black", 0.6) 
-            : ColorUtils.applyAlpha(mediaContext.blendedColors.colLayer1, 1.0))
-        : Appearance.colors.colLayer2Base
-
-    readonly property color _srcPillColor: _hasTrack 
-        ? (_isLightScheme 
-            ? ColorUtils.mix(ColorUtils.applyAlpha(mediaContext.blendedColors.colPrimary, 1.0), "black", 0.45) 
-            : ColorUtils.applyAlpha(mediaContext.blendedColors.colPrimary, 1.0))
-        : Appearance.colors.colSecondaryContainer
+    
+    // For pills (primary), we adapt the system's secondary container lightness to the album's hue
+    // This makes the search bar and active pills appropriately dark/muted instead of blindingly bright!
+    readonly property color _srcPillColor: _hasTrack ? ColorUtils.applyAlpha(ColorUtils.adaptToAccent(Appearance.colors.colSecondaryContainer, mediaContext.extractedColor), 1.0) : Appearance.colors.colSecondaryContainer
+    
+    // Restore dynamic pill text color (adapted to colOnSecondaryContainer for proper contrast against muted pills)
+    readonly property color _srcPillContentColor: _hasTrack ? ColorUtils.applyAlpha(ColorUtils.adaptToAccent(Appearance.colors.colOnSecondaryContainer, mediaContext.extractedColor), 1.0) : Appearance.colors.colOnSecondaryContainer
+    
+    readonly property color _srcSurfaceColor: _hasTrack ? ColorUtils.applyAlpha(ColorUtils.adaptToAccent(Appearance.colors.colLayer1Base, mediaContext.extractedColor), 1.0) : Appearance.colors.colLayer2Base
 
     // Animated colors (smooth transitions)
     property color backgroundColor: _srcBackgroundColor
     property color contentColor: _srcContentColor
     property color secondaryContentColor: _srcSecondaryContentColor
     property color pillColor: _srcPillColor
-    property color pillColorHover: _hasTrack ? mediaContext.blendedColors.colPrimaryHover : ColorUtils.mix(_srcPillColor, _srcPillContentColor, 0.15)
+    property color pillColorHover: _hasTrack ? mediaContext.blendedColors.colPrimaryHover : ColorUtils.mix(_srcPillColor, _srcPillContentColor, 0.85)
     property color pillContentColor: _srcPillContentColor
     property color surfaceColor: _srcSurfaceColor
     property color loaderAccentColor: _hasTrack ? mediaContext.blendedColors.colPrimary : Appearance.colors.colPrimary
@@ -626,24 +622,19 @@ FocusScope {
                     } else if (data.type === "artist_full_songs") {
                         root.isLoading = false
                         let fullSongs = data.items || []
-                        root.activeArtistSongs.clear()
-                        for (let i = 0; i < fullSongs.length; i++) {
-                            root.activeArtistSongs.append(fullSongs[i])
-                        }
                         root.activeArtistSongsFull = true
-                        
+
                         root.returnView = "artist"
                         root.activePlaylistTitle = "Top Songs"
                         root.activePlaylistDescription = ""
                         root.activePlaylistAuthor = root.activeArtistName
                         root.activePlaylistTrackCount = fullSongs.length
                         root.activePlaylistTracks.clear()
-                        for (let i = 0; i < root.activeArtistSongs.count; i++) {
-                            root.activePlaylistTracks.append(root.activeArtistSongs.get(i))
+                        for (let i = 0; i < fullSongs.length; i++) {
+                            root.activePlaylistTracks.append(fullSongs[i])
                         }
                         root.activePlaylistCover = root.activeArtistThumbnail
-                        root.currentView = "playlist"
-                    } else if (data.type === "artist_full_albums") {
+                        root.currentView = "playlist"                    } else if (data.type === "artist_full_albums") {
                         root.isLoading = false
                         let fullAlbums = data.items || []
                         root.activeArtistAlbums.clear()

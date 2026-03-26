@@ -20,7 +20,7 @@ Item {
         anchors.fill: parent
         radius: 20
         color: root.hovered
-            ? (rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.contentColor, 0.08) : Appearance.colors.colLayer1Hover)
+            ? (rootContext ? ColorUtils.mix(rootContext.surfaceColor, rootContext.contentColor, 0.92) : Appearance.colors.colLayer1Hover)
             : (rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1)
 
         Behavior on color { ColorAnimation { duration: 150 } }
@@ -109,7 +109,7 @@ Item {
             Layout.preferredHeight: 40
             buttonRadius: 20
             colBackground: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer1
-            colBackgroundHover: rootContext ? ColorUtils.mix(rootContext.contentColor, rootContext.pillColor, 0.15) : Appearance.colors.colOnLayer1Hover
+            colBackgroundHover: rootContext ? ColorUtils.mix(rootContext.contentColor, rootContext.pillColor, 0.85) : Appearance.colors.colOnLayer1Hover
             colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.pillColor : Appearance.colors.colLayer0, 0.2)
             horizontalPadding: 0
             verticalPadding: 0

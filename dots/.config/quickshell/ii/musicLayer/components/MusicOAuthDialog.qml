@@ -128,7 +128,7 @@ Rectangle {
                 opacity: rootContext.oauthCode ? 1.0 : 0.5
                 enabled: rootContext.oauthCode !== ""
                 colBackground: rootContext.extractedColor
-                colBackgroundHover: ColorUtils.mix(rootContext.extractedColor, rootContext.extractedForeground, 0.15)
+                colBackgroundHover: ColorUtils.mix(rootContext.extractedColor, rootContext.extractedForeground, 0.85)
                 colRipple: ColorUtils.applyAlpha(rootContext.extractedForeground, 0.2)
                 colText: rootContext.extractedForeground
 

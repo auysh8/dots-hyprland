@@ -29,7 +29,7 @@ Item {
             Layout.preferredHeight: 48
             buttonRadius: 24
             colBackground: root.primaryBgColor
-            colBackgroundHover: ColorUtils.mix(root.primaryBgColor, root.primaryContentColor, 0.15)
+            colBackgroundHover: ColorUtils.mix(root.primaryBgColor, root.primaryContentColor, 0.85)
             colRipple: ColorUtils.applyAlpha(root.primaryContentColor, 0.2)
 
             contentItem: RowLayout {
@@ -74,7 +74,7 @@ Item {
             Layout.preferredHeight: 48
             buttonRadius: 24
             colBackground: root.secondaryBgColor
-            colBackgroundHover: ColorUtils.mix(root.secondaryBgColor, rootContext ? rootContext.contentColor : root.primaryContentColor, 0.1)
+            colBackgroundHover: ColorUtils.mix(root.secondaryBgColor, rootContext ? rootContext.contentColor : root.primaryContentColor, 0.9)
             colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : root.primaryContentColor, 0.2)
 
             contentItem: RowLayout {

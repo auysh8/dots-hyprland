@@ -120,14 +120,17 @@ class Player:
         except Exception:
             pass
         
-        # Clear queue when playing new song (unless queue explicitly provided)
+        # Clear queue when playing new song (unless queue explicitly provided or auto-advancing)
         self.stop(notify=False)
         with self._state_lock:
             if queue_tracks is not None:
                 self._current_queue = list(queue_tracks)
                 self.log(f"Queue set with {len(self._current_queue)} tracks")
-            else:
+                self.send_response({"type": "queue_updated", "queue": self._current_queue})
+            elif not is_auto:
                 self._current_queue = []
+                self.log("Queue cleared (manual standalone play)")
+                self.send_response({"type": "queue_updated", "queue": []})
         
         self.send_response({"type": "track_loading", "videoId": video_id, "title": title, "artist": artist, "artUrl": art_url})
         with self._state_lock:
@@ -225,8 +228,7 @@ class Player:
                 if self._playback_token != token:
                     return
 
-            if not is_auto:
-                threading.Thread(target=self._fetch_queue_task, args=(video_id,), daemon=True).start()
+            # Removed automatic radio queue fetching to respect user intent (empty queue for standalone songs)
 
             self._cleanup_socket()
             cmd = ["mpv", "--no-video", "--no-terminal", "--really-quiet", "--no-config", "--load-scripts=no", f"--input-ipc-server={self.ipc_socket}", f"--force-media-title={title} • {artist}", stream_url]
@@ -384,7 +386,7 @@ class Player:
                         self.send_response({"type": "queue_updated", "queue": self._current_queue})
                         self.log(f"Auto-advancing to: {next_track['title']}")
                         self._is_auto_advancing = True
-                        self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"])
+                        self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"], self._current_queue)
                     else:
                         if self.repeat_mode == 1:
                             self.play(video_id, title, artist, art_url)
@@ -475,10 +477,12 @@ class Player:
             q = list(self._current_queue)
         if q:
             next_track = q[0]
-            self._current_queue = q[1:]
+            remaining_queue = q[1:]
+            self._current_queue = remaining_queue
             self.send_response({"type": "queue_updated", "queue": self._current_queue})
             self._is_auto_advancing = True
-            self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"])
+            # Pass the remaining queue to play() so it doesn't get wiped out!
+            self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"], remaining_queue)
         # If queue is empty, do nothing (no auto-radio)
 
     def populate_radio_queue(self, video_id=None):

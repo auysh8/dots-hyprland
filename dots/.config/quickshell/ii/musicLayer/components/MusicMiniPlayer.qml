@@ -147,203 +147,128 @@ Rectangle {
 
             // Buttons (right side)
             RowLayout {
-                Layout.preferredWidth: 320
+                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                 spacing: 6
 
-                // Heart/Like button
-                GroupButton {
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 36
-                    baseWidth: 44
-                    baseHeight: 36
-                    buttonRadius: 18
-                    buttonRadiusPressed: 14
-                    colBackground: rootContext.pillColor
-                    colBackgroundHover: rootContext.pillColorHover
-                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
-                    colBackgroundToggled: Appearance.colors.colError
-                    colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colError, "white", 0.1)
-                    colBackgroundToggledActive: ColorUtils.mix(Appearance.colors.colError, "black", 0.1)
-                    toggled: rootContext.currentTrackLiked
+                // Previous Button
+                RippleButton {
+                    id: prevBtnContainer
+                    property bool isPressed: down
 
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
-                        iconSize: 22
-                        fill: rootContext.currentTrackLiked ? 1 : 0
-                        color: rootContext.currentTrackLiked ? rootContext.pillContentColor : rootContext.contentColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
+                    implicitWidth: 36 + (isPressed ? 10 : (playBtnContainer.isPressed ? -6 : 0))
+                    implicitHeight: 36
+
+                    Behavior on implicitWidth {
+                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
+                    }
+                    Behavior on implicitHeight {
+                        NumberAnimation {
+                            duration: 300
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 2
+                        }
                     }
 
-                    releaseAction: () => { rootContext.toggleCurrentTrackLike() }
-                }
-
-                // Queue/Radio button
-                GroupButton {
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 36
-                    baseWidth: 44
-                    baseHeight: 36
                     buttonRadius: 18
-                    buttonRadiusPressed: 14
-                    colBackground: rootContext.pillColor
-                    colBackgroundHover: rootContext.pillColorHover
-                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
-                    colBackgroundToggled: rootContext.pillColor
-                    colBackgroundToggledHover: rootContext.pillColorHover
-                    colBackgroundToggledActive: rootContext.pillColor
-                    toggled: rootContext.radioTrayVisible
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+                    horizontalPadding: 0
+                    verticalPadding: 0
 
                     contentItem: MaterialSymbol {
                         anchors.centerIn: parent
-                        text: "queue_music"
                         iconSize: 22
                         fill: 1
-                        color: rootContext.radioTrayVisible ? rootContext.pillContentColor : rootContext.contentColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    releaseAction: () => { rootContext.radioTrayVisible = !rootContext.radioTrayVisible }
-                }
-
-                // Previous button
-                GroupButton {
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 36
-                    baseWidth: 44
-                    baseHeight: 36
-                    buttonRadius: 18
-                    buttonRadiusPressed: 14
-                    colBackground: rootContext.pillColor
-                    colBackgroundHover: rootContext.pillColorHover
-                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
-
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
+                        color: rootContext.contentColor
                         text: "skip_previous"
-                        iconSize: 22
-                        fill: 1
-                        color: rootContext.contentColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    releaseAction: () => { rootContext.sendCommand({"command": "previous"}) }
+                    onClicked: rootContext.sendCommand({"command": "previous"})
                 }
 
-                // Play/Pause button
-                GroupButton {
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 36
-                    baseWidth: 44
-                    baseHeight: 36
-                    buttonRadius: 18
-                    buttonRadiusPressed: 14
-                    colBackground: rootContext.pillColor
-                    colBackgroundHover: rootContext.pillColorHover
-                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+                // Play/Pause Button
+                RippleButton {
+                    id: playBtnContainer
+                    property bool isPressed: down
 
-                    contentItem: Item {
-                        anchors.fill: parent
+                    implicitWidth: 70 + (isPressed ? 12 : (prevBtnContainer.isPressed ? -8 : (nextBtnContainer.isPressed ? -8 : 0)))
+                    implicitHeight: 36
 
-                        MaterialLoadingIndicator {
-                            anchors.centerIn: parent
-                            implicitSize: 20
-                            loading: rootContext.isTrackLoading
-                            visible: rootContext.isTrackLoading
-                            color: ColorUtils.applyAlpha(rootContext.loaderAccentColor, 0.2)
-                            shapeColor: rootContext.loaderAccentColor
-                        }
-
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: rootContext.playbackPaused ? "play_arrow" : "pause"
-                            color: rootContext.contentColor
-                            iconSize: 22
-                            visible: !rootContext.isTrackLoading
+                    Behavior on implicitWidth {
+                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
+                    }
+                    Behavior on implicitHeight {
+                        NumberAnimation {
+                            duration: 300
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 2
                         }
                     }
 
-                    releaseAction: () => {
+                    buttonRadius: isPressed ? 14 : 18
+                    colBackground: rootContext.pillColor
+                    colBackgroundHover: ColorUtils.mix(rootContext.pillColor, rootContext.pillContentColor, 0.9)
+                    colRipple: ColorUtils.applyAlpha(rootContext.pillContentColor, 0.3)
+                    horizontalPadding: 0
+                    verticalPadding: 0
+
+                    contentItem: MaterialSymbol {
+                        text: rootContext.playbackPaused ? "play_arrow" : "pause"
+                        color: rootContext.pillContentColor
+                        iconSize: 24
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    onClicked: {
                         if (rootContext.isTrackLoading) return
-                        if (rootContext.playbackPaused) {
+                        if (rootContext.playbackPaused)
                             rootContext.sendCommand({"command": "resume"})
-                        } else {
+                        else
                             rootContext.sendCommand({"command": "pause"})
-                        }
                     }
                 }
 
-                // Next button
-                GroupButton {
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 36
-                    baseWidth: 44
-                    baseHeight: 36
+                // Next Button
+                RippleButton {
+                    id: nextBtnContainer
+                    property bool isPressed: down
+
+                    implicitWidth: 36 + (isPressed ? 10 : (playBtnContainer.isPressed ? -6 : 0))
+                    implicitHeight: 36
+
+                    Behavior on implicitWidth {
+                        animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
+                    }
+                    Behavior on implicitHeight {
+                        NumberAnimation {
+                            duration: 300
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 2
+                        }
+                    }
+
                     buttonRadius: 18
-                    buttonRadiusPressed: 14
-                    colBackground: rootContext.pillColor
-                    colBackgroundHover: rootContext.pillColorHover
-                    colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
+                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+                    horizontalPadding: 0
+                    verticalPadding: 0
 
                     contentItem: MaterialSymbol {
                         anchors.centerIn: parent
-                        text: "skip_next"
                         iconSize: 22
                         fill: 1
                         color: rootContext.contentColor
+                        text: "skip_next"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    releaseAction: () => { rootContext.sendCommand({"command": "next"}) }
-                }
-            }
-        }
-
-        // Progress bar (full width at bottom)
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 4
-
-            StyledSlider {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 28
-
-                configuration: (!rootContext.isTrackLoading && !rootContext.playbackPaused) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
-                highlightColor: rootContext.contentColor
-                trackColor: ColorUtils.applyAlpha(rootContext.contentColor, 0.3)
-                handleColor: rootContext.contentColor
-
-                value: rootContext.trackDurationSec > 0 ? rootContext.trackPositionSec / rootContext.trackDurationSec : 0
-                Behavior on value { NumberAnimation { duration: 1000; easing.type: Easing.Linear } }
-
-                enabled: rootContext.trackDurationSec > 0
-                onMoved: {
-                    if (rootContext.trackDurationSec > 0) {
-                        let seekPos = value * rootContext.trackDurationSec
-                        rootContext.sendCommand({"command": "seek", "position": seekPos})
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                StyledText {
-                    text: StringUtils.friendlyTimeForSeconds(rootContext.trackPositionSec)
-                    font.pixelSize: 11
-                    color: rootContext.secondaryContentColor
-                }
-
-                Item { Layout.fillWidth: true }
-
-                StyledText {
-                    text: StringUtils.friendlyTimeForSeconds(rootContext.trackDurationSec)
-                    font.pixelSize: 11
-                    color: rootContext.secondaryContentColor
+                    onClicked: rootContext.sendCommand({"command": "next"})
                 }
             }
         }

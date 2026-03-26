@@ -202,57 +202,6 @@ Item {
         }
 
 
-        // Mask the live video to the same rounded shape as the player surface.
-        // `clip: true` only clips to a rectangle, so the canvas was still visible
-        // in the transparent corner pixels while playing.
-        Item {
-            id: canvasClip
-            anchors.fill: parent
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: Rectangle {
-                    width: canvasClip.width
-                    height: canvasClip.height
-                    radius: root.currentRadius
-                }
-            }
-
-            VideoOutput {
-                id: canvasOutput
-                anchors.fill: parent
-                fillMode: VideoOutput.PreserveAspectCrop
-            }
-
-            opacity: bgLayer.canvasReady ? 1.0 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
-        }
-
-
-        // --- Static blurred album art (fades out when canvas is active) ---
-        Image {
-            id: bgArt
-            anchors.fill: parent
-            source: rootContext.displayedArtFilePath || ""
-            fillMode: Image.PreserveAspectCrop
-            visible: false
-        }
-
-        Rectangle {
-            id: bgMask
-            anchors.fill: parent
-            radius: root.currentRadius
-            visible: false
-            color: rootContext.surfaceColor
-        }
-
-        OpacityMask {
-            anchors.fill: parent
-            source: bgArt
-            maskSource: bgMask
-            opacity: bgLayer.canvasReady ? 0.0 : 1.0
-            Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
-        }
-
         // Gradient overlay utilizing quantized colors
         Rectangle {
             anchors.fill: parent
@@ -373,6 +322,28 @@ Item {
                     visible: rootContext.displayedArtFilePath !== ""
                     radius: 32
                 }
+                
+                Item {
+                    id: canvasClip
+                    anchors.fill: parent
+                    layer.enabled: true
+                    layer.effect: OpacityMask {
+                        maskSource: Rectangle {
+                            width: canvasClip.width
+                            height: canvasClip.height
+                            radius: 32
+                        }
+                    }
+
+                    VideoOutput {
+                        id: canvasOutput
+                        anchors.fill: parent
+                        fillMode: VideoOutput.PreserveAspectCrop
+                    }
+
+                    opacity: bgLayer.canvasReady ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                }
             }
         }
 
@@ -440,14 +411,28 @@ Item {
                         visible: rootContext.currentTrack !== null
                         leftmost: true
                         toggled: rootContext.currentTrackLiked
-                        buttonIcon: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
                         
                         colBackground: rootContext.pillColor
                         colBackgroundHover: rootContext.pillColorHover
-                        colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+                        colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.85)
                         colBackgroundToggled: Appearance.colors.colError
-                        colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colError, "white", 0.1)
-                        colBackgroundToggledActive: ColorUtils.mix(Appearance.colors.colError, "black", 0.1)
+                        colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colError, "white", 0.9)
+                        colBackgroundToggledActive: ColorUtils.mix(Appearance.colors.colError, "black", 0.9)
+
+                        contentItem: RowLayout {
+                            spacing: 0
+                            Item {
+                                implicitWidth: matIcon1.implicitWidth
+                                Layout.alignment: Qt.AlignVCenter
+                                MaterialSymbol {
+                                    id: matIcon1
+                                    anchors.centerIn: parent
+                                    text: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
+                                    iconSize: Appearance.font.pixelSize.larger
+                                    color: rootContext.currentTrackLiked ? "white" : rootContext.pillContentColor
+                                }
+                            }
+                        }
 
                         releaseAction: () => { rootContext.toggleCurrentTrackLike() }
                     }
@@ -459,14 +444,28 @@ Item {
                         visible: rootContext.currentTrack !== null
                         rightmost: true
                         toggled: rootContext.radioTrayVisible
-                        buttonIcon: "queue_music"
                         
                         colBackground: rootContext.pillColor
                         colBackgroundHover: rootContext.pillColorHover
-                        colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.15)
+                        colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.85)
                         colBackgroundToggled: rootContext.pillColor
                         colBackgroundToggledHover: rootContext.pillColorHover
                         colBackgroundToggledActive: rootContext.pillColor
+
+                        contentItem: RowLayout {
+                            spacing: 0
+                            Item {
+                                implicitWidth: matIcon2.implicitWidth
+                                Layout.alignment: Qt.AlignVCenter
+                                MaterialSymbol {
+                                    id: matIcon2
+                                    anchors.centerIn: parent
+                                    text: "queue_music"
+                                    iconSize: Appearance.font.pixelSize.larger
+                                    color: rootContext.pillContentColor
+                                }
+                            }
+                        }
 
                         releaseAction: () => { rootContext.radioTrayVisible = !rootContext.radioTrayVisible }
                     }
@@ -592,7 +591,7 @@ Item {
 
                     buttonRadius: isPressed ? 20 : 32
                     colBackground: rootContext.pillColor
-                    colBackgroundHover: ColorUtils.mix(rootContext.pillColor, rootContext.pillContentColor, 0.1)
+                    colBackgroundHover: ColorUtils.mix(rootContext.pillColor, rootContext.pillContentColor, 0.9)
                     colRipple: ColorUtils.applyAlpha(rootContext.pillContentColor, 0.3)
                     horizontalPadding: 0
                     verticalPadding: 0
@@ -808,7 +807,7 @@ Item {
                         }
                         return arr;
                     }
-                    maxVisualizerValue: 1000
+                    maxVisualizerValue: 500
                     smoothing: 0 // Keep the points sharp and discrete for pills
                     color: rootContext.contentColor
                 }
