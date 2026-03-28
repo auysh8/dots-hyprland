@@ -20,6 +20,7 @@ Item {
     property bool queueExpanded: false
     property bool inlineLyricsExpanded: false
     property real inlineLyricsPosition: rootContext ? rootContext.trackPositionSec : 0
+    property real currentSliderPosition: rootContext ? rootContext.trackPositionSec : 0
     property real maxLyricsPositionDrift: 0.12
     property real lastLyricsTickMs: 0
     
@@ -53,12 +54,17 @@ Item {
             if (diff > root.maxLyricsPositionDrift || rootContext.playbackPaused) {
                 root.inlineLyricsPosition = realPos
             }
+            const sliderDiff = Math.abs(root.currentSliderPosition - realPos)
+            if (sliderDiff > 1.5 || rootContext.playbackPaused) {
+                root.currentSliderPosition = realPos
+            }
         }
 
         function onPlaybackPausedChanged() {
             root.lastLyricsTickMs = 0
             if (rootContext) {
                 root.inlineLyricsPosition = rootContext.trackPositionSec || 0
+                root.currentSliderPosition = rootContext.trackPositionSec || 0
             }
             if (bgLayer && typeof bgLayer.updateCanvasPlayback === "function") {
                 bgLayer.updateCanvasPlayback()
@@ -69,8 +75,17 @@ Item {
             root.lastLyricsTickMs = 0
             if (rootContext) {
                 root.inlineLyricsPosition = rootContext.trackPositionSec || 0
+                root.currentSliderPosition = rootContext.trackPositionSec || 0
             }
         }
+    }
+
+    Timer {
+        id: smoothSliderTimer
+        running: !!rootContext && !!rootContext.currentTrack && !rootContext.playbackPaused
+        interval: 20
+        repeat: true
+        onTriggered: root.currentSliderPosition += 0.02
     }
 
     Timer {
@@ -491,12 +506,13 @@ Item {
                 trackColor: ColorUtils.applyAlpha(rootContext.contentColor, 0.3)
                 handleColor: rootContext.contentColor
 
-                value: rootContext.trackDurationSec > 0 ? rootContext.trackPositionSec / rootContext.trackDurationSec : 0
+                value: rootContext.trackDurationSec > 0 ? root.currentSliderPosition / rootContext.trackDurationSec : 0
 
                 enabled: rootContext.trackDurationSec > 0
                 onMoved: {
                     if (rootContext.trackDurationSec > 0) {
                         let seekPos = value * rootContext.trackDurationSec
+                        root.currentSliderPosition = seekPos
                         rootContext.sendCommand({"command": "seek", "position": seekPos})
                     }
                 }
@@ -506,7 +522,7 @@ Item {
                 Layout.fillWidth: true
 
                 StyledText {
-                    text: StringUtils.friendlyTimeForSeconds(rootContext.trackPositionSec)
+                    text: StringUtils.friendlyTimeForSeconds(root.currentSliderPosition)
                     font.pixelSize: 12
                     color: rootContext.secondaryContentColor
                 }
