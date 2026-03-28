@@ -7,6 +7,12 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell.Widgets
 
+/**
+ * Material 3 slider. See https://m3.material.io/components/sliders/overview
+ * It doesn't exactly match the spec because it does not make sense to have stuff on a computer that fucking huge.
+ * Should be at 3/4 scale...
+ */
+
 Slider {
     id: root
 
@@ -32,62 +38,55 @@ Slider {
     property color dotColor: Appearance.m3colors.m3onSecondaryContainer
     property color dotColorHighlighted: Appearance.m3colors.m3onPrimary
     property real unsharpenRadius: Appearance.rounding.unsharpen
-
-    // Track thickness — bound directly to configuration, NO animation.
-    // Wavy=4, Sleek=6, etc. Snaps instantly on config change.
     property real trackWidth: configuration
-
     property real trackRadius: trackWidth >= StyledSlider.Configuration.XL ? 21
         : trackWidth >= StyledSlider.Configuration.L ? 12
         : trackWidth >= StyledSlider.Configuration.M ? 9
         : trackWidth >= StyledSlider.Configuration.S ? 6
         : height / 2
-
     property real handleHeight: (configuration === StyledSlider.Configuration.Wavy || configuration === StyledSlider.Configuration.Sleek) ? 24 : Math.max(33, trackWidth + 9)
-
     property real handleWidth: root.pressed ? handlePressedWidth : handleDefaultWidth
     property real handleMargins: 4
     property real dividerMargins: 2
     property real trackDotSize: 3
     property bool usePercentTooltip: true
     property string tooltipContent: usePercentTooltip ? `${Math.round(((value - from) / (to - from)) * 100)}%` : `${Math.round(value)}`
-
     property bool wavy: configuration === StyledSlider.Configuration.Wavy
     property bool animateWave: true
-
-    // Wave amplitude — set imperatively to avoid initialization races.
-    // Instant on init, animated on subsequent wavy↔straight changes.
-    property real amplitudeMultiplier: 0
-
-    // Set correct initial value after all bindings are applied
-    Component.onCompleted: amplitudeMultiplier = wavy ? 0.5 : 0.0
-
-    // Explicit animation for wavy ↔ straight transitions
-    NumberAnimation {
-        id: ampAnim
-        target: root
-        property: "amplitudeMultiplier"
-        duration: 400
-        easing.type: Easing.OutCubic
-    }
-
-    onWavyChanged: {
-        ampAnim.stop()
-        ampAnim.from = amplitudeMultiplier
-        ampAnim.to = wavy ? 0.5 : 0.0
-        ampAnim.restart()
-    }
-
+    property bool transitionReady: false
+    property real waveAmplitudeMultiplier: wavy ? 0.5 : 0
     property real waveFrequency: 6
     property real waveFps: 60
+
+    Behavior on trackWidth {
+        enabled: root.transitionReady
+        NumberAnimation {
+            duration: 300
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Behavior on handleHeight {
+        enabled: root.transitionReady
+        NumberAnimation {
+            duration: 300
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Behavior on waveAmplitudeMultiplier {
+        enabled: root.transitionReady
+        NumberAnimation {
+            duration: 300
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    Component.onCompleted: transitionReady = true
 
     leftPadding: handleMargins
     rightPadding: handleMargins
     property real effectiveDraggingWidth: width - leftPadding - rightPadding
-
-    // Pre-computed fill widths (clamped to 0)
-    readonly property real _leftW: Math.max(0, handleMargins + (visualPosition * effectiveDraggingWidth) - (handleWidth / 2 + handleMargins))
-    readonly property real _rightW: Math.max(0, handleMargins + ((1 - visualPosition) * effectiveDraggingWidth) - (handleWidth / 2 + handleMargins))
 
     Layout.fillWidth: true
     from: 0
@@ -121,7 +120,7 @@ Slider {
     MouseArea {
         anchors.fill: parent
         onPressed: (mouse) => mouse.accepted = false
-        cursorShape: root.pressed ? Qt.ClosedHandCursor : Qt.PointingHandCursor 
+        cursorShape: root.pressed ? Qt.ClosedHandCursor : Qt.PointingHandCursor
     }
 
     background: Item {
@@ -137,7 +136,6 @@ Slider {
         property var leftWidths: leftValues.map((v, i, a) => a[i + 1] - v).slice(0, -1)
         property var rightWidths: rightValues.map((v, i, a) => a[i + 1] - v).slice(0, -1)
 
-        // Fill left
         Repeater {
             model: background.leftWidths.length
 
@@ -149,7 +147,7 @@ Slider {
                 x: background.leftValues[index] * root.effectiveDraggingWidth + leftMargin + (index > 0 ? leftPadding : 0)
                 width: background.leftWidths[index] * root.effectiveDraggingWidth - leftMargin - rightMargin - (index === background.leftWidths.length - 1 ? handleWidth / 2 : 0) + (index === 0 ? leftPadding : 0)
                 height: root.trackWidth
-                active: !root.wavy && root.amplitudeMultiplier <= 0.01
+                active: !root.wavy && root.waveAmplitudeMultiplier <= 0.01
                 sourceComponent: Rectangle {
                     color: root.highlightColor
                     topLeftRadius: index === 0 ? root.trackRadius : root.unsharpenRadius
@@ -171,22 +169,23 @@ Slider {
                 x: background.leftValues[index] * root.effectiveDraggingWidth + leftMargin + (index > 0 ? leftPadding : 0)
                 width: background.leftWidths[index] * root.effectiveDraggingWidth - leftMargin - rightMargin - (index === background.leftWidths.length - 1 ? handleWidth / 2 : 0) + (index === 0 ? leftPadding : 0)
                 height: root.height
-                active: root.wavy || root.amplitudeMultiplier > 0.01
+                active: root.wavy || root.waveAmplitudeMultiplier > 0.01
                 sourceComponent: WavyLine {
                     id: wavyFill
                     frequency: root.waveFrequency
                     fullLength: Math.max(root.width, 1)
                     color: root.highlightColor
-                    amplitudeMultiplier: root.amplitudeMultiplier
+                    amplitudeMultiplier: root.waveAmplitudeMultiplier
                     width: parent.width
-                    height: root.trackWidth
+                    height: root.height
+                    lineWidth: root.trackWidth
                     Connections {
                         target: root
                         function onValueChanged() { wavyFill.requestPaint(); }
                         function onHighlightColorChanged() { wavyFill.requestPaint(); }
                     }
                     FrameAnimation {
-                        running: root.animateWave && (root.wavy || root.amplitudeMultiplier > 0.01)
+                        running: root.animateWave && (root.wavy || root.waveAmplitudeMultiplier > 0.01)
                         onTriggered: {
                             wavyFill.requestPaint()
                         }
@@ -195,7 +194,6 @@ Slider {
             }
         }
 
-        // Fill right
         Repeater {
             model: background.rightWidths.length
 
@@ -215,7 +213,6 @@ Slider {
             }
         }
 
-        // Stop indicators
         Repeater {
             model: root.stopIndicatorValues
             TrackDot {

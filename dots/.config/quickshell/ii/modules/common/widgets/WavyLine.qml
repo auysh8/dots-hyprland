@@ -9,7 +9,6 @@ Canvas {
     property real lineWidth: 4
     property real fullLength: width
 
-    // Force repaint whenever any rendering property changes
     onAmplitudeMultiplierChanged: requestPaint()
     onFrequencyChanged: requestPaint()
     onColorChanged: requestPaint()
@@ -23,7 +22,6 @@ Canvas {
         var ctx = getContext("2d");
         ctx.clearRect(0, 0, width, height);
 
-        // Guard against invalid dimensions
         if (width <= 0 || height <= 0 || root.lineWidth <= 0) return;
 
         var amplitude = root.lineWidth * root.amplitudeMultiplier;

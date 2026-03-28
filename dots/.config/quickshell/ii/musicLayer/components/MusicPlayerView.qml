@@ -484,7 +484,7 @@ Item {
             StyledSlider {
                 id: trackSlider
                 Layout.fillWidth: true
-                Layout.preferredHeight: 32
+                Layout.preferredHeight: 24
 
                 configuration: (!rootContext.isTrackLoading && !rootContext.playbackPaused) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
                 highlightColor: rootContext.contentColor
@@ -492,7 +492,6 @@ Item {
                 handleColor: rootContext.contentColor
 
                 value: rootContext.trackDurationSec > 0 ? rootContext.trackPositionSec / rootContext.trackDurationSec : 0
-                Behavior on value { NumberAnimation { duration: 1000; easing.type: Easing.Linear } }
 
                 enabled: rootContext.trackDurationSec > 0
                 onMoved: {
