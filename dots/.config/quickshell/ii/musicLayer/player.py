@@ -91,7 +91,7 @@ class Player:
         if len(self._play_stack) > 20:
             self._play_stack = self._play_stack[-20:]
 
-    def play(self, video_id, title, artist, art_url, queue_tracks=None):
+    def play(self, video_id, title, artist, art_url, queue_tracks=None, artist_id="", album_id=""):
         """
         Play a song with optional queue.
         
@@ -101,8 +101,10 @@ class Player:
             artist: Artist name
             art_url: Album art URL
             queue_tracks: List of track dicts to add to queue (optional)
+            artist_id: Artist browse/channel ID
+            album_id: Album browse ID
         """
-        self.log(f"Playing: {title} by {artist}")
+        self.log(f"Playing: {title} by {artist} (artist_id={artist_id}, album_id={album_id})")
         if art_url:
             if "=w" in art_url and "-h" in art_url:
                 art_url = re.sub(r"=w\d+-h\d+", "=w544-h544", art_url)
@@ -132,11 +134,11 @@ class Player:
                 self.log("Queue cleared (manual standalone play)")
                 self.send_response({"type": "queue_updated", "queue": []})
         
-        self.send_response({"type": "track_loading", "videoId": video_id, "title": title, "artist": artist, "artUrl": art_url})
+        self.send_response({"type": "track_loading", "videoId": video_id, "title": title, "artist": artist, "artistId": artist_id, "albumId": album_id, "artUrl": art_url})
         with self._state_lock:
             self._playback_token += 1
             token = self._playback_token
-        threading.Thread(target=self._play_task, args=(video_id, title, artist, art_url, token, is_auto), daemon=True).start()
+        threading.Thread(target=self._play_task, args=(video_id, title, artist, art_url, token, is_auto, artist_id, album_id), daemon=True).start()
 
     def _prefetch_stream_url(self, video_id):
         if video_id in self._stream_cache:
@@ -153,7 +155,7 @@ class Player:
         except Exception as e:
             self.log(f"Failed gapless prefetch: {e}")
 
-    def _play_task(self, video_id, title, artist, art_url, token, is_auto=False):
+    def _play_task(self, video_id, title, artist, art_url, token, is_auto=False, artist_id="", album_id=""):
         self.log(f"[PLAY_TASK] Starting for: {title} ({video_id}) token={token}")
         try:
             time.sleep(0.25)
@@ -267,7 +269,7 @@ class Player:
                     self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=art_file_path, video_id=video_id, art_url=art_url)
             threading.Thread(target=_deferred_art_download, daemon=True).start()
 
-            self.send_response({"type": "playback_started", "videoId": video_id, "title": title, "artist": artist, "artUrl": art_url, "artLocalPath": art_file_path or "", "isLiked": False})
+            self.send_response({"type": "playback_started", "videoId": video_id, "title": title, "artist": artist, "artistId": artist_id, "albumId": album_id, "artUrl": art_url, "artLocalPath": art_file_path or "", "isLiked": False})
 
             def _fetch_canvas():
                 try:
@@ -559,6 +561,32 @@ class Player:
             self.log(f"Auto-continue failed: {e}")
             self.mpris.update("Stopped")
             self.send_response({"type": "playback_stopped"})
+
+    def get_output_device(self):
+        try:
+            # Get default sink description using pactl
+            result = subprocess.run(["pactl", "info"], capture_output=True, text=True, check=True)
+            default_sink_name = ""
+            for line in result.stdout.split('\n'):
+                if "Default Sink:" in line:
+                    default_sink_name = line.split(":", 1)[1].strip()
+                    break
+            
+            if default_sink_name:
+                result = subprocess.run(["pactl", "list", "sinks"], capture_output=True, text=True, check=True)
+                current_sink_section = False
+                for line in result.stdout.split('\n'):
+                    if f"Name: {default_sink_name}" in line:
+                        current_sink_section = True
+                    elif current_sink_section and "Description:" in line:
+                        description = line.split(":", 1)[1].strip()
+                        self.send_response({"type": "output_device", "device": description})
+                        return
+            
+            self.send_response({"type": "output_device", "device": "Unknown"})
+        except Exception as e:
+            self.log(f"Failed to get output device: {e}")
+            self.send_response({"type": "output_device", "device": "Unknown"})
 
     def prev_track(self):
         with self._state_lock:

@@ -9,8 +9,7 @@ import QtQuick.Layouts
 import QtQuick.Window
 import Quickshell
 import "modules/common"
-import "modules/common/functions"
-import qs.modules.common.functions
+import "modules/common/functions" as CommonFunctions
 import "services"
 import "modules/common/widgets"
 import "musicLayer"
@@ -71,8 +70,8 @@ ApplicationWindow {
                     implicitHeight: 35
                     padding: 0
                     colBackground: "transparent"
-                    colBackgroundHover: ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.1)
-                    colRipple: ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.2)
+                    colBackgroundHover: CommonFunctions.ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.1)
+                    colRipple: CommonFunctions.ColorUtils.applyAlpha(musicApp.contentColor || Appearance.colors.colOnLayer0, 0.2)
                     onClicked: root.close()
 
                     contentItem: MaterialSymbol {

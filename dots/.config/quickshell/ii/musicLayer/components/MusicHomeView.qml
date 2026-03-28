@@ -20,12 +20,12 @@ StyledFlickable {
     readonly property real refreshY: -60
 
     anchors.fill: parent
-    contentHeight: homeColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
+    contentHeight: homeColumn.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32)
     contentWidth: width
     flickableDirection: Flickable.VerticalFlick
     pressDelay: 150
 
-    property bool show: queryText.length === 0 && rootContext.currentView === "home" && !rootContext.isLoading
+    property bool show: queryText.length === 0 && rootContext && rootContext.currentView === "home" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
     enabled: show
@@ -34,15 +34,16 @@ StyledFlickable {
     clip: true
 
     onDraggingChanged: {
-        if (!dragging && contentY <= refreshThreshold && !rootContext.refreshing && !rootContext.isLoading) {
+        if (!dragging && rootContext && contentY <= refreshThreshold && !rootContext.refreshing && !rootContext.isLoading) {
             rootContext.refreshing = true
             rootContext.getHome()
         }
     }
 
     function handleItemClick(itemModel) {
+        if (!rootContext) return
         if (itemModel.actualVideoId) {
-            rootContext.playTrack(itemModel.actualVideoId, itemModel.title, itemModel.artist, itemModel.artUrl)
+            rootContext.playTrack(itemModel.actualVideoId, itemModel.title, itemModel.artist, itemModel.artUrl, undefined, itemModel.artistId, itemModel.albumId)
         } else if (itemModel.browseId) {
             if (itemModel.browseId.startsWith("UC")) {
                 rootContext.openArtist(itemModel.browseId)
@@ -52,7 +53,7 @@ StyledFlickable {
         } else if (itemModel.playlistId) {
             rootContext.openPlaylist(itemModel.playlistId)
         } else if (itemModel.videoId) {
-            rootContext.playTrack(itemModel.videoId, itemModel.title, itemModel.artist, itemModel.artUrl)
+            rootContext.playTrack(itemModel.videoId, itemModel.title, itemModel.artist, itemModel.artUrl, undefined, itemModel.artistId, itemModel.albumId)
         }
     }
 
@@ -70,14 +71,14 @@ StyledFlickable {
             MaterialLoadingIndicator {
                 implicitSize: 24
                 loading: true
-                color: ColorUtils.applyAlpha(rootContext.loaderAccentColor, 0.2)
-                shapeColor: rootContext.loaderAccentColor
+                color: rootContext ? ColorUtils.applyAlpha(rootContext.loaderAccentColor, 0.2) : Appearance.colors.colPrimaryContainer
+                shapeColor: rootContext ? rootContext.loaderAccentColor : Appearance.colors.colPrimary
             }
 
             StyledText {
                 text: root.contentY < refreshThreshold ? "Release to refresh" : "Pull to refresh"
                 font.weight: 600
-                color: rootContext.contentColor
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
         }
     }
@@ -99,7 +100,7 @@ StyledFlickable {
             Layout.fillWidth: true
             spacing: 16
             
-            property bool hasData: rootContext.homeContent.count > 0
+            property bool hasData: rootContext && rootContext.homeContent.count > 0
             visible: opacity > 0
             opacity: hasData ? 1.0 : 0.0
             Layout.topMargin: hasData ? 0 : -height
@@ -117,13 +118,13 @@ StyledFlickable {
                         text: "Listen Again"
                         font.pixelSize: 24
                         font.weight: 700
-                        color: rootContext.contentColor
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     }
 
                     StyledText {
                         text: "Jump back into your favorites"
                         font.pixelSize: 14
-                        color: rootContext.secondaryContentColor
+                        color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                     }
                 }
 
@@ -142,13 +143,13 @@ StyledFlickable {
 
                 Grid {
                     id: recContent
-                    rows: Math.min(2, Math.max(1, rootContext.homeContent.count))
+                    rows: Math.min(2, Math.max(1, rootContext ? rootContext.homeContent.count : 0))
                     flow: Grid.TopToBottom
                     rowSpacing: 0
                     columnSpacing: 0
 
                     Repeater {
-                        model: rootContext.homeContent
+                        model: rootContext ? rootContext.homeContent : null
 
                         delegate: MusicMediaCard {
                             width: 240
@@ -170,7 +171,7 @@ StyledFlickable {
             Layout.fillWidth: true
             spacing: 16
             
-            property bool hasData: rootContext.quickPicks.count > 0
+            property bool hasData: rootContext && rootContext.quickPicks.count > 0
             visible: opacity > 0
             opacity: hasData ? 1.0 : 0.0
             Layout.topMargin: hasData ? 32 : -height
@@ -182,7 +183,7 @@ StyledFlickable {
                 text: "Quick Picks"
                 font.pixelSize: 20
                 font.weight: 700
-                color: rootContext.contentColor
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
 
             Rectangle {
@@ -190,7 +191,7 @@ StyledFlickable {
                 implicitHeight: quickPicksColumn.height + 32
                 Layout.preferredHeight: implicitHeight
                 radius: 24
-                color: rootContext.surfaceColor
+                color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
 
                 ColumnLayout {
                     id: quickPicksColumn
@@ -201,7 +202,7 @@ StyledFlickable {
                     spacing: 8
 
                     Repeater {
-                        model: rootContext.quickPicks
+                        model: rootContext ? rootContext.quickPicks : null
 
                         delegate: MusicListTrackItem {
                             rootContext: root.rootContext
@@ -221,7 +222,7 @@ StyledFlickable {
             Layout.fillWidth: true
             spacing: 16
             
-            property bool hasData: rootContext.shortsContent.count > 0
+            property bool hasData: rootContext && rootContext.shortsContent.count > 0
             visible: opacity > 0
             opacity: hasData ? 1.0 : 0.0
             Layout.topMargin: hasData ? 32 : -height
@@ -239,13 +240,13 @@ StyledFlickable {
                         text: "Forgotten favourites"
                         font.pixelSize: 24
                         font.weight: 700
-                        color: rootContext.contentColor
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     }
 
                     StyledText {
-                        text: rootContext.shortsContent.count > 0 ? "Rediscover tracks you love" : "No forgotten favorites right now."
+                        text: rootContext && rootContext.shortsContent.count > 0 ? "Rediscover tracks you love" : "No forgotten favorites right now."
                         font.pixelSize: 14
-                        color: rootContext.secondaryContentColor
+                        color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                     }
                 }
             }
@@ -255,7 +256,7 @@ StyledFlickable {
                 Layout.fillWidth: true
                 Layout.preferredHeight: shortContent.implicitHeight
                 implicitHeight: shortContent.implicitHeight
-                visible: rootContext.shortsContent.count > 0
+                visible: rootContext && rootContext.shortsContent.count > 0
                 contentWidth: shortContent.implicitWidth
                 contentHeight: shortContent.implicitHeight
                 clip: true
@@ -263,13 +264,13 @@ StyledFlickable {
 
                 Grid {
                     id: shortContent
-                    rows: Math.min(2, Math.max(1, rootContext.shortsContent.count))
+                    rows: Math.min(2, Math.max(1, rootContext ? rootContext.shortsContent.count : 0))
                     flow: Grid.TopToBottom
                     rowSpacing: 0
                     columnSpacing: 0
 
                     Repeater {
-                        model: rootContext.shortsContent
+                        model: rootContext ? rootContext.shortsContent : null
 
                         delegate: MusicMediaCard {
                             width: 240
@@ -288,7 +289,7 @@ StyledFlickable {
         // Spacer for Footer
         Item {
             Layout.fillWidth: true
-            height: rootContext.currentTrack ? 80 : 32
+            height: rootContext && rootContext.currentTrack ? 80 : 32
         }
     }
 }

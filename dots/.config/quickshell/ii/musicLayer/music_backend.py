@@ -4,6 +4,7 @@ import os
 import signal
 import sys
 import threading
+import subprocess
 from queue import Queue
 
 from mpris_server import MprisServer, PYDBUS_AVAILABLE
@@ -90,9 +91,11 @@ class MusicBackend:
             title = req.get("title", "")
             artist = req.get("artist", "")
             art_url = req.get("artUrl", "")
+            artist_id = req.get("artistId", "")
+            album_id = req.get("albumId", "")
             queue = req.get("queue")
             if video_id:
-                self.player.play(video_id, title, artist, art_url, queue)
+                self.player.play(video_id, title, artist, art_url, queue, artist_id, album_id)
 
         elif cmd == "pause":
             self.player.pause()
@@ -159,6 +162,14 @@ class MusicBackend:
             if query:
                 self.api.get_search_suggestions(query)
 
+        elif cmd == "get_output_device":
+            self.player.get_output_device()
+
+        elif cmd == "get_credits":
+            video_id = req.get("videoId")
+            if video_id:
+                threading.Thread(target=self.api.get_credits, args=(video_id,), daemon=True).start()
+
         elif cmd == "get_artist":
             channel_id = req.get("channelId")
             if channel_id:
@@ -215,6 +226,19 @@ class MusicBackend:
             with self.player._state_lock:
                 self.player._current_queue = queue
             self.log(f"Queue synced, {len(queue)} tracks")
+
+        elif cmd == "copy_to_clipboard":
+            text = req.get("text", "")
+            if text:
+                try:
+                    # Try wl-copy (Wayland) then xclip (X11)
+                    try:
+                        subprocess.run(["wl-copy"], input=text.encode("utf-8"), check=True)
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode("utf-8"), check=True)
+                    self.log(f"Copied to clipboard: {text[:30]}...")
+                except Exception as e:
+                    self.log(f"Clipboard error: {e}")
 
         else:
             self.log(f"Unknown command: {cmd}")

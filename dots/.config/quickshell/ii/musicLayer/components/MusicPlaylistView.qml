@@ -26,7 +26,7 @@ StyledFlickable {
     pressDelay: 150
 
     onDraggingChanged: {
-        if (!dragging && contentY <= -100 && !rootContext.refreshing && !rootContext.isLoading) {
+        if (!dragging && rootContext && contentY <= -100 && !rootContext.refreshing && !rootContext.isLoading) {
             rootContext.refreshing = true
             rootContext.openPlaylist(rootContext.activePlaylistId)
         }
@@ -202,6 +202,7 @@ StyledFlickable {
                         indexNumber: index + 1
                         
                         onClicked: {
+                            if (!rootContext) return
                             if (rootContext.currentTrack && rootContext.currentTrack.videoId === model.videoId) {
                                 rootContext.toggle()
                             } else {
@@ -216,12 +217,13 @@ StyledFlickable {
                                         duration: t.duration || ""
                                     })
                                 }
-                                rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks)
-                            }
-                        }
-                }
-            }
-        }
+                                rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks, model.artistId, model.albumId)
+                                }
+                                }
+                                }
+                                }
+                                }
+
         }
         
         // Spacer

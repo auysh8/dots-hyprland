@@ -219,6 +219,11 @@ class YTMClient:
             artist_id = ""
             if isinstance(artists_list, list) and artists_list:
                 artist_id = artists_list[0].get("id", "") or artists_list[0].get("browseId", "")
+            
+            album_id = ""
+            album_data = item.get("album")
+            if isinstance(album_data, dict):
+                album_id = album_data.get("id") or album_data.get("browseId") or ""
 
             final_id = item.get("videoId") or item.get("playlistId") or item.get("browseId")
             if not final_id and item.get("resultType") in ["artist", "profile"] and artist_id:
@@ -233,6 +238,7 @@ class YTMClient:
                 "title": title,
                 "artist": artist_name,
                 "artistId": artist_id,
+                "albumId": album_id,
                 "duration": self._extract_duration(item),
                 "plays": item.get("views") or item.get("plays") or "",
                 "artUrl": art_url,
@@ -1455,6 +1461,79 @@ class YTMClient:
                     pass
         except Exception as e:
             self.log(f"OAuth flow error: {e}")
+
+    def get_credits(self, video_id):
+        self.log(f"Fetching credits for: {video_id}")
+        try:
+            credits_list = []
+            
+            # 1. Try to get credits from the 'Related' tab (New M3 method)
+            try:
+                watch_data = self.ytm.get_watch_playlist(videoId=video_id)
+                related_id = watch_data.get("related")
+                if related_id:
+                    related_content = self.ytm.get_browse(related_id)
+                    # Look for a section that might be credits
+                    for section in related_content.get("contents", []):
+                        # Some versions of the API return credits in a specific list
+                        if "Credits" in section.get("title", "") or "credits" in section.get("title", "").lower():
+                            for item in section.get("contents", []):
+                                if "runs" in item:
+                                    # Join all text parts
+                                    text = "".join([r.get("text", "") for r in item["runs"]])
+                                    credits_list.append(text)
+            except Exception as e:
+                self.log(f"Related tab credits fetch failed: {e}")
+
+            # 2. Fallback/Supplement: Extract from song description
+            song_data = self.ytm.get_song(video_id)
+            description = song_data.get("videoDetails", {}).get("shortDescription", "")
+            if description:
+                desc_credits = []
+                lines = description.split('\n')
+                # Broader list of keywords
+                keywords = ["Composer", "Lyricist", "Producer", "Arranger", "Writer", "Mixing", "Mastering", "Engineer", "Vocalist", "Guitar", "Drums", "Keyboard", "Orchestra", "Conductor", "Programmer"]
+                for line in lines:
+                    line = line.strip()
+                    if any(key.lower() in line.lower() for key in keywords):
+                        if ":" in line or " - " in line:
+                            desc_credits.append(line)
+                
+                # Deduplicate and add to main list
+                for dc in desc_credits:
+                    if dc not in credits_list:
+                        credits_list.append(dc)
+            
+            # 3. Last Resort: "Music in this video" style or basic info
+            if not credits_list and description:
+                for line in description.split('\n'):
+                    line = line.strip()
+                    if any(key in line for key in ["Artist:", "Album:", "Licensed to YouTube by:", "℗"]):
+                        if line not in credits_list:
+                            credits_list.append(line)
+            
+            if not credits_list:
+                # If truly nothing found, at least provide the artist and title
+                details = song_data.get("videoDetails", {})
+                credits_list = [
+                    f"Title: {details.get('title', 'Unknown')}",
+                    f"Artist: {details.get('author', 'Unknown')}",
+                    "",
+                    "Detailed credits not found in metadata."
+                ]
+                
+            self.send_response({
+                "type": "credits",
+                "videoId": video_id,
+                "credits": credits_list
+            })
+        except Exception as e:
+            self.log(f"Credits fetch failed: {e}")
+            self.send_response({
+                "type": "credits",
+                "videoId": video_id,
+                "credits": ["Failed to load credits."]
+            })
 
     def fetch_playlist(self, video_id):
         try:

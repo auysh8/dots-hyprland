@@ -33,7 +33,7 @@ Rectangle {
 
     color: root.elevatedPanelColor
 
-    visible: rootContext.currentTrack !== null
+    visible: rootContext && rootContext.currentTrack !== null
     z: 100
 
     layer.enabled: true
@@ -45,7 +45,7 @@ Rectangle {
     }
 
     transform: Translate {
-        y: ((rootContext.showMusic || rootContext.closing) && rootContext.currentTrack !== null) ? 0 : 100
+        y: (rootContext && (rootContext.showMusic || rootContext.closing) && rootContext.currentTrack !== null) ? 0 : 100
         Behavior on y {
             NumberAnimation {
                 duration: 500
@@ -74,7 +74,7 @@ Rectangle {
         opacity: root.isExpanding ? 0.0 : 1.0
         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
 
-        property string _trackId: rootContext.currentTrack ? rootContext.currentTrack.videoId : ""
+        property string _trackId: rootContext && rootContext.currentTrack ? rootContext.currentTrack.videoId : ""
         on_TrackIdChanged: {
             if (_trackId !== "") {
                 miniArtAnim.restart()
@@ -114,9 +114,9 @@ Rectangle {
 
                 RoundedImage {
                     anchors.fill: parent
-                    source: rootContext.displayedArtFilePath
+                    source: rootContext ? rootContext.displayedArtFilePath : ""
                     fillMode: Image.PreserveAspectCrop
-                    visible: rootContext.displayedArtFilePath !== ""
+                    visible: rootContext && rootContext.displayedArtFilePath !== ""
                     radius: 12
                 }
             }
@@ -129,18 +129,18 @@ Rectangle {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: rootContext.currentTrack ? rootContext.currentTrack.title : ""
+                    text: rootContext && rootContext.currentTrack ? rootContext.currentTrack.title : ""
                     font.pixelSize: Appearance.font.pixelSize.large
                     font.weight: 600
-                    color: rootContext.contentColor
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                     elide: Text.ElideRight
                 }
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: rootContext.currentTrack ? rootContext.currentTrack.artist : ""
+                    text: rootContext && rootContext.currentTrack ? rootContext.currentTrack.artist : ""
                     font.pixelSize: Appearance.font.pixelSize.normal
-                    color: rootContext.secondaryContentColor
+                    color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
                     elide: Text.ElideRight
                 }
             }
@@ -170,9 +170,9 @@ Rectangle {
                     }
 
                     buttonRadius: 18
-                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
-                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
-                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+                    colBackground: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.08)
+                    colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.2)
                     horizontalPadding: 0
                     verticalPadding: 0
 
@@ -180,13 +180,13 @@ Rectangle {
                         anchors.centerIn: parent
                         iconSize: 22
                         fill: 1
-                        color: rootContext.contentColor
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                         text: "skip_previous"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    onClicked: rootContext.sendCommand({"command": "previous"})
+                    onClicked: if (rootContext) rootContext.sendCommand({"command": "previous"})
                 }
 
                 // Play/Pause Button
@@ -209,21 +209,22 @@ Rectangle {
                     }
 
                     buttonRadius: isPressed ? 14 : 18
-                    colBackground: rootContext.pillColor
-                    colBackgroundHover: ColorUtils.mix(rootContext.pillColor, rootContext.pillContentColor, 0.9)
-                    colRipple: ColorUtils.applyAlpha(rootContext.pillContentColor, 0.3)
+                    colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colSecondaryContainer
+                    colBackgroundHover: rootContext ? ColorUtils.mix(rootContext.pillColor, rootContext.pillContentColor, 0.9) : Appearance.colors.colSecondaryContainerHover
+                    colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.pillContentColor : Appearance.colors.colOnSecondaryContainer, 0.3)
                     horizontalPadding: 0
                     verticalPadding: 0
 
                     contentItem: MaterialSymbol {
-                        text: rootContext.playbackPaused ? "play_arrow" : "pause"
-                        color: rootContext.pillContentColor
+                        text: rootContext && rootContext.playbackPaused ? "play_arrow" : "pause"
+                        color: rootContext ? rootContext.pillContentColor : Appearance.colors.colOnSecondaryContainer
                         iconSize: 24
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
 
                     onClicked: {
+                        if (!rootContext) return
                         if (rootContext.isTrackLoading) return
                         if (rootContext.playbackPaused)
                             rootContext.sendCommand({"command": "resume"})
@@ -252,9 +253,9 @@ Rectangle {
                     }
 
                     buttonRadius: 18
-                    colBackground: ColorUtils.applyAlpha(rootContext.contentColor, 0.04)
-                    colBackgroundHover: ColorUtils.applyAlpha(rootContext.contentColor, 0.08)
-                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+                    colBackground: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.04)
+                    colBackgroundHover: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.08)
+                    colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface, 0.2)
                     horizontalPadding: 0
                     verticalPadding: 0
 
@@ -262,13 +263,13 @@ Rectangle {
                         anchors.centerIn: parent
                         iconSize: 22
                         fill: 1
-                        color: rootContext.contentColor
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                         text: "skip_next"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    onClicked: rootContext.sendCommand({"command": "next"})
+                    onClicked: if (rootContext) rootContext.sendCommand({"command": "next"})
                 }
             }
         }

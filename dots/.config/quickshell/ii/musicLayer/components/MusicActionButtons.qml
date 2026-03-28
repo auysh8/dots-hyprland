@@ -63,7 +63,7 @@ Item {
                             duration: t.duration || ""
                         })
                     }
-                    rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.coverUrl, queueTracks)
+                    rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.coverUrl, queueTracks, first.artistId, first.albumId)
                 }
             }
         }
@@ -102,6 +102,8 @@ Item {
                             videoId: t.videoId,
                             title: t.title,
                             artist: t.artist,
+                            artistId: t.artistId,
+                            albumId: t.albumId,
                             artUrl: t.artUrl || root.coverUrl,
                             duration: t.duration || ""
                         })
@@ -113,7 +115,7 @@ Item {
                     }
                     let first = tracksToPlay[0]
                     let queueTracks = tracksToPlay.slice(1)
-                    rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.coverUrl, queueTracks)
+                    rootContext.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.coverUrl, queueTracks, first.artistId, first.albumId)
                 }
             }
         }

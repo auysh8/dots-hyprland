@@ -102,6 +102,8 @@ FocusScope {
     property bool refreshing: false
     property var currentTrack: null
     property string currentCanvasUrl: ""  // Animated canvas art URL for the current track
+    property string currentOutputDevice: "Unknown"
+    property ListModel currentTrackCredits: ListModel {}
     property bool currentTrackLiked: false
     property bool isTrackLoading: false
     property bool playbackPaused: false
@@ -111,6 +113,26 @@ FocusScope {
     property int trackDurationSec: 0
     property int repeatMode: 0  // 0: Off, 1: Repeat All, 2: Repeat One
     property bool shuffleToggled: false
+    property bool radioTrayVisible: false
+    
+    property int sleepTimerSeconds: 0
+    property bool sleepTimerActive: sleepTimerSeconds > 0
+    property bool sleepTimerMenuVisible: false
+
+    Timer {
+        id: sleepTimer
+        interval: 1000
+        repeat: true
+        running: sleepTimerActive && !root.playbackPaused
+        onTriggered: {
+            if (sleepTimerSeconds > 0) {
+                sleepTimerSeconds -= 1
+                if (sleepTimerSeconds === 0) {
+                    root.sendCommand({"command": "pause"})
+                }
+            }
+        }
+    }
 
     // ---- Inline lyrics (own pipeline, no conflict with other players) ----
     property var localLyricsModel: ListModel {}
@@ -138,7 +160,6 @@ FocusScope {
     property string currentView: "home"
     property string previousView: "home"
     property string returnView: "home"
-    property bool radioTrayVisible: false
     
     onCurrentViewChanged: {
         if (currentView !== "player") {
@@ -248,12 +269,14 @@ FocusScope {
         root.applyVisibleSongResults()
     }
 
-    function playTrack(videoId, title, artist, artUrl, queueTracks) {
+    function playTrack(videoId, title, artist, artUrl, queueTracks, artistId, albumId) {
         root.currentTrack = {
             videoId: videoId,
             title: title,
             artist: artist,
-            artUrl: artUrl
+            artUrl: artUrl,
+            artistId: artistId || "",
+            albumId: albumId || ""
         }
         root.isTrackLoading = true
         let msg = {
@@ -261,7 +284,9 @@ FocusScope {
             "videoId": videoId,
             "title": title,
             "artist": artist,
-            "artUrl": artUrl
+            "artUrl": artUrl,
+            "artistId": artistId || "",
+            "albumId": albumId || ""
         }
         
         // If queueTracks is explicitly provided, send it. If undefined, send empty to clear.
@@ -403,7 +428,7 @@ FocusScope {
                     duration: t.duration || ""
                 })
             }
-            root.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.activePlaylistCover, queueTracks)
+            root.playTrack(first.videoId, first.title, first.artist, first.artUrl || root.activePlaylistCover, queueTracks, first.artistId, first.albumId)
         } else {
             root.autoPlayPending = false;
         }
@@ -666,11 +691,14 @@ FocusScope {
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
                         root.currentCanvasUrl = ""  // Clear canvas on new track load
+                        root.currentTrackCredits.clear() // Clear credits
                         root.currentTrack = {
                             videoId: data.videoId,
                             title: data.title,
                             artist: data.artist,
-                            artUrl: data.artUrl
+                            artUrl: data.artUrl,
+                            artistId: data.artistId || "",
+                            albumId: data.albumId || ""
                         }
                     } else if (data.type === "playback_started") {
                         root.isTrackLoading = false
@@ -679,7 +707,9 @@ FocusScope {
                             videoId: data.videoId,
                             title: data.title,
                             artist: data.artist,
-                            artUrl: data.artUrl
+                            artUrl: data.artUrl,
+                            artistId: data.artistId || "",
+                            albumId: data.albumId || ""
                         }
                         root.currentTrackLiked = data.isLiked || false
                         root.playbackPaused = false
@@ -744,6 +774,16 @@ FocusScope {
                             root.isAuthenticated = true
                             root.getHome()
                             root.getLibrary()
+                        }
+                    } else if (data.type === "output_device") {
+                        root.currentOutputDevice = data.device || "Unknown"
+                    } else if (data.type === "credits") {
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
+                            root.currentTrackCredits.clear()
+                            let credits = data.credits || []
+                            for (let i = 0; i < credits.length; i++) {
+                                root.currentTrackCredits.append({ "text": credits[i] })
+                            }
                         }
                     }
                 } catch(e) { 

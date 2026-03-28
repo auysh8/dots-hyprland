@@ -16,7 +16,7 @@ Item {
     property bool navRailExpanded: false
     
     // Smooth visibility transitions
-    property bool show: rootContext.currentView === "player"
+    property bool show: rootContext && rootContext.currentView === "player"
     property bool queueExpanded: false
     property bool inlineLyricsExpanded: false
     property real inlineLyricsPosition: rootContext ? rootContext.trackPositionSec : 0
@@ -207,9 +207,9 @@ Item {
             anchors.fill: parent
             radius: root.currentRadius
             gradient: Gradient {
-                GradientStop { position: 0.0; color: ColorUtils.applyAlpha(rootContext.pillColor, 0.15) }
-                GradientStop { position: 0.6; color: ColorUtils.applyAlpha(rootContext.backgroundColor, 0.4) }
-                GradientStop { position: 1.0; color: ColorUtils.applyAlpha(rootContext.backgroundColor, 0.85) }
+                GradientStop { position: 0.0; color: ColorUtils.applyAlpha(rootContext ? rootContext.pillColor : Appearance.colors.colSecondaryContainer, 0.15) }
+                GradientStop { position: 0.6; color: ColorUtils.applyAlpha(rootContext ? rootContext.backgroundColor : Appearance.colors.colLayer0Base, 0.4) }
+                GradientStop { position: 1.0; color: ColorUtils.applyAlpha(rootContext ? rootContext.backgroundColor : Appearance.colors.colLayer0Base, 0.85) }
             }
         }
     }
@@ -233,9 +233,9 @@ Item {
             implicitWidth: 48
             implicitHeight: 48
             buttonRadius: 24
-            colBackground: ColorUtils.applyAlpha(rootContext.surfaceColor, 0.5)
-            colBackgroundHover: ColorUtils.applyAlpha(rootContext.surfaceColor, 0.8)
-            colRipple: rootContext.contentColor
+            colBackground: ColorUtils.applyAlpha(rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1, 0.5)
+            colBackgroundHover: ColorUtils.applyAlpha(rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1, 0.8)
+            colRipple: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             horizontalPadding: 0
             verticalPadding: 0
             z: 10
@@ -244,13 +244,13 @@ Item {
                 anchors.centerIn: parent
                 text: "expand_more"
                 iconSize: 28
-                color: rootContext.contentColor
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
 
             onClicked: {
-                rootContext.currentView = rootContext.previousView || "home"
+                if (rootContext) rootContext.currentView = rootContext.previousView || "home"
             }
         }
 
@@ -1248,7 +1248,7 @@ Item {
                                     }
                                     
                                     // Play the clicked track with the trimmed queue
-                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, remainingQueue)
+                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, remainingQueue, model.artistId, model.albumId)
                                     root.queueExpanded = false
                                 }
                             }

@@ -248,7 +248,7 @@ StyledFlickable {
                                             duration: t.duration || ""
                                         })
                                     }
-                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks)
+                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks, model.artistId, model.albumId)
                                 }
                             }
                         }

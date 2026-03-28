@@ -14,9 +14,9 @@ StyledFlickable {
     readonly property color artPlaceholderColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
     readonly property int releaseCount: Math.min(rootContext ? rootContext.exploreNewReleases.count : 0, 16)
     readonly property int trendingCount: Math.min(rootContext ? rootContext.exploreTrending.count : 0, 12)
-    readonly property int bottomPadding: rootContext.currentTrack ? 120 : 32
+    readonly property int bottomPadding: rootContext && rootContext.currentTrack ? 120 : 32
 
-    property bool show: queryText.length === 0 && rootContext.currentView === "explore" && !rootContext.isLoading
+    property bool show: queryText.length === 0 && rootContext && rootContext.currentView === "explore" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
     enabled: show
@@ -30,11 +30,15 @@ StyledFlickable {
 
     function handlePlayTrack(trackData) {
         if (!trackData || !trackData.videoId) return;
+        if (!rootContext) return;
         rootContext.playTrack(
             trackData.videoId,
             trackData.title || "",
             trackData.artist || "",
-            trackData.artUrl || ""
+            trackData.artUrl || "",
+            undefined,
+            trackData.artistId || "",
+            trackData.albumId || ""
         )
     }
 
@@ -75,7 +79,7 @@ StyledFlickable {
                     text: "New Releases"
                     font.pixelSize: 24
                     font.weight: 700
-                    color: rootContext.contentColor
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                 }
             }
 
@@ -133,11 +137,11 @@ StyledFlickable {
                 y: root.trendingCount > 0 ? 0 : 40
                 Behavior on y { NumberAnimation { duration: 600; easing.type: Easing.OutExpo } }
 
-            StyledText {
+                StyledText {
                 text: "Trending Now"
                 font.pixelSize: 24
                 font.weight: 700
-                color: rootContext.contentColor
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
 
             Rectangle {

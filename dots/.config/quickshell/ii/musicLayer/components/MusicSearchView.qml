@@ -13,11 +13,11 @@ StyledFlickable {
 
 
     anchors.fill: parent
-    contentHeight: resultsColumn.implicitHeight + (rootContext.currentTrack ? 120 : 32)
+    contentHeight: resultsColumn.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32)
     contentWidth: width
     pressDelay: 150
 
-    property bool show: queryText.length > 0 && rootContext.currentView !== "playlist" && rootContext.currentView !== "artist" && rootContext.currentView !== "artist_items" && !rootContext.isLoading
+    property bool show: queryText.length > 0 && rootContext && rootContext.currentView !== "playlist" && rootContext.currentView !== "artist" && rootContext.currentView !== "artist_items" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
     enabled: show
@@ -40,13 +40,13 @@ StyledFlickable {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 16
-            visible: rootContext.artistResults.count > 0
+            visible: rootContext && rootContext.artistResults.count > 0
 
             StyledText {
                 text: "Artists"
                 font.pixelSize: 20
                 font.weight: 700
-                color: rootContext.contentColor
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
 
             MusicHorizontalFlickable {
@@ -64,18 +64,18 @@ StyledFlickable {
                     spacing: 0
 
                     Repeater {
-                        model: rootContext.artistResults
+                        model: rootContext ? rootContext.artistResults : null
 
                         delegate: MusicMediaCard {
                             width: 180
                             height: 220
                             rootContext: root.rootContext
                             itemData: model
-                            hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.5)
-                            artPlaceholderColor: rootContext.surfaceColor
+                            hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.5) : "transparent"
+                            artPlaceholderColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
 
                             onClicked: {
-                                rootContext.openArtist(model.videoId || "")
+                                if (rootContext) rootContext.openArtist(model.videoId || "")
                             }
                         }
                     }
@@ -87,7 +87,7 @@ StyledFlickable {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 16
-            visible: rootContext.songResults.count > 0
+            visible: rootContext && rootContext.songResults.count > 0
 
             RowLayout {
                 Layout.fillWidth: true
@@ -96,26 +96,26 @@ StyledFlickable {
                     text: "Songs"
                     font.pixelSize: 20
                     font.weight: 700
-                    color: rootContext.contentColor
+                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                 }
 
                 Item { Layout.fillWidth: true }
 
                 RippleButton {
-                    visible: rootContext.searchSongsHasMore
+                    visible: rootContext && rootContext.searchSongsHasMore
                     Layout.preferredHeight: 34
                     buttonRadius: 17
                     colBackground: rootContext ? rootContext.pillColor : Appearance.colors.colLayer2Base
-                    colRipple: ColorUtils.applyAlpha(rootContext.contentColor, 0.2)
+                    colRipple: ColorUtils.applyAlpha(rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer2, 0.2)
 
                     contentItem: StyledText {
                         text: "Load more"
                         font.pixelSize: 13
                         font.weight: 600
-                        color: rootContext.contentColor
+                        color: rootContext ? rootContext.contentColor : Appearance.colors.colOnLayer2
                     }
 
-                    onClicked: rootContext.loadMoreSongs()
+                    onClicked: if (rootContext) rootContext.loadMoreSongs()
                 }
             }
 
@@ -125,7 +125,7 @@ StyledFlickable {
                 implicitHeight: songResultsColumn.height + 32
                 Layout.preferredHeight: implicitHeight
                 radius: 24
-                color: rootContext.surfaceColor
+                color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
                 clip: true
 
                 Behavior on Layout.preferredHeight {
@@ -144,14 +144,14 @@ StyledFlickable {
                     spacing: 8
 
                     Repeater {
-                        model: rootContext.songResults
+                        model: rootContext ? rootContext.songResults : null
 
                         delegate: MusicListTrackItem {
                             rootContext: root.rootContext
                             track: model
 
                             onClicked: {
-                                rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl)
+                                if (rootContext) rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, undefined, model.artistId, model.albumId)
                             }
                         }
                     }
@@ -163,13 +163,13 @@ StyledFlickable {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 16
-            visible: rootContext.albumResults.count > 0
+            visible: rootContext && rootContext.albumResults.count > 0
 
             StyledText {
                 text: "Albums"
                 font.pixelSize: 20
                 font.weight: 700
-                color: rootContext.contentColor
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
             }
 
             Flow {
@@ -184,20 +184,20 @@ StyledFlickable {
                 property int cellHeight: Math.max(280, cellWidth + 72)
 
                 Repeater {
-                    model: rootContext.albumResults
+                    model: rootContext ? rootContext.albumResults : null
 
                     delegate: MusicMediaCard {
                         width: albumGrid.cellWidth
                         height: albumGrid.cellHeight
                         rootContext: root.rootContext
                         itemData: model
-                        hoverColor: ColorUtils.transparentize(rootContext.pillColor, 0.3)
-                        artPlaceholderColor: rootContext.surfaceColor
+                        hoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.3) : "transparent"
+                        artPlaceholderColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
 
                         customSubtitle: model.artist
 
                         onClicked: {
-                            rootContext.openPlaylist(model.videoId)
+                            if (rootContext) rootContext.openPlaylist(model.videoId)
                         }
                     }
                 }
@@ -207,7 +207,7 @@ StyledFlickable {
         // Spacer
         Item {
             Layout.fillWidth: true
-            height: rootContext.currentTrack ? 80 : 0
+            height: rootContext && rootContext.currentTrack ? 80 : 0
         }
     }
 }
