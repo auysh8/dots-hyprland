@@ -91,7 +91,8 @@ def _format_tidal_video_url(video_cover_id):
     parts = video_cover_id.split("-")
     if len(parts) != 5:
         return None
-    return f"https://resources.tidal.com/videos/{parts[0]}/{parts[1]}/{parts[2]}/{parts[3]}/{parts[4]}/1280x1280.mp4"
+    # OPTIMIZATION: Request 640x640 instead of 1280x1280 for better performance as a background element
+    return f"https://resources.tidal.com/videos/{parts[0]}/{parts[1]}/{parts[2]}/{parts[3]}/{parts[4]}/640x640.mp4"
 
 
 def _find_items_in_json(obj, key):

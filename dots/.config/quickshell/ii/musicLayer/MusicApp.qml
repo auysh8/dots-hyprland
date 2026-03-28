@@ -114,6 +114,7 @@ FocusScope {
     property int repeatMode: 0  // 0: Off, 1: Repeat All, 2: Repeat One
     property bool shuffleToggled: false
     property bool radioTrayVisible: false
+    property bool visualizerActive: false
     
     property int sleepTimerSeconds: 0
     property bool sleepTimerActive: sleepTimerSeconds > 0
@@ -475,7 +476,7 @@ FocusScope {
     
     Process {
         id: cavaProc
-        running: !!root.showMusic && !!root.currentTrack && !root.playbackPaused
+        running: !!root.showMusic && !!root.currentTrack && !root.playbackPaused && root.visualizerActive
         onRunningChanged: {
             if (!cavaProc.running) {
                 // Return to baseline properly rather than destroying the array
@@ -720,7 +721,7 @@ FocusScope {
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             // Validate URL before assigning - prevent empty/invalid URLs
                             const url = data.url || ""
-                            if (url && url.length > 0 && url !== "about:blank" && url.startsWith("http")) {
+                            if (url && url.length > 0 && url !== "about:blank" && (url.startsWith("http") || url.startsWith("file://"))) {
                                 root.currentCanvasUrl = url
                             } else {
                                 console.log("[MusicApp] Invalid canvas URL received:", url)

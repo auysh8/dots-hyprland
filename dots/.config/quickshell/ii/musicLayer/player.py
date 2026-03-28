@@ -273,15 +273,42 @@ class Player:
 
             def _fetch_canvas():
                 try:
-                    # Check cache first
-                    cached_canvas = self.cache.get_canvas(video_id)
-                    if cached_canvas and cached_canvas.get("url"):
-                        self.log(f"Canvas cache HIT for '{title}'")
+                    # 1. Check for local video cache first (Smoothest)
+                    local_canvas_path = self.cache.get_canvas_video_path(video_id)
+                    if local_canvas_path:
+                        self.log(f"Local canvas HIT for '{title}'")
                         with self._state_lock:
                             if self._playback_token == token:
-                                self.send_response({"type": "canvas_url", "videoId": video_id, "url": cached_canvas["url"], "isAnimated": cached_canvas.get("isAnimated", False)})
+                                self.send_response({
+                                    "type": "canvas_url", 
+                                    "videoId": video_id, 
+                                    "url": f"file://{local_canvas_path}", 
+                                    "isAnimated": True
+                                })
                         return
 
+                    # 2. Check for cached URL
+                    cached_canvas = self.cache.get_canvas(video_id)
+                    if cached_canvas and cached_canvas.get("url"):
+                        self.log(f"Canvas URL cache HIT for '{title}'")
+                        canvas_url = cached_canvas["url"]
+                        is_animated = cached_canvas.get("isAnimated", False)
+                        
+                        # Start background download for next time
+                        if is_animated:
+                            self.cache.start_canvas_cache_download(video_id, canvas_url, title)
+                            
+                        with self._state_lock:
+                            if self._playback_token == token:
+                                self.send_response({
+                                    "type": "canvas_url", 
+                                    "videoId": video_id, 
+                                    "url": canvas_url, 
+                                    "isAnimated": is_animated
+                                })
+                        return
+
+                    # 3. Fetch from scrapers
                     self.log(f"Canvas cache MISS for '{title}', fetching...")
                     script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "canvas_fetcher.py")
                     python = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv", "bin", "python3")
@@ -294,13 +321,24 @@ class Player:
                             canvas_data = json.loads(result.stdout.strip())
                             canvas_url = canvas_data.get("videoUrl") or canvas_data.get("animated")
                             if canvas_url:
-                                # Cache the result
-                                cache_entry = {"url": canvas_url, "isAnimated": bool(canvas_data.get("animated")), "ts": time.time()}
+                                is_animated = bool(canvas_data.get("animated"))
+                                # Cache the URL result
+                                cache_entry = {"url": canvas_url, "isAnimated": is_animated, "ts": time.time()}
                                 self.cache.cache_canvas(video_id, cache_entry)
+                                
+                                # Start background download
+                                if is_animated:
+                                    self.cache.start_canvas_cache_download(video_id, canvas_url, title)
+                                    
                                 self.log(f"Canvas cached for '{title}'")
                                 with self._state_lock:
                                     if self._playback_token == token:
-                                        self.send_response({"type": "canvas_url", "videoId": video_id, "url": canvas_url, "isAnimated": bool(canvas_data.get("animated"))})
+                                        self.send_response({
+                                            "type": "canvas_url", 
+                                            "videoId": video_id, 
+                                            "url": canvas_url, 
+                                            "isAnimated": is_animated
+                                        })
                                 break
                     else:
                         self.log(f"No canvas found for '{title}'")

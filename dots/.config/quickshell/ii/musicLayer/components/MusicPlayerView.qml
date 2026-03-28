@@ -75,7 +75,8 @@ Item {
 
     Timer {
         id: inlineLyricsPositionTimer
-        running: !!rootContext && !!rootContext.currentTrack && !rootContext.playbackPaused
+        // OPTIMIZATION: Only run this high-frequency timer when lyrics are actually visible!
+        running: !!rootContext && !!rootContext.currentTrack && !rootContext.playbackPaused && root.inlineLyricsExpanded
         interval: 50
         repeat: true
 
@@ -326,7 +327,11 @@ Item {
                 Item {
                     id: canvasClip
                     anchors.fill: parent
-                    layer.enabled: true
+                    
+                    opacity: bgLayer.canvasReady ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+
+                    layer.enabled: opacity > 0
                     layer.effect: OpacityMask {
                         maskSource: Rectangle {
                             width: canvasClip.width
@@ -340,9 +345,6 @@ Item {
                         anchors.fill: parent
                         fillMode: VideoOutput.PreserveAspectCrop
                     }
-
-                    opacity: bgLayer.canvasReady ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                 }
             }
         }
@@ -783,15 +785,24 @@ Item {
                 }
                 
                 WaveVisualizer {
+                    id: mainWaveVisualizer
                     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 36
                     Layout.rightMargin: 8
-                    
+
                     opacity: root.inlineLyricsExpanded && rootContext.currentTrack ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 350 } }
                     visible: opacity > 0
-                    
+
+                    // PROACTIVE OPTIMIZATION: Update global visualizer state
+                    onVisibleChanged: {
+                        if (rootContext) rootContext.visualizerActive = visible
+                    }
+                    Component.onCompleted: {
+                        if (rootContext) rootContext.visualizerActive = visible
+                    }
+
                     style: "pills"
                     live: !rootContext.playbackPaused
                     
