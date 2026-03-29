@@ -130,6 +130,13 @@ Item {
         // --- Canvas animated background ---
         property bool canvasReady: false
 
+        // Base solid background to prevent transparency
+        Rectangle {
+            anchors.fill: parent
+            radius: root.currentRadius
+            color: rootContext ? rootContext.backgroundColor : Appearance.colors.colLayer0Base
+        }
+
         function updateCanvasPlayback() {
             if (!canvasPlayer.source || canvasPlayer.source.toString() === "") {
                 return

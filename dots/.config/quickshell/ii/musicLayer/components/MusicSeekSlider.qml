@@ -78,7 +78,9 @@ Slider {
             WavyLine {
                 id: wavyFill
                 visible: root.wavy || root.waveAmplitudeMultiplier > 0.01
-                anchors.fill: parent
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width
+                height: root.trackWidth * 4
                 amplitudeMultiplier: root.waveAmplitudeMultiplier
                 frequency: root.waveFrequency
                 color: root.highlightColor

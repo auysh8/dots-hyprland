@@ -10,13 +10,21 @@ from queue import Queue
 from mpris_server import MprisServer, PYDBUS_AVAILABLE
 from ytm_api import YTMClient
 from player import Player
+from cache_manager import CacheManager
 
 class MusicBackend:
     def __init__(self):
         # Instantiate sub-components
         self.mpris = MprisServer(self)
+        
+        cache_dir = os.path.expanduser("~/.cache/quickshell/music")
+        self.cache = CacheManager(cache_dir, logger=self.log)
+        
         # Create player first (needs send_response and log)
         self.player = Player(self.send_response, self.log)
+        # Set cache reference
+        self.player.cache = self.cache
+        
         # Then create API with player reference
         self.api = YTMClient(self.send_response, self.log, self.player)
         # Set cross-references

@@ -177,8 +177,9 @@ Slider {
                     color: root.highlightColor
                     amplitudeMultiplier: root.waveAmplitudeMultiplier
                     width: parent.width
-                    height: root.height
+                    height: root.trackWidth * 4
                     lineWidth: root.trackWidth
+                    anchors.verticalCenter: parent.verticalCenter
                     Connections {
                         target: root
                         function onValueChanged() { wavyFill.requestPaint(); }

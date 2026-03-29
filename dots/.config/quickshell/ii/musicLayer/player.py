@@ -1,95 +1,87 @@
+#!/usr/bin/env python3
+import json
 import os
 import re
-import json
-import time
-import hashlib
-import urllib.request
-import threading
+import signal
 import subprocess
-import shutil
-import socket
 import sys
-from cache_manager import CacheManager
-from lyrics_fetcher import LyricsSyncEngine, fetch_lyrics
-
+import threading
+import time
+from pathlib import Path
 
 class Player:
-    def __init__(self, send_response_callback, logger, api=None, mpris_server=None):
-        self.api = api
-        self.mpris = mpris_server
+    """Handles audio playback using mpv and track fetching using yt-dlp."""
+
+    def __init__(self, send_response_callback, logger):
         self.send_response = send_response_callback
         self.log = logger
-
-        runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
-        self.ipc_socket = os.path.join(runtime_dir, f"mpv_music_{os.getuid()}.sock")
-
         self.mpv_process = None
+        self.ipc_socket = "/tmp/quickshell-music-mpv.sock"
+        self._playback_token = 0
+        self._state_lock = threading.Lock()
+        
+        # Internal state
+        self.current_video_id = None
+        self._current_queue = []
+        self._play_stack = []  # Stack of video IDs for 'back' functionality
+        self.repeat_mode = 0  # 0: None, 1: All, 2: One
+        self.shuffle_mode = False
+        
+        # Audio cache reference (will be set by backend)
+        self.cache = None
+        self.api = None
+        self.mpris = None
+        
+        # Stream URL cache for gapless playback
+        self._stream_cache = {}
         self._ytdlp_proc = None
 
-        self.current_video_id = None
-        self._state_lock = threading.Lock()
-        self._playback_token = 0
-
-        self.repeat_mode = 0
-        self._stream_cache = {}
-
-        cache_base = os.path.expanduser("~/.cache/quickshell/music")
-        max_cache_mb = float(os.environ.get("MUSIC_CACHE_SIZE_MB", "500"))
-        self.cache = CacheManager(cache_base, max_size_mb=max_cache_mb, logger=self.log)
-        self.log(f"Cache initialized: {max_cache_mb}MB limit at {cache_base}")
-        self.cache.cleanup_orphans()
-        stats = self.cache.get_stats()
-        self.log(f"Cache status: {stats['art_count']} art, {stats['audio_count']} audio, {stats['total_size_mb']:.1f}MB / {stats['max_size_mb']:.0f}MB")
-
-        self._play_stack = []
-        self._current_queue = []
-        self._current_title = ""
-        self._current_artist = ""
-        self._current_art = ""
-        self._current_art_url = ""
-        self._is_auto_advancing = False
-
-        # Independent lyrics engine — completely isolated from global LyricsService
-        self._lyrics_engine = LyricsSyncEngine(self.send_response)
-
     def _sigterm_handler(self, signum, frame):
-        self._cleanup_on_exit()
+        self.log(f"Received signal {signum}, stopping player...")
+        self.stop()
         sys.exit(0)
 
-    def _cleanup_on_exit(self):
-        try:
-            if self.mpv_process:
-                self.mpv_process.terminate()
-                self.mpv_process.wait(timeout=2)
-        except Exception:
-            try:
-                if self.mpv_process:
-                    self.mpv_process.kill()
-            except Exception:
-                pass
-
     def _resolve_ytdlp_path(self):
-        local = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv", "bin", "yt-dlp")
-        if os.path.isfile(local):
-            return local
-        system = shutil.which("yt-dlp")
-        if system:
-            return system
-        raise FileNotFoundError("yt-dlp not found")
+        # Prefer venv version if it exists
+        venv_ytdlp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv", "bin", "yt-dlp")
+        if os.path.exists(venv_ytdlp):
+            return venv_ytdlp
+        return "yt-dlp"
 
-    def _cleanup_socket(self):
-        if os.path.exists(self.ipc_socket):
-            try:
-                os.remove(self.ipc_socket)
-            except OSError:
-                pass
+    def stop(self, notify=True):
+        with self._state_lock:
+            self._playback_token += 1
+            if self.mpv_process:
+                try:
+                    # Try to close gracefully first
+                    self._ipc_send({"command": ["quit"]})
+                    # Give it a tiny bit to close
+                    time.sleep(0.05)
+                    if self.mpv_process.poll() is None:
+                        self.mpv_process.terminate()
+                except Exception:
+                    pass
+                self.mpv_process = None
+            self.current_video_id = None
+            self._cleanup_socket()
+        if notify:
+            self.send_response({"type": "playback_stopped"})
 
-    def _push_play_stack(self, video_id):
-        if video_id in self._play_stack:
-            self._play_stack.remove(video_id)
-        self._play_stack.append(video_id)
-        if len(self._play_stack) > 20:
-            self._play_stack = self._play_stack[-20:]
+    def pause(self):
+        self._ipc_send({"command": ["set_property", "pause", True]})
+        self.send_response({"type": "playback_paused"})
+
+    def resume(self):
+        self._ipc_send({"command": ["set_property", "pause", False]})
+        self.send_response({"type": "playback_resumed"})
+
+    def seek(self, position_sec):
+        self._ipc_send({"command": ["set_property", "time-pos", position_sec]})
+
+    def set_repeat(self, mode):
+        # mode: 0 (Off), 1 (All), 2 (One)
+        self.repeat_mode = int(mode)
+        self.log(f"Repeat mode set to: {self.repeat_mode}")
 
     def play(self, video_id, title, artist, art_url, queue_tracks=None, artist_id="", album_id=""):
         """
@@ -146,7 +138,14 @@ class Player:
         self.log(f"Background prefetching next URL for gapless playback: {video_id}")
         try:
             ytdlp = self._resolve_ytdlp_path()
-            result = subprocess.run([ytdlp, "-f", "bestaudio", "-g", "--no-warnings", f"https://music.youtube.com/watch?v={video_id}"], capture_output=True, text=True, check=True, timeout=30)
+            # OPTIMIZATION: Use bestaudio/best and extractor-args for compatibility
+            cmd = [
+                ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings", 
+                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "--extractor-args", "youtube:player_client=android_vr,web",
+                f"https://music.youtube.com/watch?v={video_id}"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
             stream_url = result.stdout.strip().split("\n")[-1].strip()
             if stream_url:
                 with self._state_lock:
@@ -190,12 +189,23 @@ class Player:
                 else:
                     self.log("Fetching stream URL...")
                     ytdlp = self._resolve_ytdlp_path()
-                    proc = subprocess.Popen([ytdlp, "-f", "bestaudio", "-g", "--no-warnings", f"https://music.youtube.com/watch?v={video_id}"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    # OPTIMIZATION: Use bestaudio/best and extractor-args for compatibility
+                    cmd = [
+                        ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings", 
+                        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "--extractor-args", "youtube:player_client=android_vr,web",
+                        f"https://music.youtube.com/watch?v={video_id}"
+                    ]
+                    
+                    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     self._ytdlp_proc = proc
-                    stdout, _ = proc.communicate(timeout=30)
+                    stdout, stderr = proc.communicate(timeout=30)
                     self._ytdlp_proc = None
+                    
                     if proc.returncode != 0:
+                        self.log(f"yt-dlp error: {stderr}")
                         raise ValueError(f"yt-dlp exited with code {proc.returncode}")
+                        
                     stream_url = stdout.strip().split("\n")[-1].strip()
                     self.log(f"Stream URL fetched")
                     self.cache.start_audio_cache_download(video_id, stream_url, title)
@@ -230,8 +240,6 @@ class Player:
                 if self._playback_token != token:
                     return
 
-            # Removed automatic radio queue fetching to respect user intent (empty queue for standalone songs)
-
             self._cleanup_socket()
             cmd = ["mpv", "--no-video", "--no-terminal", "--really-quiet", "--no-config", "--load-scripts=no", f"--input-ipc-server={self.ipc_socket}", f"--force-media-title={title} • {artist}", stream_url]
             self.log(f"Launching mpv...")
@@ -253,12 +261,9 @@ class Player:
                 threading.Thread(target=self._prefetch_stream_url, args=(next_id,), daemon=True).start()
 
             def _deferred_art_download():
-                if art_url and not art_file_path:
+                if not art_file_path and art_url:
                     try:
-                        req = urllib.request.Request(art_url, headers={"User-Agent": "Mozilla/5.0"})
-                        with urllib.request.urlopen(req, timeout=8) as r:
-                            image_data = r.read()
-                        cached_path = self.cache.cache_art(art_url, image_data)
+                        cached_path = self.cache.download_art_now(art_url)
                         if cached_path:
                             self.send_response({"type": "art_downloaded", "videoId": video_id, "path": cached_path})
                             self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=cached_path, video_id=video_id, art_url=art_url)
@@ -369,236 +374,61 @@ class Player:
                     dur = self._ipc_get("duration")
                     if dur is not None:
                         self.log(f"Duration: {dur}s")
-                        self.mpris._cached_duration = int(float(dur) * 1_000_000)
-                        self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=art_file_path or "", video_id=video_id, art_url=art_url)
-                        self.send_response({"type": "playback_duration", "durationSec": int(float(dur))})
+                        self.send_response({"type": "playback_duration", "durationSec": int(dur)})
                         break
             threading.Thread(target=_wait_for_duration, daemon=True).start()
 
-            def _poll_position():
+            def _progress_task():
                 while True:
-                    time.sleep(1)
                     with self._state_lock:
-                        if self._playback_token != token:
+                        if self._playback_token != token or not self.mpv_process:
                             break
-                    if not self.mpv_process:
-                        break
+                    
                     pos = self._ipc_get("time-pos")
-                    dur = self._ipc_get("duration")
                     if pos is not None:
-                        pos_f = float(pos)
-                        self.send_response({"type": "playback_progress", "positionSec": int(pos_f), "durationSec": int(float(dur)) if dur else 0})
-                        self._lyrics_engine.set_position(pos_f)
-            threading.Thread(target=_poll_position, daemon=True).start()
+                        self.send_response({"type": "playback_progress", "positionSec": int(pos)})
+                    
+                    # Auto-advance check
+                    if pos is not None:
+                        dur = self._ipc_get("duration")
+                        if dur and dur > 0 and pos >= (dur - 0.5):
+                            self.log("End of track detected via progress")
+                            self.next_track(is_auto=True)
+                            break
+                            
+                    time.sleep(1.0)
+            threading.Thread(target=_progress_task, daemon=True).start()
 
-            def _fetch_lyrics():
-                try:
-                    lyrics, source = fetch_lyrics(title, artist, duration=0)
-                    with self._state_lock:
-                        if self._playback_token != token:
-                            return
-                    self._lyrics_engine.load(lyrics or [], source, token)
-                except Exception as e:
-                    self.log(f"Lyrics fetch error: {e}")
-            threading.Thread(target=_fetch_lyrics, daemon=True).start()
-
-            def _monitor():
-                code = process.wait()
-                self.log(f"mpv exited with code {code}")
-                with self._state_lock:
-                    is_current = self._playback_token == token
-                    if is_current:
-                        self.mpv_process = None
-                        self.current_video_id = None
-                self._cleanup_socket()
-                if is_current:
-                    if self.repeat_mode == 2:
-                        self.log(f"Repeat One: Replaying {title}")
-                        self.play(video_id, title, artist, art_url)
-                        return
-                    if self._current_queue:
-                        next_track = self._current_queue[0]
-                        if self.repeat_mode == 1:
-                            self._current_queue.append({"videoId": video_id, "title": title, "artist": artist, "artUrl": art_url})
-                            self._current_queue.pop(0)
-                        else:
-                            self._current_queue.pop(0)
-                        self.send_response({"type": "queue_updated", "queue": self._current_queue})
-                        self.log(f"Auto-advancing to: {next_track['title']}")
-                        self._is_auto_advancing = True
-                        self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"], self._current_queue)
-                    else:
-                        if self.repeat_mode == 1:
-                            self.play(video_id, title, artist, art_url)
-                        else:
-                            # Queue empty - stop playback, don't auto-fetch radio
-                            self.log("Queue empty, stopping playback")
-                            self.mpris.update("Stopped")
-                            self.send_response({"type": "playback_stopped"})
-            threading.Thread(target=_monitor, daemon=True).start()
-
-        except subprocess.CalledProcessError as e:
-            self.log(f"yt-dlp error: {e.stderr}")
-            self.send_response({"type": "error", "message": f"yt-dlp failed: {e.stderr}"})
         except Exception as e:
+            self.log(f"Play task error: {e}")
             import traceback
-            self.log(f"Play task error: {e}\n{traceback.format_exc()}")
-            self.send_response({"type": "error", "message": str(e)})
+            self.log(traceback.format_exc())
 
-    def _ipc(self, command):
-        if not os.path.exists(self.ipc_socket):
-            return False
-        try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.connect(self.ipc_socket)
-            s.sendall((json.dumps({"command": command}) + "\n").encode())
-            s.close()
-            return True
-        except Exception:
-            return False
-
-    def _ipc_get(self, prop_name):
-        if not os.path.exists(self.ipc_socket):
-            return None
-        try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            s.settimeout(0.5)
-            s.connect(self.ipc_socket)
-            s.sendall((json.dumps({"command": ["get_property", prop_name]}) + "\n").encode())
-            f = s.makefile()
-            for line in f:
-                data = json.loads(line)
-                if "data" in data or "error" in data:
-                    return data.get("data")
-            s.close()
-            return None
-        except Exception:
-            return None
-
-    def stop(self, notify=True):
+    def next_track(self, is_auto=False):
         with self._state_lock:
-            process = self.mpv_process
-            self.mpv_process = None
-            self.current_video_id = None
-            self._playback_token += 1
-        if process:
-            try:
-                process.terminate()
-                process.wait(timeout=2)
-            except Exception:
-                try:
-                    process.kill()
-                except Exception:
-                    pass
-        self._cleanup_socket()
-        self._lyrics_engine.clear()
-        self.mpris.update("Stopped")
-        self.mpris.unpublish()
-        if notify:
-            self.send_response({"type": "playback_stopped"})
-
-    def pause(self):
-        if self._ipc(["set_property", "pause", True]):
-            self.mpris.update("Paused", title=self._current_title, artist=self._current_artist, art_local_path=self._current_art, video_id=self.current_video_id or "", art_url=self._current_art_url)
-            self.send_response({"type": "playback_paused"})
-
-    def resume(self):
-        if self._ipc(["set_property", "pause", False]):
-            self.mpris.update("Playing", title=self._current_title, artist=self._current_artist, art_local_path=self._current_art, video_id=self.current_video_id or "", art_url=self._current_art_url)
-            self.send_response({"type": "playback_resumed"})
-
-    def seek(self, position_sec):
-        if self.mpv_process:
-            self._ipc(["set_property", "time-pos", position_sec])
-
-    def next_track(self):
-        """Go to next track in queue. Does nothing if queue is empty."""
-        with self._state_lock:
-            q = list(self._current_queue)
-        if q:
-            next_track = q[0]
-            remaining_queue = q[1:]
-            self._current_queue = remaining_queue
+            if not self._current_queue:
+                self.log("Queue empty, stopping playback")
+                self.stop()
+                return
+            
+            # If repeat one is on and this is an auto-advance, play same song again
+            if is_auto and self.repeat_mode == 2:
+                next_track = {
+                    "videoId": self.current_video_id,
+                    "title": self._current_title,
+                    "artist": self._current_artist,
+                    "artUrl": self._current_art_url
+                }
+            else:
+                next_track = self._current_queue.pop(0)
+                
+                # If repeat all is on, push back to end
+                if self.repeat_mode == 1:
+                    self._current_queue.append(next_track)
+            
             self.send_response({"type": "queue_updated", "queue": self._current_queue})
             self._is_auto_advancing = True
-            # Pass the remaining queue to play() so it doesn't get wiped out!
-            self.play(next_track["videoId"], next_track["title"], next_track["artist"], next_track["artUrl"], remaining_queue)
-        # If queue is empty, do nothing (no auto-radio)
-
-    def populate_radio_queue(self, video_id=None):
-        """
-        Populate queue with radio songs based on current or specified track.
-        
-        Args:
-            video_id: Video ID to base radio on (uses current_video_id if not provided)
-        """
-        if video_id is None:
-            video_id = self.current_video_id
-        if not video_id:
-            self.log("No video ID for radio")
-            return
-        
-        try:
-            self.send_response({"type": "queue_fetching"})
-            self.log(f"Fetching radio for: {video_id}")
-            data = self.api.ytm.get_watch_playlist(videoId=video_id, limit=20)
-            tracks = data.get("tracks", [])
-            queue = []
-            for item in tracks:
-                vid = item.get("videoId")
-                if not vid or vid == video_id:
-                    continue
-                artist_name = "Unknown"
-                artists_list = item.get("artists", [])
-                if isinstance(artists_list, list) and artists_list:
-                    artist_name = artists_list[0].get("name", "Unknown")
-                queue.append({
-                    "videoId": vid,
-                    "title": item.get("title", "Unknown"),
-                    "artist": artist_name,
-                    "artUrl": self._extract_art_url(item),
-                    "duration": self._extract_duration(item) or ""
-                })
-            with self._state_lock:
-                self._current_queue = queue
-            self.send_response({"type": "queue_updated", "queue": self._current_queue})
-            self.log(f"Radio queue populated with {len(self._current_queue)} tracks")
-        except Exception as e:
-            self.log(f"Radio fetch failed: {e}")
-            self.send_response({"type": "error", "message": "Failed to fetch radio"})
-
-    def _auto_continue(self, seed_video_id):
-        try:
-            self.send_response({"type": "queue_fetching"})
-            self.log(f"Auto-continue: fetching radio for {seed_video_id}")
-            data = self.api.ytm.get_watch_playlist(videoId=seed_video_id, limit=20)
-            tracks = data.get("tracks", [])
-            queue = []
-            for item in tracks:
-                vid = item.get("videoId")
-                if not vid or vid == seed_video_id:
-                    continue
-                artist_name = "Unknown"
-                artists_list = item.get("artists", [])
-                if isinstance(artists_list, list) and artists_list:
-                    artist_name = artists_list[0].get("name", "Unknown")
-                queue.append({"videoId": vid, "title": item.get("title", "Unknown"), "artist": artist_name, "artUrl": self._extract_art_url(item), "duration": self._extract_duration(item) or ""})
-            if queue:
-                first = queue[0]
-                with self._state_lock:
-                    self._current_queue = queue[1:]
-                self.send_response({"type": "queue_updated", "queue": self._current_queue})
-                self.log(f"Auto-continue: playing {first['title']}, {len(self._current_queue)} more")
-                self._is_auto_advancing = True
-                self.play(first["videoId"], first["title"], first["artist"], first["artUrl"])
-            else:
-                self.log("Auto-continue: no tracks found")
-                self.mpris.update("Stopped")
-                self.send_response({"type": "playback_stopped"})
-        except Exception as e:
-            self.log(f"Auto-continue failed: {e}")
-            self.mpris.update("Stopped")
-            self.send_response({"type": "playback_stopped"})
+            self.play(next_track["videoId"], next_track.get("title", ""), next_track.get("artist", ""), next_track.get("artUrl", ""))
 
     def get_output_device(self):
         try:
@@ -651,15 +481,12 @@ class Player:
                 vid = item.get("videoId")
                 if not vid or vid == video_id:
                     continue
-                artist_name = "Unknown"
-                artists_list = item.get("artists", [])
-                if isinstance(artists_list, list) and artists_list:
-                    artist_name = artists_list[0].get("name", "Unknown")
-                queue.append({"videoId": vid, "title": item.get("title", "Unknown"), "artist": artist_name, "artUrl": self._extract_art_url(item), "duration": self._extract_duration(item) or ""})
+                queue.append(self.api.format_track_item(item, index_offset=len(queue)))
+            
             with self._state_lock:
                 self._current_queue = queue
-            self.send_response({"type": "queue_updated", "queue": self._current_queue})
-            self.log(f"Queue updated with {len(self._current_queue)} tracks")
+                self.send_response({"type": "queue_updated", "queue": self._current_queue})
+            self.log(f"Queue populated with {len(queue)} tracks")
         except Exception as e:
             self.log(f"Failed to fetch queue: {e}")
 
@@ -703,3 +530,46 @@ class Player:
             except Exception:
                 pass
         return ""
+
+    def _push_play_stack(self, video_id):
+        if not video_id: return
+        with self._state_lock:
+            if video_id in self._play_stack:
+                self._play_stack.remove(video_id)
+            self._play_stack.append(video_id)
+            if len(self._play_stack) > 50:
+                self._play_stack.pop(0)
+
+    def _cleanup_socket(self):
+        if os.path.exists(self.ipc_socket):
+            try:
+                os.remove(self.ipc_socket)
+            except Exception:
+                pass
+
+    def _ipc_send(self, data):
+        if not self.mpv_process: return None
+        try:
+            import socket
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client.connect(self.ipc_socket)
+            client.send((json.dumps(data) + "\n").encode("utf-8"))
+            client.close()
+        except Exception:
+            return None
+
+    def _ipc_get(self, property_name):
+        if not self.mpv_process: return None
+        try:
+            import socket
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client.settimeout(0.2)
+            client.connect(self.ipc_socket)
+            req = {"command": ["get_property", property_name]}
+            client.send((json.dumps(req) + "\n").encode("utf-8"))
+            resp = client.recv(1024).decode("utf-8")
+            client.close()
+            data = json.loads(resp.split("\n")[0])
+            return data.get("data")
+        except Exception:
+            return None
