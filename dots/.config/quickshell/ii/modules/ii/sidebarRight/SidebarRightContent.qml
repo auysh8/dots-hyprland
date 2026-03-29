@@ -32,6 +32,13 @@ Item {
     property Item activeSourceItem: null
     readonly property bool anyDialogOpen: showAudioOutputDialog || showAudioInputDialog || showBluetoothDialog || showNightLightDialog || showWifiDialog
 
+    // Auto-collapse bottom widgets when entering edit mode to prevent overlap
+    onEditModeChanged: {
+        if (editMode) {
+            bottomWidgetGroup.setCollapsed(true);
+        }
+    }
+
     Connections {
         target: GlobalStates
         function onSidebarRightOpenChanged() {
@@ -41,6 +48,7 @@ Item {
                 root.showAudioOutputDialog = false;
                 root.showAudioInputDialog = false;
                 root.showNightLightDialog = false;
+                root.editMode = false;
             }
         }
     }
@@ -117,6 +125,7 @@ Item {
             }
 
             BottomWidgetGroup {
+                id: bottomWidgetGroup
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillHeight: false
                 Layout.fillWidth: true
