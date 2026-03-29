@@ -10,10 +10,12 @@ import Quickshell.Bluetooth
 DelegateChooser {
     id: root
     property bool editMode: false
+    property int dragIndex: -1
     required property real baseCellWidth
     required property real baseCellHeight
     required property real spacing
     required property int startingIndex
+
     signal openAudioOutputDialog(var sourceItem)
     signal openAudioInputDialog(var sourceItem)
     signal openBluetoothDialog(var sourceItem)
@@ -28,6 +30,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -44,6 +47,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -61,6 +65,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -77,6 +82,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -90,6 +96,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -103,6 +110,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -116,6 +124,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -129,6 +138,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -142,6 +152,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -155,6 +166,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -171,6 +183,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -184,6 +197,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -200,6 +214,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -216,6 +231,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -229,6 +245,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -242,6 +259,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -255,6 +273,7 @@ DelegateChooser {
         buttonIndex: root.startingIndex + index
         buttonData: modelData
         editMode: root.editMode
+        dragIndex: root.dragIndex
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight

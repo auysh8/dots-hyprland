@@ -34,6 +34,8 @@ GroupButton {
 
     // Edit mode state
     property bool editMode: false
+    property int  dragIndex: -1
+    readonly property bool isBeingDragged: editMode && dragIndex >= 0 && dragIndex === buttonIndex
 
     // Sizing shenanigans
     baseWidth: root.baseCellWidth * cellSize + cellSpacing * (cellSize - 1)
@@ -54,13 +56,19 @@ GroupButton {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
     }
 
+    scale: isBeingDragged ? 1.06 : 1.0
+    Behavior on scale {
+        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+    }
+
     enabled: available || editMode
     padding: 6
     horizontalPadding: padding
     verticalPadding: padding
 
-    colBackground: Appearance.colors.colLayer2
-    
+    // Visual feedback when dragging
+    colBackground: isBeingDragged ? Appearance.colors.colLayer3 : Appearance.colors.colLayer2
+
     // Check if the model reports a "connected" state (e.g. Wifi connected to AP)
     // If connected, we fill the whole pill (Solid style). If just enabled (Toggled), we keep split style.
     readonly property bool isConnected: {
@@ -71,10 +79,11 @@ GroupButton {
         const s = statusText.toLowerCase();
         return s !== "not connected" && s !== "disconnected";
     }
-    
+
     colBackgroundToggled: (isConnected || !(altAction && expandedSize)) ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
     colBackgroundToggledHover: (isConnected || !(altAction && expandedSize)) ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer2Hover
     colBackgroundToggledActive: (isConnected || !(altAction && expandedSize)) ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer2Active
+
     buttonRadius: toggled ? Appearance.rounding.large : height / 2
     buttonRadiusPressed: Appearance.rounding.normal
     
