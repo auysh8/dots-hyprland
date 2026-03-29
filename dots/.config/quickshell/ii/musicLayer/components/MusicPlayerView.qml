@@ -42,6 +42,13 @@ Item {
 
     visible: show || hAnim.running || bAnim.running || lAnim.running || rAnim.running
 
+    // Prevent click-through to underlying views when the player is open
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.show
+        onPressed: (mouse) => mouse.accepted = true
+    }
+
     Connections {
         target: rootContext || null
         ignoreUnknownSignals: true
