@@ -13,11 +13,12 @@ WindowDialog {
 
     WindowDialogTitle {
         text: Translation.tr("Connect to Wi-Fi")
+        anchors.horizontalCenter: parent.horizontalCenter
     }
     Item {
         Layout.fillWidth: true
         Layout.preferredHeight: 1
-        
+
         WindowDialogSeparator {
             anchors.fill: parent
             visible: !Network.wifiScanning
@@ -25,9 +26,9 @@ WindowDialog {
         StyledIndeterminateProgressBar {
             // Only show scanning if content is initialized to prevent early visual updates
             visible: root.contentReady && Network.wifiScanning
-            anchors.fill: parent
-            anchors.leftMargin: -Appearance.rounding.large
-            anchors.rightMargin: -Appearance.rounding.large
+            Layout.maximumWidth: 160
+            anchors.horizontalCenter: parent.horizontalCenter
+            Layout.bottomMargin: -8
         }
     }
     Loader {
@@ -55,8 +56,8 @@ WindowDialog {
             }
         }
     }
-    WindowDialogSeparator {}
     WindowDialogButtonRow {
+        Layout.margins: 4
         DialogButton {
             buttonText: Translation.tr("Details")
             onClicked: {
@@ -72,6 +73,9 @@ WindowDialog {
         DialogButton {
             buttonText: Translation.tr("Done")
             onClicked: root.dismiss()
+            colBackground: Appearance.colors.colPrimary
+            colText: Appearance.colors.colOnPrimary
+            colBackgroundHover: Appearance.colors.colPrimaryHover
         }
     }
 }

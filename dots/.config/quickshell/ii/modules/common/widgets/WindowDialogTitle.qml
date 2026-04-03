@@ -11,6 +11,6 @@ StyledText {
     font {
         family: Appearance.font.family.title
         pixelSize: Appearance.font.pixelSize.title
-        variableAxes: Appearance.font.variableAxes.title
+        variableAxes: Appearance.font.variableAxes.expressiveTitle
     }
 }

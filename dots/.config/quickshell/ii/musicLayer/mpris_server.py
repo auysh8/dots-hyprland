@@ -171,11 +171,15 @@ class MprisServer:
 
     @property
     def CanGoNext(self):
-        return True
+        if not getattr(self, "_backend", None) or not getattr(self._backend, "player", None):
+            return False
+        return len(self._backend.player._current_queue) > 0 or self._backend.player.repeat_mode != 0
 
     @property
     def CanGoPrevious(self):
-        return True
+        if not getattr(self, "_backend", None) or not getattr(self._backend, "player", None):
+            return False
+        return len(self._backend.player._play_stack) > 1
 
     @property
     def CanPlay(self):
@@ -256,6 +260,8 @@ class MprisServer:
         self._emit_properties_changed({
             "PlaybackStatus": _GLib.Variant("s", self._status),
             "Metadata": _GLib.Variant("a{sv}", self._meta),
+            "CanGoNext": _GLib.Variant("b", self.CanGoNext),
+            "CanGoPrevious": _GLib.Variant("b", self.CanGoPrevious),
         })
 
     def set_status(self, status):
@@ -269,7 +275,9 @@ class MprisServer:
             
         from gi.repository import GLib as _GLib
         self._emit_properties_changed({
-            "PlaybackStatus": _GLib.Variant("s", self._status)
+            "PlaybackStatus": _GLib.Variant("s", self._status),
+            "CanGoNext": _GLib.Variant("b", self.CanGoNext),
+            "CanGoPrevious": _GLib.Variant("b", self.CanGoPrevious),
         })
 
     def _emit_properties_changed(self, changed_props):

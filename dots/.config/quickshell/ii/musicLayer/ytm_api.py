@@ -56,6 +56,8 @@ class YTMClient:
             self.log(f"YTMusic init failed: {e}")
             self.ytm = None
 
+        threading.Thread(target=self._cache_cleanup_task, daemon=True).start()
+
 
 
     def _load_canvas_cache(self):
@@ -1343,13 +1345,19 @@ class YTMClient:
             self._search_cache[cache_key] = {"ts": time.time(), "response": response}
             self.log(f"Search results cached for '{query}'")
 
-            now = time.time()
-            stale_keys = [k for k, v in self._search_cache.items() if (now - v["ts"]) > self._search_cache_ttl]
-            for k in stale_keys:
-                del self._search_cache[k]
-
         except Exception as e:
             self.log(f"Search error: {e}")
+            self.send_response({"type": "error_toast", "message": "Search failed."})
+
+    def _cache_cleanup_task(self):
+        while True:
+            time.sleep(300) # every 5 minutes
+            now = time.time()
+            stale_keys = [k for k, v in self._search_cache.items() if (now - v["ts"]) > self._search_cache_ttl]
+            if stale_keys:
+                for k in stale_keys:
+                    del self._search_cache[k]
+                self.log(f"Cleaned up {len(stale_keys)} stale search cache entries.")
 
     def get_search_suggestions(self, query):
         threading.Thread(target=self._search_suggestions_task, args=(query,), daemon=True).start()

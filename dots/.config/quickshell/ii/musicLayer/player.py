@@ -481,6 +481,12 @@ class Player:
                     self._current_queue.append(next_track)
             
             self.send_response({"type": "queue_updated", "queue": self._current_queue})
+
+            if len(self._current_queue) <= 3 and self.repeat_mode == 0:
+                extension_seed_id = next_track.get("videoId")
+                if extension_seed_id:
+                    threading.Thread(target=self._extend_queue_task, args=(extension_seed_id,), daemon=True).start()
+
             self._is_auto_advancing = True
             self.play(next_track["videoId"], next_track.get("title", ""), next_track.get("artist", ""), next_track.get("artUrl", ""), self._current_queue)
 
@@ -571,6 +577,35 @@ class Player:
             self.log(f"Queue populated with {len(queue)} tracks")
         except Exception as e:
             self.log(f"Failed to fetch queue: {e}")
+            self.send_response({"type": "error_toast", "message": "Failed to fetch radio queue.", "icon": "wifi_off"})
+
+    def _extend_queue_task(self, video_id):
+        try:
+            self.log(f"Extending radio queue from seed: {video_id}")
+            data = self.api.ytm.get_watch_playlist(videoId=video_id, limit=20)
+            tracks = data.get("tracks", [])
+            
+            with self._state_lock:
+                current_vids = {t.get("videoId") for t in self._current_queue}
+                current_vids.add(self.current_video_id)
+                for v in self._play_stack:
+                    current_vids.add(v)
+                
+                added = 0
+                for item in tracks:
+                    vid = item.get("videoId")
+                    if not vid or vid in current_vids:
+                        continue
+                    self._current_queue.append(self.api.format_track_item(item, index_offset=len(self._current_queue)))
+                    current_vids.add(vid)
+                    added += 1
+                
+                if added > 0:
+                    self.send_response({"type": "queue_updated", "queue": self._current_queue})
+                    self.log(f"Queue magically extended by {added} new tracks")
+        except Exception as e:
+            self.log(f"Failed to dynamically extend queue: {e}")
+            self.send_response({"type": "error_toast", "message": "Failed to auto-extend radio.", "icon": "wifi_off"})
 
     def fetch_playlist(self, video_id):
         try:

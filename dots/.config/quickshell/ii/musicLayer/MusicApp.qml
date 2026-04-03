@@ -41,6 +41,9 @@ FocusScope {
             closeFallbackTimer.restart()
         }
     }
+    property string toastMessage: ""
+    property string toastIcon: "info"
+    signal showToastArgs(string message, string icon)
     
     property ListModel searchResults: ListModel {} // Legacy/General
     property ListModel artistResults: ListModel {}
@@ -786,6 +789,8 @@ FocusScope {
                                 root.currentTrackCredits.append({ "text": credits[i] })
                             }
                         }
+                    } else if (data.type === "error_toast") {
+                        root.showToastArgs(data.message || "An error occurred", data.icon || "error")
                     }
                 } catch(e) { 
                     console.error("[MusicBackend] Parse Error on line:", line)
@@ -1191,6 +1196,59 @@ FocusScope {
             id: radioTray
             rootContext: root
             trayVisible: root.radioTrayVisible
+        }
+
+        // Global Toast Notification Overlay
+        Rectangle {
+            id: toastOverlay
+            z: 999
+            width: toastRow.width + 32
+            height: 48
+            radius: 24
+            color: Appearance.colors.colLayer3
+            
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: -80 // Hidden initially
+            
+            RowLayout {
+                id: toastRow
+                anchors.centerIn: parent
+                spacing: 8
+                
+                MaterialSymbol {
+                    text: root.toastIcon
+                    color: Appearance.colors.colOnLayer3
+                    iconSize: Appearance.font.pixelSize.large
+                }
+                StyledText {
+                    text: root.toastMessage
+                    color: Appearance.colors.colOnLayer3
+                    font.weight: Font.DemiBold
+                }
+            }
+
+            Behavior on anchors.topMargin { 
+                NumberAnimation { duration: 400; easing.type: Easing.OutBack } 
+            }
+
+            Timer {
+                id: toastTimer
+                interval: 3000
+                onTriggered: {
+                    toastOverlay.anchors.topMargin = -80
+                }
+            }
+
+            Connections {
+                target: root
+                function onShowToastArgs(msg, icon) {
+                    root.toastMessage = msg
+                    root.toastIcon = icon || "error"
+                    toastOverlay.anchors.topMargin = 16
+                    toastTimer.restart()
+                }
+            }
         }
     }
 }

@@ -19,40 +19,43 @@ WindowDialog {
 
     WindowDialogTitle {
         text: Translation.tr("Bluetooth devices")
+        anchors.horizontalCenter: parent.horizontalCenter
     }
     Item {
         Layout.fillWidth: true
         Layout.preferredHeight: 1
-        
-        // Delay reading Bluetooth state to avoid jitter during animation
-        // Delay reading Bluetooth state to avoid jitter during animation
+
         property bool isDiscovering: root.contentReady ? (Bluetooth.defaultAdapter?.discovering ?? false) : false
-        
-        WindowDialogSeparator {
-            anchors.fill: parent
-            visible: !parent.isDiscovering
+
+        Text {
+            id: infoText
+            text: Translation.tr("Tap to connect or disconnect a device")
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: -8
+            color: Appearance.colors.colOnSurface
         }
+
         StyledIndeterminateProgressBar {
-            visible: parent.isDiscovering
-            anchors.fill: parent
-            anchors.leftMargin: -Appearance.rounding.large
-            anchors.rightMargin: -Appearance.rounding.large
+            Layout.maximumWidth: 160
+            visible: Bluetooth.defaultAdapter?.discovering ?? false
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: infoText.bottom
+            anchors.topMargin: 16
         }
     }
     Loader {
         id: listLoader
         Layout.fillHeight: true
         Layout.fillWidth: true
-        Layout.topMargin: -15
-        Layout.bottomMargin: -16
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
-        
+        Layout.topMargin: 18
+
         active: root.contentReady
-        
+
         sourceComponent: StyledListView {
             clip: true
-            spacing: 0
+            spacing: 8
             animateAppearance: false
 
             model: ScriptModel {
@@ -68,8 +71,8 @@ WindowDialog {
             }
         }
     }
-    WindowDialogSeparator {}
     WindowDialogButtonRow {
+        Layout.margins: 4
         DialogButton {
             buttonText: Translation.tr("Details")
             onClicked: {
@@ -85,6 +88,9 @@ WindowDialog {
         DialogButton {
             buttonText: Translation.tr("Done")
             onClicked: root.dismiss()
+            colBackground: Appearance.colors.colPrimary
+            colText: Appearance.colors.colOnPrimary
+            colBackgroundHover: Appearance.colors.colPrimaryHover
         }
     }
 }
