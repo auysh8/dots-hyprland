@@ -11,6 +11,5 @@
       "Bash(git stash)",
       "Bash(git revert *)"
     ]
-  },
-  "$version": 3
+  }
 }

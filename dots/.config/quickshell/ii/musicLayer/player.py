@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from lyrics_fetcher import LyricsSyncEngine, fetch_lyrics
 
 class Player:
     """Handles audio playback using mpv and track fetching using yt-dlp."""
@@ -18,8 +19,8 @@ class Player:
         self.mpv_process = None
         self.ipc_socket = "/tmp/quickshell-music-mpv.sock"
         self._playback_token = 0
-        self._state_lock = threading.Lock()
-        
+        self._state_lock = threading.RLock()
+
         # Internal state
         self.current_video_id = None
         self._current_queue = []
@@ -35,6 +36,9 @@ class Player:
         # Stream URL cache for gapless playback
         self._stream_cache = {}
         self._ytdlp_proc = None
+        
+        # Independent lyrics engine
+        self._lyrics_engine = LyricsSyncEngine(self.send_response)
 
     def _sigterm_handler(self, signum, frame):
         self.log(f"Received signal {signum}, stopping player...")
@@ -64,19 +68,30 @@ class Player:
                 self.mpv_process = None
             self.current_video_id = None
             self._cleanup_socket()
+            
+        self._lyrics_engine.clear()
+        
+        if getattr(self, "mpris", None):
+            self.mpris.set_status("Stopped")
         if notify:
             self.send_response({"type": "playback_stopped"})
 
     def pause(self):
         self._ipc_send({"command": ["set_property", "pause", True]})
+        if getattr(self, "mpris", None):
+            self.mpris.set_status("Paused")
         self.send_response({"type": "playback_paused"})
 
     def resume(self):
         self._ipc_send({"command": ["set_property", "pause", False]})
+        if getattr(self, "mpris", None):
+            self.mpris.set_status("Playing")
         self.send_response({"type": "playback_resumed"})
 
     def seek(self, position_sec):
         self._ipc_send({"command": ["set_property", "time-pos", position_sec]})
+        if getattr(self, "mpris", None):
+            self.mpris.emit_seeked(int(position_sec * 1_000_000))
 
     def set_repeat(self, mode):
         # mode: 0 (Off), 1 (All), 2 (One)
@@ -241,7 +256,7 @@ class Player:
                     return
 
             self._cleanup_socket()
-            cmd = ["mpv", "--no-video", "--no-terminal", "--really-quiet", "--no-config", "--load-scripts=no", f"--input-ipc-server={self.ipc_socket}", f"--force-media-title={title} • {artist}", stream_url]
+            cmd = ["mpv", "--no-video", "--no-terminal", "--really-quiet", "--no-config", "--load-scripts=no", "--keep-open=yes", f"--input-ipc-server={self.ipc_socket}", f"--force-media-title={title} • {artist}", stream_url]
             self.log(f"Launching mpv...")
             process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.log(f"mpv PID: {process.pid}")
@@ -275,6 +290,17 @@ class Player:
             threading.Thread(target=_deferred_art_download, daemon=True).start()
 
             self.send_response({"type": "playback_started", "videoId": video_id, "title": title, "artist": artist, "artistId": artist_id, "albumId": album_id, "artUrl": art_url, "artLocalPath": art_file_path or "", "isLiked": False})
+
+            def _fetch_lyrics():
+                try:
+                    lyrics, source = fetch_lyrics(title, artist, duration=0)
+                    with self._state_lock:
+                        if self._playback_token != token:
+                            return
+                    self._lyrics_engine.load(lyrics or [], source, token)
+                except Exception as e:
+                    self.log(f"Lyrics fetch error: {e}")
+            threading.Thread(target=_fetch_lyrics, daemon=True).start()
 
             def _fetch_canvas():
                 try:
@@ -352,6 +378,8 @@ class Player:
             threading.Thread(target=_fetch_canvas, daemon=True).start()
 
             self.mpris.publish()
+            if getattr(self, "mpris", None):
+                self.mpris.emit_seeked(0)
             self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=art_file_path or "", video_id=video_id, art_url=art_url)
 
             def _sync_history():
@@ -379,22 +407,45 @@ class Player:
             threading.Thread(target=_wait_for_duration, daemon=True).start()
 
             def _progress_task():
+                last_paused = None
                 while True:
                     with self._state_lock:
                         if self._playback_token != token or not self.mpv_process:
                             break
                     
                     pos = self._ipc_get("time-pos")
+                    dur = self._ipc_get("duration")
+                    is_paused = self._ipc_get("pause")
+                    
+                    if is_paused is not None:
+                        is_paused_bool = str(is_paused).lower() == 'true'
+                        if is_paused_bool != last_paused:
+                            last_paused = is_paused_bool
+                            if is_paused_bool:
+                                self.send_response({"type": "playback_paused"})
+                                if getattr(self, "mpris", None):
+                                    self.mpris.set_status("Paused")
+                            else:
+                                self.send_response({"type": "playback_resumed"})
+                                if getattr(self, "mpris", None):
+                                    self.mpris.set_status("Playing")
+
                     if pos is not None:
-                        self.send_response({"type": "playback_progress", "positionSec": int(pos)})
+                        self.send_response({"type": "playback_progress", "positionSec": int(float(pos))})
+                        self._lyrics_engine.set_position(float(pos))
                     
                     # Auto-advance check
-                    if pos is not None:
-                        dur = self._ipc_get("duration")
-                        if dur and dur > 0 and pos >= (dur - 0.5):
+                    if pos is not None and dur is not None:
+                        pos_f = float(pos)
+                        dur_f = float(dur)
+                        if dur_f > 0 and pos_f >= (dur_f - 0.5):
                             self.log("End of track detected via progress")
                             self.next_track(is_auto=True)
-                            break
+                            # Do not break here! If queue is empty, next_track seeks to 0 and pauses. 
+                            # We must keep polling so the user can hit play again.
+                            # If queue has items, next_track calls play(), which changes token and breaks loop naturally.
+                            time.sleep(2.0) # Sleep a bit longer to let seek take effect before next poll
+                            continue
                             
                     time.sleep(1.0)
             threading.Thread(target=_progress_task, daemon=True).start()
@@ -403,12 +454,15 @@ class Player:
             self.log(f"Play task error: {e}")
             import traceback
             self.log(traceback.format_exc())
+            # Ensure the UI gets a stop command so it stops spinning 'loading...' forever
+            self.stop(notify=True)
 
     def next_track(self, is_auto=False):
         with self._state_lock:
             if not self._current_queue:
-                self.log("Queue empty, stopping playback")
-                self.stop()
+                self.log("Queue empty, pausing playback at start")
+                self.seek(0)
+                self.pause()
                 return
             
             # If repeat one is on and this is an auto-advance, play same song again
@@ -428,7 +482,7 @@ class Player:
             
             self.send_response({"type": "queue_updated", "queue": self._current_queue})
             self._is_auto_advancing = True
-            self.play(next_track["videoId"], next_track.get("title", ""), next_track.get("artist", ""), next_track.get("artUrl", ""))
+            self.play(next_track["videoId"], next_track.get("title", ""), next_track.get("artist", ""), next_track.get("artUrl", ""), self._current_queue)
 
     def get_output_device(self):
         try:
@@ -457,16 +511,44 @@ class Player:
             self.send_response({"type": "output_device", "device": "Unknown"})
 
     def prev_track(self):
+        # 1. Check if we should restart the current song (if past 3 seconds)
+        pos = self._ipc_get("time-pos")
+        try:
+            pos_f = float(pos) if pos is not None else 0.0
+        except ValueError:
+            pos_f = 0.0
+
+        if pos_f >= 3.0:
+            self.seek(0)
+            return
+
         with self._state_lock:
             vid = self.current_video_id
-        if not vid or len(self._play_stack) < 2:
+            if len(self._play_stack) > 1:
+                self._play_stack.pop()
+                prev_id = self._play_stack[-1]
+            else:
+                prev_id = None
+                
+            # Abandoned current track goes back to the absolute front of the queue
+            if vid and prev_id:
+                abandoned_track = {
+                    "videoId": vid,
+                    "title": getattr(self, "_current_title", ""),
+                    "artist": getattr(self, "_current_artist", ""),
+                    "artUrl": getattr(self, "_current_art_url", "")
+                }
+                self._current_queue.insert(0, abandoned_track)
+                self.send_response({"type": "queue_updated", "queue": self._current_queue})
+
+        if not vid or not prev_id:
+            self.seek(0)
             return
-        self._play_stack.pop()
-        prev_id = self._play_stack[-1]
+
         try:
             s = self.api.ytm.get_song(prev_id)
             d = s.get("videoDetails", {})
-            self.play(prev_id, d.get("title", ""), d.get("author", ""), d.get("thumbnail", {}).get("thumbnails", [{}])[-1].get("url", ""))
+            self.play(prev_id, d.get("title", ""), d.get("author", ""), d.get("thumbnail", {}).get("thumbnails", [{}])[-1].get("url", ""), self._current_queue)
         except Exception:
             pass
 

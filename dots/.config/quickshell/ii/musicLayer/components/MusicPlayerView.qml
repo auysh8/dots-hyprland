@@ -505,11 +505,29 @@ Item {
                 trackColor: ColorUtils.applyAlpha(rootContext.contentColor, 0.3)
                 handleColor: rootContext.contentColor
 
-                value: rootContext.trackDurationSec > 0 ? rootContext.trackPositionSec / rootContext.trackDurationSec : 0
+                property real localSeekValue: 0
+                property real lastSeekMs: 0
+
+                Connections {
+                    target: rootContext || null
+                    ignoreUnknownSignals: true
+                    function onTrackPositionSecChanged() {
+                        if (trackSlider.pressed) return;
+                        if (Date.now() - trackSlider.lastSeekMs < 1500) return;
+                        trackSlider.value = rootContext.trackDurationSec > 0 ? rootContext.trackPositionSec / rootContext.trackDurationSec : 0;
+                    }
+                    function onTrackDurationSecChanged() {
+                        if (trackSlider.pressed) return;
+                        if (Date.now() - trackSlider.lastSeekMs < 1500) return;
+                        trackSlider.value = rootContext.trackDurationSec > 0 ? rootContext.trackPositionSec / rootContext.trackDurationSec : 0;
+                    }
+                }
 
                 enabled: rootContext.trackDurationSec > 0
                 onMoved: {
                     if (rootContext.trackDurationSec > 0) {
+                        trackSlider.localSeekValue = trackSlider.value;
+                        trackSlider.lastSeekMs = Date.now();
                         let seekPos = value * rootContext.trackDurationSec
                         rootContext.sendCommand({"command": "seek", "position": seekPos})
                     }
@@ -807,14 +825,6 @@ Item {
                     opacity: root.inlineLyricsExpanded && rootContext.currentTrack ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 350 } }
                     visible: opacity > 0
-
-                    // PROACTIVE OPTIMIZATION: Update global visualizer state
-                    onVisibleChanged: {
-                        if (rootContext) rootContext.visualizerActive = visible
-                    }
-                    Component.onCompleted: {
-                        if (rootContext) rootContext.visualizerActive = visible
-                    }
 
                     style: "pills"
                     live: !rootContext.playbackPaused

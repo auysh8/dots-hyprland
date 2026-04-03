@@ -74,6 +74,7 @@ class MprisServer:
         self._bus_con = None  # raw Gio.DBusConnection for signal emission
         self._cached_position = 0
         self._cached_duration = 0
+        self._cached_volume = 1.0
         self._published = False
 
     # ── org.mpris.MediaPlayer2 properties ────────────────────────────────────
@@ -144,11 +145,17 @@ class MprisServer:
 
     @property
     def Volume(self):
-        return 1.0
+        return self._cached_volume
 
     @Volume.setter
     def Volume(self, v):
-        pass
+        try:
+            self._cached_volume = max(0.0, min(1.0, float(v)))
+            # mpv volume is 0-100
+            if getattr(self._backend, "player", None):
+                self._backend.player._ipc_send({"command": ["set_property", "volume", self._cached_volume * 100.0]})
+        except Exception:
+            pass
 
     @property
     def Position(self):
@@ -251,6 +258,20 @@ class MprisServer:
             "Metadata": _GLib.Variant("a{sv}", self._meta),
         })
 
+    def set_status(self, status):
+        """Update just the playback status and notify clients."""
+        if self._status == status:
+            return
+        self._status = status
+        if status == "Stopped":
+            self._cached_position = 0
+            self._cached_duration = 0
+            
+        from gi.repository import GLib as _GLib
+        self._emit_properties_changed({
+            "PlaybackStatus": _GLib.Variant("s", self._status)
+        })
+
     def _emit_properties_changed(self, changed_props):
         """Emit org.freedesktop.DBus.Properties.PropertiesChanged via raw GDBus."""
         from gi.repository import GLib as _GLib, Gio
@@ -271,6 +292,24 @@ class MprisServer:
             )
         except Exception as e:
             self._backend.log(f"[MPRIS] Signal emission error: {e}")
+
+    def emit_seeked(self, position_microsec):
+        """Emit the Seeked signal to notify clients of a discontinuous position change."""
+        self._cached_position = position_microsec
+        from gi.repository import GLib as _GLib
+        con = self._bus_con
+        if con is None:
+            return
+        try:
+            con.emit_signal(
+                None,  # broadcast
+                "/org/mpris/MediaPlayer2",
+                "org.mpris.MediaPlayer2.Player",
+                "Seeked",
+                _GLib.Variant("(x)", (position_microsec,)),
+            )
+        except Exception as e:
+            self._backend.log(f"[MPRIS] Seeked emission error: {e}")
 
     def start(self):
         """Start the GLib loop in a daemon thread (but don't publish yet)."""

@@ -148,7 +148,7 @@ class MusicBackend:
 
         elif cmd == "populate_radio":
             video_id = req.get("videoId")
-            threading.Thread(target=self.player.populate_radio_queue, args=(video_id,), daemon=True).start()
+            threading.Thread(target=self.player._fetch_queue_task, args=(video_id,), daemon=True).start()
 
         # ---- API ACTIONS ----
         elif cmd == "get_home":

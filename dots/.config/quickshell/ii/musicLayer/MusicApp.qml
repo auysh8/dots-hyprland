@@ -476,7 +476,7 @@ FocusScope {
     
     Process {
         id: cavaProc
-        running: !!root.showMusic && !!root.currentTrack && !root.playbackPaused && root.visualizerActive
+        running: !!root.showMusic && !!root.currentTrack && !root.playbackPaused
         onRunningChanged: {
             if (!cavaProc.running) {
                 // Return to baseline properly rather than destroying the array
