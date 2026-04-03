@@ -527,6 +527,7 @@ FocusScope {
     readonly property color _srcPillContentColor: _hasTrack ? ColorUtils.applyAlpha(ColorUtils.adaptToAccent(Appearance.colors.colOnSecondaryContainer, mediaContext.extractedColor), 1.0) : Appearance.colors.colOnSecondaryContainer
     
     readonly property color _srcSurfaceColor: _hasTrack ? ColorUtils.applyAlpha(ColorUtils.adaptToAccent(Appearance.colors.colLayer1Base, mediaContext.extractedColor), 1.0) : Appearance.colors.colLayer2Base
+    readonly property color _srcMiniplayerSurfaceColor: _hasTrack ? ColorUtils.applyAlpha(ColorUtils.adaptToAccent(Appearance.colors.colLayer3Base, mediaContext.extractedColor), 1.0) : Appearance.colors.colLayer3Base
 
     // Animated colors (smooth transitions)
     property color backgroundColor: _srcBackgroundColor
@@ -536,6 +537,7 @@ FocusScope {
     property color pillColorHover: _hasTrack ? mediaContext.blendedColors.colPrimaryHover : ColorUtils.mix(_srcPillColor, _srcPillContentColor, 0.85)
     property color pillContentColor: _srcPillContentColor
     property color surfaceColor: _srcSurfaceColor
+    property color miniplayerSurfaceColor: _srcMiniplayerSurfaceColor
     property color loaderAccentColor: _hasTrack ? mediaContext.blendedColors.colPrimary : Appearance.colors.colPrimary
 
     // Extracted color alias for compatibility
@@ -550,6 +552,7 @@ FocusScope {
     Behavior on pillColorHover { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
     Behavior on pillContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
     Behavior on surfaceColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on miniplayerSurfaceColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
     Behavior on loaderAccentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
     
     Process {

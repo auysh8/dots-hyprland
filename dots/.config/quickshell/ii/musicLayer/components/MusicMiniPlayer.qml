@@ -10,7 +10,9 @@ Rectangle {
 
     property var rootContext
     property bool navRailExpanded: false
-    readonly property color elevatedPanelColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
+    readonly property color elevatedPanelColor: isExpanding 
+        ? (rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1)
+        : (rootContext ? rootContext.miniplayerSurfaceColor : Appearance.colors.colLayer3Base)
 
     property bool isExpanding: rootContext && rootContext.currentView === "player"
 

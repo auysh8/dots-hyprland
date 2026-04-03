@@ -431,9 +431,9 @@ Item {
                         colBackground: rootContext.pillColor
                         colBackgroundHover: rootContext.pillColorHover
                         colBackgroundActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.85)
-                        colBackgroundToggled: Appearance.colors.colError
-                        colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colError, "white", 0.9)
-                        colBackgroundToggledActive: ColorUtils.mix(Appearance.colors.colError, "black", 0.9)
+                        colBackgroundToggled: rootContext.pillColor
+                        colBackgroundToggledHover: rootContext.pillColorHover
+                        colBackgroundToggledActive: ColorUtils.mix(rootContext.pillColor, rootContext.contentColor, 0.85)
 
                         contentItem: RowLayout {
                             spacing: 0
@@ -445,7 +445,7 @@ Item {
                                     anchors.centerIn: parent
                                     text: rootContext.currentTrackLiked ? "favorite" : "favorite_border"
                                     iconSize: Appearance.font.pixelSize.larger
-                                    color: rootContext.currentTrackLiked ? "white" : rootContext.pillContentColor
+                                    color: rootContext.currentTrackLiked ? rootContext.loaderAccentColor : rootContext.pillContentColor
                                 }
                             }
                         }

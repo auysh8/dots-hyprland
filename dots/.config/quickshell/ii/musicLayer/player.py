@@ -36,7 +36,11 @@ class Player:
         # Stream URL cache for gapless playback
         self._stream_cache = {}
         self._ytdlp_proc = None
-        
+
+        # Tracks video IDs currently being downloaded to avoid duplicates
+        self._active_downloads = set()
+        self._download_lock = threading.Lock()
+
         # Independent lyrics engine
         self._lyrics_engine = LyricsSyncEngine(self.send_response)
 
@@ -157,7 +161,7 @@ class Player:
             cmd = [
                 ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings", 
                 "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "--extractor-args", "youtube:player_client=android_vr,web",
+                "--extractor-args", "youtube:player_client=android_music",
                 f"https://music.youtube.com/watch?v={video_id}"
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
@@ -168,6 +172,48 @@ class Player:
                 self.log(f"Gapless URL ready for {video_id}")
         except Exception as e:
             self.log(f"Failed gapless prefetch: {e}")
+
+    def _download_audio_to_cache(self, video_id: str, title: str):
+        """Download audio for a video_id to the local cache using a fresh independent yt-dlp session."""
+        with self._download_lock:
+            if video_id in self._active_downloads:
+                return  # Already in progress
+            self._active_downloads.add(video_id)
+        try:
+            if self.cache.get_audio_path(video_id):
+                return  # Already cached
+
+            dest_path = self.cache.prepare_audio_download_path(video_id)
+            ytdlp = self._resolve_ytdlp_path()
+            self.log(f"[Cache] Downloading audio for: {title} ({video_id})")
+
+            cmd = [
+                ytdlp,
+                "-f", "bestaudio[ext=m4a]/bestaudio/best",
+                "--no-warnings", "--no-playlist",
+                "--extract-audio", "--audio-format", "m4a",
+                "--audio-quality", "0",
+                "--user-agent", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
+                "--extractor-args", "youtube:player_client=android_music",
+                "--output", dest_path,
+                f"https://music.youtube.com/watch?v={video_id}",
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if result.returncode == 0:
+                ok = self.cache.register_downloaded_audio(video_id, dest_path)
+                if ok:
+                    self.log(f"[Cache] Audio cached: {title} ({video_id})")
+                else:
+                    self.log(f"[Cache] Download ok but file missing/small for: {title}")
+            else:
+                self.log(f"[Cache] yt-dlp download failed (rc={result.returncode}): {result.stderr[:200]}")
+        except subprocess.TimeoutExpired:
+            self.log(f"[Cache] Download timed out for: {title}")
+        except Exception as e:
+            self.log(f"[Cache] Download error for {title}: {e}")
+        finally:
+            with self._download_lock:
+                self._active_downloads.discard(video_id)
 
     def _play_task(self, video_id, title, artist, art_url, token, is_auto=False, artist_id="", album_id=""):
         self.log(f"[PLAY_TASK] Starting for: {title} ({video_id}) token={token}")
@@ -198,32 +244,35 @@ class Player:
             else:
                 with self._state_lock:
                     stream_url = self._stream_cache.pop(video_id, None)
+                cmd = [
+                    self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings", 
+                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "--extractor-args", "youtube:player_client=android_music",
+                    f"https://music.youtube.com/watch?v={video_id}"
+                ]
+
                 if stream_url:
                     self.log(f"Using pre-fetched gapless URL")
-                    self.cache.start_audio_cache_download(video_id, stream_url, title)
                 else:
                     self.log("Fetching stream URL...")
-                    ytdlp = self._resolve_ytdlp_path()
-                    # OPTIMIZATION: Use bestaudio/best and extractor-args for compatibility
-                    cmd = [
-                        ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings", 
-                        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                        "--extractor-args", "youtube:player_client=android_vr,web",
-                        f"https://music.youtube.com/watch?v={video_id}"
-                    ]
-                    
                     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     self._ytdlp_proc = proc
                     stdout, stderr = proc.communicate(timeout=30)
                     self._ytdlp_proc = None
                     
+                    with self._state_lock:
+                        if self._playback_token != token:
+                            self.log("Aborted after stream fetch (superseded)")
+                            return
+
                     if proc.returncode != 0:
                         self.log(f"yt-dlp error: {stderr}")
                         raise ValueError(f"yt-dlp exited with code {proc.returncode}")
                         
                     stream_url = stdout.strip().split("\n")[-1].strip()
                     self.log(f"Stream URL fetched")
-                    self.cache.start_audio_cache_download(video_id, stream_url, title)
+
+
 
                 with self._state_lock:
                     if self._playback_token != token:
@@ -256,9 +305,17 @@ class Player:
                     return
 
             self._cleanup_socket()
-            cmd = ["mpv", "--no-video", "--no-terminal", "--really-quiet", "--no-config", "--load-scripts=no", "--keep-open=yes", f"--input-ipc-server={self.ipc_socket}", f"--force-media-title={title} • {artist}", stream_url]
+            mpv_cmd = [
+                "mpv", "--no-video", "--no-terminal", "--really-quiet",
+                "--no-config", "--load-scripts=no", "--keep-open=yes",
+                f"--input-ipc-server={self.ipc_socket}",
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                f"--force-media-title={title} \u2022 {artist}",
+                stream_url,
+            ]
             self.log(f"Launching mpv...")
-            process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process = subprocess.Popen(mpv_cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
             self.log(f"mpv PID: {process.pid}")
 
             with self._state_lock:
@@ -278,7 +335,10 @@ class Player:
             def _deferred_art_download():
                 if not art_file_path and art_url:
                     try:
-                        cached_path = self.cache.download_art_now(art_url)
+                        import urllib.request
+                        req = urllib.request.Request(art_url, headers={"User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(req, timeout=15) as response:
+                            cached_path = self.cache.cache_art(art_url, response.read())
                         if cached_path:
                             self.send_response({"type": "art_downloaded", "videoId": video_id, "path": cached_path})
                             self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=cached_path, video_id=video_id, art_url=art_url)
@@ -288,6 +348,25 @@ class Player:
                     self.send_response({"type": "art_downloaded", "videoId": video_id, "path": art_file_path})
                     self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=art_file_path, video_id=video_id, art_url=art_url)
             threading.Thread(target=_deferred_art_download, daemon=True).start()
+
+            # ── Deferred audio caching ─────────────────────────────────────────
+            # Skip if this is already a cached playback (file:// URL)
+            is_live_stream = not stream_url.startswith("file://")
+            if is_live_stream:
+                def _deferred_audio_cache():
+                    # Wait 30s — if user skips before then, abort
+                    time.sleep(30)
+                    with self._state_lock:
+                        if self._playback_token != token:
+                            return  # Song was skipped
+                    if self.cache.get_audio_path(video_id):
+                        return  # Already cached by now
+                    threading.Thread(
+                        target=self._download_audio_to_cache,
+                        args=(video_id, title),
+                        daemon=True,
+                    ).start()
+                threading.Thread(target=_deferred_audio_cache, daemon=True).start()
 
             self.send_response({"type": "playback_started", "videoId": video_id, "title": title, "artist": artist, "artistId": artist_id, "albumId": album_id, "artUrl": art_url, "artLocalPath": art_file_path or "", "isLiked": False})
 
@@ -408,6 +487,7 @@ class Player:
 
             def _progress_task():
                 last_paused = None
+                last_dur = None
                 while True:
                     with self._state_lock:
                         if self._playback_token != token or not self.mpv_process:
@@ -433,6 +513,12 @@ class Player:
                     if pos is not None:
                         self.send_response({"type": "playback_progress", "positionSec": int(float(pos))})
                         self._lyrics_engine.set_position(float(pos))
+                        
+                        if dur is not None:
+                            dur_int = int(float(dur))
+                            if dur_int != last_dur and dur_int > 0:
+                                last_dur = dur_int
+                                self.send_response({"type": "playback_duration", "durationSec": dur_int})
                     
                     # Auto-advance check
                     if pos is not None and dur is not None:
@@ -451,6 +537,10 @@ class Player:
             threading.Thread(target=_progress_task, daemon=True).start()
 
         except Exception as e:
+            with self._state_lock:
+                if self._playback_token != token:
+                    return # Silently exit if thread was intentionally superseded by user
+
             self.log(f"Play task error: {e}")
             import traceback
             self.log(traceback.format_exc())

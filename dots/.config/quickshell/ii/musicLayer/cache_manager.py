@@ -238,6 +238,37 @@ class CacheManager:
 
         return str(file_path)
 
+    def prepare_audio_download_path(self, video_id: str) -> str:
+        """
+        Returns the target path for a yt-dlp audio download.
+        The caller must run the download externally; call register_downloaded_audio() when done.
+        """
+        file_hash = self._get_file_hash(video_id, "audio")
+        return str(self.audio_cache_dir / f"{file_hash}.m4a")
+
+    def register_downloaded_audio(self, video_id: str, file_path: str) -> bool:
+        """
+        Register a fully downloaded audio file into the cache.
+        Returns True on success.
+        """
+        path = Path(file_path)
+        if not path.exists() or path.stat().st_size < 4096:
+            return False
+
+        file_hash = self._get_file_hash(video_id, "audio")
+        with self._meta_lock:
+            self.meta[file_hash] = {
+                "path": str(path),
+                "size": path.stat().st_size,
+                "accessed": time.time(),
+                "type": "audio",
+                "video_id": video_id,
+            }
+            self._save_meta()
+
+        self._enforce_size_limit()
+        return True
+
     def start_audio_cache_download(self, video_id: str, stream_url: str, title: str = "") -> str:
         """
         Start background download of audio stream to cache.
@@ -266,7 +297,7 @@ class CacheManager:
                 self.log(f"Caching audio: {title} ({video_id})")
 
                 # Download with progress
-                req = urllib.request.Request(stream_url, headers={"User-Agent": "Mozilla/5.0"})
+                req = urllib.request.Request(stream_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
                 with urllib.request.urlopen(req, timeout=300) as response, open(temp_path, "wb") as out:
                     shutil.copyfileobj(response, out)
 
