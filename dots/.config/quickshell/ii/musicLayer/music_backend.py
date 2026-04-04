@@ -248,12 +248,34 @@ class MusicBackend:
                 except Exception as e:
                     self.log(f"Clipboard error: {e}")
 
+        elif cmd == "cache_stats":
+            threading.Thread(target=lambda: self.send_response({
+                "type": "cache_stats",
+                **self.cache.get_stats()
+            }), daemon=True).start()
+
+        elif cmd == "clear_cache":
+            what = req.get("what", "all")  # "all", "audio", "art"
+            self.cache.clear(
+                clear_art=(what in ("all", "art")),
+                clear_audio=(what in ("all", "audio")),
+                clear_canvas=(what in ("all", "canvas")),
+            )
+            self.log(f"Cache cleared: {what}")
+            threading.Thread(target=lambda: self.send_response({
+                "type": "cache_stats",
+                **self.cache.get_stats()
+            }), daemon=True).start()
+
         else:
             self.log(f"Unknown command: {cmd}")
 
     def run(self):
         # Start response processor thread
         threading.Thread(target=self._process_responses, daemon=True).start()
+
+        # Cleanup orphaned cache files on startup (non-blocking)
+        threading.Thread(target=self.cache.cleanup_orphans, daemon=True).start()
 
         # Send ready signal immediately
         self.send_response({

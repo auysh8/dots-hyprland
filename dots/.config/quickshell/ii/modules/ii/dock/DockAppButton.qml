@@ -39,6 +39,8 @@ DockButton {
     z: isDragged ? 100 : 0
     opacity: isDragged ? 0.85 : (enabled ? 1 : 0.4)
     scale: isDragged ? 1.05 : 1
+    layer.enabled: isDragged
+    layer.smooth: true
 
     transform: Translate {
         x: root.dragTranslateX

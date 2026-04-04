@@ -18,16 +18,21 @@ Item {
     readonly property bool hasDesktopActions: (desktopEntry?.actions.length ?? 0) > 0
 
     function open(button, appToplevelData) {
-        if (menuLoader.active) {
+        if (menuLoader.item && typeof menuLoader.item.forceClose === "function")
+            menuLoader.item.forceClose();
+        else if (menuLoader.active)
             menuLoader.active = false;
-        }
         targetButton = button;
         appToplevel = appToplevelData;
         menuLoader.active = true;
     }
 
     function close() {
-        menuLoader.active = false;
+        if (!menuLoader.active) return;
+        if (menuLoader.item && typeof menuLoader.item.close === "function")
+            menuLoader.item.close();
+        else
+            menuLoader.active = false;
     }
 
     Loader {
@@ -36,6 +41,8 @@ Item {
         sourceComponent: PopupWindow {
             id: contextPopup
             visible: true
+            property bool closing: false
+            property real revealProgress: 0
 
             anchor {
                 item: root.targetButton
@@ -50,17 +57,67 @@ Item {
                 onCleared: root.close()
             }
 
+            Component.onCompleted: openAnim.start();
+
+            function close() {
+                if (closing) return;
+                closing = true;
+                closeAnim.restart();
+            }
+
+            function forceClose() {
+                closing = false;
+                openAnim.stop();
+                closeAnim.stop();
+                menuLoader.active = false;
+            }
+
             color: "transparent"
             implicitWidth: menuBackground.implicitWidth + Appearance.sizes.elevationMargin * 2
             implicitHeight: menuBackground.implicitHeight + Appearance.sizes.elevationMargin * 2
 
+            NumberAnimation {
+                id: openAnim
+                target: contextPopup
+                property: "revealProgress"
+                from: 0
+                to: 1
+                duration: Appearance.animation.elementMoveFast.duration
+                easing.type: Appearance.animation.elementMoveFast.type
+                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+            }
+
+            SequentialAnimation {
+                id: closeAnim
+                NumberAnimation {
+                    target: contextPopup
+                    property: "revealProgress"
+                    to: 0
+                    duration: Math.max(120, Appearance.animation.elementMoveFast.duration - 40)
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                }
+                ScriptAction {
+                    script: {
+                        contextPopup.closing = false;
+                        menuLoader.active = false;
+                    }
+                }
+            }
+
             StyledRectangularShadow {
                 target: menuBackground
+                opacity: contextPopup.revealProgress
+                visible: opacity > 0
             }
 
             Rectangle {
                 id: menuBackground
                 property real padding: 4
+                opacity: contextPopup.revealProgress
+                scale: 0.96 + contextPopup.revealProgress * 0.04
+                y: (1 - contextPopup.revealProgress) * 10
+                transformOrigin: Item.Bottom
 
                 anchors {
                     bottom: parent.bottom

@@ -24,6 +24,7 @@ Item {
     // Drag-to-reorder state
     property bool dragging: false
     property bool _reordering: false
+    property bool _pendingReorderReset: false
     property bool _suppressTranslateAnim: false
     property int dragSourceIndex: -1
     property real dragCursorX: 0
@@ -41,16 +42,15 @@ Item {
         _suppressTranslateAnim = true;
         if (dragging && dragSourceIndex !== dragTargetIndex) {
             _reordering = true;
+            _pendingReorderReset = true;
             TaskbarApps.reorderPinned(dragSourceIndex, dragTargetIndex);
+            reorderResetTimer.restart();
         }
         dragging = false;
         dragSourceIndex = -1;
         dragCursorX = 0;
         dragStartCursorX = 0;
-        Qt.callLater(function() {
-            _reordering = false;
-            _suppressTranslateAnim = false;
-        });
+        Qt.callLater(function() { _suppressTranslateAnim = false; });
     }
 
     function cancelDrag() {
@@ -64,6 +64,11 @@ Item {
 
     function openContextMenu(button, appToplevelData) {
         contextMenu.open(button, appToplevelData);
+    }
+
+    function resetReorderState() {
+        _pendingReorderReset = false;
+        _reordering = false;
     }
 
     Layout.fillHeight: true
@@ -101,6 +106,19 @@ Item {
             topInset: Appearance.sizes.hyprlandGapsOut + root.buttonPadding
             bottomInset: Appearance.sizes.hyprlandGapsOut + root.buttonPadding
         }
+    }
+
+    Connections {
+        target: TaskbarApps
+        function onAppsChanged() {
+            if (root._pendingReorderReset) reorderResetTimer.restart();
+        }
+    }
+
+    Timer {
+        id: reorderResetTimer
+        interval: Appearance.animation.elementMoveFast.duration + 80
+        onTriggered: root.resetReorderState()
     }
 
     PopupWindow {

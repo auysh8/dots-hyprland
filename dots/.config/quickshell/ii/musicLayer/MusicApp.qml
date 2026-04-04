@@ -794,6 +794,8 @@ FocusScope {
                         }
                     } else if (data.type === "error_toast") {
                         root.showToastArgs(data.message || "An error occurred", data.icon || "error")
+                    } else if (data.type === "cache_stats") {
+                        cacheView.onCacheStats(data)
                     }
                 } catch(e) { 
                     console.error("[MusicBackend] Parse Error on line:", line)
@@ -858,7 +860,7 @@ FocusScope {
                             }
                             
                             NavigationRailTabArray {
-                                currentIndex: root.currentView === "home" ? 0 : root.currentView === "explore" ? 1 : 2
+                                currentIndex: root.currentView === "home" ? 0 : root.currentView === "explore" ? 1 : root.currentView === "library" ? 2 : 3
                                 expanded: navRail.expanded
                                 Layout.topMargin: 0
                                 useOverrideColors: true
@@ -903,9 +905,24 @@ FocusScope {
                                     overrideIconColor: toggled ? root.pillContentColor : root.contentColor
                                     overrideTextColor: toggled ? root.pillContentColor : root.contentColor
                                 }
+                                NavigationRailButton {
+                                    toggled: root.currentView === "settings"
+                                    onPressed: root.navigateTo("settings")
+                                    expanded: navRail.expanded
+                                    buttonIcon: "settings"
+                                    buttonText: "Settings"
+                                    showToggledHighlight: false
+                                    useOverrideColors: true
+                                    overrideActiveColor: root.pillColor
+                                    overrideActiveHoverColor: root.pillColorHover
+                                    overrideIconColor: toggled ? root.pillContentColor : root.contentColor
+                                    overrideTextColor: toggled ? root.pillContentColor : root.contentColor
+                                }
                             }
-                            
-                            Item { Layout.fillHeight: true } // Push array to top
+                                
+                            Item {
+                                Layout.fillHeight: true
+                            }
                         }
                     }
                 }
@@ -1152,6 +1169,28 @@ FocusScope {
                                 id: artistItemsView
                                 anchors.fill: parent
                                 rootContext: root
+                            }
+
+                            MusicSettingsView {
+                                id: settingsView
+                                anchors.fill: parent
+                                visible: root.currentView === "settings"
+                                rootContext: root
+                                onNavigateTo: (view) => root.navigateTo(view)
+                            }
+
+                            MusicCacheView {
+                                id: cacheView
+                                anchors.fill: parent
+                                visible: root.currentView === "cache"
+                                sendCommand: function(obj) {
+                                    musicProcess.stdin.write(JSON.stringify(obj) + "\n")
+                                }
+                                contentColor: root.contentColor
+                                surfaceColor: root.surfaceColor
+                                pillColor: root.pillColor
+                                pillContentColor: root.pillContentColor
+                                onNavigateBack: root.navigateTo("settings")
                             }
 
                             // Central Loading Spinner

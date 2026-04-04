@@ -33,7 +33,7 @@ class Player:
         self.api = None
         self.mpris = None
         
-        # Stream URL cache for gapless playback
+        # Stream URL cache for gapless playback: {video_id: (url, expiry_timestamp)}
         self._stream_cache = {}
         self._ytdlp_proc = None
 
@@ -151,15 +151,17 @@ class Player:
             token = self._playback_token
         threading.Thread(target=self._play_task, args=(video_id, title, artist, art_url, token, is_auto, artist_id, album_id), daemon=True).start()
 
-    def _prefetch_stream_url(self, video_id):
-        if video_id in self._stream_cache:
-            return
+    def _prefetch_stream_url(self, video_id, title=""):
+        # Check cache with TTL — HLS URLs are valid ~6 hours
+        with self._state_lock:
+            cached = self._stream_cache.get(video_id)
+            if cached and cached[1] > time.time():
+                return  # Still valid
         self.log(f"Background prefetching next URL for gapless playback: {video_id}")
         try:
             ytdlp = self._resolve_ytdlp_path()
-            # OPTIMIZATION: Use bestaudio/best and extractor-args for compatibility
             cmd = [
-                ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings", 
+                ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings",
                 "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "--extractor-args", "youtube:player_client=android_music",
                 f"https://music.youtube.com/watch?v={video_id}"
@@ -167,9 +169,18 @@ class Player:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
             stream_url = result.stdout.strip().split("\n")[-1].strip()
             if stream_url:
+                expiry = time.time() + 6 * 3600  # HLS URLs valid ~6h
                 with self._state_lock:
-                    self._stream_cache[video_id] = stream_url
+                    self._stream_cache[video_id] = (stream_url, expiry)
                 self.log(f"Gapless URL ready for {video_id}")
+
+                # Also pre-cache audio for the next track if not already cached
+                if self.cache and not self.cache.get_audio_path(video_id):
+                    threading.Thread(
+                        target=self._download_audio_to_cache,
+                        args=(video_id, title or video_id),
+                        daemon=True,
+                    ).start()
         except Exception as e:
             self.log(f"Failed gapless prefetch: {e}")
 
@@ -243,9 +254,14 @@ class Player:
                 stream_url = f"file://{cached_audio_path}"
             else:
                 with self._state_lock:
-                    stream_url = self._stream_cache.pop(video_id, None)
+                    cached_entry = self._stream_cache.pop(video_id, None)
+                # Unwrap tuple (url, expiry) — discard if expired
+                if cached_entry and cached_entry[1] > time.time():
+                    stream_url = cached_entry[0]
+                else:
+                    stream_url = None
                 cmd = [
-                    self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings", 
+                    self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings",
                     "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                     "--extractor-args", "youtube:player_client=android_music",
                     f"https://music.youtube.com/watch?v={video_id}"
@@ -253,6 +269,7 @@ class Player:
 
                 if stream_url:
                     self.log(f"Using pre-fetched gapless URL")
+
                 else:
                     self.log("Fetching stream URL...")
                     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -328,9 +345,12 @@ class Player:
             self.log("mpv launched — playback started")
 
             with self._state_lock:
-                next_id = video_id if self.repeat_mode == 2 else (self._current_queue[0].get("videoId") if self._current_queue else None)
+                next_track = None if self.repeat_mode == 2 else (self._current_queue[0] if self._current_queue else None)
+                next_id = video_id if self.repeat_mode == 2 else (next_track.get("videoId") if next_track else None)
+                next_title = next_track.get("title", next_id or "") if next_track else (title if self.repeat_mode == 2 else "")
             if next_id:
-                threading.Thread(target=self._prefetch_stream_url, args=(next_id,), daemon=True).start()
+                threading.Thread(target=self._prefetch_stream_url, args=(next_id, next_title), daemon=True).start()
+
 
             def _deferred_art_download():
                 if not art_file_path and art_url:
