@@ -199,8 +199,11 @@ Item {
             id: wifiStartTimer
             interval: 150
             onTriggered: {
-                Network.enableWifi();
-                Network.rescanWifi();
+                if (Network.wifiEnabled) {
+                    Network.rescanWifi();
+                } else {
+                    Network.enableWifi(true);
+                }
             }
         }
     }

@@ -22,34 +22,78 @@ WindowDialog {
         anchors.horizontalCenter: parent.horizontalCenter
     }
     Item {
+        id: headerArea
         Layout.fillWidth: true
-        Layout.preferredHeight: 1
+        Layout.preferredHeight: headerContent.implicitHeight + 2
 
-        property bool isDiscovering: root.contentReady ? (Bluetooth.defaultAdapter?.discovering ?? false) : false
+        ColumnLayout {
+            id: headerContent
+            anchors {
+                top: parent.top
+                horizontalCenter: parent.horizontalCenter
+            }
+            width: parent.width
+            spacing: 10
 
-        Text {
-            id: infoText
-            text: Translation.tr("Tap to connect or disconnect a device")
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: -8
-            color: Appearance.colors.colOnSurface
-        }
+            StyledText {
+                Layout.alignment: Qt.AlignHCenter
+                text: Translation.tr("Tap to connect or disconnect a device")
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.colors.colOnSurface
+            }
 
-        StyledIndeterminateProgressBar {
-            Layout.maximumWidth: 160
-            visible: Bluetooth.defaultAdapter?.discovering ?? false
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: infoText.bottom
-            anchors.topMargin: 16
+            Item {
+                Layout.alignment: Qt.AlignHCenter
+                width: 160
+                height: 4
+
+                WindowDialogSeparator {
+                    anchors.centerIn: parent
+                    width: parent.width
+                    height: 2
+                    visible: !(Bluetooth.defaultAdapter?.discovering ?? false)
+                }
+
+                StyledIndeterminateProgressBar {
+                    visible: Bluetooth.defaultAdapter?.discovering ?? false
+                    anchors.centerIn: parent
+                    width: parent.width
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 6
+                spacing: 0
+                Layout.leftMargin: 18
+                Layout.rightMargin: 18
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: Translation.tr("Bluetooth")
+                    color: Appearance.colors.colOnSurface
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                }
+
+                StyledSwitch {
+                    id: bluetoothToggle
+                    checked: Bluetooth.defaultAdapter?.enabled ?? false
+                    scale: 0.9
+
+                    onClicked: {
+                        if (!Bluetooth.defaultAdapter) return;
+                        Bluetooth.defaultAdapter.enabled = checked;
+                        Bluetooth.defaultAdapter.discovering = checked;
+                    }
+                }
+            }
         }
     }
     Loader {
         id: listLoader
         Layout.fillHeight: true
         Layout.fillWidth: true
-        Layout.topMargin: 18
+        Layout.topMargin: -6
 
         active: root.contentReady
 

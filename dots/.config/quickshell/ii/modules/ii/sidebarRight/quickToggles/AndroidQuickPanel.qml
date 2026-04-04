@@ -14,7 +14,7 @@ AbstractQuickPanel {
     Layout.fillWidth: true
 
     // Sizes
-    implicitHeight: (editMode ? contentItem.implicitHeight : usedRows.implicitHeight) + root.padding * 2
+    implicitHeight: (editMode ? contentItem.implicitHeight : (usedRowsStaticLoader.item?.implicitHeight ?? 0)) + root.padding * 2
     Behavior on implicitHeight {
         animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
     }
@@ -38,8 +38,37 @@ AbstractQuickPanel {
         return types.map(type => { return { type: type, size: 1 } })
     }
     readonly property list<var> unusedToggleRows: toggleRowsForList(unusedToggles)
+    readonly property var draggedToggleData: {
+        if (!dragType) return null;
+        for (let i = 0; i < toggles.length; i++) {
+            if (toggles[i]?.type === dragType) return toggles[i];
+        }
+        return null;
+    }
 
     property int dragIndex: -1  // flat config index of item being dragged (-1 = none)
+    property string dragType: ""
+    property real dragCursorX: 0
+    property real dragCursorY: 0
+    property real dragPressOffsetX: 0
+    property real dragPressOffsetY: 0
+    property bool dragHideLiveItem: false
+    property bool dragPreviewReady: false
+    property url dragPreviewUrl: ""
+    property real dragPreviewWidth: 0
+    property real dragPreviewHeight: 0
+    property real dragPreviewSourceWidth: 0
+    property real dragPreviewSourceHeight: 0
+    property real dragPreviewScale: 1.06
+    property int dragSessionId: 0
+    readonly property real dragPreviewScaledWidth: dragPreviewWidth * dragPreviewScale
+    readonly property real dragPreviewScaledHeight: dragPreviewHeight * dragPreviewScale
+    readonly property real dragPreviewMinX: root.padding + (dragPreviewScaledWidth - dragPreviewWidth) / 2
+    readonly property real dragPreviewMinY: root.padding + (dragPreviewScaledHeight - dragPreviewHeight) / 2
+    readonly property real dragPreviewMaxX: root.padding + Math.max(0, (usedRowsEditLoader.item?.width ?? 0) - dragPreviewWidth - (dragPreviewScaledWidth - dragPreviewWidth) / 2)
+    readonly property real dragPreviewMaxY: root.padding + Math.max(0, (usedRowsEditLoader.item?.height ?? 0) - dragPreviewHeight - (dragPreviewScaledHeight - dragPreviewHeight) / 2)
+    readonly property real dragPreviewClampedX: Math.max(dragPreviewMinX, Math.min(dragPreviewMaxX, root.padding + root.dragCursorX - root.dragPressOffsetX))
+    readonly property real dragPreviewClampedY: Math.max(dragPreviewMinY, Math.min(dragPreviewMaxY, root.padding + root.dragCursorY - root.dragPressOffsetY))
 
     // Map (x, y) in usedRows coordinates → flat config index.
     // Uses the same stride math as the RowLayout so no item references are needed.
@@ -79,6 +108,28 @@ AbstractQuickPanel {
         list[index] = { type: list[index].type, size: 3 - list[index].size }
     }
 
+    function beginDragPreview(item) {
+        dragSessionId += 1
+        const sessionId = dragSessionId
+        dragPreviewReady = false
+        dragHideLiveItem = false
+        dragPreviewUrl = ""
+        dragPreviewWidth = item?.width ?? 0
+        dragPreviewHeight = item?.height ?? 0
+        dragPreviewSourceWidth = Math.max(1, Math.round(dragPreviewWidth * 2))
+        dragPreviewSourceHeight = Math.max(1, Math.round(dragPreviewHeight * 2))
+        if (!item || typeof item.grabToImage !== "function") return
+        item.grabToImage(function(result) {
+            if (root.dragSessionId !== sessionId || root.dragType === "")
+                return;
+            if (!result || !result.url)
+                return;
+            root.dragPreviewUrl = result.url;
+            root.dragPreviewReady = true;
+            root.dragHideLiveItem = true;
+        }, Qt.size(dragPreviewSourceWidth, dragPreviewSourceHeight));
+    }
+
     function toggleRowsForList(togglesList) {
         var rows = [];
         var row = [];
@@ -107,47 +158,100 @@ AbstractQuickPanel {
         }
         spacing: 12
         
-        Column {
-            id: usedRows
-            spacing: root.spacing
+        Loader {
+            id: usedRowsStaticLoader
+            active: !root.editMode
+            visible: active
+            sourceComponent: Column {
+                spacing: root.spacing
 
-            Repeater {
-                id: usedRowsRepeater
-                model: ScriptModel {
-                    values: Array(root.toggleRows.length)
-                }
-                delegate: ButtonGroup {
-                    id: toggleRow
-                    required property int index
-                    property var modelData: root.toggleRows[index]
-                    property int startingIndex: {
-                        const rows = root.toggleRows;
-                        let sum = 0;
-                        for (let i = 0; i < index; i++) {
-                            sum += rows[i].length;
-                        }
-                        return sum;
+                Repeater {
+                    model: ScriptModel {
+                        values: Array(root.toggleRows.length)
                     }
-                    spacing: root.spacing
+                    delegate: ButtonGroup {
+                        id: toggleRowStatic
+                        required property int index
+                        property var modelData: root.toggleRows[index]
+                        property int startingIndex: {
+                            const rows = root.toggleRows;
+                            let sum = 0;
+                            for (let i = 0; i < index; i++) {
+                                sum += rows[i].length;
+                            }
+                            return sum;
+                        }
+                        spacing: root.spacing
 
-                    Repeater {
-                        model: ScriptModel {
-                            values: toggleRow?.modelData ?? []
-                            objectProp: "type"
+                        Repeater {
+                            model: ScriptModel {
+                                values: modelData ?? []
+                                objectProp: "type"
+                            }
+                            delegate: AndroidToggleDelegateChooser {
+                                startingIndex: toggleRowStatic.startingIndex
+                                editMode: false
+                                dragIndex: -1
+                                dragType: ""
+                                baseCellWidth: root.baseCellWidth
+                                baseCellHeight: root.baseCellHeight
+                                spacing: root.spacing
+                                onOpenAudioOutputDialog: (sourceItem) => root.openAudioOutputDialog(sourceItem)
+                                onOpenAudioInputDialog: (sourceItem) => root.openAudioInputDialog(sourceItem)
+                                onOpenBluetoothDialog: (sourceItem) => root.openBluetoothDialog(sourceItem)
+                                onOpenNightLightDialog: (sourceItem) => root.openNightLightDialog(sourceItem)
+                                onOpenWifiDialog: (sourceItem) => root.openWifiDialog(sourceItem)
+                            }
                         }
-                        delegate: AndroidToggleDelegateChooser {
-                            startingIndex: toggleRow.startingIndex
-                            editMode: root.editMode
-                            dragIndex: root.dragIndex
-                            baseCellWidth: root.baseCellWidth
-                            baseCellHeight: root.baseCellHeight
-                            spacing: root.spacing
-                            onOpenAudioOutputDialog: (sourceItem) => root.openAudioOutputDialog(sourceItem)
-                            onOpenAudioInputDialog: (sourceItem) => root.openAudioInputDialog(sourceItem)
-                            onOpenBluetoothDialog: (sourceItem) => root.openBluetoothDialog(sourceItem)
-                            onOpenNightLightDialog: (sourceItem) => root.openNightLightDialog(sourceItem)
-                            onOpenWifiDialog: (sourceItem) => root.openWifiDialog(sourceItem)
-                        }
+                    }
+                }
+            }
+        }
+
+        Loader {
+            id: usedRowsEditLoader
+            active: root.editMode
+            visible: active
+            sourceComponent: FlowButtonGroup {
+                id: usedRows
+                width: contentItem.width
+                spacing: root.spacing
+                function itemAt(index) {
+                    return usedTogglesRepeater.itemAt(index);
+                }
+                move: Transition {
+                    NumberAnimation {
+                        properties: "x,y"
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.type
+                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                    }
+                }
+
+                Repeater {
+                    id: usedTogglesRepeater
+                    model: ScriptModel {
+                        values: root.toggles
+                        objectProp: "type"
+                    }
+                    delegate: AndroidToggleDelegateChooser {
+                        startingIndex: 0
+                        editMode: root.editMode
+                        dragIndex: root.dragIndex
+                        dragType: root.dragType
+                        hideWhileDragging: root.dragHideLiveItem
+                        dragCursorX: root.dragCursorX
+                        dragCursorY: root.dragCursorY
+                        dragPressOffsetX: root.dragPressOffsetX
+                        dragPressOffsetY: root.dragPressOffsetY
+                        baseCellWidth: root.baseCellWidth
+                        baseCellHeight: root.baseCellHeight
+                        spacing: root.spacing
+                        onOpenAudioOutputDialog: (sourceItem) => root.openAudioOutputDialog(sourceItem)
+                        onOpenAudioInputDialog: (sourceItem) => root.openAudioInputDialog(sourceItem)
+                        onOpenBluetoothDialog: (sourceItem) => root.openBluetoothDialog(sourceItem)
+                        onOpenNightLightDialog: (sourceItem) => root.openNightLightDialog(sourceItem)
+                        onOpenWifiDialog: (sourceItem) => root.openWifiDialog(sourceItem)
                     }
                 }
             }
@@ -191,6 +295,7 @@ AbstractQuickPanel {
                             delegate: AndroidToggleDelegateChooser {
                                 startingIndex: -1
                                 editMode: root.editMode
+                                dragType: ""
                                 baseCellWidth: root.baseCellWidth
                                 baseCellHeight: root.baseCellHeight
                                 spacing: root.spacing
@@ -214,8 +319,8 @@ AbstractQuickPanel {
         z: 100
         x: root.padding
         y: root.padding
-        width:  usedRows.width
-        height: usedRows.height
+        width:  usedRowsEditLoader.item?.width ?? 0
+        height: usedRowsEditLoader.item?.height ?? 0
         visible: root.editMode
         enabled: root.editMode
         hoverEnabled: true
@@ -228,12 +333,41 @@ AbstractQuickPanel {
         property int  pressedButton: Qt.NoButton
         readonly property real dragThreshold: 6
 
+        function resetDragState() {
+            root.dragSessionId += 1
+            root.dragIndex = -1
+            root.dragType = ""
+            root.dragCursorX = 0
+            root.dragCursorY = 0
+            root.dragPressOffsetX = 0
+            root.dragPressOffsetY = 0
+            root.dragHideLiveItem = false
+            root.dragPreviewReady = false
+            root.dragPreviewUrl = ""
+            root.dragPreviewWidth = 0
+            root.dragPreviewHeight = 0
+            root.dragPreviewSourceWidth = 0
+            root.dragPreviewSourceHeight = 0
+            sourceIndex = -1
+            dragActive = false
+            pressedButton = Qt.NoButton
+        }
+
         onPressed: (mouse) => {
             pressX        = mouse.x
             pressY        = mouse.y
+            root.dragCursorX = mouse.x
+            root.dragCursorY = mouse.y
+            root.dragPressOffsetX = 0
+            root.dragPressOffsetY = 0
             dragActive    = false
             pressedButton = mouse.button
             sourceIndex   = root.toggleIndexAt(mouse.x, mouse.y)
+            const draggedItem = sourceIndex >= 0 ? usedRowsEditLoader.item?.itemAt(sourceIndex) : null
+            if (draggedItem) {
+                root.dragPressOffsetX = mouse.x - draggedItem.x
+                root.dragPressOffsetY = mouse.y - draggedItem.y
+            }
             if (mouse.button === Qt.RightButton && sourceIndex >= 0) {
                 root.resizeToggleAt(sourceIndex)
                 sourceIndex = -1
@@ -245,11 +379,16 @@ AbstractQuickPanel {
                 const dx = mouse.x - pressX
                 const dy = mouse.y - pressY
                 if (Math.sqrt(dx * dx + dy * dy) > dragThreshold) {
+                    const draggedItem = sourceIndex >= 0 ? usedRowsEditLoader.item?.itemAt(sourceIndex) : null
                     dragActive     = true
                     root.dragIndex = sourceIndex
+                    root.dragType = sourceIndex >= 0 ? (root.toggles[sourceIndex]?.type ?? "") : ""
+                    root.beginDragPreview(draggedItem)
                 }
             }
             if (dragActive && root.dragIndex >= 0) {
+                root.dragCursorX = mouse.x
+                root.dragCursorY = mouse.y
                 const targetIdx = root.toggleIndexAt(mouse.x, mouse.y)
                 if (targetIdx >= 0 && targetIdx !== root.dragIndex) {
                     root.swapToggles(root.dragIndex, targetIdx)
@@ -268,13 +407,28 @@ AbstractQuickPanel {
         onReleased: (mouse) => {
             if (!dragActive && mouse.button === Qt.LeftButton && sourceIndex >= 0)
                 root.removeToggleAt(sourceIndex)
-            root.dragIndex = -1
-            sourceIndex    = -1
-            dragActive     = false
+            resetDragState()
         }
+
+        onCanceled: resetDragState()
 
         // Consume wheel events — scroll-to-reorder is replaced by drag
         onWheel: (wheel) => wheel.accepted = true
     }
-    // ────────────────────────────────────────────────────────────────────────
+
+    Image {
+        z: 101
+        visible: root.editMode && root.dragPreviewReady && root.dragPreviewUrl !== ""
+        source: root.dragPreviewUrl
+        smooth: true
+        asynchronous: false
+        cache: false
+        width: root.dragPreviewWidth
+        height: root.dragPreviewHeight
+        sourceSize.width: root.dragPreviewSourceWidth
+        sourceSize.height: root.dragPreviewSourceHeight
+        x: root.dragPreviewClampedX
+        y: root.dragPreviewClampedY
+        scale: root.dragPreviewScale
+    }
 }

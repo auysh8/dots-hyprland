@@ -198,12 +198,17 @@ class Player:
             ytdlp = self._resolve_ytdlp_path()
             self.log(f"[Cache] Downloading audio for: {title} ({video_id})")
 
+            # Determine audio quality settings
+            is_high_quality = getattr(self, "settings", {}).get("high_audio_quality", True)
+            quality_arg = "0" if is_high_quality else "9"
+            format_arg = "bestaudio[ext=m4a]/bestaudio/best" if is_high_quality else "worstaudio[ext=m4a]/worstaudio/worst"
+
             cmd = [
                 ytdlp,
-                "-f", "bestaudio[ext=m4a]/bestaudio/best",
+                "-f", format_arg,
                 "--no-warnings", "--no-playlist",
                 "--extract-audio", "--audio-format", "m4a",
-                "--audio-quality", "0",
+                "--audio-quality", quality_arg,
                 "--user-agent", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
                 "--extractor-args", "youtube:player_client=android_music",
                 "--output", dest_path,

@@ -32,7 +32,12 @@ Item {
 
     // Placeholder when list is empty
     PagePlaceholder {
-        anchors.fill: listview
+        anchors {
+            fill: listview
+            topMargin: 8
+            // Keep the empty-state art clear of the bottom status row.
+            bottomMargin: statusRow.height + 12
+        }
         shown: Notifications.list.length === 0
         icon: "notifications_active"
         description: Translation.tr("Nothing")

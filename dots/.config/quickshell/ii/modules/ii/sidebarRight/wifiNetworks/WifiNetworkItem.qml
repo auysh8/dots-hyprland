@@ -1,5 +1,6 @@
 import qs
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.services
 import qs.services.network
@@ -9,9 +10,33 @@ import QtQuick.Layouts
 DialogListItem {
     id: root
     required property WifiAccessPoint wifiNetwork
-    enabled: !(Network.wifiConnectTarget === root.wifiNetwork && !wifiNetwork?.active)
+    readonly property bool actionEnabled: !(Network.wifiConnectTarget === root.wifiNetwork && !wifiNetwork?.active)
+    readonly property bool isConnected: root.wifiNetwork?.active ?? false
+    readonly property bool isConnectTarget: Network.wifiConnectTarget === root.wifiNetwork
+    readonly property bool isBusyConnecting: root.isConnectTarget && !root.isConnected
+    readonly property bool isHighlighted: (root.wifiNetwork?.askingPassword ?? false) || root.isConnected || root.isBusyConnecting
+    readonly property bool showsSecondaryText: root.secondaryText.length > 0
+    readonly property string secondaryText: root.isConnected
+            ? Translation.tr("Connected")
+        : root.isBusyConnecting
+            ? Translation.tr("Connecting...")
+            : ""
+    enabled: root.actionEnabled
+    opacity: (!root.actionEnabled && !root.isHighlighted) ? 0.4 : 1
 
-    active: (wifiNetwork?.askingPassword || wifiNetwork?.active) ?? false
+    active: root.isHighlighted
+    buttonRadius: root.isHighlighted ? 24 : 20
+    horizontalPadding: root.isHighlighted ? 18 : 16
+    verticalPadding: root.isHighlighted ? 16 : 14
+    colBackground: root.isHighlighted
+        ? Appearance.colors.colPrimaryContainer
+        : "transparent"
+    colBackgroundHover: root.isHighlighted
+        ? Appearance.colors.colPrimaryContainerHover
+        : Appearance.colors.colLayer3Hover
+    colRipple: root.isHighlighted
+        ? Appearance.colors.colPrimaryContainerActive
+        : Appearance.colors.colLayer3Active
     onClicked: {
         Network.connectToWifiNetwork(wifiNetwork);
     }
@@ -27,32 +52,55 @@ DialogListItem {
         spacing: 0
 
         RowLayout {
-            // Name
-            spacing: 10
+            spacing: root.isConnected ? 14 : 12
+
             MaterialSymbol {
-                iconSize: Appearance.font.pixelSize.larger
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: root.showsSecondaryText ? 2 : 4
                 property int strength: root.wifiNetwork?.strength ?? 0
-                text: strength > 80 ? "signal_wifi_4_bar" : strength > 60 ? "network_wifi_3_bar" : strength > 40 ? "network_wifi_2_bar" : strength > 20 ? "network_wifi_1_bar" : "signal_wifi_0_bar"
-                color: Appearance.colors.colOnSurfaceVariant
-            }
-            StyledText {
-                Layout.fillWidth: true
-                color: Appearance.colors.colOnSurfaceVariant
-                elide: Text.ElideRight
-                text: root.wifiNetwork?.ssid ?? Translation.tr("Unknown")
-                textFormat: Text.PlainText
-            }
-            MaterialSymbol {
-                visible: (root.wifiNetwork?.isSecure || root.wifiNetwork?.active) ?? false
-                text: root.wifiNetwork?.active ? "check" : Network.wifiConnectTarget === root.wifiNetwork ? "settings_ethernet" : "lock"
                 iconSize: Appearance.font.pixelSize.larger
-                color: Appearance.colors.colOnSurfaceVariant
+                text: strength > 80 ? "signal_wifi_4_bar" : strength > 60 ? "network_wifi_3_bar" : strength > 40 ? "network_wifi_2_bar" : strength > 20 ? "network_wifi_1_bar" : "signal_wifi_0_bar"
+                color: root.isHighlighted ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSurfaceVariant
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+
+                StyledText {
+                    Layout.fillWidth: true
+                    color: root.isHighlighted ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSurface
+                    elide: Text.ElideRight
+                    renderType: Text.QtRendering
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                    text: root.wifiNetwork?.ssid ?? Translation.tr("Unknown")
+                    textFormat: Text.PlainText
+                }
+
+                StyledText {
+                    visible: root.showsSecondaryText
+                    Layout.fillWidth: true
+                    color: root.isHighlighted ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSurfaceVariant
+                    elide: Text.ElideRight
+                    renderType: Text.QtRendering
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    text: root.secondaryText
+                    textFormat: Text.PlainText
+                }
+            }
+
+            MaterialSymbol {
+                Layout.alignment: Qt.AlignVCenter
+                visible: (root.wifiNetwork?.isSecure ?? false) && !root.isConnected
+                text: "lock"
+                iconSize: Appearance.font.pixelSize.larger
+                color: root.isBusyConnecting ? Appearance.colors.colOnSurface : Appearance.colors.colOnSurfaceVariant
             }
         }
 
         ColumnLayout { // Password
             id: passwordPrompt
-            Layout.topMargin: 8
+            Layout.topMargin: 10
             visible: root.wifiNetwork?.askingPassword ?? false
 
             MaterialTextField {
@@ -94,7 +142,7 @@ DialogListItem {
 
         ColumnLayout { // Public wifi login page
             id: publicWifiPortal
-            Layout.topMargin: 8
+            Layout.topMargin: 10
             visible: (root.wifiNetwork?.active && (root.wifiNetwork?.security ?? "").trim().length === 0) ?? false
 
             RowLayout {

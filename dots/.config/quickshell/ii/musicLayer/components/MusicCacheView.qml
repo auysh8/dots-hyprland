@@ -111,28 +111,46 @@ Item {
         // Total usage bar
         Rectangle {
             Layout.fillWidth: true
-            height: 80
-            radius: 16
-            color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.06)
+            implicitHeight: totalCol.implicitHeight + 32
+            radius: 14
+            color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.05)
 
             ColumnLayout {
-                anchors { fill: parent; margins: 16 }
-                spacing: 8
+                id: totalCol
+                anchors { fill: parent; margins: 16; leftMargin: 16; rightMargin: 16 }
+                spacing: 12
 
                 RowLayout {
                     Layout.fillWidth: true
-                    StyledText {
-                        text: "Total Used"
-                        font.pixelSize: 13
-                        color: root.subtleColor
+                    spacing: 14
+
+                    Rectangle {
+                        width: 36; height: 36
+                        radius: 10
+                        color: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.15)
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "storage"
+                            iconSize: 18
+                            color: root.pillColor
+                        }
+                    }
+
+                    ColumnLayout {
+                        spacing: 1
+                        StyledText {
+                            text: "Total Used"
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            color: root.contentColor
+                        }
+                        StyledText {
+                            text: root.totalSizeMb.toFixed(1) + " MB / " + root.maxSizeMb.toFixed(0) + " MB"
+                            font.pixelSize: 11
+                            color: root.subtleColor
+                        }
                     }
                     Item { Layout.fillWidth: true }
-                    StyledText {
-                        text: root.totalSizeMb.toFixed(1) + " MB / " + root.maxSizeMb.toFixed(0) + " MB"
-                        font.pixelSize: 13
-                        font.weight: Font.Medium
-                        color: root.contentColor
-                    }
                 }
 
                 // Progress bar
@@ -142,7 +160,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         radius: 3
-                        color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.12)
+                        color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.10)
                     }
                     Rectangle {
                         width: parent.width * Math.min(root.utilization / 100, 1)
@@ -161,6 +179,7 @@ Item {
             spacing: 4
 
             component StatRow: Rectangle {
+                id: statRow
                 property string icon: "folder"
                 property string label: ""
                 property real count: 0
@@ -168,29 +187,36 @@ Item {
                 property string clearWhat: ""
 
                 Layout.fillWidth: true
-                height: 56
-                radius: 12
+                height: 60
+                radius: 14
                 color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.05)
 
                 RowLayout {
-                    anchors { fill: parent; leftMargin: 16; rightMargin: 12; topMargin: 0; bottomMargin: 0 }
-                    spacing: 12
+                    anchors { fill: parent; leftMargin: 16; rightMargin: 16; topMargin: 0; bottomMargin: 0 }
+                    spacing: 14
 
-                    MaterialSymbol {
-                        text: parent.parent.icon
-                        iconSize: 20
-                        color: root.pillColor
+                    Rectangle {
+                        width: 36; height: 36
+                        radius: 10
+                        color: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.15)
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: statRow.icon
+                            iconSize: 18
+                            color: root.pillColor
+                        }
                     }
+
                     ColumnLayout {
                         spacing: 1
                         StyledText {
-                            text: parent.parent.parent.label
-                            font.pixelSize: 13
+                            text: statRow.label
+                            font.pixelSize: 14
                             font.weight: Font.Medium
                             color: root.contentColor
                         }
                         StyledText {
-                            text: parent.parent.parent.count + " items · " + parent.parent.parent.sizeText
+                            text: statRow.count + " items · " + statRow.sizeText
                             font.pixelSize: 11
                             color: root.subtleColor
                         }
@@ -199,23 +225,23 @@ Item {
 
                     // Clear button
                     RippleButton {
-                        implicitWidth: 60; implicitHeight: 28
-                        buttonRadius: 14
-                        colBackground: Qt.rgba(0.94, 0.54, 0.66, 0.10)
-                        colBackgroundHover: Qt.rgba(0.94, 0.54, 0.66, 0.25)
-                        colRipple: Qt.rgba(0.94, 0.54, 0.66, 0.35)
-                        visible: parent.parent.parent.count > 0 && parent.parent.parent.clearWhat !== ""
+                        implicitWidth: 64; implicitHeight: 32
+                        buttonRadius: 16
+                        colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.08)
+                        colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.15)
+                        colRipple: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.25)
+                        visible: statRow.count > 0 && statRow.clearWhat !== ""
                         onClicked: {
                             if (root.sendCommand)
-                                root.sendCommand({ "command": "clear_cache", "what": parent.parent.parent.clearWhat })
+                                root.sendCommand({ "command": "clear_cache", "what": statRow.clearWhat })
                         }
                         contentItem: StyledText {
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                             text: "Clear"
-                            font.pixelSize: 11
+                            font.pixelSize: 12
                             font.weight: Font.Medium
-                            color: "#f38ba8"
+                            color: root.contentColor
                         }
                     }
                 }
@@ -252,9 +278,9 @@ Item {
             implicitHeight: 44
             buttonRadius: 12
             visible: root.totalSizeMb > 0
-            colBackground: Qt.rgba(0.94, 0.54, 0.66, 0.12)
-            colBackgroundHover: Qt.rgba(0.94, 0.54, 0.66, 0.22)
-            colRipple: Qt.rgba(0.94, 0.54, 0.66, 0.32)
+            colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.05)
+            colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.10)
+            colRipple: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.20)
             
             onClicked: {
                 if (root.sendCommand)
@@ -266,7 +292,7 @@ Item {
                 text: "Clear All Cache"
                 font.pixelSize: 13
                 font.weight: Font.Medium
-                color: "#f38ba8"
+                color: root.contentColor
             }
         }
 

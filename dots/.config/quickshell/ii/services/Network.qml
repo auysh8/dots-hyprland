@@ -22,6 +22,7 @@ Singleton {
     property bool wifiConnecting: connectProc.running
     property WifiAccessPoint wifiConnectTarget
     readonly property list<WifiAccessPoint> wifiNetworks: []
+    property bool pendingWifiRescanAfterEnable: false
     readonly property WifiAccessPoint active: wifiNetworks.find(n => n.active) ?? null
     readonly property list<var> friendlyWifiNetworks: [...wifiNetworks].sort((a, b) => {
         if (a.active && !b.active)
@@ -57,9 +58,29 @@ Singleton {
     ? "signal_wifi_off"
     : "signal_wifi_bad"
 
+    function clearWifiState(): void {
+        pendingWifiRescanAfterEnable = false;
+        wifiScanning = false;
+        wifiConnectTarget = null;
+        networkName = "";
+        networkStrength = 0;
+
+        while (root.wifiNetworks.length > 0) {
+            const network = root.wifiNetworks.pop();
+            network.destroy();
+        }
+    }
+
     // Control
     function enableWifi(enabled = true): void {
         const cmd = enabled ? "on" : "off";
+        pendingWifiRescanAfterEnable = enabled;
+        if (!enabled) {
+            wifiEnabled = false;
+            wifiStatus = "disabled";
+            wifi = false;
+            clearWifiState();
+        }
         enableWifiProc.exec(["nmcli", "radio", "wifi", cmd]);
     }
 
@@ -102,6 +123,22 @@ Singleton {
 
     Process {
         id: enableWifiProc
+        onExited: {
+            root.update();
+            if (root.pendingWifiRescanAfterEnable) {
+                wifiEnableRescanTimer.restart();
+            } else {
+                root.wifiScanning = false;
+                getNetworks.running = true;
+            }
+        }
+    }
+
+    Timer {
+        id: wifiEnableRescanTimer
+        interval: 450
+        repeat: false
+        onTriggered: root.rescanWifi()
     }
 
     Process {
@@ -119,13 +156,15 @@ Singleton {
         stderr: SplitParser {
             onRead: line => {
                 // print("err:", line)
-                if (line.includes("Secrets were required")) {
+                if (line.includes("Secrets were required") && root.wifiConnectTarget) {
                     root.wifiConnectTarget.askingPassword = true
                 }
             }
         }
         onExited: (exitCode, exitStatus) => {
-            root.wifiConnectTarget.askingPassword = (exitCode !== 0)
+            if (root.wifiConnectTarget) {
+                root.wifiConnectTarget.askingPassword = (exitCode !== 0)
+            }
             root.wifiConnectTarget = null
         }
     }
@@ -148,11 +187,9 @@ Singleton {
     Process {
         id: rescanProcess
         command: ["nmcli", "dev", "wifi", "list", "--rescan", "yes"]
-        stdout: SplitParser {
-            onRead: {
-                wifiScanning = false;
-                getNetworks.running = true;
-            }
+        onExited: {
+            wifiScanning = false;
+            getNetworks.running = true;
         }
     }
 
@@ -215,6 +252,7 @@ Singleton {
                     }
                     else if (line.includes("unavailable")) {
                         wifiStatus = "disabled"
+                        root.clearWifiState();
                     }
                 }
             });

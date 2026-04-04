@@ -1381,6 +1381,41 @@ class YTMClient:
         except Exception as e:
             self.log(f"Suggestions search error for '{query}': {e}")
 
+    def get_account_info(self):
+        """Fetch basic account details (name, handle, photo)"""
+        try:
+            if getattr(self, 'ytm', None) and hasattr(self.ytm, 'get_account_info'):
+                info = self.ytm.get_account_info()
+                self.send_response({
+                    "type": "account_info",
+                    "accountName": info.get("accountName", ""),
+                    "channelHandle": info.get("channelHandle", ""),
+                    "accountPhotoUrl": info.get("accountPhotoUrl", "")
+                })
+        except Exception as e:
+            self.log(f"Failed to fetch account info: {e}")
+
+    def logout(self):
+        """Remove auth files and de-authenticate the client"""
+        try:
+            if os.path.exists(self.oauth_path):
+                os.remove(self.oauth_path)
+            if os.path.exists(self.headers_path):
+                os.remove(self.headers_path)
+            self._init_ytm() # Will fall back to unauthenticated
+            self.send_response({
+                "type": "account_info",
+                "accountName": "",
+                "channelHandle": "",
+                "accountPhotoUrl": ""
+            })
+            self.send_response({
+                "type": "oauth_success", # Just to trigger unauth UI refresh 
+                "success": False
+            })
+        except Exception as e:
+            self.log(f"Logout failed: {e}")
+
     def refresh_auth(self):
         """Extract fresh cookies from browser and re-init YTMusic client."""
         threading.Thread(target=self._refresh_auth_task, daemon=True).start()

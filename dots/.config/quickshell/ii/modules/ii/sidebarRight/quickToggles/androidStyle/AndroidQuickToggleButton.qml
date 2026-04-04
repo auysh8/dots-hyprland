@@ -35,9 +35,22 @@ GroupButton {
     // Edit mode state
     property bool editMode: false
     property int  dragIndex: -1
-    readonly property bool isBeingDragged: editMode && dragIndex >= 0 && dragIndex === buttonIndex
+    property string dragType: ""
+    property bool hideWhileDragging: false
+    property bool disableAppearAnimation: false
+    property real dragAreaOffsetX: 0
+    property real dragAreaOffsetY: 0
+    property real dragCursorX: 0
+    property real dragCursorY: 0
+    property real dragPressOffsetX: 0
+    property real dragPressOffsetY: 0
+    readonly property bool isBeingDragged: editMode && dragType !== "" && dragType === buttonData.type
+    readonly property real dragTranslateX: isBeingDragged ? (dragCursorX + dragAreaOffsetX - dragPressOffsetX - x) : 0
+    readonly property real dragTranslateY: isBeingDragged ? (dragCursorY + dragAreaOffsetY - dragPressOffsetY - y) : 0
+    property real appearOpacity: disableAppearAnimation ? 1 : 0
 
     // Sizing shenanigans
+    bounce: !editMode
     baseWidth: root.baseCellWidth * cellSize + cellSpacing * (cellSize - 1)
     baseHeight: root.baseCellHeight
     enableImplicitWidthAnimation: !editMode && root.mouseArea.containsMouse
@@ -48,9 +61,10 @@ GroupButton {
     Behavior on baseHeight {
         animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
     }
-    opacity: 0
+    opacity: (hideWhileDragging && isBeingDragged) ? 0 : appearOpacity
     Component.onCompleted: {
-        opacity = 1
+        if (!disableAppearAnimation)
+            appearOpacity = 1
     }
     Behavior on opacity {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
@@ -59,6 +73,14 @@ GroupButton {
     scale: isBeingDragged ? 1.06 : 1.0
     Behavior on scale {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+    }
+    z: isBeingDragged ? 100 : 0
+    layer.enabled: isBeingDragged
+    layer.smooth: true
+
+    transform: Translate {
+        x: root.dragTranslateX
+        y: root.dragTranslateY
     }
 
     enabled: available || editMode

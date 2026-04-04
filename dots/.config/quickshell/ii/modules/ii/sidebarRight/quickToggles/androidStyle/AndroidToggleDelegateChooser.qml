@@ -11,6 +11,12 @@ DelegateChooser {
     id: root
     property bool editMode: false
     property int dragIndex: -1
+    property string dragType: ""
+    property bool hideWhileDragging: false
+    property real dragCursorX: 0
+    property real dragCursorY: 0
+    property real dragPressOffsetX: 0
+    property real dragPressOffsetY: 0
     required property real baseCellWidth
     required property real baseCellHeight
     required property real spacing
@@ -31,6 +37,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -48,6 +60,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -66,6 +84,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -83,6 +107,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -97,6 +127,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -111,6 +147,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -125,6 +167,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -139,6 +187,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -153,6 +207,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -167,6 +227,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -184,6 +250,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -198,6 +270,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -215,6 +293,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -232,6 +316,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -246,6 +336,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -260,6 +356,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight
@@ -274,6 +376,12 @@ DelegateChooser {
         buttonData: modelData
         editMode: root.editMode
         dragIndex: root.dragIndex
+        dragType: root.dragType
+        hideWhileDragging: root.hideWhileDragging
+        dragCursorX: root.dragCursorX
+        dragCursorY: root.dragCursorY
+        dragPressOffsetX: root.dragPressOffsetX
+        dragPressOffsetY: root.dragPressOffsetY
         expandedSize: modelData.size > 1
         baseCellWidth: root.baseCellWidth
         baseCellHeight: root.baseCellHeight

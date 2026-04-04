@@ -185,6 +185,18 @@ FocusScope {
     property bool oauthCopied: false
     property bool isAuthenticated: false
     property string accountName: ""
+    property string channelHandle: ""
+    property string accountPhotoUrl: ""
+
+    // Settings State
+    property real musicSettingsCacheLimit: 500
+    property bool musicSettingsHighQuality: true
+
+    function updateMusicSettings(key, value) {
+        let updates = {}
+        updates[key] = value
+        sendCommand({ "command": "update_settings", "settings": updates })
+    }
     
     function startOauth() {
         oauthUrl = ""
@@ -192,7 +204,7 @@ FocusScope {
         oauthSuccess = false
         oauthCopied = false
         oauthDialogVisible = true
-        sendCommand({ "command": "oauth_start" })
+        sendCommand({ "command": "start_oauth" })
     }
     
     function refreshAuth() {
@@ -571,6 +583,7 @@ FocusScope {
                             root.isAuthenticated = data.authenticated
                             if (data.accountName) root.accountName = data.accountName
                         }
+                        root.sendCommand({ "command": "get_settings" })
                         root.getHome()
                     } else if (data.type === "suggestions") {
                         if (root.suppressSuggestionResponses) {
@@ -765,7 +778,23 @@ FocusScope {
                     } else if (data.type === "oauth_code") {
                         root.oauthUrl = data.url
                         root.oauthCode = data.user_code
+                    } else if (data.type === "settings_info") {
+                        if (data.max_cache_size_mb !== undefined) root.musicSettingsCacheLimit = data.max_cache_size_mb
+                        if (data.high_audio_quality !== undefined) root.musicSettingsHighQuality = data.high_audio_quality
+                    } else if (data.type === "account_info") {
+                        if (data.accountName) root.accountName = data.accountName
+                        if (data.channelHandle) root.channelHandle = data.channelHandle
+                        if (data.accountPhotoUrl) root.accountPhotoUrl = data.accountPhotoUrl
                     } else if (data.type === "oauth_success") {
+                        if (data.success === false) {
+                            root.isAuthenticated = false
+                            root.accountName = ""
+                            root.channelHandle = ""
+                            root.accountPhotoUrl = ""
+                            root.oauthSuccess = false
+                            root.getHome()
+                            return
+                        }
                         root.oauthSuccess = true
                         root.oauthDialogVisible = false
                         root.isAuthenticated = true
@@ -1184,12 +1213,20 @@ FocusScope {
                                 anchors.fill: parent
                                 visible: root.currentView === "cache"
                                 sendCommand: function(obj) {
-                                    musicProcess.stdin.write(JSON.stringify(obj) + "\n")
+                                    root.sendCommand(obj)
                                 }
                                 contentColor: root.contentColor
                                 surfaceColor: root.surfaceColor
                                 pillColor: root.pillColor
                                 pillContentColor: root.pillContentColor
+                                onNavigateBack: root.navigateTo("settings")
+                            }
+
+                            MusicAccountView {
+                                id: accountView
+                                anchors.fill: parent
+                                visible: root.currentView === "account"
+                                rootContext: root
                                 onNavigateBack: root.navigateTo("settings")
                             }
 
@@ -1199,7 +1236,7 @@ FocusScope {
                                 implicitSize: 64
                                 loading: root.isLoading
 
-                                opacity: root.isLoading ? 1.0 : 0.0
+                                opacity: (root.isLoading && root.currentView !== "settings" && root.currentView !== "cache" && root.currentView !== "account") ? 1.0 : 0.0
                                 visible: opacity > 0
                                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 

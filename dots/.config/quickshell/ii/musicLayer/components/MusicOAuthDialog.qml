@@ -119,7 +119,7 @@ Rectangle {
                 onClicked: {
                     if (!rootContext) return
                     rootContext.oauthDialogVisible = false
-                    rootContext.sendCommand({ "command": "oauth_cancel" })
+                    rootContext.sendCommand({ "command": "cancel_oauth" })
                 }
             }
 

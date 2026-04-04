@@ -14,14 +14,23 @@ from cache_manager import CacheManager
 
 class MusicBackend:
     def __init__(self):
+        # Load Settings
+        self.settings_path = os.path.expanduser("~/.config/quickshell/music_settings.json")
+        self.settings = {
+            "max_cache_size_mb": 500.0,
+            "high_audio_quality": True
+        }
+        self._load_settings()
+
         # Instantiate sub-components
         self.mpris = MprisServer(self)
         
         cache_dir = os.path.expanduser("~/.cache/quickshell/music")
-        self.cache = CacheManager(cache_dir, logger=self.log)
+        self.cache = CacheManager(cache_dir, max_size_mb=self.settings.get("max_cache_size_mb", 500.0), logger=self.log)
         
         # Create player first (needs send_response and log)
         self.player = Player(self.send_response, self.log)
+        self.player.settings = self.settings # Pass settings reference
         # Set cache reference
         self.player.cache = self.cache
         
@@ -42,6 +51,23 @@ class MusicBackend:
 
         # Response queue for thread-safe stdout writing
         self.response_queue = Queue()
+
+    def _load_settings(self):
+        try:
+            if os.path.exists(self.settings_path):
+                with open(self.settings_path, "r") as f:
+                    data = json.load(f)
+                    self.settings.update(data)
+        except Exception as e:
+            self.log(f"Failed to load settings: {e}")
+
+    def _save_settings(self):
+        try:
+            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
+            with open(self.settings_path, "w") as f:
+                json.dump(self.settings, f, indent=4)
+        except Exception as e:
+            self.log(f"Failed to save settings: {e}")
 
     def log(self, msg):
         print(f"[Backend] {msg}", file=sys.stderr)
@@ -226,6 +252,12 @@ class MusicBackend:
         elif cmd == "cancel_oauth":
             self.api.cancel_oauth()
 
+        elif cmd == "get_account_info":
+            threading.Thread(target=self.api.get_account_info, daemon=True).start()
+
+        elif cmd == "logout":
+            self.api.logout()
+
         elif cmd == "refresh_auth":
             threading.Thread(target=self.api.refresh_auth, daemon=True).start()
 
@@ -234,6 +266,27 @@ class MusicBackend:
             with self.player._state_lock:
                 self.player._current_queue = queue
             self.log(f"Queue synced, {len(queue)} tracks")
+
+        elif cmd == "get_settings":
+            self.send_response({
+                "type": "settings_info",
+                **self.settings
+            })
+
+        elif cmd == "update_settings":
+            updates = req.get("settings", {})
+            self.settings.update(updates)
+            self._save_settings()
+            
+            # Apply dynamic changes
+            if "max_cache_size_mb" in updates:
+                self.cache.max_size_bytes = int(updates["max_cache_size_mb"] * 1024 * 1024)
+                self.log(f"Cache size limit updated to {updates['max_cache_size_mb']}MB")
+                
+            self.send_response({
+                "type": "settings_info",
+                **self.settings
+            })
 
         elif cmd == "copy_to_clipboard":
             text = req.get("text", "")
