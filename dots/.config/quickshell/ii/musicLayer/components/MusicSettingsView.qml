@@ -8,6 +8,7 @@ Item {
     property var rootContext: null
     property color contentColor: rootContext ? rootContext.contentColor : "#ffffff"
     property color pillColor: rootContext ? rootContext.pillColor : "#cba6f7"
+    property color accentColor: rootContext ? (rootContext.loaderAccentColor || "#cba6f7") : "#cba6f7"
     property color subtleColor: Qt.rgba(contentColor.r, contentColor.g, contentColor.b, 0.45)
 
     signal navigateTo(string view)
@@ -37,7 +38,7 @@ Item {
                 buttonRadius: 14
                 colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.05)
                 colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.10)
-                colRipple: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.20)
+                colRipple: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.20)
                 
                 onClicked: {
                     if (root.rootContext && !root.rootContext.isAuthenticated) {
@@ -54,12 +55,12 @@ Item {
                     Rectangle {
                         width: 36; height: 36
                         radius: 10
-                        color: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.15)
+                        color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.15)
                         MaterialSymbol {
                             anchors.centerIn: parent
                             text: "person"
                             iconSize: 18
-                            color: root.pillColor
+                            color: root.accentColor
                         }
                     }
 
@@ -95,7 +96,7 @@ Item {
                 buttonRadius: 14
                 colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.05)
                 colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.10)
-                colRipple: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.20)
+                colRipple: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.20)
                 
                 onClicked: root.navigateTo("cache")
                 
@@ -106,12 +107,12 @@ Item {
                     Rectangle {
                         width: 36; height: 36
                         radius: 10
-                        color: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.15)
+                        color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.15)
                         MaterialSymbol {
                             anchors.centerIn: parent
                             text: "database"
                             iconSize: 18
-                            color: root.pillColor
+                            color: root.accentColor
                         }
                     }
 
@@ -147,7 +148,7 @@ Item {
                 buttonRadius: 14
                 colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.05)
                 colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.10)
-                colRipple: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.20)
+                colRipple: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.20)
                 
                 onClicked: {
                     if (root.rootContext) {
@@ -162,12 +163,12 @@ Item {
                     Rectangle {
                         width: 36; height: 36
                         radius: 10
-                        color: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.15)
+                        color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.15)
                         MaterialSymbol {
                             anchors.centerIn: parent
                             text: "high_quality"
                             iconSize: 18
-                            color: root.pillColor
+                            color: root.accentColor
                         }
                     }
 
@@ -192,6 +193,8 @@ Item {
                         checked: root.rootContext ? root.rootContext.musicSettingsHighQuality : true
                         // Non-interactive so the parent RippleButton handles clicks
                         enabled: false 
+                        activeColor: root.accentColor
+                        indicatorActiveColor: root.rootContext ? root.rootContext.pillContentColor : root.pillContentColor
                     }
                 }
             }
@@ -214,12 +217,12 @@ Item {
                         Rectangle {
                             width: 36; height: 36
                             radius: 10
-                            color: Qt.rgba(root.pillColor.r, root.pillColor.g, root.pillColor.b, 0.15)
+                            color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.15)
                             MaterialSymbol {
                                 anchors.centerIn: parent
                                 text: "sd_storage"
                                 iconSize: 18
-                                color: root.pillColor
+                                color: root.accentColor
                             }
                         }
 
@@ -244,7 +247,7 @@ Item {
                             text: Math.round(cacheSlider.value) + " MB"
                             font.pixelSize: 14
                             font.weight: Font.Medium
-                            color: root.pillColor
+                            color: root.contentColor
                         }
                     }
 
@@ -257,6 +260,12 @@ Item {
                         stepSize: 100
                         value: root.rootContext ? root.rootContext.musicSettingsCacheLimit : 500
                         usePercentTooltip: false
+                        stopIndicatorValues: []
+                        
+                        highlightColor: root.accentColor
+                        handleColor: root.accentColor
+                        trackColor: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.15)
+                        dotColorHighlighted: root.contentColor
                         
                         onMoved: {
                             if (root.rootContext) {

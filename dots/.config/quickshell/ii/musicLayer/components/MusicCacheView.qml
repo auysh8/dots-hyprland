@@ -156,17 +156,17 @@ Item {
                 // Progress bar
                 Item {
                     Layout.fillWidth: true
-                    height: 6
+                    height: 8
                     Rectangle {
                         anchors.fill: parent
-                        radius: 3
-                        color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.10)
+                        radius: 4
+                        color: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.15)
                     }
                     Rectangle {
                         width: parent.width * Math.min(root.utilization / 100, 1)
                         height: parent.height
-                        radius: 3
-                        color: root.utilization > 85 ? "#f38ba8" : root.pillColor
+                        radius: 4
+                        color: root.utilization > 85 ? "#f38ba8" : root.contentColor
                         Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
                     }
                 }
