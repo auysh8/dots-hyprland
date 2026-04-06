@@ -191,6 +191,7 @@ FocusScope {
     // Settings State
     property real musicSettingsCacheLimit: 500
     property bool musicSettingsHighQuality: true
+    property bool musicSettingsExperimentalLyrics: false
 
     function updateMusicSettings(key, value) {
         let updates = {}
@@ -781,6 +782,7 @@ FocusScope {
                     } else if (data.type === "settings_info") {
                         if (data.max_cache_size_mb !== undefined) root.musicSettingsCacheLimit = data.max_cache_size_mb
                         if (data.high_audio_quality !== undefined) root.musicSettingsHighQuality = data.high_audio_quality
+                        if (data.experimental_lyrics !== undefined) root.musicSettingsExperimentalLyrics = data.experimental_lyrics
                     } else if (data.type === "account_info") {
                         if (data.accountName) root.accountName = data.accountName
                         if (data.channelHandle) root.channelHandle = data.channelHandle

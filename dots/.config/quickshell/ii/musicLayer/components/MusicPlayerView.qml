@@ -707,6 +707,7 @@ Item {
                 Layout.fillHeight: true
 
                 showWindowControls: false
+                experimentalMode: rootContext ? rootContext.musicSettingsExperimentalLyrics : false
 
                 contentColor: rootContext.contentColor
                 secondaryContentColor: rootContext.secondaryContentColor

@@ -18,7 +18,8 @@ class MusicBackend:
         self.settings_path = os.path.expanduser("~/.config/quickshell/music_settings.json")
         self.settings = {
             "max_cache_size_mb": 500.0,
-            "high_audio_quality": True
+            "high_audio_quality": True,
+            "experimental_lyrics": False
         }
         self._load_settings()
 

@@ -1,4 +1,5 @@
 {
     "max_cache_size_mb": 5000,
-    "high_audio_quality": true
+    "high_audio_quality": true,
+    "experimental_lyrics": true
 }

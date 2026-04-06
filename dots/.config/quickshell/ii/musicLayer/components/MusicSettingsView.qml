@@ -199,6 +199,64 @@ Item {
                 }
             }
             
+            // Experimental Lyrics Toggle
+            RippleButton {
+                Layout.fillWidth: true
+                implicitHeight: 60
+                buttonRadius: 14
+                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.05)
+                colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.10)
+                colRipple: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.20)
+                
+                onClicked: {
+                    if (root.rootContext) {
+                        root.rootContext.updateMusicSettings("experimental_lyrics", !root.rootContext.musicSettingsExperimentalLyrics)
+                    }
+                }
+                
+                contentItem: RowLayout {
+                    anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
+                    spacing: 14
+
+                    Rectangle {
+                        width: 36; height: 36
+                        radius: 10
+                        color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.15)
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "lyrics"
+                            iconSize: 18
+                            color: root.accentColor
+                        }
+                    }
+
+                    ColumnLayout {
+                        spacing: 1
+                        StyledText {
+                            text: "Experimental Lyrics"
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            color: root.contentColor
+                        }
+                        StyledText {
+                            text: root.rootContext && root.rootContext.musicSettingsExperimentalLyrics ? "Fluid, word-by-word synced animation (Apple Music style)" : "Standard line-by-line scrolling lyrics"
+                            font.pixelSize: 11
+                            color: root.subtleColor
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    StyledSwitch {
+                        checked: root.rootContext ? root.rootContext.musicSettingsExperimentalLyrics : false
+                        // Non-interactive so the parent RippleButton handles clicks
+                        enabled: false 
+                        activeColor: root.accentColor
+                        indicatorActiveColor: root.rootContext ? root.rootContext.pillContentColor : root.pillContentColor
+                    }
+                }
+            }
+
             // Cache Size Limit Slider
             Rectangle {
                 Layout.fillWidth: true

@@ -32,6 +32,8 @@ Item {
     property real position: 0
     property string lyricsSource: ""
     property bool showWindowControls: true
+    property bool experimentalMode: false
+    readonly property int experimentalTextInset: isFullscreen ? 32 : 20
     
     signal fullscreenToggled()
     signal closeRequested()
@@ -55,14 +57,22 @@ Item {
     // Auto-scroll when currentLine changes
     onCurrentLineChanged: {
         if (!manualScrollMode && currentLine >= 0 && currentLine < resolvedLyricsCount && lyricsLoaded) {
-             lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+            if (experimentalMode) {
+                experimentalLyricsView.resync()
+            } else {
+                lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+            }
         }
     }
     
     // Auto-scroll when lyrics load
     onLyricsLoadedChanged: {
         if (lyricsLoaded && currentLine >= 0) {
-            lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+            if (experimentalMode) {
+                experimentalLyricsView.resync()
+            } else {
+                lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+            }
         }
     }
 
@@ -206,7 +216,7 @@ Item {
         // 3. The Lyrics List
         StyledListView {
             id: lyricsView
-            visible: root.resolvedLyricsCount > 0
+            visible: root.resolvedLyricsCount > 0 && !root.experimentalMode
             anchors.fill: parent
             anchors.margins: 16
             model: root.lyricsModel
@@ -260,6 +270,7 @@ Item {
             
             // --- NEW: The Sliding Pill ---
             highlight: Item {
+                visible: !root.experimentalMode
                 // This Item automatically moves to cover the current lyric line
                 
                 Rectangle {
@@ -293,10 +304,22 @@ Item {
             delegate: Item {
                 id: lyricItem
                 width: ListView.view.width
-                height: lyricText.implicitHeight + (isCurrent ? 32 : 16)
+                height: root.experimentalMode
+                    ? lyricText.implicitHeight + (isCurrent ? 28 : 18)
+                    : lyricText.implicitHeight + (isCurrent ? 32 : 16)
                 
                 readonly property bool isCurrent: ListView.isCurrentItem
                 readonly property int distance: Math.abs(index - ListView.view.currentIndex)
+                readonly property real baseExperimentalOffset: (
+                    lyricItem.isCurrent ? 0
+                    : lyricItem.distance === 1 ? 10
+                    : lyricItem.distance === 2 ? 18 : 24
+                )
+                readonly property real baseExperimentalScale: (
+                    lyricItem.isCurrent ? 1.0
+                    : lyricItem.distance === 1 ? 0.965
+                    : lyricItem.distance === 2 ? 0.935 : 0.91
+                )
                 
                 // --- NEW: Expose width for the highlight to read ---
                 property real pillWidth: Math.min(lyricText.implicitWidth + 48, width - 16)
@@ -307,6 +330,8 @@ Item {
                 
                 // Click feedback scale
                 property real clickScale: 1.0
+                property real lineBounceScale: 1.0
+                property real lineBounceYOffset: 0
                 
                 transform: Scale {
                     origin.x: lyricItem.width / 2
@@ -346,97 +371,282 @@ Item {
                         onTriggered: lyricItem.clickScale = 1.0
                     }
                 }
-                
-                // Hover highlight background
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: lyricText.implicitWidth + 24
-                    height: lyricText.implicitHeight + 8
-                    radius: 8
-                    color: root.contentColor
-                    opacity: lyricItem.isHovered && !lyricItem.isCurrent ? 0.1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                }
-                
-                Text {
-                    id: lyricText
-                    anchors.centerIn: parent
-                    width: parent.width - 48
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: Text.QtRendering
-                    
-                    // KARAOKE LOGIC
-                    property var wordList: {
-                        if (!model.words) return []
-                        try { return JSON.parse(model.words) } catch(e) { return [] }
-                    }
-                    
-                    property bool hasWords: wordList && wordList.length > 0
 
-                    textFormat: (lyricItem.isCurrent && hasWords) ? Text.RichText : Text.PlainText
-                    
-                    // Helper: convert 0-255 int to 2-digit hex
-                    function toHex2(val) {
-                        var h = Math.round(Math.max(0, Math.min(255, val))).toString(16)
-                        return h.length < 2 ? "0" + h : h
-                    }
-                    
-                    text: {
-                        if (lyricItem.isCurrent && hasWords) {
-                            const pos = root.position
-                            const c = root.pillContentColor
-                            const r = toHex2(c.r * 255)
-                            const g = toHex2(c.g * 255)
-                            const b = toHex2(c.b * 255)
-                            
-                            let html = ""
-                            for (let i = 0; i < wordList.length; i++) {
-                                let w = wordList[i]
-                                let alpha
-                                
-                                if (pos + 0.03 >= w.time) {
-                                    // Make activation snappy even for long words in slow songs.
-                                    let endTime = w.end || (w.time + 0.3)
-                                    let dur = Math.max(0.06, endTime - w.time)
-                                    let fadeInDur = Math.min(0.22, dur * 0.45)
-                                    let progress = Math.min(1.0, Math.max(0.0, (pos - w.time) / fadeInDur))
-                                    alpha = 0.55 + 0.45 * progress
-                                } else {
-                                    alpha = 0.25
-                                }
-                                
-                                let a = toHex2(alpha * 255)
-                                html += `<font color="#${a}${r}${g}${b}">${w.text} </font>`
-                            }
-                            return html
+                Item {
+                    id: lyricMotionLayer
+                    anchors.fill: parent
+                    y: root.experimentalMode
+                        ? (lyricItem.baseExperimentalOffset + lyricItem.lineBounceYOffset)
+                        : 0
+                    Behavior on y {
+                        enabled: root.experimentalMode && !root.isResizing
+                        NumberAnimation {
+                            duration: 430
+                            easing.type: Easing.OutCubic
                         }
-                        return model.text
+                    }
+                    transform: Scale {
+                        id: lyricMotionScale
+                        origin.x: lyricMotionLayer.width / 2
+                        origin.y: lyricMotionLayer.height / 2
+                        xScale: root.experimentalMode
+                            ? (lyricItem.baseExperimentalScale * lyricItem.lineBounceScale)
+                            : 1.0
+                        yScale: root.experimentalMode
+                            ? (lyricItem.baseExperimentalScale * lyricItem.lineBounceScale)
+                            : 1.0
+                        Behavior on xScale {
+                            enabled: root.experimentalMode && !root.isResizing
+                            NumberAnimation {
+                                duration: 430
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                        Behavior on yScale {
+                            enabled: root.experimentalMode && !root.isResizing
+                            NumberAnimation {
+                                duration: 430
+                                easing.type: Easing.OutCubic
+                            }
+                        }
                     }
 
-                    z: 2
+                    // Hover highlight background
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: root.experimentalMode ? lyricText.x - 8 : (parent.width - width) / 2
+                        width: lyricText.implicitWidth + 24
+                        height: lyricText.implicitHeight + 8
+                        radius: 8
+                        color: root.contentColor
+                        opacity: lyricItem.isHovered && !lyricItem.isCurrent ? 0.1 : 0
+                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                    }
+                
+                    Text {
+                        id: lyricText
+                        x: root.experimentalMode ? root.experimentalTextInset : 24
+                        width: parent.width - (root.experimentalMode ? (root.experimentalTextInset * 2) : 48)
+                        anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: root.experimentalMode ? Text.AlignLeft : Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        renderType: Text.QtRendering
                     
-                    color: lyricItem.isCurrent ? root.pillContentColor : root.contentColor
+                        // KARAOKE LOGIC
+                        property var wordList: {
+                            if (!model.words) return []
+                            try { return JSON.parse(model.words) } catch(e) { return [] }
+                        }
+                    
+                        property bool hasWords: wordList && wordList.length > 0
 
-                    Behavior on color { 
-                        ColorAnimation { duration: 400; easing.type: Easing.InOutQuad } 
+                        textFormat: (lyricItem.isCurrent && hasWords && !root.experimentalMode) ? Text.RichText : Text.PlainText
+                    
+                        // Helper: convert 0-255 int to 2-digit hex
+                        function toHex2(val) {
+                            var h = Math.round(Math.max(0, Math.min(255, val))).toString(16)
+                            return h.length < 2 ? "0" + h : h
+                        }
+                    
+                        text: {
+                            if (lyricItem.isCurrent && hasWords && !root.experimentalMode) {
+                                const pos = root.position
+                                const c = root.pillContentColor
+                                const r = toHex2(c.r * 255)
+                                const g = toHex2(c.g * 255)
+                                const b = toHex2(c.b * 255)
+                            
+                                let html = ""
+                                for (let i = 0; i < wordList.length; i++) {
+                                    let w = wordList[i]
+                                    let alpha
+                                
+                                    if (pos + 0.03 >= w.time) {
+                                        // Make activation snappy even for long words in slow songs.
+                                        let endTime = w.end || (w.time + 0.3)
+                                        let dur = Math.max(0.06, endTime - w.time)
+                                        let fadeInDur = Math.min(0.22, dur * 0.45)
+                                        let progress = Math.min(1.0, Math.max(0.0, (pos - w.time) / fadeInDur))
+                                        alpha = 0.55 + 0.45 * progress
+                                    } else {
+                                        alpha = 0.25
+                                    }
+                                
+                                    let a = toHex2(alpha * 255)
+                                    html += `<font color="#${a}${r}${g}${b}">${w.text} </font>`
+                                }
+                                return html
+                            }
+                            return model.text
+                        }
+
+                        z: 2
+                    
+                        color: root.experimentalMode
+                            ? root.contentColor
+                            : (lyricItem.isCurrent ? root.pillContentColor : root.contentColor)
+
+                        Behavior on color { 
+                            ColorAnimation { duration: 400; easing.type: Easing.InOutQuad } 
+                        }
+                    
+                        font.pixelSize: root.experimentalMode
+                            ? (lyricItem.isCurrent ? (root.isFullscreen ? 60 : 42) : (root.isFullscreen ? 46 : 32))
+                            : (lyricItem.isCurrent ? (root.isFullscreen ? 42 : 26) : (root.isFullscreen ? 32 : 20))
+                        font.weight: lyricItem.isCurrent ? Font.Bold : Font.Normal
+                        font.family: "Inter, Segoe UI, sans-serif"
+                        wrapMode: Text.Wrap
+                        elide: Text.ElideNone
+                    
+                        opacity: {
+                            if (root.experimentalMode) {
+                                if (lyricItem.isCurrent) return 1.0
+                                if (lyricItem.distance === 1) return 0.62
+                                if (lyricItem.distance === 2) return 0.34
+                                return 0.18
+                            }
+                            if (lyricItem.isCurrent) return 1.0
+                            if (lyricItem.distance === 1) return 0.75
+                            if (lyricItem.distance === 2) return 0.5
+                            return 0.3
+                        }
+                    
+                        Behavior on opacity { NumberAnimation { duration: root.experimentalMode ? 560 : 400; easing.type: root.experimentalMode ? Easing.OutQuad : Easing.InOutQuad } }
+                        Behavior on font.pixelSize { NumberAnimation { duration: root.experimentalMode ? 560 : 350; easing.type: root.experimentalMode ? Easing.OutBack : Easing.OutCubic; easing.overshoot: root.experimentalMode ? 1.14 : 1.0 } }
+                    
+                        visible: !(root.experimentalMode && lyricItem.isCurrent && hasWords)
                     }
+
+                    CanvasLyricsLine {
+                        id: canvasLine
+                        x: root.experimentalMode ? root.experimentalTextInset : 24
+                        width: parent.width - (root.experimentalMode ? (root.experimentalTextInset * 2) : 48)
+                        anchors.verticalCenter: parent.verticalCenter
+                        height: lyricText.implicitHeight * 2
                     
-                    font.pixelSize: lyricItem.isCurrent ? (root.isFullscreen ? 42 : 26) : (root.isFullscreen ? 32 : 20)
-                    font.weight: lyricItem.isCurrent ? Font.Bold : Font.Normal
-                    font.family: "Inter, Segoe UI, sans-serif"
-                    wrapMode: Text.Wrap
-                    elide: Text.ElideNone
+                        textContent: model.text || ""
+                        wordList: lyricText.wordList
+                        positionSec: root.position
+                        isActiveLine: lyricItem.isCurrent
+                        leftAligned: root.experimentalMode
                     
-                    opacity: {
-                        if (lyricItem.isCurrent) return 1.0
-                        if (lyricItem.distance === 1) return 0.75
-                        if (lyricItem.distance === 2) return 0.5
-                        return 0.3
+                        activeColor: root.experimentalMode ? root.contentColor : root.pillContentColor
+                        inactiveColor: ColorUtils.applyAlpha(root.contentColor, root.experimentalMode ? 0.2 : 0.3)
+                        fontSize: root.experimentalMode ? (root.isFullscreen ? 60 : 42) : (root.isFullscreen ? 42 : 26)
+                    
+                        visible: root.experimentalMode && lyricItem.isCurrent && lyricText.hasWords
+                        z: 3
                     }
-                    
-                    Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.InOutQuad } }
-                    Behavior on font.pixelSize { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+                }
+
+                onIsCurrentChanged: {
+                    if (!root.experimentalMode || root.isResizing)
+                        return
+
+                    if (isCurrent) {
+                        currentLineBounce.restart()
+                    } else {
+                        exitLineBounce.restart()
+                    }
+                }
+
+                SequentialAnimation {
+                    id: currentLineBounce
+                    running: false
+
+                    ScriptAction {
+                        script: {
+                            lyricItem.lineBounceScale = 0.9
+                            lyricItem.lineBounceYOffset = 42
+                        }
+                    }
+
+                    PauseAnimation {
+                        duration: 28
+                    }
+
+                    ParallelAnimation {
+                        NumberAnimation {
+                            target: lyricItem
+                            property: "lineBounceScale"
+                            to: 1.065
+                            duration: 160
+                            easing.type: Easing.OutExpo
+                        }
+                        NumberAnimation {
+                            target: lyricItem
+                            property: "lineBounceYOffset"
+                            to: -12
+                            duration: 160
+                            easing.type: Easing.OutExpo
+                        }
+                    }
+
+                    ParallelAnimation {
+                        NumberAnimation {
+                            target: lyricItem
+                            property: "lineBounceScale"
+                            to: 1.0
+                            duration: 280
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 1.34
+                        }
+                        NumberAnimation {
+                            target: lyricItem
+                            property: "lineBounceYOffset"
+                            to: 0
+                            duration: 280
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 1.28
+                        }
+                    }
+                }
+
+                ParallelAnimation {
+                    id: exitLineBounce
+                    running: false
+
+                    NumberAnimation {
+                        target: lyricItem
+                        property: "lineBounceScale"
+                        to: 1.0
+                        duration: 180
+                        easing.type: Easing.OutQuad
+                    }
+
+                    NumberAnimation {
+                        target: lyricItem
+                        property: "lineBounceYOffset"
+                        to: 0
+                        duration: 180
+                        easing.type: Easing.OutQuad
+                    }
+                }
+            }
+        }
+
+        ExperimentalLyricsStack {
+            id: experimentalLyricsView
+            visible: root.resolvedLyricsCount > 0 && root.experimentalMode
+            anchors.fill: parent
+            anchors.margins: 16
+
+            isFullscreen: root.isFullscreen
+            contentColor: root.contentColor
+            loaderColor: root.loaderColor
+            lyricsModel: root.lyricsModel
+            lyricsCount: root.lyricsCount
+            currentLine: root.currentLine
+            position: root.position
+            isResizing: root.isResizing
+            textInset: root.experimentalTextInset
+
+            onManualScrollModeChanged: root.manualScrollMode = manualScrollMode
+            onSeekRequested: (time) => {
+                if (root.activePlayer) {
+                    root.activePlayer.position = time
+                } else {
+                    root.seekRequested(time)
                 }
             }
         }
@@ -485,7 +695,14 @@ Item {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: lyricsView.resync()
+                onClicked: {
+                    if (root.experimentalMode) {
+                        experimentalLyricsView.resync()
+                        root.manualScrollMode = false
+                    } else {
+                        lyricsView.resync()
+                    }
+                }
             }
         }
     }
