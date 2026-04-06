@@ -10,35 +10,27 @@ Rectangle {
 
     property var rootContext
     property bool navRailExpanded: false
-    readonly property color elevatedPanelColor: isExpanding 
-        ? (rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1)
-        : (rootContext ? rootContext.miniplayerSurfaceColor : Appearance.colors.colLayer3Base)
-
-    property bool isExpanding: rootContext && rootContext.currentView === "player"
-
+    readonly property color elevatedPanelColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
 
     anchors.bottom: parent.bottom
     anchors.left: parent.left
     anchors.right: parent.right
-    anchors.bottomMargin: isExpanding ? 0 : 24
-    anchors.leftMargin: isExpanding ? 0 : ((navRailExpanded ? 150 : 80) + 32)
-    anchors.rightMargin: isExpanding ? 0 : 24
+    anchors.bottomMargin: 24
+    anchors.leftMargin: (navRailExpanded ? 150 : 80) + 32
+    anchors.rightMargin: 24
 
-    height: isExpanding ? parent.height : 80
-    radius: isExpanding ? 32 : 20
+    height: 80
+    radius: 20
 
-    Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.6 } }
-    Behavior on anchors.bottomMargin { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
-    Behavior on anchors.leftMargin { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
-    Behavior on anchors.rightMargin { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
-    Behavior on radius { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+    Behavior on anchors.leftMargin { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
-    color: root.elevatedPanelColor
+    color: rootContext ? rootContext.miniplayerSurfaceColor : Appearance.colors.colLayer3Base
 
     visible: rootContext && rootContext.currentTrack !== null
     z: 100
 
-    layer.enabled: true
+    property bool shadowEnabled: false
+    layer.enabled: visible && shadowEnabled
     layer.effect: MultiEffect {
         shadowEnabled: true
         shadowColor: ColorUtils.applyAlpha(Appearance.colors.colShadow, 0.25)
@@ -46,11 +38,21 @@ Rectangle {
         shadowVerticalOffset: 4
     }
 
+    onVisibleChanged: {
+        if (visible) shadowTimer.restart()
+    }
+
+    Timer {
+        id: shadowTimer
+        interval: 400
+        onTriggered: { root.shadowEnabled = true }
+    }
+
     transform: Translate {
         y: (rootContext && (rootContext.showMusic || rootContext.closing) && rootContext.currentTrack !== null) ? 0 : 100
         Behavior on y {
             NumberAnimation {
-                duration: 500
+                duration: 350
                 easing.type: Easing.OutCubic
             }
         }
@@ -60,7 +62,7 @@ Rectangle {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         scrollGestureEnabled: false
-        enabled: !root.isExpanding
+        enabled: true
         onClicked: {
             if (rootContext && rootContext.currentTrack) {
                 rootContext.currentView = "player"
@@ -73,32 +75,7 @@ Rectangle {
         anchors.margins: 12
         spacing: 8
 
-        opacity: root.isExpanding ? 0.0 : 1.0
-        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
-
-        property string _trackId: rootContext && rootContext.currentTrack ? rootContext.currentTrack.videoId : ""
-        on_TrackIdChanged: {
-            if (_trackId !== "") {
-                miniArtAnim.restart()
-                miniInfoAnim.restart()
-            }
-        }
-
-        SequentialAnimation {
-            id: miniArtAnim
-            ParallelAnimation {
-                NumberAnimation { target: miniArtRect; property: "scale"; from: 0.85; to: 1.0; duration: 500; easing.type: Easing.OutElastic; easing.amplitude: 1.2 }
-                NumberAnimation { target: miniArtRect; property: "opacity"; from: 0.0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
-            }
-        }
-
-        SequentialAnimation {
-            id: miniInfoAnim
-            ParallelAnimation {
-                NumberAnimation { target: miniInfoRow; property: "opacity"; from: 0.0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
-                NumberAnimation { target: miniInfoRow; property: "scale"; from: 0.95; to: 1.0; duration: 400; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
-            }
-        }
+        opacity: 1.0
 
         // Top row: Art + Title/Artist + Buttons
         RowLayout {

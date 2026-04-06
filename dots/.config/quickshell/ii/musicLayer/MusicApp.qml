@@ -558,15 +558,15 @@ FocusScope {
     readonly property color extractedForeground: mediaContext._srcPillContentColor
 
     // Smooth color transition behaviors
-    Behavior on backgroundColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on contentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on secondaryContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on pillColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on pillColorHover { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on pillContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on backgroundColor { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
+    Behavior on contentColor { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
+    Behavior on secondaryContentColor { ColorAnimation { duration: 500; easing.type: Easing.OutCubic } }
+    Behavior on pillColor { ColorAnimation { duration: 700; easing.type: Easing.OutCubic } }
+    Behavior on pillColorHover { ColorAnimation { duration: 700; easing.type: Easing.OutCubic } }
+    Behavior on pillContentColor { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
     Behavior on surfaceColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
     Behavior on miniplayerSurfaceColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on loaderAccentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    Behavior on loaderAccentColor { ColorAnimation { duration: 900; easing.type: Easing.OutCubic } }
     
     Process {
         id: backend

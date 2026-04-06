@@ -22,25 +22,36 @@ Item {
     property real inlineLyricsPosition: rootContext ? rootContext.trackPositionSec : 0
     property real maxLyricsPositionDrift: 0.12
     property real lastLyricsTickMs: 0
-    
-    property real currentRadius: show ? 32 : 20
 
-    anchors.bottom: parent.bottom
-    anchors.left: parent.left
-    anchors.right: parent.right
-    anchors.bottomMargin: show ? 0 : 24
-    anchors.leftMargin: show ? 0 : ((navRailExpanded ? 150 : 80) + 32)
-    anchors.rightMargin: show ? 0 : 24
+    property real currentRadius: 32
 
-    height: show ? parent.height : 80
+    anchors.fill: parent
 
-    Behavior on height { NumberAnimation { id: hAnim; duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.6 } }
-    Behavior on anchors.bottomMargin { NumberAnimation { id: bAnim; duration: 400; easing.type: Easing.OutCubic } }
-    Behavior on anchors.leftMargin { NumberAnimation { id: lAnim; duration: 450; easing.type: Easing.OutCubic } }
-    Behavior on anchors.rightMargin { NumberAnimation { id: rAnim; duration: 450; easing.type: Easing.OutCubic } }
-    Behavior on currentRadius { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+    property real animScale: 0.75
+    property real animOpacity: 0.0
 
-    visible: show || hAnim.running || bAnim.running || lAnim.running || rAnim.running
+    transformOrigin: Item.Bottom
+
+    scale: animScale
+    opacity: animOpacity
+
+    Behavior on animScale { NumberAnimation { duration: 550; easing.type: Easing.OutBack; easing.overshoot: 0.4 } }
+    Behavior on animOpacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+
+    onShowChanged: {
+        if (show) {
+            root.animOpacity = 1.0
+            root.animScale = 1.0
+            fadeInTimer.restart()
+        } else {
+            fadeInTimer.stop()
+            root.animOpacity = 0.0
+            root.animScale = 0.75
+            root.elementsVisible = false
+        }
+    }
+
+    visible: root.show || animOpacity > 0.01
 
     // Prevent click-through to underlying views when the player is open
     MouseArea {
@@ -84,7 +95,7 @@ Item {
         id: inlineLyricsPositionTimer
         // OPTIMIZATION: Only run this high-frequency timer when lyrics are actually visible!
         running: !!rootContext && !!rootContext.currentTrack && !rootContext.playbackPaused && root.inlineLyricsExpanded
-        interval: 50
+        interval: 100
         repeat: true
 
         onTriggered: {
@@ -113,26 +124,19 @@ Item {
         }
     }
 
-    // Elements appear instantly on open, disappear immediately on close (halfway through collapse)
     property bool elementsVisible: false
-    onShowChanged: {
-        if (show) {
-            root.elementsVisible = true
-        } else {
-            root.elementsVisible = false
-        }
-    }
-    onElementsVisibleChanged: {
-        if (bgLayer && typeof bgLayer.updateCanvasPlayback === "function") {
-            bgLayer.updateCanvasPlayback()
-        }
+
+    Timer {
+        id: fadeInTimer
+        interval: 250
+        onTriggered: { root.elementsVisible = true }
     }
 
     Item {
         id: bgLayer
         anchors.fill: parent
         opacity: root.elementsVisible ? 1.0 : 0.0
-        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
         // --- Canvas animated background ---
         property bool canvasReady: false
@@ -233,11 +237,11 @@ Item {
     Item {
         anchors.fill: parent
         opacity: root.elementsVisible ? 1.0 : 0.0
-        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
         transform: Translate {
-            y: root.elementsVisible ? 0 : 30
-            Behavior on y { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
+            y: root.elementsVisible ? 0 : 60
+            Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
         }
 
         // Collapse button (Top right)

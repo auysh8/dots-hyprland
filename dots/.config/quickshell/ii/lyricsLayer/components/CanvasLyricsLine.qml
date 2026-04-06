@@ -16,15 +16,16 @@ Canvas {
     property real _smoothPosMs: positionSec * 1000
 
     on_SmoothPosMsChanged: {
-        if (isActiveLine && wordList && wordList.length > 0) {
+        if (isActiveLine && wordList && wordList.length > 0 && visible) {
             requestPaint()
         }
     }
-    
+
     onIsActiveLineChanged: requestPaint()
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
     onActiveColorChanged: requestPaint()
+    onInactiveColorChanged: requestPaint()
 
     onPaint: {
         var ctx = getContext("2d")
@@ -37,21 +38,21 @@ Canvas {
         ctx.textAlign = "left"
         ctx.textBaseline = "middle"
 
-        // Measure total width to place it consistently with the active layout mode
         var totalWidth = ctx.measureText(textContent).width
         var startX = leftAligned ? 0 : (width - totalWidth) / 2
         var centerY = height / 2
 
         if (!isActiveLine || !wordList || wordList.length === 0) {
             ctx.fillStyle = inactiveColor
+            ctx.globalAlpha = 1.0
             ctx.fillText(textContent, startX, centerY)
             return
         }
 
-        // Metrolist-style character/word iteration
+        // Build word-to-char mapping
         var currentPos = 0
         var charIdxMap = []
-        var wordData = []
+        var wordAlphaMap = []
 
         for (var i = 0; i < wordList.length; i++) {
             var w = wordList[i]
@@ -60,103 +61,47 @@ Canvas {
             if (indexInMain !== -1) {
                 var sMs = (w.time || 0) * 1000
                 var eMs = (w.end || (w.time + 0.3)) * 1000
-                
-                var isSung = _smoothPosMs > eMs
-                var isActive = _smoothPosMs >= sMs && _smoothPosMs <= eMs
-                var sungFactor = 0
-                if (isSung) sungFactor = 1.0
-                else if (isActive) sungFactor = Math.max(0, Math.min(1.0, (_smoothPosMs - sMs) / Math.max(1, eMs - sMs)))
-                
-                var timeSinceStart = _smoothPosMs - sMs
-                var wobble = 0
-                if (timeSinceStart >= 0 && timeSinceStart <= 750) {
-                    if (timeSinceStart < 125) wobble = timeSinceStart / 125
-                    else wobble = Math.max(0, 1.0 - (timeSinceStart - 125) / 625)
-                }
+                var posMs = _smoothPosMs
 
-                wordData.push({
-                    text: rawText,
-                    sMs: sMs,
-                    eMs: eMs,
-                    sungFactor: sungFactor,
-                    isSung: isSung,
-                    wobble: wobble
-                })
+                var alpha
+                if (posMs + 30 >= eMs) {
+                    // Word fully sung
+                    alpha = 1.0
+                } else if (posMs >= sMs) {
+                    // Word being sung — fade from 0.55 to 1.0 (matches standard mode)
+                    var dur = Math.max(60, eMs - sMs)
+                    var fadeInDur = Math.min(220, dur * 0.45)
+                    var progress = Math.min(1.0, Math.max(0.0, (posMs - sMs) / fadeInDur))
+                    alpha = 0.55 + 0.45 * progress
+                } else {
+                    // Not yet reached
+                    alpha = 0.25
+                }
 
                 for (var c = 0; c < rawText.length; c++) {
-                    charIdxMap[indexInMain + c] = i
+                    wordAlphaMap[indexInMain + c] = alpha
                 }
-                
+
+                // Map trailing space to the word's alpha
                 currentPos = indexInMain + rawText.length
                 if (currentPos < textContent.length && textContent[currentPos] === ' ') {
-                    charIdxMap[currentPos] = i
+                    wordAlphaMap[currentPos] = alpha
                     currentPos++
                 }
-            } else {
-                wordData.push(null)
             }
         }
 
+        // Draw each character with its word's alpha
         var xOffset = startX
-        
         for (var i = 0; i < textContent.length; i++) {
             var charStr = textContent[i]
             var charWidth = ctx.measureText(charStr).width
-            
-            var wIdx = charIdxMap[i]
-            var wData = wIdx !== undefined ? wordData[wIdx] : null
-            
-            var cScaleX = 1.0
-            var cScaleY = 1.0
-            var cTranslateY = 0
-            
-            var baseAlpha = 0.25
-            var drawActive = false
-            var activeAlpha = 1.0
-            
-            if (wData) {
-                var wobbleX = wData.wobble * 0.025
-                var wobbleY = wData.wobble * 0.015
-                cScaleX += wobbleX
-                cScaleY += wobbleY
-                
-                baseAlpha = wData.isSung ? 1.0 : (0.25 + 0.75 * wData.sungFactor)
-                
-                if (wData.sungFactor > 0 && !wData.isSung) {
-                    drawActive = true
-                    activeAlpha = wData.sungFactor
-                } else if (wData.isSung) {
-                    drawActive = true
-                    activeAlpha = 1.0
-                }
-            }
+            var a = wordAlphaMap[i] !== undefined ? wordAlphaMap[i] : 0.25
 
-            ctx.save()
-            
-            // Translate to center of character for scaling
-            ctx.translate(xOffset + charWidth / 2, centerY + cTranslateY)
-            ctx.scale(cScaleX, cScaleY)
-            
-            // Draw inactive/base color
-            ctx.globalAlpha = baseAlpha
-            ctx.fillStyle = inactiveColor
-            ctx.fillText(charStr, -charWidth / 2, 0)
-            
-            // Draw active/glow color clipped
-            if (drawActive) {
-                ctx.globalAlpha = 1.0
-                ctx.beginPath()
-                // Clip rect exactly matching sung percentage
-                var clipWidth = charWidth * activeAlpha
-                ctx.rect(-charWidth / 2, -fontSize, clipWidth, fontSize * 2)
-                ctx.clip()
-                
-                ctx.fillStyle = activeColor
-                ctx.fillText(charStr, -charWidth / 2, 0)
-            }
+            ctx.globalAlpha = a
+            ctx.fillStyle = activeColor
+            ctx.fillText(charStr, xOffset, centerY)
 
-            ctx.restore()
-            
             xOffset += charWidth
         }
     }

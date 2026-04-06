@@ -213,26 +213,28 @@ Item {
             visible: (root.resolvedLyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded))
         }
 
-        // 3. The Lyrics List
-        StyledListView {
-            id: lyricsView
-            visible: root.resolvedLyricsCount > 0 && !root.experimentalMode
+        // 3. The Lyrics List - only instantiated when not in experimental mode
+        Loader {
+            active: root.resolvedLyricsCount > 0 && !root.experimentalMode
             anchors.fill: parent
             anchors.margins: 16
-            model: root.lyricsModel
-            spacing: 16
-            clip: true
-            animateAppearance: false
-            animateMovement: false
-            popin: false
-            
-            // Reusing delegates here causes stale lyric lines to linger visually
-            // when the model is replaced for a new song.
-            cacheBuffer: 600
-            reuseItems: false
-            
-            // Manual scroll tracking
-            onFlickStarted: {
+            sourceComponent: Component {
+                StyledListView {
+                    id: lyricsView
+                    model: root.lyricsModel
+                    spacing: 16
+                    clip: true
+                    animateAppearance: false
+                    animateMovement: false
+                    popin: false
+
+                    // Reusing delegates here causes stale lyric lines to linger visually
+                    // when the model is replaced for a new song.
+                    cacheBuffer: 600
+                    reuseItems: false
+
+                    // Manual scroll tracking
+                    onFlickStarted: {
                 root.manualScrollMode = true
                 manualScrollTimer.restart()
             }
@@ -624,29 +626,35 @@ Item {
                 }
             }
         }
+        }
+        } // end Loader
 
-        ExperimentalLyricsStack {
-            id: experimentalLyricsView
-            visible: root.resolvedLyricsCount > 0 && root.experimentalMode
+        // Experimental Lyrics Stack - only instantiated when experimental mode is on
+        Loader {
+            active: root.resolvedLyricsCount > 0 && root.experimentalMode
             anchors.fill: parent
             anchors.margins: 16
+            sourceComponent: Component {
+                ExperimentalLyricsStack {
+                    id: experimentalLyricsView
+                    isFullscreen: root.isFullscreen
+                    contentColor: root.contentColor
+                    loaderColor: root.loaderColor
+                    lyricsModel: root.lyricsModel
+                    lyricsCount: root.lyricsCount
+                    currentLine: root.currentLine
+                    position: root.position
+                    isResizing: root.isResizing
+                    textInset: root.experimentalTextInset
 
-            isFullscreen: root.isFullscreen
-            contentColor: root.contentColor
-            loaderColor: root.loaderColor
-            lyricsModel: root.lyricsModel
-            lyricsCount: root.lyricsCount
-            currentLine: root.currentLine
-            position: root.position
-            isResizing: root.isResizing
-            textInset: root.experimentalTextInset
-
-            onManualScrollModeChanged: root.manualScrollMode = manualScrollMode
-            onSeekRequested: (time) => {
-                if (root.activePlayer) {
-                    root.activePlayer.position = time
-                } else {
-                    root.seekRequested(time)
+                    onManualScrollModeChanged: root.manualScrollMode = manualScrollMode
+                    onSeekRequested: (time) => {
+                        if (root.activePlayer) {
+                            root.activePlayer.position = time
+                        } else {
+                            root.seekRequested(time)
+                        }
+                    }
                 }
             }
         }

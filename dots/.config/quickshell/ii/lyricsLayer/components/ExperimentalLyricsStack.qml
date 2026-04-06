@@ -38,20 +38,34 @@ Item {
         return v !== undefined ? v : fallbackLineHeight
     }
 
-    function baseOffsetFor(idx) {
-        if (idx <= 0)
-            return 0
-        let y = 0
-        for (let i = 0; i < idx; ++i) {
-            y += itemHeightFor(i) + lineGap
+    // Pre-compute cumulative offsets once per currentLine change (avoid O(n²) loops)
+    property var _cumulativeOffsets: ({})
+    property real _cumulativeStackHeight: 0
+
+    function _rebuildCumulativeOffsets() {
+        const offsets = {}
+        let runningY = 0
+        for (let i = 0; i < resolvedLyricsCount; i++) {
+            offsets[i] = runningY
+            runningY += itemHeightFor(i) + lineGap
         }
-        return y
+        _cumulativeOffsets = offsets
+        _cumulativeStackHeight = runningY - lineGap
+    }
+
+    function baseOffsetFor(idx) {
+        return _cumulativeOffsets[idx] || 0
     }
 
     function stackHeight() {
-        if (resolvedLyricsCount <= 0)
-            return 0
-        return baseOffsetFor(resolvedLyricsCount - 1) + itemHeightFor(resolvedLyricsCount - 1)
+        return _cumulativeStackHeight
+    }
+
+    onResolvedLyricsCountChanged: _rebuildCumulativeOffsets()
+    onCurrentLineChanged: {
+        _rebuildCumulativeOffsets()
+        if (!manualScrollMode)
+            resync()
     }
 
     function clampManualOffset(value) {
@@ -89,11 +103,6 @@ Item {
         const currentBase = baseOffsetFor(currentLine)
         const currentHeight = itemHeightFor(currentLine)
         return anchorY - (currentHeight / 2) + (baseOffsetFor(idx) - currentBase) + userManualOffset
-    }
-
-    onCurrentLineChanged: {
-        if (!manualScrollMode)
-            resync()
     }
 
     Timer {
@@ -172,8 +181,11 @@ Item {
             z: isCurrent ? 5 : Math.max(0, 1000 - distance)
 
             onHeightChanged: {
+                const newHeight = height
+                const existing = root.itemHeights[index]
+                if (existing === newHeight) return
                 const nextHeights = Object.assign({}, root.itemHeights)
-                nextHeights[index] = height
+                nextHeights[index] = newHeight
                 root.itemHeights = nextHeights
             }
 

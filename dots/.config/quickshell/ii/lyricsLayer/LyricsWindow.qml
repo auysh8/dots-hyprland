@@ -103,7 +103,7 @@ Scope {
 
     Timer {
         id: smoothPositionTimer
-        running: root.isPlaying
+        running: root.isPlaying && root.showLyrics
         interval: 50
         repeat: true
         onTriggered: {
@@ -134,7 +134,7 @@ Scope {
 
     Timer {
         id: hardResyncTimer
-        running: root.isPlaying
+        running: root.isPlaying && root.showLyrics
         interval: 250
         repeat: true
         onTriggered: {
@@ -274,9 +274,10 @@ Scope {
     onDisplayTitleChanged: handleTrackMetadataChange()
     onDisplayArtistChanged: handleTrackMetadataChange()
 
-    // Shared Media Color Context
+    // Shared Media Color Context - only active when lyrics is visible
     MediaArtColorContext {
         id: mediaContext
+        visible: root.showLyrics
         activePlayer: root.activePlayer
     }
 
@@ -312,12 +313,12 @@ Scope {
     property color pillContentColor: _srcPillContentColor
     property color loaderAccentColor: _srcLoaderAccentColor
 
-    // Smooth color transition behaviors
-    Behavior on backgroundColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on contentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on secondaryContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on pillColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
-    Behavior on pillContentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
+    // Smooth color transition behaviors (staggered to reduce frame contention)
+    Behavior on backgroundColor { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
+    Behavior on contentColor { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
+    Behavior on secondaryContentColor { ColorAnimation { duration: 500; easing.type: Easing.OutCubic } }
+    Behavior on pillColor { ColorAnimation { duration: 700; easing.type: Easing.OutCubic } }
+    Behavior on pillContentColor { ColorAnimation { duration: 600; easing.type: Easing.OutCubic } }
     Behavior on loaderAccentColor { ColorAnimation { duration: 800; easing.type: Easing.OutCubic } }
 
     // Debug logging for art state
@@ -502,9 +503,9 @@ Scope {
     }
 
     Process {
-        // Backend Process (restarted on change)
+        // Backend Process - only runs when lyrics is visible
         id: backend
-        running: true
+        running: root.showLyrics
         command: [Qt.resolvedUrl("venv/bin/python3").toString().replace("file://", ""), Qt.resolvedUrl("lyrics_backend.py").toString().replace("file://", "")]
         
         stdout: SplitParser {
@@ -677,6 +678,7 @@ Scope {
                 anchors.fill: lyricsPanel
                 albumArt: root.albumArt
                 active: root.showLyrics
+                visible: root.showLyrics
                 animated: true
                 backgroundColor: root.backgroundColor
                 cornerRadius: lyricsPanel.radius
