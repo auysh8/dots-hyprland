@@ -67,6 +67,7 @@ Item {
         if (!manualScrollMode)
             resync()
     }
+    onItemHeightsChanged: _rebuildCumulativeOffsets()
 
     function clampManualOffset(value) {
         if (resolvedLyricsCount <= 0 || currentLine < 0)
@@ -175,9 +176,12 @@ Item {
             property bool isHovered: lyricMouseArea.containsMouse
 
             x: 0
-            y: targetY + lineBounceYOffset
+            y: targetY
             width: root.width
-            height: lineTextItem.implicitHeight + (isCurrent ? 28 : 18)
+            // Use consistent padding for symmetric layout. 
+            // The isCurrent state will handle scale and opacity, 
+            // while the offset logic will handle centering.
+            height: lineTextItem.implicitHeight + 24
             z: isCurrent ? 5 : Math.max(0, 1000 - distance)
 
             onHeightChanged: {
@@ -191,12 +195,9 @@ Item {
 
             Behavior on y {
                 enabled: !root.isResizing
-                SequentialAnimation {
-                    PauseAnimation { duration: Math.min(lyricItem.distance * 20, 200) }
-                    NumberAnimation {
-                        duration: 750
-                        easing.type: Easing.OutCubic
-                    }
+                NumberAnimation {
+                    duration: 380
+                    easing.type: Easing.OutCubic
                 }
             }
 
@@ -227,6 +228,7 @@ Item {
             Item {
                 id: motionLayer
                 anchors.fill: parent
+                y: lyricItem.lineBounceYOffset
                 scale: lyricItem.baseScale * lyricItem.lineBounceScale
 
                 Behavior on scale {
@@ -317,26 +319,26 @@ Item {
 
                 ScriptAction {
                     script: {
-                        lyricItem.lineBounceScale = 0.9
-                        lyricItem.lineBounceYOffset = 42
+                        lyricItem.lineBounceScale = 0.92
+                        lyricItem.lineBounceYOffset = 0
                     }
                 }
 
-                PauseAnimation { duration: 28 }
+                PauseAnimation { duration: 20 }
 
                 ParallelAnimation {
                     NumberAnimation {
                         target: lyricItem
                         property: "lineBounceScale"
-                        to: 1.065
-                        duration: 160
+                        to: 1.04
+                        duration: 140
                         easing.type: Easing.OutExpo
                     }
                     NumberAnimation {
                         target: lyricItem
                         property: "lineBounceYOffset"
-                        to: -12
-                        duration: 160
+                        to: -18
+                        duration: 140
                         easing.type: Easing.OutExpo
                     }
                 }
@@ -346,17 +348,17 @@ Item {
                         target: lyricItem
                         property: "lineBounceScale"
                         to: 1.0
-                        duration: 280
+                        duration: 220
                         easing.type: Easing.OutBack
-                        easing.overshoot: 1.34
+                        easing.overshoot: 1.2
                     }
                     NumberAnimation {
                         target: lyricItem
                         property: "lineBounceYOffset"
                         to: 0
-                        duration: 280
+                        duration: 220
                         easing.type: Easing.OutBack
-                        easing.overshoot: 1.28
+                        easing.overshoot: 1.2
                     }
                 }
             }
