@@ -160,11 +160,7 @@ Item {
             readonly property bool isCurrent: index === root.currentLine
             readonly property int distance: Math.abs(index - root.currentLine)
             readonly property real targetY: root.targetYFor(index)
-            readonly property real baseScale: (
-                isCurrent ? 1.0
-                : distance === 1 ? 0.965
-                : distance === 2 ? 0.935 : 0.91
-            )
+            readonly property real baseScale: 1.0
             readonly property real baseOpacity: (
                 isCurrent ? 1.0
                 : distance === 1 ? 0.62
@@ -230,14 +226,6 @@ Item {
                 anchors.fill: parent
                 y: lyricItem.lineBounceYOffset
                 scale: lyricItem.baseScale * lyricItem.lineBounceScale
-
-                Behavior on scale {
-                    enabled: !root.isResizing
-                    NumberAnimation {
-                        duration: 430
-                        easing.type: Easing.OutCubic
-                    }
-                }
 
                 Text {
                     id: lineTextItem
@@ -319,7 +307,6 @@ Item {
 
                 ScriptAction {
                     script: {
-                        lyricItem.lineBounceScale = 0.92
                         lyricItem.lineBounceYOffset = 0
                     }
                 }
@@ -327,13 +314,6 @@ Item {
                 PauseAnimation { duration: 20 }
 
                 ParallelAnimation {
-                    NumberAnimation {
-                        target: lyricItem
-                        property: "lineBounceScale"
-                        to: 1.04
-                        duration: 140
-                        easing.type: Easing.OutExpo
-                    }
                     NumberAnimation {
                         target: lyricItem
                         property: "lineBounceYOffset"
@@ -344,14 +324,6 @@ Item {
                 }
 
                 ParallelAnimation {
-                    NumberAnimation {
-                        target: lyricItem
-                        property: "lineBounceScale"
-                        to: 1.0
-                        duration: 220
-                        easing.type: Easing.OutBack
-                        easing.overshoot: 1.2
-                    }
                     NumberAnimation {
                         target: lyricItem
                         property: "lineBounceYOffset"
@@ -366,14 +338,6 @@ Item {
             ParallelAnimation {
                 id: exitLineBounce
                 running: false
-
-                NumberAnimation {
-                    target: lyricItem
-                    property: "lineBounceScale"
-                    to: 1.0
-                    duration: 180
-                    easing.type: Easing.OutQuad
-                }
 
                 NumberAnimation {
                     target: lyricItem

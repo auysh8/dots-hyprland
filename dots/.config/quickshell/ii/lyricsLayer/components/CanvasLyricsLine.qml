@@ -38,71 +38,142 @@ Canvas {
         ctx.textAlign = "left"
         ctx.textBaseline = "middle"
 
-        var totalWidth = ctx.measureText(textContent).width
-        var startX = leftAligned ? 0 : (width - totalWidth) / 2
-        var centerY = height / 2
-
-        if (!isActiveLine || !wordList || wordList.length === 0) {
-            ctx.fillStyle = inactiveColor
-            ctx.globalAlpha = 1.0
-            ctx.fillText(textContent, startX, centerY)
-            return
-        }
-
-        // Build word-to-char mapping
-        var currentPos = 0
-        var charIdxMap = []
+        // Build word-to-char alpha mapping
         var wordAlphaMap = []
+        if (isActiveLine && wordList && wordList.length > 0) {
+            var currentPos = 0
+            for (var i = 0; i < wordList.length; i++) {
+                var w = wordList[i]
+                var rawText = w.text
+                var indexInMain = textContent.indexOf(rawText, currentPos)
+                if (indexInMain !== -1) {
+                    var sMs = (w.time || 0) * 1000
+                    var eMs = (w.end || (w.time + 0.3)) * 1000
+                    var posMs = _smoothPosMs
 
-        for (var i = 0; i < wordList.length; i++) {
-            var w = wordList[i]
-            var rawText = w.text
-            var indexInMain = textContent.indexOf(rawText, currentPos)
-            if (indexInMain !== -1) {
-                var sMs = (w.time || 0) * 1000
-                var eMs = (w.end || (w.time + 0.3)) * 1000
-                var posMs = _smoothPosMs
+                    var alpha
+                    if (posMs + 30 >= eMs) {
+                        alpha = 1.0
+                    } else if (posMs >= sMs) {
+                        var dur = Math.max(60, eMs - sMs)
+                        var fadeInDur = Math.min(220, dur * 0.45)
+                        var progress = Math.min(1.0, Math.max(0.0, (posMs - sMs) / fadeInDur))
+                        alpha = 0.55 + 0.45 * progress
+                    } else {
+                        alpha = 0.25
+                    }
 
-                var alpha
-                if (posMs + 30 >= eMs) {
-                    // Word fully sung
-                    alpha = 1.0
-                } else if (posMs >= sMs) {
-                    // Word being sung — fade from 0.55 to 1.0 (matches standard mode)
-                    var dur = Math.max(60, eMs - sMs)
-                    var fadeInDur = Math.min(220, dur * 0.45)
-                    var progress = Math.min(1.0, Math.max(0.0, (posMs - sMs) / fadeInDur))
-                    alpha = 0.55 + 0.45 * progress
-                } else {
-                    // Not yet reached
-                    alpha = 0.25
-                }
+                    for (var c = 0; c < rawText.length; c++) {
+                        wordAlphaMap[indexInMain + c] = alpha
+                    }
 
-                for (var c = 0; c < rawText.length; c++) {
-                    wordAlphaMap[indexInMain + c] = alpha
-                }
-
-                // Map trailing space to the word's alpha
-                currentPos = indexInMain + rawText.length
-                if (currentPos < textContent.length && textContent[currentPos] === ' ') {
-                    wordAlphaMap[currentPos] = alpha
-                    currentPos++
+                    currentPos = indexInMain + rawText.length
+                    if (currentPos < textContent.length && textContent[currentPos] === ' ') {
+                        wordAlphaMap[currentPos] = alpha
+                        currentPos++
+                    }
                 }
             }
         }
 
-        // Draw each character with its word's alpha
-        var xOffset = startX
-        for (var i = 0; i < textContent.length; i++) {
-            var charStr = textContent[i]
-            var charWidth = ctx.measureText(charStr).width
-            var a = wordAlphaMap[i] !== undefined ? wordAlphaMap[i] : 0.25
+        // 2. Break text into lines
+        var lines = []
+        var currentLineWords = []
+        var currentLineWidth = 0
+        var spaceWidth = ctx.measureText(" ").width
+        
+        var i = 0
+        while (i < textContent.length) {
+            // Read a word
+            var start = i
+            while (i < textContent.length && textContent[i] !== ' ') {
+                i++
+            }
+            var word = textContent.substring(start, i)
+            var wordWidth = ctx.measureText(word).width
+            
+            // Read spaces after word
+            var spaceStart = i
+            while (i < textContent.length && textContent[i] === ' ') {
+                i++
+            }
+            var spaces = textContent.substring(spaceStart, i)
+            var spacesWidth = spaces.length * spaceWidth
+            
+            // Check if word fits (only if not the first word in line)
+            if (currentLineWords.length > 0 && currentLineWidth + wordWidth > width) {
+                lines.push({ words: currentLineWords, width: currentLineWidth })
+                currentLineWords = []
+                currentLineWidth = 0
+            }
+            
+            var wordChars = []
+            for (var j = 0; j < word.length; j++) {
+                wordChars.push({ char: word[j], index: start + j })
+            }
+            
+            var spaceIndices = []
+            for (var s = 0; s < spaces.length; s++) {
+                spaceIndices.push(spaceStart + s)
+            }
+            
+            currentLineWords.push({ 
+                text: word, 
+                width: wordWidth, 
+                chars: wordChars, 
+                spaceIndices: spaceIndices, 
+                spacesWidth: spacesWidth,
+                spacesText: spaces
+            })
+            currentLineWidth += wordWidth + spacesWidth
+        }
+        if (currentLineWords.length > 0) {
+            lines.push({ words: currentLineWords, width: currentLineWidth })
+        }
 
-            ctx.globalAlpha = a
-            ctx.fillStyle = activeColor
-            ctx.fillText(charStr, xOffset, centerY)
+        // 3. Vertical centering
+        var lineHeight = fontSize * 1.3
+        var totalHeight = lines.length * lineHeight
+        var startY = (height - totalHeight) / 2
 
-            xOffset += charWidth
+        // 4. Draw
+        for (var l = 0; l < lines.length; l++) {
+            var line = lines[l]
+            var xOffset = leftAligned ? 0 : (width - line.width) / 2
+            var yOffset = startY + l * lineHeight + lineHeight / 2
+            
+            for (var w = 0; w < line.words.length; w++) {
+                var wordObj = line.words[w]
+                
+                // Draw word characters
+                for (var c = 0; c < wordObj.chars.length; c++) {
+                    var charObj = wordObj.chars[c]
+                    var charWidth = ctx.measureText(charObj.char).width
+                    var a = 1.0
+                    if (isActiveLine && wordList && wordList.length > 0) {
+                        a = wordAlphaMap[charObj.index] !== undefined ? wordAlphaMap[charObj.index] : 0.25
+                    } else {
+                        a = 1.0
+                    }
+                    
+                    ctx.globalAlpha = a
+                    ctx.fillStyle = (isActiveLine && wordList && wordList.length > 0) ? activeColor : inactiveColor
+                    ctx.fillText(charObj.char, xOffset, yOffset)
+                    xOffset += charWidth
+                }
+                
+                // Draw spaces
+                for (var s = 0; s < wordObj.spaceIndices.length; s++) {
+                    var sIdx = wordObj.spaceIndices[s]
+                    var aSpace = 1.0
+                    if (isActiveLine && wordList && wordList.length > 0) {
+                        aSpace = wordAlphaMap[sIdx] !== undefined ? wordAlphaMap[sIdx] : 0.25
+                    }
+                    ctx.globalAlpha = aSpace
+                    ctx.fillText(" ", xOffset, yOffset)
+                    xOffset += spaceWidth
+                }
+            }
         }
     }
 }

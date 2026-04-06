@@ -312,15 +312,11 @@ Item {
                 
                 readonly property bool isCurrent: ListView.isCurrentItem
                 readonly property int distance: Math.abs(index - ListView.view.currentIndex)
-                readonly property real baseExperimentalOffset: (
-                    lyricItem.isCurrent ? 0
-                    : lyricItem.distance === 1 ? 10
-                    : lyricItem.distance === 2 ? 18 : 24
-                )
-                readonly property real baseExperimentalScale: (
+                readonly property real baseExperimentalScale: 1.0
+                readonly property real baseExperimentalOpacity: (
                     lyricItem.isCurrent ? 1.0
-                    : lyricItem.distance === 1 ? 0.965
-                    : lyricItem.distance === 2 ? 0.935 : 0.91
+                    : lyricItem.distance === 1 ? 0.62
+                    : lyricItem.distance === 2 ? 0.34 : 0.18
                 )
                 
                 // --- NEW: Expose width for the highlight to read ---
@@ -397,20 +393,6 @@ Item {
                         yScale: root.experimentalMode
                             ? (lyricItem.baseExperimentalScale * lyricItem.lineBounceScale)
                             : 1.0
-                        Behavior on xScale {
-                            enabled: root.experimentalMode && !root.isResizing
-                            NumberAnimation {
-                                duration: 430
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-                        Behavior on yScale {
-                            enabled: root.experimentalMode && !root.isResizing
-                            NumberAnimation {
-                                duration: 430
-                                easing.type: Easing.OutCubic
-                            }
-                        }
                     }
 
                     // Hover highlight background
@@ -558,7 +540,6 @@ Item {
 
                     ScriptAction {
                         script: {
-                            lyricItem.lineBounceScale = 0.9
                             lyricItem.lineBounceYOffset = 42
                         }
                     }
@@ -570,13 +551,6 @@ Item {
                     ParallelAnimation {
                         NumberAnimation {
                             target: lyricItem
-                            property: "lineBounceScale"
-                            to: 1.065
-                            duration: 160
-                            easing.type: Easing.OutExpo
-                        }
-                        NumberAnimation {
-                            target: lyricItem
                             property: "lineBounceYOffset"
                             to: -12
                             duration: 160
@@ -585,14 +559,6 @@ Item {
                     }
 
                     ParallelAnimation {
-                        NumberAnimation {
-                            target: lyricItem
-                            property: "lineBounceScale"
-                            to: 1.0
-                            duration: 280
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 1.34
-                        }
                         NumberAnimation {
                             target: lyricItem
                             property: "lineBounceYOffset"
@@ -607,14 +573,6 @@ Item {
                 ParallelAnimation {
                     id: exitLineBounce
                     running: false
-
-                    NumberAnimation {
-                        target: lyricItem
-                        property: "lineBounceScale"
-                        to: 1.0
-                        duration: 180
-                        easing.type: Easing.OutQuad
-                    }
 
                     NumberAnimation {
                         target: lyricItem
