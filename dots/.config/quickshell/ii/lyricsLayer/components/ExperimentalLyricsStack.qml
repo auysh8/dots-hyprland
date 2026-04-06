@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import qs.modules.common.functions
 
 Item {
@@ -162,9 +163,7 @@ Item {
             readonly property real targetY: root.targetYFor(index)
             readonly property real baseScale: 1.0
             readonly property real baseOpacity: (
-                isCurrent ? 1.0
-                : distance === 1 ? 0.62
-                : distance === 2 ? 0.34 : 0.18
+                isCurrent ? 1.0 : 0.18
             )
 
             property real lineBounceScale: 1.0
@@ -224,6 +223,12 @@ Item {
             Item {
                 id: motionLayer
                 anchors.fill: parent
+                layer.enabled: !lyricItem.isCurrent
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blurMax: 15
+                    blur: lyricItem.distance === 1 ? 0.35 : 1.0
+                }
                 y: lyricItem.lineBounceYOffset
                 scale: lyricItem.baseScale * lyricItem.lineBounceScale
 
@@ -237,11 +242,9 @@ Item {
                     renderType: Text.QtRendering
                     wrapMode: Text.Wrap
                     elide: Text.ElideNone
-                    font.weight: lyricItem.isCurrent ? Font.Bold : Font.Normal
+                    font.weight: Font.Bold
                     font.family: "Inter, Segoe UI, sans-serif"
-                    font.pixelSize: lyricItem.isCurrent
-                        ? (root.isFullscreen ? 60 : 42)
-                        : (root.isFullscreen ? 46 : 32)
+                    font.pixelSize: root.isFullscreen ? 46 : 32
                     opacity: lyricItem.baseOpacity
                     color: root.contentColor
                     visible: !(lyricItem.isCurrent && hasWords)
@@ -284,7 +287,7 @@ Item {
                     leftAligned: true
                     activeColor: root.contentColor
                     inactiveColor: ColorUtils.applyAlpha(root.contentColor, 0.2)
-                    fontSize: root.isFullscreen ? 60 : 42
+                    fontSize: root.isFullscreen ? 46 : 32
                     visible: lyricItem.isCurrent && lineTextItem.hasWordsAlias
                     z: 3
                 }
@@ -307,7 +310,7 @@ Item {
 
                 ScriptAction {
                     script: {
-                        lyricItem.lineBounceYOffset = 0
+                        lyricItem.lineBounceYOffset = 60
                     }
                 }
 
@@ -317,8 +320,8 @@ Item {
                     NumberAnimation {
                         target: lyricItem
                         property: "lineBounceYOffset"
-                        to: -18
-                        duration: 140
+                        to: -16
+                        duration: 180
                         easing.type: Easing.OutExpo
                     }
                 }
@@ -328,9 +331,9 @@ Item {
                         target: lyricItem
                         property: "lineBounceYOffset"
                         to: 0
-                        duration: 220
+                        duration: 320
                         easing.type: Easing.OutBack
-                        easing.overshoot: 1.2
+                        easing.overshoot: 1.4
                     }
                 }
             }
