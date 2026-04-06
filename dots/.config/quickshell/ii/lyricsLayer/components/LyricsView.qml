@@ -373,21 +373,19 @@ Item {
                 Item {
                     id: lyricMotionLayer
                     anchors.fill: parent
-                    y: root.experimentalMode
-                        ? (lyricItem.baseExperimentalOffset + lyricItem.lineBounceYOffset)
-                        : lyricItem.lineBounceYOffset
-                    layer.enabled: !root.experimentalMode && !lyricItem.isCurrent
+                    layer.enabled: root.experimentalMode && !lyricItem.isCurrent
                     layer.effect: MultiEffect {
                         blurEnabled: true
                         blurMax: 15
                         blur: lyricItem.distance === 1 ? 0.35 : 1.0
                     }
+                    y: root.experimentalMode
+                        ? (lyricItem.baseExperimentalOffset + lyricItem.lineBounceYOffset)
+                        : 0
                     Behavior on y {
-                        enabled: root.isResizing
-                            ? false
-                            : (root.experimentalMode ? true : (lyricItem.isCurrent ? false : true))
+                        enabled: root.experimentalMode && !root.isResizing
                         NumberAnimation {
-                            duration: 430
+                            duration: lyricItem.isCurrent ? 400 : (500 + lyricItem.distance * 60)
                             easing.type: Easing.OutCubic
                         }
                     }
@@ -474,7 +472,9 @@ Item {
 
                         z: 2
                     
-                        color: root.contentColor
+                        color: root.experimentalMode
+                            ? root.contentColor
+                            : (lyricItem.isCurrent ? root.pillContentColor : root.contentColor)
 
                         Behavior on color { 
                             ColorAnimation { duration: 400; easing.type: Easing.InOutQuad } 
@@ -482,7 +482,7 @@ Item {
                     
                         font.pixelSize: root.experimentalMode
                             ? (root.isFullscreen ? 46 : 32)
-                            : (root.isFullscreen ? 32 : 20)
+                            : (lyricItem.isCurrent ? (root.isFullscreen ? 42 : 26) : (root.isFullscreen ? 32 : 20))
                         font.weight: Font.Bold
                         font.family: "Inter, Segoe UI, sans-serif"
                         wrapMode: Text.Wrap
@@ -491,10 +491,14 @@ Item {
                         opacity: {
                             if (root.experimentalMode) {
                                 if (lyricItem.isCurrent) return 1.0
+                                if (lyricItem.distance === 1) return 0.62
+                                if (lyricItem.distance === 2) return 0.34
                                 return 0.18
                             }
                             if (lyricItem.isCurrent) return 1.0
-                            return 0.18
+                            if (lyricItem.distance === 1) return 0.75
+                            if (lyricItem.distance === 2) return 0.5
+                            return 0.3
                         }
                     
                         Behavior on opacity { NumberAnimation { duration: root.experimentalMode ? 560 : 400; easing.type: root.experimentalMode ? Easing.OutQuad : Easing.InOutQuad } }
@@ -516,9 +520,9 @@ Item {
                         isActiveLine: lyricItem.isCurrent
                         leftAligned: root.experimentalMode
                     
-                        activeColor: root.contentColor
+                        activeColor: root.experimentalMode ? root.contentColor : root.pillContentColor
                         inactiveColor: ColorUtils.applyAlpha(root.contentColor, root.experimentalMode ? 0.2 : 0.3)
-                        fontSize: root.experimentalMode ? (root.isFullscreen ? 46 : 32) : (root.isFullscreen ? 32 : 20)
+                        fontSize: root.experimentalMode ? (root.isFullscreen ? 46 : 32) : (root.isFullscreen ? 42 : 26)
                     
                         visible: root.experimentalMode && lyricItem.isCurrent && lyricText.hasWords
                         z: 3
@@ -542,20 +546,20 @@ Item {
 
                     ScriptAction {
                         script: {
-                            lyricItem.lineBounceYOffset = 60
+                            lyricItem.lineBounceYOffset = 42
                         }
                     }
 
                     PauseAnimation {
-                        duration: 20
+                        duration: 28
                     }
 
                     ParallelAnimation {
                         NumberAnimation {
                             target: lyricItem
                             property: "lineBounceYOffset"
-                            to: -16
-                            duration: 180
+                            to: -12
+                            duration: 160
                             easing.type: Easing.OutExpo
                         }
                     }
@@ -565,9 +569,9 @@ Item {
                             target: lyricItem
                             property: "lineBounceYOffset"
                             to: 0
-                            duration: 320
+                            duration: 280
                             easing.type: Easing.OutBack
-                            easing.overshoot: 1.4
+                            easing.overshoot: 1.28
                         }
                     }
                 }

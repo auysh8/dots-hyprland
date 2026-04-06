@@ -163,7 +163,9 @@ Item {
             readonly property real targetY: root.targetYFor(index)
             readonly property real baseScale: 1.0
             readonly property real baseOpacity: (
-                isCurrent ? 1.0 : 0.18
+                isCurrent ? 1.0
+                : distance === 1 ? 0.62
+                : distance === 2 ? 0.34 : 0.18
             )
 
             property real lineBounceScale: 1.0
@@ -191,7 +193,7 @@ Item {
             Behavior on y {
                 enabled: !root.isResizing
                 NumberAnimation {
-                    duration: 380
+                    duration: lyricItem.isCurrent ? 400 : (500 + lyricItem.distance * 60)
                     easing.type: Easing.OutCubic
                 }
             }
