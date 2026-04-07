@@ -32,8 +32,6 @@ Item {
     property real position: 0
     property string lyricsSource: ""
     property bool showWindowControls: true
-    property bool experimentalMode: false
-    readonly property int experimentalTextInset: isFullscreen ? 32 : 20
     
     signal fullscreenToggled()
     signal closeRequested()
@@ -57,22 +55,14 @@ Item {
     // Auto-scroll when currentLine changes
     onCurrentLineChanged: {
         if (!manualScrollMode && currentLine >= 0 && currentLine < resolvedLyricsCount && lyricsLoaded) {
-            if (experimentalMode) {
-                experimentalLyricsView.resync()
-            } else {
-                lyricsView.positionViewAtIndex(currentLine, ListView.Center)
-            }
+            lyricsView.positionViewAtIndex(currentLine, ListView.Center)
         }
     }
     
     // Auto-scroll when lyrics load
     onLyricsLoadedChanged: {
         if (lyricsLoaded && currentLine >= 0) {
-            if (experimentalMode) {
-                experimentalLyricsView.resync()
-            } else {
-                lyricsView.positionViewAtIndex(currentLine, ListView.Center)
-            }
+            lyricsView.positionViewAtIndex(currentLine, ListView.Center)
         }
     }
 
@@ -213,9 +203,9 @@ Item {
             visible: (root.resolvedLyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded))
         }
 
-        // 3. The Lyrics List - only instantiated when not in experimental mode
+        // 3. The Lyrics List
         Loader {
-            active: root.resolvedLyricsCount > 0 && !root.experimentalMode
+            active: root.resolvedLyricsCount > 0
             anchors.fill: parent
             anchors.margins: 16
             sourceComponent: Component {
@@ -272,7 +262,6 @@ Item {
             
             // --- NEW: The Sliding Pill ---
             highlight: Item {
-                visible: !root.experimentalMode
                 // This Item automatically moves to cover the current lyric line
                 
                 Rectangle {
@@ -306,18 +295,10 @@ Item {
             delegate: Item {
                 id: lyricItem
                 width: ListView.view.width
-                height: root.experimentalMode
-                    ? lyricText.implicitHeight + (isCurrent ? 28 : 18)
-                    : lyricText.implicitHeight + (isCurrent ? 32 : 16)
+                height: lyricText.implicitHeight + (isCurrent ? 32 : 16)
                 
                 readonly property bool isCurrent: ListView.isCurrentItem
                 readonly property int distance: Math.abs(index - ListView.view.currentIndex)
-                readonly property real baseExperimentalScale: 1.0
-                readonly property real baseExperimentalOpacity: (
-                    lyricItem.isCurrent ? 1.0
-                    : lyricItem.distance === 1 ? 0.62
-                    : lyricItem.distance === 2 ? 0.34 : 0.18
-                )
                 
                 // --- NEW: Expose width for the highlight to read ---
                 property real pillWidth: Math.min(lyricText.implicitWidth + 48, width - 16)
@@ -370,35 +351,10 @@ Item {
                     }
                 }
 
-                Item {
-                    id: lyricMotionLayer
-                    anchors.fill: parent
-                    y: root.experimentalMode
-                        ? (lyricItem.baseExperimentalOffset + lyricItem.lineBounceYOffset)
-                        : 0
-                    Behavior on y {
-                        enabled: root.experimentalMode && !root.isResizing
-                        NumberAnimation {
-                            duration: 430
-                            easing.type: Easing.OutCubic
-                        }
-                    }
-                    transform: Scale {
-                        id: lyricMotionScale
-                        origin.x: lyricMotionLayer.width / 2
-                        origin.y: lyricMotionLayer.height / 2
-                        xScale: root.experimentalMode
-                            ? (lyricItem.baseExperimentalScale * lyricItem.lineBounceScale)
-                            : 1.0
-                        yScale: root.experimentalMode
-                            ? (lyricItem.baseExperimentalScale * lyricItem.lineBounceScale)
-                            : 1.0
-                    }
-
                     // Hover highlight background
                     Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
-                        x: root.experimentalMode ? lyricText.x - 8 : (parent.width - width) / 2
+                        x: (parent.width - width) / 2
                         width: lyricText.implicitWidth + 24
                         height: lyricText.implicitHeight + 8
                         radius: 8
@@ -409,10 +365,10 @@ Item {
                 
                     Text {
                         id: lyricText
-                        x: root.experimentalMode ? root.experimentalTextInset : 24
-                        width: parent.width - (root.experimentalMode ? (root.experimentalTextInset * 2) : 48)
+                        x: 24
+                        width: parent.width - 48
                         anchors.verticalCenter: parent.verticalCenter
-                        horizontalAlignment: root.experimentalMode ? Text.AlignLeft : Text.AlignHCenter
+                        horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         renderType: Text.QtRendering
                     
@@ -424,7 +380,7 @@ Item {
                     
                         property bool hasWords: wordList && wordList.length > 0
 
-                        textFormat: (lyricItem.isCurrent && hasWords && !root.experimentalMode) ? Text.RichText : Text.PlainText
+                        textFormat: (lyricItem.isCurrent && hasWords) ? Text.RichText : Text.PlainText
                     
                         // Helper: convert 0-255 int to 2-digit hex
                         function toHex2(val) {
@@ -433,7 +389,7 @@ Item {
                         }
                     
                         text: {
-                            if (lyricItem.isCurrent && hasWords && !root.experimentalMode) {
+                            if (lyricItem.isCurrent && hasWords) {
                                 const pos = root.position
                                 const c = root.pillContentColor
                                 const r = toHex2(c.r * 255)
@@ -466,29 +422,19 @@ Item {
 
                         z: 2
                     
-                        color: root.experimentalMode
-                            ? root.contentColor
-                            : (lyricItem.isCurrent ? root.pillContentColor : root.contentColor)
+                        color: (lyricItem.isCurrent ? root.pillContentColor : root.contentColor)
 
                         Behavior on color { 
                             ColorAnimation { duration: 400; easing.type: Easing.InOutQuad } 
                         }
                     
-                        font.pixelSize: root.experimentalMode
-                            ? (lyricItem.isCurrent ? (root.isFullscreen ? 60 : 42) : (root.isFullscreen ? 46 : 32))
-                            : (lyricItem.isCurrent ? (root.isFullscreen ? 42 : 26) : (root.isFullscreen ? 32 : 20))
+                        font.pixelSize: lyricItem.isCurrent ? (root.isFullscreen ? 42 : 26) : (root.isFullscreen ? 32 : 20)
                         font.weight: lyricItem.isCurrent ? Font.Bold : Font.Normal
                         font.family: "Inter, Segoe UI, sans-serif"
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone
                     
                         opacity: {
-                            if (root.experimentalMode) {
-                                if (lyricItem.isCurrent) return 1.0
-                                if (lyricItem.distance === 1) return 0.62
-                                if (lyricItem.distance === 2) return 0.34
-                                return 0.18
-                            }
                             if (lyricItem.isCurrent) return 1.0
                             if (lyricItem.distance === 1) return 0.75
                             if (lyricItem.distance === 2) return 0.5
@@ -497,132 +443,18 @@ Item {
                     
                         Behavior on opacity {
                             enabled: !root.isResizing
-                            NumberAnimation { duration: root.experimentalMode ? 560 : 400; easing.type: root.experimentalMode ? Easing.OutQuad : Easing.InOutQuad }
+                            NumberAnimation { duration: 400; easing.type: Easing.InOutQuad }
                         }
                         Behavior on font.pixelSize {
                             enabled: !root.isResizing
-                            NumberAnimation { duration: root.experimentalMode ? 560 : 350; easing.type: root.experimentalMode ? Easing.OutBack : Easing.OutCubic; easing.overshoot: root.experimentalMode ? 1.14 : 1.0 }
+                            NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
                         }
-                    
-                        visible: !(root.experimentalMode && lyricItem.isCurrent && hasWords)
-                    }
-
-                    CanvasLyricsLine {
-                        id: canvasLine
-                        x: root.experimentalMode ? root.experimentalTextInset : 24
-                        width: parent.width - (root.experimentalMode ? (root.experimentalTextInset * 2) : 48)
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: lyricText.implicitHeight * 2
-                    
-                        textContent: model.text || ""
-                        wordList: lyricText.wordList
-                        positionSec: root.position
-                        isActiveLine: lyricItem.isCurrent
-                        leftAligned: root.experimentalMode
-                    
-                        activeColor: root.experimentalMode ? root.contentColor : root.pillContentColor
-                        inactiveColor: ColorUtils.applyAlpha(root.contentColor, root.experimentalMode ? 0.2 : 0.3)
-                        fontSize: root.experimentalMode ? (root.isFullscreen ? 60 : 42) : (root.isFullscreen ? 42 : 26)
-                    
-                        visible: root.experimentalMode && lyricItem.isCurrent && lyricText.hasWords
-                        z: 3
-                    }
-                }
-
-                onIsCurrentChanged: {
-                    if (!root.experimentalMode || root.isResizing)
-                        return
-
-                    if (isCurrent) {
-                        currentLineBounce.restart()
-                    } else {
-                        exitLineBounce.restart()
-                    }
-                }
-
-                SequentialAnimation {
-                    id: currentLineBounce
-                    running: false
-
-                    ScriptAction {
-                        script: {
-                            lyricItem.lineBounceYOffset = 42
-                        }
-                    }
-
-                    PauseAnimation {
-                        duration: 28
-                    }
-
-                    ParallelAnimation {
-                        NumberAnimation {
-                            target: lyricItem
-                            property: "lineBounceYOffset"
-                            to: -12
-                            duration: 160
-                            easing.type: Easing.OutExpo
-                        }
-                    }
-
-                    ParallelAnimation {
-                        NumberAnimation {
-                            target: lyricItem
-                            property: "lineBounceYOffset"
-                            to: 0
-                            duration: 280
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 1.28
-                        }
-                    }
-                }
-
-                ParallelAnimation {
-                    id: exitLineBounce
-                    running: false
-
-                    NumberAnimation {
-                        target: lyricItem
-                        property: "lineBounceYOffset"
-                        to: 0
-                        duration: 180
-                        easing.type: Easing.OutQuad
                     }
                 }
             }
-        }
         }
         } // end Loader
 
-        // Experimental Lyrics Stack - only instantiated when experimental mode is on
-        Loader {
-            active: root.resolvedLyricsCount > 0 && root.experimentalMode
-            anchors.fill: parent
-            anchors.margins: 16
-            sourceComponent: Component {
-                ExperimentalLyricsStack {
-                    id: experimentalLyricsView
-                    isFullscreen: root.isFullscreen
-                    contentColor: root.contentColor
-                    loaderColor: root.loaderColor
-                    lyricsModel: root.lyricsModel
-                    lyricsCount: root.lyricsCount
-                    currentLine: root.currentLine
-                    position: root.position
-                    isResizing: root.isResizing
-                    textInset: root.experimentalTextInset
-
-                    onManualScrollModeChanged: root.manualScrollMode = manualScrollMode
-                    onSeekRequested: (time) => {
-                        if (root.activePlayer) {
-                            root.activePlayer.position = time
-                        } else {
-                            root.seekRequested(time)
-                        }
-                    }
-                }
-            }
-        }
-        
         // Floating re-sync button
         Rectangle {
             id: resyncButton
@@ -668,12 +500,7 @@ Item {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (root.experimentalMode) {
-                        experimentalLyricsView.resync()
-                        root.manualScrollMode = false
-                    } else {
-                        lyricsView.resync()
-                    }
+                    lyricsView.resync()
                 }
             }
         }

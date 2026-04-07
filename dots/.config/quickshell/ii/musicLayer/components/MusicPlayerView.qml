@@ -26,6 +26,7 @@ Item {
     property bool isMainViewTransitioning: mainScaleAnim.running || mainOpacityAnim.running
     property bool isLyricsViewTransitioning: lyricsScaleAnim.running || lyricsOpacityAnim.running
     property bool isQueueTransitioning: queueXAnim.running
+
     property bool isLayoutTransitioning: rootScaleAnim.running || rootOpacityAnim.running || isMainViewTransitioning || isLyricsViewTransitioning || isQueueTransitioning
 
     property real currentRadius: 32
@@ -152,6 +153,166 @@ Item {
             radius: root.currentRadius
             color: rootContext ? rootContext.backgroundColor : Appearance.colors.colLayer0Base
         }
+
+        // --- Apple Music Style Fluid Mesh Blobs ---
+        Item {
+            id: fluidMeshMaskWrapper
+            anchors.fill: parent
+            visible: root.show
+            
+            layer.enabled: !root.isLayoutTransitioning
+            layer.effect: OpacityMask {
+                maskSource: Rectangle {
+                    width: fluidMeshMaskWrapper.width
+                    height: fluidMeshMaskWrapper.height
+                    radius: root.currentRadius
+                }
+            }
+
+            Item {
+                id: fluidMeshContainer
+                anchors.fill: parent
+                // clip is not strictly needed since we are using OpacityMask on the parent
+                
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blurMax: 120
+                    blur: 1.0
+                    saturation: 0.6
+                }
+
+                property bool animateBlobs: root.show && rootContext && !rootContext.playbackPaused && !root.isLayoutTransitioning
+
+            // Blob 1 (Primary / Extracted Color)
+            Rectangle {
+                width: parent.width * 1.2
+                height: parent.height * 1.2
+                radius: Math.min(width, height) / 2
+                color: rootContext ? rootContext.extractedColor : "transparent"
+                opacity: 0.6
+                x: parent.width * 0.1
+                y: parent.height * 0.1
+                
+                SequentialAnimation on x {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: -parent.width * 0.2; duration: 15000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.width * 0.3; duration: 18000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.width * 0.1; duration: 16000; easing.type: Easing.InOutSine }
+                }
+                SequentialAnimation on y {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: parent.height * 0.4; duration: 17000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -parent.height * 0.3; duration: 14000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.height * 0.1; duration: 16000; easing.type: Easing.InOutSine }
+                }
+            }
+
+            // Blob 2 (Accent / Pill Color)
+            Rectangle {
+                width: parent.width * 1.5
+                height: parent.height * 0.8
+                radius: Math.min(width, height) / 2
+                color: rootContext ? rootContext.pillColor : "transparent"
+                opacity: 0.5
+                x: parent.width * 0.2
+                y: parent.height * 0.5
+                
+                SequentialAnimation on x {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: parent.width * 0.6; duration: 20000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -parent.width * 0.4; duration: 16000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.width * 0.2; duration: 18000; easing.type: Easing.InOutSine }
+                }
+                SequentialAnimation on y {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: -parent.height * 0.2; duration: 15000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.height * 0.7; duration: 19000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.height * 0.5; duration: 17000; easing.type: Easing.InOutSine }
+                }
+                SequentialAnimation on rotation {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { from: 0; to: 360; duration: 30000 }
+                }
+            }
+
+            // Blob 3 (Secondary / Loader Accent)
+            Rectangle {
+                width: parent.width * 0.9
+                height: parent.height * 1.3
+                radius: Math.min(width, height) / 2
+                color: rootContext ? rootContext.loaderAccentColor : "transparent"
+                opacity: 0.55
+                x: -parent.width * 0.3
+                y: parent.height * 0.2
+                
+                SequentialAnimation on x {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: parent.width * 0.5; duration: 14000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.width * 0.1; duration: 18000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -parent.width * 0.3; duration: 16000; easing.type: Easing.InOutSine }
+                }
+                SequentialAnimation on y {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: parent.height * 0.8; duration: 17000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.height * 0.1; duration: 15000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.height * 0.2; duration: 19000; easing.type: Easing.InOutSine }
+                }
+                SequentialAnimation on rotation {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { from: 360; to: 0; duration: 25000 }
+                }
+            }
+            
+            // Blob 4 (Mixed / Highlight)
+            Rectangle {
+                width: parent.width * 1.1
+                height: parent.width * 1.1
+                radius: width / 2
+                color: rootContext ? rootContext.extractedColor : "transparent"
+                opacity: 0.4
+                x: parent.width * 0.5
+                y: -parent.height * 0.2
+                
+                SequentialAnimation on x {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: -parent.width * 0.1; duration: 18000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.width * 0.7; duration: 16000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.width * 0.5; duration: 15000; easing.type: Easing.InOutSine }
+                }
+                SequentialAnimation on y {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: parent.height * 0.6; duration: 14000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.height * 0.2; duration: 19000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -parent.height * 0.2; duration: 17000; easing.type: Easing.InOutSine }
+                }
+            }
+            
+            // Blob 5 (Darker contrast for depth)
+            Rectangle {
+                width: parent.width * 1.4
+                height: parent.height * 1.4
+                radius: Math.min(width, height) / 2
+                color: rootContext ? rootContext.backgroundColor : "transparent"
+                opacity: 0.8
+                x: -parent.width * 0.2
+                y: parent.height * 0.6
+                
+                SequentialAnimation on x {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: parent.width * 0.4; duration: 19000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -parent.width * 0.5; duration: 15000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -parent.width * 0.2; duration: 18000; easing.type: Easing.InOutSine }
+                }
+                SequentialAnimation on y {
+                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    NumberAnimation { to: -parent.height * 0.1; duration: 20000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.height * 0.8; duration: 16000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: parent.height * 0.6; duration: 19000; easing.type: Easing.InOutSine }
+                }
+            }
+        }
+        } // End fluidMeshMaskWrapper
 
         function updateCanvasPlayback() {
             if (!canvasPlayer.source || canvasPlayer.source.toString() === "") {

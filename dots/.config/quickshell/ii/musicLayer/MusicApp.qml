@@ -863,15 +863,19 @@ FocusScope {
                 anchors.margins: 0
                 spacing: root.isAppMode ? 8 : 8
             
-                // Sidebar
                 Item {
                     id: navRailWrapper
                     Layout.preferredWidth: navRail.expanded ? 150 : 56
                     Layout.fillHeight: true
                     Layout.margins: root.isAppMode ? 5 : 0
 
-                    Item {                        anchors.fill: parent
-                        
+                    Behavior on Layout.preferredWidth {
+                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                    }
+
+                    Item {
+                        anchors.fill: parent
+
                         NavigationRail {
                             id: navRail
                             anchors {
