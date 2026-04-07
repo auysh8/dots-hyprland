@@ -170,7 +170,7 @@ Item {
             color: ColorUtils.mix(root.pillColor, Appearance.colors.colLayer0, 0.8)
             
             // Stronger shadow
-            layer.enabled: true
+            layer.enabled: popupContainer.popupScale >= 1.0
             layer.effect: MultiEffect {
                 shadowEnabled: true
                 shadowColor: Appearance.colors.colShadow

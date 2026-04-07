@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import qs.modules.common.functions
 
 Item {
@@ -41,8 +42,10 @@ Item {
     // Pre-compute cumulative offsets once per currentLine change (avoid O(n²) loops)
     property var _cumulativeOffsets: ({})
     property real _cumulativeStackHeight: 0
+    property bool _rebuildInProgress: false
 
     function _rebuildCumulativeOffsets() {
+        _rebuildInProgress = true
         const offsets = {}
         let runningY = 0
         for (let i = 0; i < resolvedLyricsCount; i++) {
@@ -51,6 +54,7 @@ Item {
         }
         _cumulativeOffsets = offsets
         _cumulativeStackHeight = runningY - lineGap
+        _rebuildInProgress = false
     }
 
     function baseOffsetFor(idx) {
@@ -67,7 +71,18 @@ Item {
         if (!manualScrollMode)
             resync()
     }
-    onItemHeightsChanged: _rebuildCumulativeOffsets()
+
+    Timer {
+        id: heightUpdateTimer
+        interval: 80
+        onTriggered: _rebuildCumulativeOffsets()
+    }
+
+    onItemHeightsChanged: {
+        if (root.isResizing || _rebuildInProgress)
+            return
+        heightUpdateTimer.restart()
+    }
 
     function clampManualOffset(value) {
         if (resolvedLyricsCount <= 0 || currentLine < 0)
@@ -192,7 +207,7 @@ Item {
             Behavior on y {
                 enabled: !root.isResizing
                 NumberAnimation {
-                    duration: 380
+                    duration: lyricItem.isCurrent ? 400 : (500 + lyricItem.distance * 60)
                     easing.type: Easing.OutCubic
                 }
             }
@@ -224,6 +239,12 @@ Item {
             Item {
                 id: motionLayer
                 anchors.fill: parent
+                layer.enabled: !lyricItem.isCurrent && !root.isResizing
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blurMax: 15
+                    blur: lyricItem.distance === 1 ? 0.35 : 1.0
+                }
                 y: lyricItem.lineBounceYOffset
                 scale: lyricItem.baseScale * lyricItem.lineBounceScale
 
@@ -237,11 +258,9 @@ Item {
                     renderType: Text.QtRendering
                     wrapMode: Text.Wrap
                     elide: Text.ElideNone
-                    font.weight: lyricItem.isCurrent ? Font.Bold : Font.Normal
+                    font.weight: Font.Bold
                     font.family: "Inter, Segoe UI, sans-serif"
-                    font.pixelSize: lyricItem.isCurrent
-                        ? (root.isFullscreen ? 60 : 42)
-                        : (root.isFullscreen ? 46 : 32)
+                    font.pixelSize: root.isFullscreen ? 46 : 32
                     opacity: lyricItem.baseOpacity
                     color: root.contentColor
                     visible: !(lyricItem.isCurrent && hasWords)
@@ -284,7 +303,7 @@ Item {
                     leftAligned: true
                     activeColor: root.contentColor
                     inactiveColor: ColorUtils.applyAlpha(root.contentColor, 0.2)
-                    fontSize: root.isFullscreen ? 60 : 42
+                    fontSize: root.isFullscreen ? 46 : 32
                     visible: lyricItem.isCurrent && lineTextItem.hasWordsAlias
                     z: 3
                 }
@@ -307,7 +326,7 @@ Item {
 
                 ScriptAction {
                     script: {
-                        lyricItem.lineBounceYOffset = 0
+                        lyricItem.lineBounceYOffset = 60
                     }
                 }
 
@@ -317,8 +336,8 @@ Item {
                     NumberAnimation {
                         target: lyricItem
                         property: "lineBounceYOffset"
-                        to: -18
-                        duration: 140
+                        to: -16
+                        duration: 180
                         easing.type: Easing.OutExpo
                     }
                 }
@@ -328,9 +347,9 @@ Item {
                         target: lyricItem
                         property: "lineBounceYOffset"
                         to: 0
-                        duration: 220
+                        duration: 320
                         easing.type: Easing.OutBack
-                        easing.overshoot: 1.2
+                        easing.overshoot: 1.4
                     }
                 }
             }

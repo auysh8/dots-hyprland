@@ -7,7 +7,7 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.services
 import Qt5Compat.GraphicalEffects
-import "../../lyricsLayer/components" as LyricsComponents
+import "../lyricsComponents" as LyricsComponents
 
 Item {
     id: root
@@ -23,6 +23,11 @@ Item {
     property real maxLyricsPositionDrift: 0.12
     property real lastLyricsTickMs: 0
 
+    property bool isMainViewTransitioning: mainScaleAnim.running || mainOpacityAnim.running
+    property bool isLyricsViewTransitioning: lyricsScaleAnim.running || lyricsOpacityAnim.running
+    property bool isQueueTransitioning: queueXAnim.running
+    property bool isLayoutTransitioning: rootScaleAnim.running || rootOpacityAnim.running || isMainViewTransitioning || isLyricsViewTransitioning || isQueueTransitioning
+
     property real currentRadius: 32
 
     anchors.fill: parent
@@ -35,8 +40,8 @@ Item {
     scale: animScale
     opacity: animOpacity
 
-    Behavior on animScale { NumberAnimation { duration: 550; easing.type: Easing.OutBack; easing.overshoot: 0.4 } }
-    Behavior on animOpacity { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+    Behavior on animScale { NumberAnimation { id: rootScaleAnim; duration: 550; easing.type: Easing.OutBack; easing.overshoot: 0.4 } }
+    Behavior on animOpacity { NumberAnimation { id: rootOpacityAnim; duration: 350; easing.type: Easing.OutCubic } }
 
     onShowChanged: {
         if (show) {
@@ -294,8 +299,8 @@ Item {
                 scale: root.inlineLyricsExpanded ? 0.92 : 1.0
                 opacity: root.inlineLyricsExpanded ? 0.0 : 1.0
                 visible: opacity > 0
-                Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.InOutQuad } }
-                Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
+                Behavior on opacity { NumberAnimation { id: mainOpacityAnim; duration: 350; easing.type: Easing.InOutQuad } }
+                Behavior on scale { NumberAnimation { id: mainScaleAnim; duration: 450; easing.type: Easing.OutCubic } }
 
         // Large Cover Art
         Item {
@@ -325,7 +330,7 @@ Item {
                 radius: 32
                 color: rootContext.surfaceColor
 
-                layer.enabled: true
+                layer.enabled: !root.isLayoutTransitioning
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     shadowColor: Appearance.colors.colShadow
@@ -349,7 +354,7 @@ Item {
                     opacity: bgLayer.canvasReady ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
 
-                    layer.enabled: opacity > 0
+                    layer.enabled: opacity > 0 && !root.isLayoutTransitioning
                     layer.effect: OpacityMask {
                         maskSource: Rectangle {
                             width: canvasClip.width
@@ -703,12 +708,14 @@ Item {
             scale: root.inlineLyricsExpanded ? 1.0 : 1.08
             opacity: root.inlineLyricsExpanded ? 1.0 : 0.0
             visible: opacity > 0
-            Behavior on opacity { NumberAnimation { duration: 350; easing.type: Easing.InOutQuad } }
-            Behavior on scale { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { id: lyricsOpacityAnim; duration: 350; easing.type: Easing.InOutQuad } }
+            Behavior on scale { NumberAnimation { id: lyricsScaleAnim; duration: 450; easing.type: Easing.OutCubic } }
 
             LyricsComponents.LyricsView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+
+                isResizing: root.isLayoutTransitioning
 
                 showWindowControls: false
                 experimentalMode: rootContext ? rootContext.musicSettingsExperimentalLyrics : false
@@ -767,10 +774,8 @@ Item {
                             to: "expanded"
                             SequentialAnimation {
                                 PauseAnimation { duration: 300 }
-                                ParallelAnimation {
-                                    NumberAnimation { target: miniArtContainer; property: "Layout.preferredWidth"; duration: 450; easing.type: Easing.OutBack; easing.overshoot: 1.0 }
-                                    NumberAnimation { target: miniArtImage; property: "opacity"; duration: 350; easing.type: Easing.InOutQuad }
-                                }
+                                PropertyAction { target: miniArtContainer; property: "Layout.preferredWidth" }
+                                NumberAnimation { target: miniArtImage; property: "opacity"; duration: 350; easing.type: Easing.InOutQuad }
                             }
                         },
                         Transition {
@@ -832,7 +837,7 @@ Item {
                     visible: opacity > 0
 
                     style: "pills"
-                    live: !rootContext.playbackPaused
+                    live: !rootContext.playbackPaused && !root.isLayoutTransitioning
                     
                     // Generate 5 sleek bars by picking distinct frequency bins
                     points: {
@@ -1017,8 +1022,9 @@ Item {
         width: Math.min(420, parent.width * 0.8)
         
         transform: Translate {
+            id: queuePanelTransform
             x: root.queueExpanded ? 0 : queuePanel.width + 50
-            Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
+            Behavior on x { NumberAnimation { id: queueXAnim; duration: 500; easing.type: Easing.OutBack; easing.overshoot: 0.8 } }
         }
 
         Item {
@@ -1037,7 +1043,7 @@ Item {
                 radius: 32
                 color: rootContext.backgroundColor
                 
-                layer.enabled: true
+                layer.enabled: !root.isLayoutTransitioning
                 layer.effect: MultiEffect {
                     shadowEnabled: true
                     shadowColor: Appearance.colors.colShadow

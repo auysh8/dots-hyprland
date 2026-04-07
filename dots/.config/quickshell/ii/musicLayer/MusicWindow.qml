@@ -120,7 +120,7 @@ Scope {
                 Item {
                     id: panelContent
                     anchors.fill: parent
-                    layer.enabled: true
+                    layer.enabled: !musicApp.isLayoutTransitioning
                     layer.effect: OpacityMask {
                         maskSource: Rectangle {
                             width: panelContent.width

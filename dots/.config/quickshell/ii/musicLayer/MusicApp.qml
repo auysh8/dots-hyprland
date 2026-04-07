@@ -20,6 +20,7 @@ FocusScope {
     
     property bool showMusic: true // Always true when instantiated as app, or controlled by parent
     property bool closing: false
+    property alias isLayoutTransitioning: playerView.isLayoutTransitioning
 
     Timer {
         id: closeFallbackTimer
@@ -848,7 +849,7 @@ FocusScope {
 
         Item {
             anchors.fill: parent
-            layer.enabled: true
+            layer.enabled: !playerView.isLayoutTransitioning
             layer.effect: OpacityMask {
                 maskSource: Rectangle {
                     width: musicPanel.width
@@ -868,13 +869,8 @@ FocusScope {
                     Layout.preferredWidth: navRail.expanded ? 150 : 56
                     Layout.fillHeight: true
                     Layout.margins: root.isAppMode ? 5 : 0
-                    
-                    Behavior on Layout.preferredWidth {
-                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                    }
-                    
-                    Item {
-                        anchors.fill: parent
+
+                    Item {                        anchors.fill: parent
                         
                         NavigationRail {
                             id: navRail

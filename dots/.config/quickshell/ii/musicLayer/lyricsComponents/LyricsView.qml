@@ -373,13 +373,19 @@ Item {
                 Item {
                     id: lyricMotionLayer
                     anchors.fill: parent
+                    layer.enabled: root.experimentalMode && !lyricItem.isCurrent && !root.isResizing
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blurMax: 15
+                        blur: lyricItem.distance === 1 ? 0.35 : 1.0
+                    }
                     y: root.experimentalMode
                         ? (lyricItem.baseExperimentalOffset + lyricItem.lineBounceYOffset)
                         : 0
                     Behavior on y {
                         enabled: root.experimentalMode && !root.isResizing
                         NumberAnimation {
-                            duration: 430
+                            duration: lyricItem.isCurrent ? 400 : (500 + lyricItem.distance * 60)
                             easing.type: Easing.OutCubic
                         }
                     }
@@ -475,9 +481,9 @@ Item {
                         }
                     
                         font.pixelSize: root.experimentalMode
-                            ? (lyricItem.isCurrent ? (root.isFullscreen ? 60 : 42) : (root.isFullscreen ? 46 : 32))
+                            ? (root.isFullscreen ? 46 : 32)
                             : (lyricItem.isCurrent ? (root.isFullscreen ? 42 : 26) : (root.isFullscreen ? 32 : 20))
-                        font.weight: lyricItem.isCurrent ? Font.Bold : Font.Normal
+                        font.weight: Font.Bold
                         font.family: "Inter, Segoe UI, sans-serif"
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone
@@ -495,14 +501,8 @@ Item {
                             return 0.3
                         }
                     
-                        Behavior on opacity {
-                            enabled: !root.isResizing
-                            NumberAnimation { duration: root.experimentalMode ? 560 : 400; easing.type: root.experimentalMode ? Easing.OutQuad : Easing.InOutQuad }
-                        }
-                        Behavior on font.pixelSize {
-                            enabled: !root.isResizing
-                            NumberAnimation { duration: root.experimentalMode ? 560 : 350; easing.type: root.experimentalMode ? Easing.OutBack : Easing.OutCubic; easing.overshoot: root.experimentalMode ? 1.14 : 1.0 }
-                        }
+                        Behavior on opacity { NumberAnimation { duration: root.experimentalMode ? 560 : 400; easing.type: root.experimentalMode ? Easing.OutQuad : Easing.InOutQuad } }
+                        Behavior on font.pixelSize { NumberAnimation { duration: root.experimentalMode ? 560 : 350; easing.type: root.experimentalMode ? Easing.OutBack : Easing.OutCubic; easing.overshoot: root.experimentalMode ? 1.14 : 1.0 } }
                     
                         visible: !(root.experimentalMode && lyricItem.isCurrent && hasWords)
                     }
@@ -522,7 +522,7 @@ Item {
                     
                         activeColor: root.experimentalMode ? root.contentColor : root.pillContentColor
                         inactiveColor: ColorUtils.applyAlpha(root.contentColor, root.experimentalMode ? 0.2 : 0.3)
-                        fontSize: root.experimentalMode ? (root.isFullscreen ? 60 : 42) : (root.isFullscreen ? 42 : 26)
+                        fontSize: root.experimentalMode ? (root.isFullscreen ? 46 : 32) : (root.isFullscreen ? 42 : 26)
                     
                         visible: root.experimentalMode && lyricItem.isCurrent && lyricText.hasWords
                         z: 3

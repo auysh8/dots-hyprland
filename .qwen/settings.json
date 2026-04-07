@@ -11,7 +11,11 @@
       "Bash(git stash)",
       "Bash(git revert *)",
       "WebFetch(patch-diff.githubusercontent.com)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(git show *)",
+      "Bash(mv *)"
     ]
   },
   "$version": 3
