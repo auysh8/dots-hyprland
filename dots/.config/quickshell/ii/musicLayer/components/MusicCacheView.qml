@@ -23,6 +23,16 @@ Item {
     property real canvasVideoSizeMb: 0
     property real totalSizeMb: 0
     property real maxSizeMb: 500
+
+    anchors.fill: parent
+
+    Behavior on width {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
     property real utilization: 0
     property bool loading: true
 

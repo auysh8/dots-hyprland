@@ -23,6 +23,14 @@ StyledFlickable {
     contentHeight: artistContainer.implicitHeight + 32
     pressDelay: 150
 
+    Behavior on width {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
+
     onDraggingChanged: {
         if (!dragging && contentY <= -100 && !rootContext.refreshing && !rootContext.isLoading) {
             rootContext.refreshing = true

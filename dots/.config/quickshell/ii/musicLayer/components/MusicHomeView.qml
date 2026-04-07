@@ -11,7 +11,7 @@ StyledFlickable {
     property var rootContext
     property string queryText: ""
     readonly property var flickable: root
-    
+
     readonly property color artPlaceholderColor: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
     readonly property color cardHoverColor: rootContext ? ColorUtils.transparentize(rootContext.pillColor, 0.4) : "transparent"
 
@@ -24,6 +24,14 @@ StyledFlickable {
     contentWidth: width
     flickableDirection: Flickable.VerticalFlick
     pressDelay: 150
+
+    Behavior on width {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
 
     property bool show: queryText.length === 0 && rootContext && rootContext.currentView === "home" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0

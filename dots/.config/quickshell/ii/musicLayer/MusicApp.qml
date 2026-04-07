@@ -961,9 +961,17 @@ FocusScope {
                 // Main Content
                 Item {
                     id: mainContentShell
-                    Layout.fillWidth: true
                     Layout.fillHeight: true
-                    
+                    Layout.preferredWidth: parent.width - navRailWrapper.Layout.preferredWidth - (root.isAppMode ? 16 : 0)
+
+                    Behavior on Layout.preferredWidth {
+                        NumberAnimation {
+                            duration: Appearance.animation.elementMoveFast.duration
+                            easing.type: Appearance.animation.elementMoveFast.type
+                            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                        }
+                    }
+
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 4
@@ -974,7 +982,15 @@ FocusScope {
                             z: 999
                             Layout.fillWidth: true
                             Layout.preferredHeight: 80
-                            
+
+                            Behavior on Layout.preferredWidth {
+                                NumberAnimation {
+                                    duration: Appearance.animation.elementMoveFast.duration
+                                    easing.type: Appearance.animation.elementMoveFast.type
+                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                }
+                            }
+
                             Rectangle {
                                 id: searchContainer
                                 anchors.centerIn: parent
@@ -983,6 +999,14 @@ FocusScope {
                                 radius: 24
                                 color: root.pillColor
                                 border.width: 0
+
+                                Behavior on width {
+                                    NumberAnimation {
+                                        duration: Appearance.animation.elementMoveFast.duration
+                                        easing.type: Appearance.animation.elementMoveFast.type
+                                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                    }
+                                }
                                 
                                 RowLayout {
                                     anchors.fill: parent
@@ -1154,6 +1178,14 @@ FocusScope {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
+
+                            Behavior on Layout.preferredWidth {
+                                NumberAnimation {
+                                    duration: Appearance.animation.elementMoveFast.duration
+                                    easing.type: Appearance.animation.elementMoveFast.type
+                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                }
+                            }
 
 
                             MusicSearchView {

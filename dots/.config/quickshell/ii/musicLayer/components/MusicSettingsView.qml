@@ -13,6 +13,16 @@ Item {
 
     signal navigateTo(string view)
 
+    anchors.fill: parent
+
+    Behavior on width {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 24

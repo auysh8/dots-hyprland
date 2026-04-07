@@ -26,7 +26,15 @@ StyledFlickable {
     contentHeight: libraryLayout.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32)
     contentWidth: width
     pressDelay: 150
-    
+
+    Behavior on width {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
+
     // The dummy array was removed.
 
     ColumnLayout {

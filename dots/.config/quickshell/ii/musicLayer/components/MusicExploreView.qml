@@ -28,6 +28,14 @@ StyledFlickable {
     contentWidth: width
     pressDelay: 150
 
+    Behavior on width {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
+
     function handlePlayTrack(trackData) {
         if (!trackData || !trackData.videoId) return;
         if (!rootContext) return;

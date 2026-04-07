@@ -17,6 +17,14 @@ StyledFlickable {
     contentWidth: width
     pressDelay: 150
 
+    Behavior on width {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
+
     property bool show: queryText.length > 0 && rootContext && rootContext.currentView !== "playlist" && rootContext.currentView !== "artist" && rootContext.currentView !== "artist_items" && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0

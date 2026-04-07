@@ -28,6 +28,14 @@ StyledFlickable {
     // a bit more time to win before card taps are recognized.
     pressDelay: 250
 
+    Behavior on width {
+        NumberAnimation {
+            duration: Appearance.animation.elementMoveFast.duration
+            easing.type: Appearance.animation.elementMoveFast.type
+            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+        }
+    }
+
     ColumnLayout {
         id: itemsContainer
         width: parent.width
