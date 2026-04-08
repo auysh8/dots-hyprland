@@ -124,43 +124,72 @@ Item {
     PopupWindow {
         id: previewPopup
         property var appTopLevel: root.lastHoveredButton?.appToplevel
-        property bool allPreviewsReady: false
-        Connections {
-            target: root
-            function onLastHoveredButtonChanged() {
-                previewPopup.allPreviewsReady = false; // Reset readiness when the hovered button changes
-            }
-        }
+        property bool previewsLoaded: false
+
         function updatePreviewReadiness() {
+            let readyCount = 0;
+            const expectedCount = previewPopup.appTopLevel?.toplevels?.length ?? 0;
             for(var i = 0; i < previewRowLayout.children.length; i++) {
                 const view = previewRowLayout.children[i];
-                if (view.hasContent === false) {
-                    allPreviewsReady = false;
-                    return;
+                if (view.hasContent !== undefined && view.hasContent) {
+                    readyCount++;
                 }
             }
-            allPreviewsReady = true;
+            
+            if (expectedCount > 0 && readyCount === expectedCount) {
+                previewsLoaded = true;
+            }
         }
+
+        onAppTopLevelChanged: {
+            previewsLoaded = false;
+        }
+
+        Connections {
+            target: root
+            function onButtonHoveredChanged() {
+                if (!root.buttonHovered && !popupMouseArea.containsMouse) {
+                    previewsLoaded = false;
+                }
+            }
+        }
+
         property bool shouldShow: {
             if (root.dragging) return false;
-            const hoverConditions = (popupMouseArea.containsMouse || root.buttonHovered)
-            return hoverConditions && allPreviewsReady;
+            const expectedCount = previewPopup.appTopLevel?.toplevels?.length ?? 0;
+            const hoverConditions = (popupMouseArea.containsMouse || root.buttonHovered);
+            return hoverConditions && expectedCount > 0;
         }
+        
         property bool show: false
 
         onShouldShowChanged: {
             if (shouldShow) {
-                // show = true;
-                updateTimer.restart();
+                if (previewsLoaded) {
+                    previewPopup.show = true;
+                } else {
+                    updateTimer.restart();
+                }
             } else {
-                updateTimer.restart();
+                updateTimer.stop();
+                previewPopup.show = false;
             }
         }
+
+        onPreviewsLoadedChanged: {
+            if (previewsLoaded && shouldShow) {
+                updateTimer.stop();
+                previewPopup.show = true;
+            }
+        }
+
         Timer {
             id: updateTimer
-            interval: 100
+            interval: 80
             onTriggered: {
-                previewPopup.show = previewPopup.shouldShow
+                if (previewPopup.shouldShow) {
+                    previewPopup.show = true;
+                }
             }
         }
         anchor {
@@ -226,6 +255,7 @@ Item {
                         RippleButton {
                             id: windowButton
                             required property var modelData
+                            property bool hasContent: screencopyView.hasContent
                             padding: 0
                             middleClickAction: () => {
                                 windowButton.modelData?.close();
@@ -277,6 +307,9 @@ Item {
                                     paintCursor: true
                                     constraintSize: Qt.size(root.maxWindowPreviewWidth, root.maxWindowPreviewHeight)
                                     onHasContentChanged: {
+                                        previewPopup.updatePreviewReadiness();
+                                    }
+                                    Component.onCompleted: {
                                         previewPopup.updatePreviewReadiness();
                                     }
                                     layer.enabled: true

@@ -536,7 +536,7 @@ Item {
                     opacity: bgLayer.canvasReady ? 1.0 : 0.0
                     Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
 
-                    layer.enabled: opacity > 0 && !root.isLayoutTransitioning
+                    layer.enabled: opacity > 0 && !root.isWindowTransitioning
                     layer.effect: OpacityMask {
                         maskSource: Rectangle {
                             width: canvasClip.width
