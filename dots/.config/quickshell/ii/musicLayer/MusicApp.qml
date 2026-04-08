@@ -21,6 +21,7 @@ FocusScope {
     property bool showMusic: true // Always true when instantiated as app, or controlled by parent
     property bool closing: false
     property alias isLayoutTransitioning: playerView.isLayoutTransitioning
+    property alias isWindowTransitioning: playerView.isWindowTransitioning
 
     Timer {
         id: closeFallbackTimer
@@ -849,7 +850,7 @@ FocusScope {
 
         Item {
             anchors.fill: parent
-            layer.enabled: !playerView.isLayoutTransitioning
+            layer.enabled: !playerView.isWindowTransitioning
             layer.effect: OpacityMask {
                 maskSource: Rectangle {
                     width: musicPanel.width
@@ -961,16 +962,8 @@ FocusScope {
                 // Main Content
                 Item {
                     id: mainContentShell
+                    Layout.fillWidth: true
                     Layout.fillHeight: true
-                    Layout.preferredWidth: parent.width - navRailWrapper.Layout.preferredWidth - (root.isAppMode ? 16 : 0)
-
-                    Behavior on Layout.preferredWidth {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementMoveFast.duration
-                            easing.type: Appearance.animation.elementMoveFast.type
-                            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                        }
-                    }
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -982,14 +975,6 @@ FocusScope {
                             z: 999
                             Layout.fillWidth: true
                             Layout.preferredHeight: 80
-
-                            Behavior on Layout.preferredWidth {
-                                NumberAnimation {
-                                    duration: Appearance.animation.elementMoveFast.duration
-                                    easing.type: Appearance.animation.elementMoveFast.type
-                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                }
-                            }
 
                             Rectangle {
                                 id: searchContainer
@@ -1178,14 +1163,6 @@ FocusScope {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-
-                            Behavior on Layout.preferredWidth {
-                                NumberAnimation {
-                                    duration: Appearance.animation.elementMoveFast.duration
-                                    easing.type: Appearance.animation.elementMoveFast.type
-                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                }
-                            }
 
 
                             MusicSearchView {

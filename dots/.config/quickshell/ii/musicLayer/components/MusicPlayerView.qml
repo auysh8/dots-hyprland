@@ -27,7 +27,8 @@ Item {
     property bool isLyricsViewTransitioning: lyricsScaleAnim.running || lyricsOpacityAnim.running
     property bool isQueueTransitioning: queueXAnim.running
 
-    property bool isLayoutTransitioning: rootScaleAnim.running || rootOpacityAnim.running || isMainViewTransitioning || isLyricsViewTransitioning || isQueueTransitioning
+    property bool isWindowTransitioning: rootScaleAnim.running || rootOpacityAnim.running
+    property bool isLayoutTransitioning: isWindowTransitioning || isMainViewTransitioning || isLyricsViewTransitioning || isQueueTransitioning
 
     property real currentRadius: 32
 
@@ -131,6 +132,11 @@ Item {
     }
 
     property bool elementsVisible: false
+    onElementsVisibleChanged: {
+        if (bgLayer && typeof bgLayer.updateCanvasPlayback === "function") {
+            bgLayer.updateCanvasPlayback()
+        }
+    }
 
     Timer {
         id: fadeInTimer
@@ -160,7 +166,7 @@ Item {
             anchors.fill: parent
             visible: root.show
             
-            layer.enabled: !root.isLayoutTransitioning
+            layer.enabled: !root.isWindowTransitioning
             layer.effect: OpacityMask {
                 maskSource: Rectangle {
                     width: fluidMeshMaskWrapper.width
@@ -174,12 +180,27 @@ Item {
                 anchors.fill: parent
                 // clip is not strictly needed since we are using OpacityMask on the parent
                 
+                property real bassAmplitude: {
+                    if (!root.show || root.isLayoutTransitioning || !rootContext || rootContext.playbackPaused) return 0.0;
+                    let src = rootContext.visualizerPoints;
+                    if (!src || src.length < 3) return 0.0;
+                    // Average the first 3 bins for bass, normalize to 0..1 (assuming max is around 500)
+                    let bass = (src[0] + src[1] + src[2]) / 3.0;
+                    return Math.min(1.0, bass / 400.0); // Smoother normalization
+                }
+                
+                Behavior on bassAmplitude {
+                    NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
+                }
+
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     blurEnabled: true
                     blurMax: 120
                     blur: 1.0
-                    saturation: 0.6
+                    saturation: 0.6 + (fluidMeshContainer.bassAmplitude * 0.2)
+                    brightness: 0.0 + (fluidMeshContainer.bassAmplitude * 0.08)
+                    contrast: 0.0 + (fluidMeshContainer.bassAmplitude * 0.05)
                 }
 
                 property bool animateBlobs: root.show && rootContext && !rootContext.playbackPaused && !root.isLayoutTransitioning
@@ -195,13 +216,13 @@ Item {
                 y: parent.height * 0.1
                 
                 SequentialAnimation on x {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: -parent.width * 0.2; duration: 15000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.width * 0.3; duration: 18000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.width * 0.1; duration: 16000; easing.type: Easing.InOutSine }
                 }
                 SequentialAnimation on y {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: parent.height * 0.4; duration: 17000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -parent.height * 0.3; duration: 14000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.height * 0.1; duration: 16000; easing.type: Easing.InOutSine }
@@ -219,19 +240,19 @@ Item {
                 y: parent.height * 0.5
                 
                 SequentialAnimation on x {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: parent.width * 0.6; duration: 20000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -parent.width * 0.4; duration: 16000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.width * 0.2; duration: 18000; easing.type: Easing.InOutSine }
                 }
                 SequentialAnimation on y {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: -parent.height * 0.2; duration: 15000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.height * 0.7; duration: 19000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.height * 0.5; duration: 17000; easing.type: Easing.InOutSine }
                 }
                 SequentialAnimation on rotation {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { from: 0; to: 360; duration: 30000 }
                 }
             }
@@ -247,19 +268,19 @@ Item {
                 y: parent.height * 0.2
                 
                 SequentialAnimation on x {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: parent.width * 0.5; duration: 14000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.width * 0.1; duration: 18000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -parent.width * 0.3; duration: 16000; easing.type: Easing.InOutSine }
                 }
                 SequentialAnimation on y {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: parent.height * 0.8; duration: 17000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.height * 0.1; duration: 15000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.height * 0.2; duration: 19000; easing.type: Easing.InOutSine }
                 }
                 SequentialAnimation on rotation {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { from: 360; to: 0; duration: 25000 }
                 }
             }
@@ -275,13 +296,13 @@ Item {
                 y: -parent.height * 0.2
                 
                 SequentialAnimation on x {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: -parent.width * 0.1; duration: 18000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.width * 0.7; duration: 16000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.width * 0.5; duration: 15000; easing.type: Easing.InOutSine }
                 }
                 SequentialAnimation on y {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: parent.height * 0.6; duration: 14000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.height * 0.2; duration: 19000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -parent.height * 0.2; duration: 17000; easing.type: Easing.InOutSine }
@@ -299,13 +320,13 @@ Item {
                 y: parent.height * 0.6
                 
                 SequentialAnimation on x {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: parent.width * 0.4; duration: 19000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -parent.width * 0.5; duration: 15000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -parent.width * 0.2; duration: 18000; easing.type: Easing.InOutSine }
                 }
                 SequentialAnimation on y {
-                    running: fluidMeshContainer.animateBlobs; loops: Animation.Infinite
+                    running: true; paused: !fluidMeshContainer.animateBlobs; loops: Animation.Infinite
                     NumberAnimation { to: -parent.height * 0.1; duration: 20000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.height * 0.8; duration: 16000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: parent.height * 0.6; duration: 19000; easing.type: Easing.InOutSine }
