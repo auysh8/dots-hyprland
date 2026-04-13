@@ -49,8 +49,13 @@ Variants {
             return enabled && sensitiveWallpaper && sensitiveNetwork;
         }
         readonly property real parallaxRation: Config.options.background.parallax.workspaceZoom
+        readonly property bool workspaceParallaxEnabled: Config.options.background.parallax.enableWorkspace
+        readonly property bool sidebarParallaxEnabled: Config.options.background.parallax.enableSidebar
+        readonly property bool backgroundParallaxEnabled: workspaceParallaxEnabled || sidebarParallaxEnabled
+        readonly property real minimumParallaxRatio: 1.07
+        readonly property real effectiveParallaxRatio: backgroundParallaxEnabled ? Math.max(parallaxRation, minimumParallaxRatio) : parallaxRation
         property real minSuitableScale: 1 // Some reasonable init, to be updated
-        property real effectiveWallpaperScale: minSuitableScale * parallaxRation
+        property real effectiveWallpaperScale: minSuitableScale * effectiveParallaxRatio
         property int wallpaperWidth: modelData.width // Some reasonable init value, to be updated
         property int wallpaperHeight: modelData.height // Some reasonable init value, to be updated
         property real scaledWallpaperWidth: wallpaperWidth * effectiveWallpaperScale
@@ -148,10 +153,10 @@ Variants {
 
                 property real usedFractionX: {
                     let usedFraction = middleFraction;
-                    if (Config.options.background.parallax.enableWorkspace && !bgRoot.verticalParallax) {
+                    if (bgRoot.workspaceParallaxEnabled && !bgRoot.verticalParallax) {
                         usedFraction = fraction;
                     }
-                    if (Config.options.background.parallax.enableSidebar) {
+                    if (bgRoot.sidebarParallaxEnabled) {
                         let sidebarFraction = bgRoot.parallaxRation / bgRoot.workspaceChunkSize / 2;
                         usedFraction += (sidebarFraction * GlobalStates.sidebarRightOpen - sidebarFraction * GlobalStates.sidebarLeftOpen);
                     }
@@ -159,7 +164,7 @@ Variants {
                 }
                 property real usedFractionY: {
                     let usedFraction = middleFraction;
-                    if (Config.options.background.parallax.enableWorkspace && bgRoot.verticalParallax) {
+                    if (bgRoot.workspaceParallaxEnabled && bgRoot.verticalParallax) {
                         usedFraction = fraction;
                     }
                     return Math.max(0, Math.min(1, usedFraction));
@@ -234,7 +239,7 @@ Variants {
                 height: parent.height
                 readonly property real parallaxFactor: {
                     var f = Config.options.background.parallax.widgetsFactor;
-                    return f / bgRoot.parallaxRation;
+                    return f / bgRoot.effectiveParallaxRatio;
                 }
                 readonly property real baseWallpaperOffsetX: (bgRoot.screen.width - wallpaper.width) / 2
                 readonly property real baseWallpaperOffsetY: (bgRoot.screen.height - wallpaper.height) / 2
