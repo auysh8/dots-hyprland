@@ -11,8 +11,8 @@ Rectangle {
     property bool show: false
     property bool animationsEnabled: false
     default property alias data: contentColumn.data
-
     property bool contentReady: false
+    property alias contentData: contentColumn.data
     
     Timer {
         id: delayTimer
