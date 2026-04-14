@@ -107,6 +107,8 @@ FocusScope {
     property bool refreshing: false
     property var currentTrack: null
     property string currentCanvasUrl: ""  // Animated canvas art URL for the current track
+    property string currentMusicVideoUrl: ""
+    property bool showVideoInThumbnail: true
     property string currentOutputDevice: "Unknown"
     property ListModel currentTrackCredits: ListModel {}
     property bool currentTrackLiked: false
@@ -114,8 +116,8 @@ FocusScope {
     property bool playbackPaused: false
     property ListModel queueList: ListModel {}
     property bool isQueueLoading: false
-    property int trackPositionSec: 0
-    property int trackDurationSec: 0
+    property real trackPositionSec: 0.0
+    property real trackDurationSec: 0.0
     property int repeatMode: 0  // 0: Off, 1: Repeat All, 2: Repeat One
     property bool shuffleToggled: false
     property bool radioTrayVisible: false
@@ -739,11 +741,19 @@ FocusScope {
                     } else if (data.type === "playback_started") {
                         root.isTrackLoading = false
                         root.currentCanvasUrl = ""  // Reset; canvas_url event will arrive separately
+                        root.currentMusicVideoUrl = "" // Reset; video_stream event will arrive if triggered
                         root.currentTrack = root.buildTrackState(data)
                         root.currentTrackLiked = data.isLiked || false
                         root.playbackPaused = false
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
+                        if (root.showVideoInThumbnail && root.currentTrack && root.currentTrack.isVideoTrack) {
+                            root.sendCommand({"command": "get_video_stream", "videoId": root.currentTrack.videoId})
+                        }
+                    } else if (data.type === "video_stream") {
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
+                            root.currentMusicVideoUrl = data.url || ""
+                        }
                     } else if (data.type === "art_downloaded") {
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentTrack = root.buildTrackState({

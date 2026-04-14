@@ -162,6 +162,23 @@ class Player:
             token = self._playback_token
         threading.Thread(target=self._play_task, args=(video_id, title, artist, art_url, token, is_auto, artist_id, album_id), daemon=True).start()
 
+    def _fetch_video_stream(self, video_id):
+        self.log(f"Fetching video stream for: {video_id}")
+        try:
+            ytdlp = self._resolve_ytdlp_path()
+            cmd = [
+                ytdlp, "-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best", "-g", "--no-warnings",
+                f"https://music.youtube.com/watch?v={video_id}"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
+            urls = result.stdout.strip().split("\n")
+            if urls:
+                video_url = urls[0]
+                self.send_response({"type": "video_stream", "videoId": video_id, "url": video_url})
+        except Exception as e:
+            self.log(f"Error fetching video stream: {e}")
+            self.send_response({"type": "video_stream", "videoId": video_id, "url": ""})
+
     def _prefetch_stream_url(self, video_id, title=""):
         # Check cache with TTL — HLS URLs are valid ~6 hours
         with self._state_lock:
@@ -605,9 +622,9 @@ class Player:
                                     self.mpris.set_status("Playing")
 
                     if pos is not None:
-                        self.send_response({"type": "playback_progress", "positionSec": int(float(pos))})
+                        self.send_response({"type": "playback_progress", "positionSec": float(pos)})
                         self._lyrics_engine.set_position(float(pos))
-                        
+
                         if dur is not None:
                             dur_int = int(float(dur))
                             if dur_int != last_dur and dur_int > 0:

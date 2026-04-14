@@ -73,10 +73,25 @@ Item {
 
         function onTrackPositionSecChanged() {
             if (!rootContext) return
-            const realPos = rootContext.trackPositionSec || 0
+            const realPos = rootContext.trackPositionSec || 0.0
             const diff = Math.abs(root.inlineLyricsPosition - realPos)
             if (diff > root.maxLyricsPositionDrift || rootContext.playbackPaused) {
                 root.inlineLyricsPosition = realPos
+            }
+
+            if (rootContext.showVideoInThumbnail && typeof canvasPlayer !== "undefined" && canvasPlayer.playbackState === MediaPlayer.PlayingState) {
+                const playerPosSec = canvasPlayer.position / 1000.0
+                const syncDiff = realPos - playerPosSec // Positive if video is behind audio
+
+                if (Math.abs(syncDiff) > 1.5) {
+                    canvasPlayer.position = realPos * 1000
+                } else if (syncDiff > 0.15) {
+                    canvasPlayer.playbackRate = 1.15
+                } else if (syncDiff < -0.15) {
+                    canvasPlayer.playbackRate = 0.85
+                } else if (Math.abs(syncDiff) <= 0.05 && canvasPlayer.playbackRate !== 1.0) {
+                    canvasPlayer.playbackRate = 1.0
+                }
             }
         }
 
@@ -355,6 +370,9 @@ Item {
             id: canvasPlayer
             // Only set source if we have a valid non-empty URL
             source: {
+                if (rootContext && rootContext.showVideoInThumbnail && rootContext.currentMusicVideoUrl && rootContext.currentMusicVideoUrl.length > 0) {
+                    return rootContext.currentMusicVideoUrl
+                }
                 const url = rootContext ? rootContext.currentCanvasUrl : ""
                 return (url && url.length > 0 && url !== "about:blank") ? url : ""
             }
@@ -494,8 +512,10 @@ Item {
             readonly property bool preferLandscapeHero: !!rootContext
                 && !!rootContext.currentTrack
                 && !!rootContext.currentTrack.isVideoTrack
-                && ((rootContext.currentTrack.landscapeArtCandidates || []).length > 0)
-                && !bgLayer.canvasReady
+                && (
+                    (!bgLayer.canvasReady && (rootContext.currentTrack.landscapeArtCandidates || []).length > 0)
+                    || (rootContext.showVideoInThumbnail)
+                )
             on_TrackIdChanged: {
                 if (_trackId !== "") {
                     artAnim.restart()
@@ -587,6 +607,32 @@ Item {
                         id: canvasOutput
                         anchors.fill: parent
                         fillMode: VideoOutput.PreserveAspectCrop
+                    }
+                }
+
+                RippleButton {
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.margins: 12
+                    width: 44
+                    height: 44
+                    buttonRadius: 22
+                    visible: !!rootContext && !!rootContext.currentTrack && !!rootContext.currentTrack.isVideoTrack
+                    colBackground: ColorUtils.applyAlpha(Appearance.colors.colLayer0, 0.4)
+                    colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colLayer1Hover, 0.6)
+                    onClicked: {
+                        if (rootContext) {
+                            rootContext.showVideoInThumbnail = !rootContext.showVideoInThumbnail;
+                            if (rootContext.showVideoInThumbnail && !rootContext.currentMusicVideoUrl) {
+                                rootContext.sendCommand({"command": "get_video_stream", "videoId": rootContext.currentTrack.videoId});
+                            }
+                        }
+                    }
+                    contentItem: MaterialSymbol {
+                        text: (rootContext && rootContext.showVideoInThumbnail) ? "image" : "movie"
+                        iconSize: 24
+                        color: Appearance.colors.colOnLayer0
+                        anchors.centerIn: parent
                     }
                 }
             }
