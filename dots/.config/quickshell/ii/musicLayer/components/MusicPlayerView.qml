@@ -486,10 +486,16 @@ Item {
 
         // Large Cover Art
         Item {
+            id: artLayout
             Layout.fillWidth: true
             Layout.fillHeight: true
             
             property string _trackId: rootContext.currentTrack ? rootContext.currentTrack.videoId : ""
+            readonly property bool preferLandscapeHero: !!rootContext
+                && !!rootContext.currentTrack
+                && !!rootContext.currentTrack.isVideoTrack
+                && ((rootContext.currentTrack.landscapeArtCandidates || []).length > 0)
+                && !bgLayer.canvasReady
             on_TrackIdChanged: {
                 if (_trackId !== "") {
                     artAnim.restart()
@@ -506,11 +512,16 @@ Item {
 
             Rectangle {
                 id: artRect
-                width: Math.min(parent.width, parent.height) * 1.0
-                height: width
+                width: artLayout.preferLandscapeHero
+                    ? Math.min(parent.width * 0.96, parent.height * 1.45)
+                    : Math.min(parent.width, parent.height) * 1.0
+                height: artLayout.preferLandscapeHero ? (width * 9 / 16) : width
                 anchors.centerIn: parent
                 radius: 32
                 color: rootContext.surfaceColor
+
+                Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
+                Behavior on height { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
 
                 layer.enabled: !root.isLayoutTransitioning
                 layer.effect: MultiEffect {
@@ -522,10 +533,37 @@ Item {
                 }
 
                 RoundedImage {
+                    id: landscapeHero
+                    anchors.fill: parent
+                    radius: 32
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: true
+                    visible: !bgLayer.canvasReady && status === Image.Ready && currentSource !== ""
+
+                    property var candidateList: rootContext && rootContext.currentTrack
+                        ? (rootContext.currentTrack.landscapeArtCandidates || [])
+                        : []
+                    property int candidateIndex: 0
+                    property string currentSource: candidateIndex < candidateList.length ? candidateList[candidateIndex] : ""
+                    property string _candidateKey: (rootContext && rootContext.currentTrack ? rootContext.currentTrack.videoId : "")
+                        + "|" + candidateList.join("|")
+
+                    on_CandidateKeyChanged: candidateIndex = 0
+                    source: currentSource
+
+                    onStatusChanged: {
+                        if (status === Image.Error && candidateIndex < candidateList.length - 1) {
+                            candidateIndex += 1
+                        }
+                    }
+                }
+
+                RoundedImage {
                     anchors.fill: parent
                     source: rootContext.displayedArtFilePath || ""
                     fillMode: Image.PreserveAspectCrop
-                    visible: rootContext.displayedArtFilePath !== ""
+                    visible: !bgLayer.canvasReady && !landscapeHero.visible && rootContext.displayedArtFilePath !== ""
                     radius: 32
                 }
                 

@@ -288,15 +288,32 @@ FocusScope {
         root.applyVisibleSongResults()
     }
 
+    function buildTrackState(payload) {
+        return {
+            videoId: payload.videoId || "",
+            title: payload.title || "",
+            artist: payload.artist || "",
+            artUrl: payload.artUrl || "",
+            artLocalPath: payload.artLocalPath || "",
+            artistId: payload.artistId || "",
+            albumId: payload.albumId || "",
+            isVideoTrack: !!payload.isVideoTrack,
+            landscapeArtCandidates: payload.landscapeArtCandidates || []
+        }
+    }
+
     function playTrack(videoId, title, artist, artUrl, queueTracks, artistId, albumId) {
-        root.currentTrack = {
+        root.currentTrack = root.buildTrackState({
             videoId: videoId,
             title: title,
             artist: artist,
             artUrl: artUrl,
             artistId: artistId || "",
-            albumId: albumId || ""
-        }
+            albumId: albumId || "",
+            artLocalPath: "",
+            isVideoTrack: false,
+            landscapeArtCandidates: []
+        })
         root.isTrackLoading = true
         let msg = {
             "command": "play",
@@ -514,7 +531,9 @@ FocusScope {
     MediaArtColorContext {
         id: mediaContext
         activePlayer: root.currentTrack ? {
-            trackArtUrl: root.currentTrack.artUrl || ""
+            trackArtUrl: root.currentTrack.artLocalPath
+                ? ("file://" + root.currentTrack.artLocalPath)
+                : (root.currentTrack.artUrl || "")
         } : null
     }
 
@@ -523,7 +542,8 @@ FocusScope {
     property string displayedArtFilePath: mediaContext.displayedArtFilePath
 
     // Check if we have a valid track playing (for color fallback)
-    readonly property bool _hasTrack: root.currentTrack !== null && root.currentTrack.artUrl !== ""
+    readonly property bool _hasTrack: root.currentTrack !== null
+        && ((root.currentTrack.artLocalPath || "") !== "" || (root.currentTrack.artUrl || "") !== "")
 
     // Direct pipeline from AdaptedMaterialScheme
     // For background/surfaces, we adapt the pure extracted color to the system's baseline lightness
@@ -715,29 +735,29 @@ FocusScope {
                         root.trackDurationSec = 0
                         root.currentCanvasUrl = ""  // Clear canvas on new track load
                         root.currentTrackCredits.clear() // Clear credits
-                        root.currentTrack = {
-                            videoId: data.videoId,
-                            title: data.title,
-                            artist: data.artist,
-                            artUrl: data.artUrl,
-                            artistId: data.artistId || "",
-                            albumId: data.albumId || ""
-                        }
+                        root.currentTrack = root.buildTrackState(data)
                     } else if (data.type === "playback_started") {
                         root.isTrackLoading = false
                         root.currentCanvasUrl = ""  // Reset; canvas_url event will arrive separately
-                        root.currentTrack = {
-                            videoId: data.videoId,
-                            title: data.title,
-                            artist: data.artist,
-                            artUrl: data.artUrl,
-                            artistId: data.artistId || "",
-                            albumId: data.albumId || ""
-                        }
+                        root.currentTrack = root.buildTrackState(data)
                         root.currentTrackLiked = data.isLiked || false
                         root.playbackPaused = false
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
+                    } else if (data.type === "art_downloaded") {
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
+                            root.currentTrack = root.buildTrackState({
+                                videoId: root.currentTrack.videoId,
+                                title: root.currentTrack.title,
+                                artist: root.currentTrack.artist,
+                                artUrl: root.currentTrack.artUrl,
+                                artLocalPath: data.path,
+                                artistId: root.currentTrack.artistId,
+                                albumId: root.currentTrack.albumId,
+                                isVideoTrack: root.currentTrack.isVideoTrack,
+                                landscapeArtCandidates: root.currentTrack.landscapeArtCandidates
+                            })
+                        }
                     } else if (data.type === "canvas_url") {
                         // Only apply if it matches the currently playing track
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {

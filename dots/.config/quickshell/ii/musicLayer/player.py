@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import json
 import os
-import re
 import signal
 import subprocess
 import sys
@@ -9,6 +8,12 @@ import threading
 import time
 from pathlib import Path
 from lyrics_fetcher import LyricsSyncEngine, fetch_lyrics
+from thumbnail_utils import (
+    get_landscape_thumbnail_candidates,
+    is_video_track,
+    iter_square_art_candidates,
+    normalize_square_art_url,
+)
 
 class Player:
     """Handles audio playback using mpv and track fetching using yt-dlp."""
@@ -116,11 +121,7 @@ class Player:
             album_id: Album browse ID
         """
         self.log(f"Playing: {title} by {artist} (artist_id={artist_id}, album_id={album_id})")
-        if art_url:
-            if "=w" in art_url and "-h" in art_url:
-                art_url = re.sub(r"=w\d+-h\d+", "=w544-h544", art_url)
-            elif "googleusercontent.com" in art_url and "=s" in art_url:
-                art_url = re.sub(r"=s\d+", "=s544", art_url)
+        art_url = normalize_square_art_url(art_url)
         self._push_play_stack(video_id)
         is_auto = getattr(self, "_is_auto_advancing", False)
         self._is_auto_advancing = False
@@ -145,7 +146,17 @@ class Player:
                 self.log("Queue cleared (manual standalone play)")
                 self.send_response({"type": "queue_updated", "queue": []})
         
-        self.send_response({"type": "track_loading", "videoId": video_id, "title": title, "artist": artist, "artistId": artist_id, "albumId": album_id, "artUrl": art_url})
+        self.send_response(
+            self._build_track_payload(
+                "track_loading",
+                video_id,
+                title,
+                artist,
+                art_url,
+                artist_id=artist_id,
+                album_id=album_id,
+            )
+        )
         with self._state_lock:
             self._playback_token += 1
             token = self._playback_token
@@ -230,6 +241,54 @@ class Player:
         finally:
             with self._download_lock:
                 self._active_downloads.discard(video_id)
+
+    def _download_best_art(self, art_url: str, video_id: str = ""):
+        if not art_url:
+            return None
+
+        import urllib.request
+
+        last_error = None
+        for candidate_url in iter_square_art_candidates(art_url):
+            try:
+                req = urllib.request.Request(candidate_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    status = getattr(response, "status", None) or response.getcode()
+                    if status != 200:
+                        continue
+
+                    content_type = response.headers.get("Content-Type", "")
+                    if content_type and not content_type.startswith("image/"):
+                        continue
+
+                    image_data = response.read()
+                    if len(image_data) < 1024:
+                        continue
+
+                    if candidate_url != art_url:
+                        self.log(f"Using upgraded thumbnail for {video_id or 'track'}: {candidate_url}")
+                    return image_data
+            except Exception as e:
+                last_error = e
+
+        if last_error:
+            raise last_error
+        return None
+
+    def _build_track_payload(self, event_type, video_id, title, artist, art_url, *, art_local_path="", artist_id="", album_id="", is_liked=False):
+        return {
+            "type": event_type,
+            "videoId": video_id,
+            "title": title,
+            "artist": artist,
+            "artistId": artist_id,
+            "albumId": album_id,
+            "artUrl": art_url,
+            "artLocalPath": art_local_path,
+            "isVideoTrack": is_video_track(video_id, art_url),
+            "landscapeArtCandidates": get_landscape_thumbnail_candidates(video_id, art_url),
+            "isLiked": is_liked,
+        }
 
     def _play_task(self, video_id, title, artist, art_url, token, is_auto=False, artist_id="", album_id=""):
         self.log(f"[PLAY_TASK] Starting for: {title} ({video_id}) token={token}")
@@ -360,10 +419,8 @@ class Player:
             def _deferred_art_download():
                 if not art_file_path and art_url:
                     try:
-                        import urllib.request
-                        req = urllib.request.Request(art_url, headers={"User-Agent": "Mozilla/5.0"})
-                        with urllib.request.urlopen(req, timeout=15) as response:
-                            cached_path = self.cache.cache_art(art_url, response.read())
+                        image_data = self._download_best_art(art_url, video_id)
+                        cached_path = self.cache.cache_art(art_url, image_data) if image_data else None
                         if cached_path:
                             self.send_response({"type": "art_downloaded", "videoId": video_id, "path": cached_path})
                             self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=cached_path, video_id=video_id, art_url=art_url)
@@ -393,7 +450,19 @@ class Player:
                     ).start()
                 threading.Thread(target=_deferred_audio_cache, daemon=True).start()
 
-            self.send_response({"type": "playback_started", "videoId": video_id, "title": title, "artist": artist, "artistId": artist_id, "albumId": album_id, "artUrl": art_url, "artLocalPath": art_file_path or "", "isLiked": False})
+            self.send_response(
+                self._build_track_payload(
+                    "playback_started",
+                    video_id,
+                    title,
+                    artist,
+                    art_url,
+                    art_local_path=art_file_path or "",
+                    artist_id=artist_id,
+                    album_id=album_id,
+                    is_liked=False,
+                )
+            )
 
             def _fetch_lyrics():
                 try:
@@ -741,12 +810,7 @@ class Player:
             art = last_thumb.get("url", "") if isinstance(last_thumb, dict) else ""
         else:
             art = ""
-        if art:
-            if "=w" in art and "-h" in art:
-                art = re.sub(r"=w\d+-h\d+", f"=w{size}-h{size}", art)
-            elif "googleusercontent.com" in art and "=s" in art:
-                art = re.sub(r"=s\d+", f"=s{size}", art)
-        return art
+        return normalize_square_art_url(art, size=size)
 
     def _extract_duration(self, item):
         for key in ("duration", "length", "durationText", "lengthText", "timeText"):
