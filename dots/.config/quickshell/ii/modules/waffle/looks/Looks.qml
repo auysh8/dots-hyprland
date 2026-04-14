@@ -148,9 +148,9 @@ Singleton {
     font: QtObject {
         id: font
         property QtObject family: QtObject {
-            property string ui: "Noto Sans"
+            property string ui: Appearance.font.family.main
         }
-        property QtObject weight: QtObject { // Noto is not Segoe, so we might use slightly different weights
+        property QtObject weight: QtObject {
             property int thin: Font.Normal
             property int regular: Font.Medium
             property int strong: Font.DemiBold
@@ -164,9 +164,7 @@ Singleton {
             property real xlarger: 17
         }
         property QtObject variableAxes: QtObject {
-            property var ui: ({
-                "wdth": 25
-            })
+            property var ui: Appearance.font.variableAxes.main
         }
     }
 

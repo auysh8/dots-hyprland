@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
+import qs.modules.common
 import qs.modules.common.functions
 
 Item {
@@ -259,7 +260,7 @@ Item {
                     wrapMode: Text.Wrap
                     elide: Text.ElideNone
                     font.weight: Font.Bold
-                    font.family: "Inter, Segoe UI, sans-serif"
+                    font.family: Appearance.font.family.reading
                     font.pixelSize: root.isFullscreen ? 46 : 32
                     opacity: lyricItem.baseOpacity
                     color: root.contentColor

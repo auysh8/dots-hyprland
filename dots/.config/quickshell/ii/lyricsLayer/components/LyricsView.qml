@@ -158,7 +158,7 @@ Item {
             color: root.secondaryContentColor
             font.pixelSize: 14
             font.weight: Font.Medium
-            font.family: "Inter, Segoe UI, sans-serif"
+            font.family: Appearance.font.family.main
             font.letterSpacing: 0.5
         }
     }
@@ -197,7 +197,7 @@ Item {
             color: root.secondaryContentColor
             opacity: 0.6
             font.pixelSize: 18
-            font.family: "Inter, Segoe UI, sans-serif"
+            font.family: Appearance.font.family.reading
             
             // Show if (Recognizing) OR (Lyrics Empty AND (Not Playing OR Loaded))
             visible: (root.resolvedLyricsCount === 0 && (!root.isPlaying || root.lyricsLoaded))
@@ -430,7 +430,7 @@ Item {
                     
                         font.pixelSize: lyricItem.isCurrent ? (root.isFullscreen ? 42 : 26) : (root.isFullscreen ? 32 : 20)
                         font.weight: lyricItem.isCurrent ? Font.Bold : Font.Normal
-                        font.family: "Inter, Segoe UI, sans-serif"
+                        font.family: Appearance.font.family.reading
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone
                     
@@ -492,7 +492,7 @@ Item {
                     color: root.pillContentColor
                     font.pixelSize: 14
                     font.weight: Font.Medium
-                    font.family: "Inter, Segoe UI, sans-serif"
+                    font.family: Appearance.font.family.main
                 }
             }
             

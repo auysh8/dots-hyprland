@@ -91,7 +91,7 @@ Scope {
                     Text {
                         visible: root.displayState === "popup"
                         renderType: Text.NativeRendering
-                        font.family: root.isBottomPopup ? "Iosevka Light" : "Iosevka Heavy"
+                        font.family: Common.Appearance.font.family.title
                         font.pointSize: root.isBottomPopup ? 19 : 14
                         font.bold: !root.isBottomPopup
                         text: root.title
@@ -105,7 +105,7 @@ Scope {
                     Text {
                         id: messageText
                         renderType: Text.NativeRendering
-                        font.family: root.isBottomPopup ? "Iosevka Heavy" : "Iosevka"
+                        font.family: Common.Appearance.font.family.main
                         font.pointSize: {
                             if (root.displayState === "indicator") return 16
                             if (root.isBottomPopup) return 21

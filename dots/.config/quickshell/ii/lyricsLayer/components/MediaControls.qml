@@ -116,7 +116,7 @@ ColumnLayout {
         color: root.contentColor
         font.pixelSize: isFullscreen ? 28 : 22
         font.weight: Font.Bold
-        font.family: "Inter, Segoe UI, sans-serif"
+        font.family: Appearance.font.family.title
         elide: Text.ElideRight
         maximumLineCount: 2
         wrapMode: Text.WordWrap
@@ -132,7 +132,7 @@ ColumnLayout {
         text: root.artLoading ? "..." : (root.displayArtist || "Unknown Artist")
         color: root.secondaryContentColor
         font.pixelSize: isFullscreen ? 20 : 16
-        font.family: "Inter, Segoe UI, sans-serif"
+        font.family: Appearance.font.family.main
         elide: Text.ElideRight
         opacity: root.artLoading ? 0.5 : 1.0
         Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -192,14 +192,14 @@ ColumnLayout {
                 text: StringUtils.friendlyTimeForSeconds(root.position)
                 color: root.secondaryContentColor
                 font.pixelSize: 13
-                font.family: "Inter, Segoe UI, sans-serif"
+                font.family: Appearance.font.family.main
             }
             Item { Layout.fillWidth: true }
             StyledText {
                 text: StringUtils.friendlyTimeForSeconds(root.duration)
                 color: root.secondaryContentColor
                 font.pixelSize: 13
-                font.family: "Inter, Segoe UI, sans-serif"
+                font.family: Appearance.font.family.main
             }
         }
 
