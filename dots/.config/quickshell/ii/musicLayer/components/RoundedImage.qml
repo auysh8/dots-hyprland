@@ -4,6 +4,8 @@ import Qt5Compat.GraphicalEffects
 Image {
     id: root
     property real radius: 0
+    asynchronous: true
+    cache: true
 
     layer.enabled: radius > 0
     layer.effect: OpacityMask {
