@@ -360,7 +360,18 @@ class Player:
             quality = "YouTube Music"
             is_tidal_stream = False
 
-            # Try Tidal if enabled
+            # Try Tidal if enabled — but not for YouTube video tracks.
+            # Video tracks (music videos, live performances) are identified by ytimg.com/vi/ art URLs.
+            # They don't exist on Tidal, so searching wastes time and often returns a wrong match.
+            if tidal_enabled and is_video_track(video_id, art_url):
+                self.log("[Tidal] Skipping '%s' — YouTube video track, not on Tidal" % title)
+                tidal_enabled = False
+                cached_audio_path = self.cache.get_audio_path(video_id)  # Restore normal cache lookup
+
+            # Track whether this is a YouTube video (music video) track.
+            # Used below to avoid bandwidth contention during active streaming.
+            _is_video_track = is_video_track(video_id, art_url)
+
             if tidal_enabled:
                 # Use Tidal-cached FLAC if available (skip network resolve)
                 if cached_audio_path:
@@ -386,8 +397,8 @@ class Player:
             if cached_audio_path:
                 self.log(f"Using cached audio: {title}")
                 stream_url = f"file://{cached_audio_path}"
-                # Use appropriate quality label for cached files
-                quality = "Tidal Lossless (Cached)" if cached_audio_path.endswith(".flac") else "Local Cache"
+                # Cached Tidal FLAC — same quality, just label as "Tidal Lossless"
+                quality = "Tidal Lossless" if cached_audio_path.endswith(".flac") else "Local Cache"
             elif stream_url:
                 # Tidal URL already set above
                 pass
@@ -558,15 +569,21 @@ class Player:
                             self.log(f"[Cache] Tidal FLAC cached: {title} ({size_mb:.1f}MB)")
                     except Exception as e:
                         self.log(f"[Cache] Tidal FLAC cache failed for {title}: {e}")
-                        if temp_path.exists():
-                            temp_path.unlink(missing_ok=True)
+                        try:
+                            if temp_path.exists():
+                                temp_path.unlink()
+                        except Exception:
+                            pass
                 threading.Thread(target=_cache_tidal_flac, daemon=True).start()
 
             elif is_live_stream and not is_tidal_stream:
-                # YouTube Music stream — download via yt-dlp for future offline playback
-                def _deferred_audio_cache():
-                    # Wait 30s — if user skips before then, abort
-                    time.sleep(30)
+                # YouTube Music stream — download via yt-dlp for future offline playback.
+                # For video tracks, wait much longer before downloading: starting a full yt-dlp download
+                # 30s into playback creates two simultaneous YouTube connections and causes audio stutter.
+                # Delay 3 minutes for video tracks so the download only kicks off near end of song.
+                _cache_delay = 180 if _is_video_track else 30
+                def _deferred_audio_cache(delay=_cache_delay):
+                    time.sleep(delay)
                     with self._state_lock:
                         if self._playback_token != token:
                             return  # Song was skipped

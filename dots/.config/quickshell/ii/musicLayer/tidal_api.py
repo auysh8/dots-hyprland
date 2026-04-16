@@ -39,7 +39,7 @@ class TidalClient:
         # Cache search results by (title, artist) to avoid re-searching on retry
         self._search_cache = {}
 
-    def _request(self, url, data=None, headers=None, method=None, timeout=12):
+    def _request(self, url, data=None, headers=None, method=None, timeout=8):
         """Helper to make HTTP requests with proper headers and decompression."""
         if headers is None:
             headers = {}
@@ -246,20 +246,22 @@ class TidalClient:
     def get_stream_via_proxy(self, proxy_base, track_id):
         """
         Fetch a stream URL for track_id using the proxy /track/ endpoint.
-        Uses the correct query-param format: /track/?id=<id>&quality=HI_RES_LOSSLESS
         Returns (stream_url, quality_label) or (None, None).
+
+        Quality order:
+          1. LOSSLESS → BTS JSON → direct CDN .flac URL → mpv plays natively ✓
+          2. HIGH → AAC fallback (only if the track has no lossless tier)
+
+        HI_RES_LOSSLESS is intentionally excluded — it returns MPEG-DASH XML
+        (segmented stream) which mpv cannot reliably play from a local manifest.
         """
-        # Quality preference order:
-        #   1. LOSSLESS → BTS JSON format → direct CDN .flac URL → mpv plays natively ✓
-        #   2. HI_RES_LOSSLESS → MPEG-DASH XML → temp .mpd file → mpv DASH demuxer
-        #   3. HIGH → fallback AAC
-        qualities = ["LOSSLESS", "HI_RES_LOSSLESS", "HIGH"]
+        qualities = ["LOSSLESS", "HIGH"]
 
         for quality in qualities:
             params = urllib.parse.urlencode({"id": track_id, "quality": quality})
             url = f"{proxy_base}/track/?{params}"
             try:
-                data = self._request(url, timeout=15)
+                data = self._request(url, timeout=12)  # slightly longer for stream fetch
                 if not data:
                     continue
                 stream_url, quality_label, raw = self._extract_stream_url_from_manifest(data)
@@ -267,8 +269,7 @@ class TidalClient:
                     return stream_url, quality_label
             except Exception as e:
                 self.log(f"[Tidal] /track/ {quality} via {proxy_base} failed: {e}")
-                # Don't retry different qualities on connection errors
-                break
+                break  # Don't retry different qualities on connection errors
 
         return None, None
 

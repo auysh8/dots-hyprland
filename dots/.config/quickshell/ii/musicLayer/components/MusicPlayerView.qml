@@ -83,13 +83,14 @@ Item {
                 const playerPosSec = canvasPlayer.position / 1000.0
                 const syncDiff = realPos - playerPosSec // Positive if video is behind audio
 
-                if (Math.abs(syncDiff) > 1.5) {
+                if (Math.abs(syncDiff) > 4.0) {
+                    // Hard seek only for large drift — buffers flush, so keep threshold high to avoid stutter
                     canvasPlayer.position = realPos * 1000
-                } else if (syncDiff > 0.15) {
-                    canvasPlayer.playbackRate = 1.15
-                } else if (syncDiff < -0.15) {
-                    canvasPlayer.playbackRate = 0.85
-                } else if (Math.abs(syncDiff) <= 0.05 && canvasPlayer.playbackRate !== 1.0) {
+                } else if (syncDiff > 0.5) {
+                    canvasPlayer.playbackRate = 1.08  // Gentle nudge forward
+                } else if (syncDiff < -0.5) {
+                    canvasPlayer.playbackRate = 0.92  // Gentle nudge back
+                } else if (Math.abs(syncDiff) <= 0.1 && canvasPlayer.playbackRate !== 1.0) {
                     canvasPlayer.playbackRate = 1.0
                 }
             }
