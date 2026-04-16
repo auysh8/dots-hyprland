@@ -8,6 +8,7 @@ Item {
     property var rootContext: null
     property color contentColor: rootContext ? rootContext.contentColor : "#ffffff"
     property color pillColor: rootContext ? rootContext.pillColor : "#cba6f7"
+    property color pillContentColor: rootContext ? rootContext.pillContentColor : "#ffffff"
     property color accentColor: rootContext ? (rootContext.loaderAccentColor || "#cba6f7") : "#cba6f7"
     property color subtleColor: Qt.rgba(contentColor.r, contentColor.g, contentColor.b, 0.45)
 
@@ -151,6 +152,64 @@ Item {
                 }
             }
             
+            // Tidal Lossless Toggle
+            RippleButton {
+                Layout.fillWidth: true
+                implicitHeight: 60
+                buttonRadius: 14
+                colBackground: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.05)
+                colBackgroundHover: Qt.rgba(root.contentColor.r, root.contentColor.g, root.contentColor.b, 0.10)
+                colRipple: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.20)
+                
+                onClicked: {
+                    if (root.rootContext) {
+                        root.rootContext.updateMusicSettings("tidal_lossless", !root.rootContext.musicSettingsTidalLossless)
+                    }
+                }
+                
+                contentItem: RowLayout {
+                    anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
+                    spacing: 14
+
+                    Rectangle {
+                        width: 36; height: 36
+                        radius: 10
+                        color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.15)
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "music_note"
+                            iconSize: 18
+                            color: root.accentColor
+                        }
+                    }
+
+                    ColumnLayout {
+                        spacing: 1
+                        StyledText {
+                            text: "Tidal Lossless"
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            color: root.contentColor
+                        }
+                        StyledText {
+                            text: root.rootContext && root.rootContext.musicSettingsTidalLossless ? "Prefer high-fidelity (FLAC) streams from Tidal" : "Standard streaming from YouTube Music"
+                            font.pixelSize: 11
+                            color: root.subtleColor
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    StyledSwitch {
+                        checked: root.rootContext ? root.rootContext.musicSettingsTidalLossless : false
+                        // Non-interactive so the parent RippleButton handles clicks
+                        enabled: false 
+                        activeColor: root.accentColor
+                        indicatorActiveColor: root.rootContext ? root.rootContext.pillContentColor : root.pillContentColor
+                    }
+                }
+            }
+
             // Audio Quality Toggle
             RippleButton {
                 Layout.fillWidth: true

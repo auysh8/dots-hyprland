@@ -115,6 +115,25 @@ Rectangle {
                     elide: Text.ElideRight
                 }
 
+                Rectangle {
+                    visible: rootContext && rootContext.currentTrack && rootContext.currentTrack.quality !== ""
+                    radius: 4
+                    color: rootContext ? rootContext.accentColor : Appearance.colors.colPrimary
+                    opacity: 0.2
+                    Layout.preferredWidth: miniQualityLabel.implicitWidth + 8
+                    Layout.preferredHeight: miniQualityLabel.implicitHeight + 2
+                    
+                    StyledText {
+                        id: miniQualityLabel
+                        anchors.centerIn: parent
+                        text: rootContext && rootContext.currentTrack ? rootContext.currentTrack.quality.toUpperCase() : ""
+                        font.pixelSize: 8
+                        font.weight: 900
+                        font.letterSpacing: 0.5
+                        color: rootContext ? rootContext.accentColor : Appearance.colors.colPrimary
+                    }
+                }
+
                 StyledText {
                     Layout.fillWidth: true
                     text: rootContext && rootContext.currentTrack ? rootContext.currentTrack.artist : ""

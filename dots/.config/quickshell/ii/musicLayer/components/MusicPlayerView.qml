@@ -679,6 +679,26 @@ Item {
                         horizontalAlignment: Text.AlignLeft
                     }
 
+                    // Quality Badge
+                    Rectangle {
+                        visible: rootContext.currentTrack && rootContext.currentTrack.quality !== ""
+                        radius: 6
+                        color: rootContext.accentColor
+                        opacity: 0.15
+                        Layout.preferredWidth: qualityLabel.implicitWidth + 12
+                        Layout.preferredHeight: qualityLabel.implicitHeight + 4
+                        
+                        StyledText {
+                            id: qualityLabel
+                            anchors.centerIn: parent
+                            text: rootContext.currentTrack ? rootContext.currentTrack.quality.toUpperCase() : ""
+                            font.pixelSize: 10
+                            font.weight: 900
+                            font.letterSpacing: 1
+                            color: rootContext.accentColor
+                        }
+                    }
+
                     StyledText {
                         Layout.fillWidth: true
                         text: rootContext.currentTrack ? rootContext.currentTrack.artist : ""
@@ -1080,6 +1100,26 @@ Item {
                         color: rootContext.contentColor
                         elide: Text.ElideRight
                     }
+                    
+                    Rectangle {
+                        visible: rootContext.currentTrack && rootContext.currentTrack.quality !== ""
+                        radius: 4
+                        color: rootContext.accentColor
+                        opacity: 0.15
+                        Layout.preferredWidth: miniQualityLabelView.implicitWidth + 8
+                        Layout.preferredHeight: miniQualityLabelView.implicitHeight + 2
+                        
+                        StyledText {
+                            id: miniQualityLabelView
+                            anchors.centerIn: parent
+                            text: rootContext.currentTrack ? rootContext.currentTrack.quality.toUpperCase() : ""
+                            font.pixelSize: 8
+                            font.weight: 900
+                            font.letterSpacing: 0.5
+                            color: rootContext.accentColor
+                        }
+                    }
+
                     StyledText {
                         Layout.fillWidth: true
                         text: rootContext.currentTrack ? rootContext.currentTrack.artist : ""

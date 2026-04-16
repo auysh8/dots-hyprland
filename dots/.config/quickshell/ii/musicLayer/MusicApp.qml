@@ -195,6 +195,7 @@ FocusScope {
     // Settings State
     property real musicSettingsCacheLimit: 500
     property bool musicSettingsHighQuality: true
+    property bool musicSettingsTidalLossless: false
     property bool musicSettingsExperimentalLyrics: false
 
     function updateMusicSettings(key, value) {
@@ -300,7 +301,8 @@ FocusScope {
             artistId: payload.artistId || "",
             albumId: payload.albumId || "",
             isVideoTrack: !!payload.isVideoTrack,
-            landscapeArtCandidates: payload.landscapeArtCandidates || []
+            landscapeArtCandidates: payload.landscapeArtCandidates || [],
+            quality: payload.quality || ""
         }
     }
 
@@ -314,7 +316,8 @@ FocusScope {
             albumId: albumId || "",
             artLocalPath: "",
             isVideoTrack: false,
-            landscapeArtCandidates: []
+            landscapeArtCandidates: [],
+            quality: root.musicSettingsTidalLossless ? "Checking Tidal..." : "YouTube Music"
         })
         root.isTrackLoading = true
         let msg = {
@@ -765,7 +768,8 @@ FocusScope {
                                 artistId: root.currentTrack.artistId,
                                 albumId: root.currentTrack.albumId,
                                 isVideoTrack: root.currentTrack.isVideoTrack,
-                                landscapeArtCandidates: root.currentTrack.landscapeArtCandidates
+                                landscapeArtCandidates: root.currentTrack.landscapeArtCandidates,
+                                quality: root.currentTrack.quality
                             })
                         }
                     } else if (data.type === "canvas_url") {
@@ -814,6 +818,7 @@ FocusScope {
                     } else if (data.type === "settings_info") {
                         if (data.max_cache_size_mb !== undefined) root.musicSettingsCacheLimit = data.max_cache_size_mb
                         if (data.high_audio_quality !== undefined) root.musicSettingsHighQuality = data.high_audio_quality
+                        if (data.tidal_lossless !== undefined) root.musicSettingsTidalLossless = data.tidal_lossless
                         if (data.experimental_lyrics !== undefined) root.musicSettingsExperimentalLyrics = data.experimental_lyrics
                     } else if (data.type === "account_info") {
                         if (data.accountName) root.accountName = data.accountName

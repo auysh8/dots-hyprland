@@ -19,6 +19,7 @@ class MusicBackend:
         self.settings = {
             "max_cache_size_mb": 500.0,
             "high_audio_quality": True,
+            "tidal_lossless": False,
             "experimental_lyrics": False
         }
         self._load_settings()
@@ -349,6 +350,7 @@ class MusicBackend:
             artist = getattr(self.player, "_current_artist", "")
             art = getattr(self.player, "_current_art", "")
             art_url = getattr(self.player, "_current_art_url", "")
+            quality = getattr(self.player, "_current_quality", "YouTube Music")
 
         status = "stopped"
         if self.player.mpv_process:
@@ -365,7 +367,8 @@ class MusicBackend:
             "title": title,
             "artist": artist,
             "artLocalPath": art,
-            "artUrl": art_url
+            "artUrl": art_url,
+            "quality": quality
         })
         self.send_response({"type": "queue_update", "queue": self.player._current_queue})
 
