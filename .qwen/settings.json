@@ -8,7 +8,9 @@
       "Bash(qs *)",
       "Bash(killall *)",
       "Bash(sleep *)",
-      "Bash(git show *)"
+      "Bash(git show *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
     ]
   },
   "$version": 3

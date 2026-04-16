@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import Qt5Compat.GraphicalEffects
 import QtQuick
 import QtQuick.Controls
@@ -17,70 +18,27 @@ Item {
     property real windowControlsHeight: 30
     property real buttonPadding: 5
 
-    property Item lastHoveredButton
+    property Item lastHoveredButton: null
     property bool buttonHovered: false
     property bool requestDockShow: previewPopup.show || contextMenu.isOpen
 
-    // Drag-to-reorder state
-    property bool dragging: false
-    property bool _reordering: false
-    property bool _pendingReorderReset: false
-    property bool _suppressTranslateAnim: false
-    property int dragSourceIndex: -1
-    property real dragCursorX: 0
-    property real dragStartCursorX: 0
-    property real slotWidth: 0
-    property int dragTargetIndex: {
-        if (!dragging || slotWidth <= 0) return dragSourceIndex;
-        var delta = dragCursorX - dragStartCursorX;
-        var slots = Math.round(delta / slotWidth);
-        var pinnedCount = Config.options.dock.pinnedApps.length;
-        return Math.max(0, Math.min(dragSourceIndex + slots, pinnedCount - 1));
-    }
+    Layout.fillHeight: true
+    Layout.topMargin: Appearance.sizes.hyprlandGapsOut
+    implicitWidth: listView.implicitWidth
 
-    function finishDrag() {
-        _suppressTranslateAnim = true;
-        if (dragging && dragSourceIndex !== dragTargetIndex) {
-            _reordering = true;
-            _pendingReorderReset = true;
-            TaskbarApps.reorderPinned(dragSourceIndex, dragTargetIndex);
-            reorderResetTimer.restart();
-        }
-        dragging = false;
-        dragSourceIndex = -1;
-        dragCursorX = 0;
-        dragStartCursorX = 0;
-        Qt.callLater(function() { _suppressTranslateAnim = false; });
-    }
-
-    function cancelDrag() {
-        _suppressTranslateAnim = true;
-        dragging = false;
-        dragSourceIndex = -1;
-        dragCursorX = 0;
-        dragStartCursorX = 0;
-        Qt.callLater(function() { _suppressTranslateAnim = false; });
+    function popupCenterXForButton(button) {
+        if (!button || !root.QsWindow)
+            return 0;
+        return root.QsWindow.mapFromItem(button, button.width / 2, 0).x;
     }
 
     function openContextMenu(button, appToplevelData) {
         contextMenu.open(button, appToplevelData);
     }
 
-    function resetReorderState() {
-        _pendingReorderReset = false;
-        _reordering = false;
-    }
-
-    Layout.fillHeight: true
-    Layout.topMargin: Appearance.sizes.hyprlandGapsOut // why does this work
-    implicitWidth: listView.implicitWidth
-
     StyledListView {
         id: listView
         spacing: 2
-        clip: false
-        interactive: false
-        animateAppearance: !root._reordering
         orientation: ListView.Horizontal
         anchors {
             top: parent.top
@@ -98,108 +56,56 @@ Item {
         }
         delegate: DockAppButton {
             required property var modelData
-            required property int index
             appToplevel: modelData
             appListRoot: root
-            delegateIndex: index
 
             topInset: Appearance.sizes.hyprlandGapsOut + root.buttonPadding
             bottomInset: Appearance.sizes.hyprlandGapsOut + root.buttonPadding
         }
     }
 
-    Connections {
-        target: TaskbarApps
-        function onAppsChanged() {
-            if (root._pendingReorderReset) reorderResetTimer.restart();
-        }
-    }
-
-    Timer {
-        id: reorderResetTimer
-        interval: Appearance.animation.elementMoveFast.duration + 80
-        onTriggered: root.resetReorderState()
-    }
-
     PopupWindow {
         id: previewPopup
         property var appTopLevel: root.lastHoveredButton?.appToplevel
-        property bool previewsLoaded: false
 
-        function updatePreviewReadiness() {
-            let readyCount = 0;
-            const expectedCount = previewPopup.appTopLevel?.toplevels?.length ?? 0;
-            for(var i = 0; i < previewRowLayout.children.length; i++) {
-                const view = previewRowLayout.children[i];
-                if (view.hasContent !== undefined && view.hasContent) {
-                    readyCount++;
-                }
-            }
-            
-            if (expectedCount > 0 && readyCount === expectedCount) {
-                previewsLoaded = true;
-            }
-        }
+        property bool shouldShow: (popupMouseArea.containsMouse || root.buttonHovered) && appTopLevel && appTopLevel.toplevels && appTopLevel.toplevels.length > 0
 
-        onAppTopLevelChanged: {
-            previewsLoaded = false;
-        }
+        property bool show: false
+        property real cachedCenterX: 0
 
         Connections {
             target: root
+            function onLastHoveredButtonChanged() {
+                if (root.lastHoveredButton && root.QsWindow)
+                    previewPopup.cachedCenterX = root.popupCenterXForButton(root.lastHoveredButton);
+            }
             function onButtonHoveredChanged() {
-                if (!root.buttonHovered && !popupMouseArea.containsMouse) {
-                    previewsLoaded = false;
-                }
+                if (root.buttonHovered && root.lastHoveredButton && root.QsWindow)
+                    previewPopup.cachedCenterX = root.popupCenterXForButton(root.lastHoveredButton);
+                updateTimer.restart();
             }
         }
-
-        property bool shouldShow: {
-            if (root.dragging) return false;
-            const expectedCount = previewPopup.appTopLevel?.toplevels?.length ?? 0;
-            const hoverConditions = (popupMouseArea.containsMouse || root.buttonHovered);
-            return hoverConditions && expectedCount > 0;
-        }
-        
-        property bool show: false
 
         onShouldShowChanged: {
-            if (shouldShow) {
-                if (previewsLoaded) {
-                    previewPopup.show = true;
-                } else {
-                    updateTimer.restart();
-                }
-            } else {
-                updateTimer.stop();
-                previewPopup.show = false;
-            }
-        }
-
-        onPreviewsLoadedChanged: {
-            if (previewsLoaded && shouldShow) {
-                updateTimer.stop();
-                previewPopup.show = true;
-            }
+            updateTimer.restart();
         }
 
         Timer {
             id: updateTimer
-            interval: 80
+            interval: 100
             onTriggered: {
-                if (previewPopup.shouldShow) {
-                    previewPopup.show = true;
-                }
+                previewPopup.show = previewPopup.shouldShow;
             }
         }
+
         anchor {
             window: root.QsWindow.window
             adjustment: PopupAdjustment.None
             gravity: Edges.Top | Edges.Right
             edges: Edges.Top | Edges.Left
-
         }
-        visible: popupBackground.visible
+
+        visible: popupBackground.opacity > 0
         color: "transparent"
         implicitWidth: root.QsWindow.window?.width ?? 1
         implicitHeight: popupMouseArea.implicitHeight + root.windowControlsHeight + Appearance.sizes.elevationMargin * 2
@@ -210,10 +116,8 @@ Item {
             implicitWidth: popupBackground.implicitWidth + Appearance.sizes.elevationMargin * 2
             implicitHeight: root.maxWindowPreviewHeight + root.windowControlsHeight + Appearance.sizes.elevationMargin * 2
             hoverEnabled: true
-            x: {
-                const itemCenter = root.QsWindow?.mapFromItem(root.lastHoveredButton, root.lastHoveredButton?.width / 2, 0);
-                return itemCenter.x - width / 2
-            }
+            x: previewPopup.cachedCenterX - width / 2
+
             StyledRectangularShadow {
                 target: popupBackground
                 opacity: previewPopup.show ? 1 : 0
@@ -222,6 +126,7 @@ Item {
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                 }
             }
+
             Rectangle {
                 id: popupBackground
                 property real padding: 5
@@ -254,8 +159,8 @@ Item {
                         }
                         RippleButton {
                             id: windowButton
+                            Layout.fillHeight: true
                             required property var modelData
-                            property bool hasContent: screencopyView.hasContent
                             padding: 0
                             middleClickAction: () => {
                                 windowButton.modelData?.close();
@@ -280,8 +185,8 @@ Item {
                                     GroupButton {
                                         id: closeButton
                                         colBackground: ColorUtils.transparentize(Appearance.colors.colSurfaceContainer)
-                                        baseWidth: windowControlsHeight
-                                        baseHeight: windowControlsHeight
+                                        baseWidth: root.windowControlsHeight
+                                        baseHeight: root.windowControlsHeight
                                         buttonRadius: Appearance.rounding.full
                                         contentItem: MaterialSymbol {
                                             anchors.centerIn: parent
@@ -295,24 +200,25 @@ Item {
                                         }
                                     }
                                 }
-                                ScreencopyView {
-                                    id: screencopyView
-                                    captureSource: previewPopup ? windowButton.modelData : null
-                                    live: true
-                                    paintCursor: true
-                                    constraintSize: Qt.size(root.maxWindowPreviewWidth, root.maxWindowPreviewHeight)
-                                    onHasContentChanged: {
-                                        previewPopup.updatePreviewReadiness();
-                                    }
-                                    Component.onCompleted: {
-                                        previewPopup.updatePreviewReadiness();
-                                    }
-                                    layer.enabled: true
-                                    layer.effect: OpacityMask {
-                                        maskSource: Rectangle {
-                                            width: screencopyView.width
-                                            height: screencopyView.height
-                                            radius: Appearance.rounding.small
+                                Item {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    implicitHeight: screencopyView.height
+                                    implicitWidth: screencopyView.width
+                                    ScreencopyView {
+                                        id: screencopyView
+                                        anchors.centerIn: parent
+                                        captureSource: windowButton.modelData
+                                        live: true
+                                        paintCursor: true
+                                        constraintSize: Qt.size(root.maxWindowPreviewWidth, root.maxWindowPreviewHeight)
+                                        layer.enabled: true
+                                        layer.effect: OpacityMask {
+                                            maskSource: Rectangle {
+                                                width: screencopyView.width
+                                                height: screencopyView.height
+                                                radius: Appearance.rounding.small
+                                            }
                                         }
                                     }
                                 }

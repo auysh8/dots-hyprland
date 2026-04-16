@@ -421,7 +421,6 @@ Item {
                 bgLayer.canvasReady = false
                 // Stop playback on error to prevent cascading failures
                 canvasPlayer.stop()
-                canvasPlayer.source = ""
             }
         }
 
