@@ -684,8 +684,7 @@ Item {
                     Rectangle {
                         visible: rootContext.currentTrack && rootContext.currentTrack.quality !== ""
                         radius: 6
-                        color: rootContext.accentColor
-                        opacity: 0.15
+                        color: ColorUtils.applyAlpha(rootContext.contentColor, 0.15)
                         Layout.preferredWidth: qualityLabel.implicitWidth + 12
                         Layout.preferredHeight: qualityLabel.implicitHeight + 4
                         
@@ -696,7 +695,7 @@ Item {
                             font.pixelSize: 10
                             font.weight: 900
                             font.letterSpacing: 1
-                            color: rootContext.accentColor
+                            color: rootContext.contentColor
                         }
                     }
 
