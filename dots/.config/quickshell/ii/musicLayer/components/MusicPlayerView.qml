@@ -79,30 +79,13 @@ Item {
                 root.inlineLyricsPosition = realPos
             }
 
-            if (rootContext.showVideoInThumbnail && typeof canvasPlayer !== "undefined" && canvasPlayer.playbackState === MediaPlayer.PlayingState) {
-                const playerPosSec = canvasPlayer.position / 1000.0
-                const syncDiff = realPos - playerPosSec // Positive if video is behind audio
 
-                if (Math.abs(syncDiff) > 4.0) {
-                    // Hard seek only for large drift — buffers flush, so keep threshold high to avoid stutter
-                    canvasPlayer.position = realPos * 1000
-                } else if (syncDiff > 0.5) {
-                    canvasPlayer.playbackRate = 1.08  // Gentle nudge forward
-                } else if (syncDiff < -0.5) {
-                    canvasPlayer.playbackRate = 0.92  // Gentle nudge back
-                } else if (Math.abs(syncDiff) <= 0.1 && canvasPlayer.playbackRate !== 1.0) {
-                    canvasPlayer.playbackRate = 1.0
-                }
-            }
         }
 
         function onPlaybackPausedChanged() {
             root.lastLyricsTickMs = 0
             if (rootContext) {
                 root.inlineLyricsPosition = rootContext.trackPositionSec || 0
-            }
-            if (bgLayer && typeof bgLayer.updateCanvasPlayback === "function") {
-                bgLayer.updateCanvasPlayback()
             }
         }
 
@@ -148,11 +131,6 @@ Item {
     }
 
     property bool elementsVisible: false
-    onElementsVisibleChanged: {
-        if (bgLayer && typeof bgLayer.updateCanvasPlayback === "function") {
-            bgLayer.updateCanvasPlayback()
-        }
-    }
 
     Timer {
         id: fadeInTimer
@@ -166,14 +144,64 @@ Item {
         opacity: root.elementsVisible ? 1.0 : 0.0
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
-        // --- Canvas animated background ---
-        property bool canvasReady: false
-
         // Base solid background to prevent transparency
         Rectangle {
             anchors.fill: parent
             radius: root.currentRadius
             color: rootContext ? rootContext.backgroundColor : Appearance.colors.colLayer0Base
+        }
+
+        // --- Immersive Album Blur ---
+        Item {
+            id: albumBlurWrapper
+            anchors.fill: parent
+            visible: root.show && !!rootContext && !!rootContext.currentTrack
+            
+            layer.enabled: !root.isWindowTransitioning
+            layer.effect: OpacityMask {
+                maskSource: Rectangle {
+                    width: albumBlurWrapper.width
+                    height: albumBlurWrapper.height
+                    radius: root.currentRadius
+                }
+            }
+
+            Image {
+                id: blurredBgImage
+                source: rootContext && rootContext.currentTrack ? rootContext.currentTrack.cover : ""
+                anchors.centerIn: parent
+                // Make it larger than the container so it can pan without showing edges
+                width: parent.width * 1.5
+                height: parent.height * 1.5
+                fillMode: Image.PreserveAspectCrop
+                opacity: 0.6
+                
+                // Ken Burns effect animations
+                SequentialAnimation on x {
+                    running: root.show && !root.isWindowTransitioning; loops: Animation.Infinite
+                    NumberAnimation { from: -parent.width * 0.2; to: 0; duration: 25000; easing.type: Easing.InOutQuad }
+                    NumberAnimation { to: -parent.width * 0.2; duration: 28000; easing.type: Easing.InOutQuad }
+                }
+                SequentialAnimation on y {
+                    running: root.show && !root.isWindowTransitioning; loops: Animation.Infinite
+                    NumberAnimation { from: -parent.height * 0.2; to: 0; duration: 32000; easing.type: Easing.InOutQuad }
+                    NumberAnimation { to: -parent.height * 0.2; duration: 26000; easing.type: Easing.InOutQuad }
+                }
+                SequentialAnimation on scale {
+                    running: root.show && !root.isWindowTransitioning; loops: Animation.Infinite
+                    NumberAnimation { from: 1.0; to: 1.2; duration: 20000; easing.type: Easing.InOutQuad }
+                    NumberAnimation { to: 1.0; duration: 24000; easing.type: Easing.InOutQuad }
+                }
+                
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blurMax: 80
+                    blur: 1.0
+                    saturation: 1.2
+                    brightness: -0.1
+                }
+            }
         }
 
         // --- Apple Music Style Fluid Mesh Blobs ---
@@ -206,7 +234,7 @@ Item {
                 }
                 
                 Behavior on bassAmplitude {
-                    NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
+                    NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
                 }
 
                 layer.enabled: true
@@ -214,9 +242,9 @@ Item {
                     blurEnabled: true
                     blurMax: 120
                     blur: 1.0
-                    saturation: 0.6 + (fluidMeshContainer.bassAmplitude * 0.2)
-                    brightness: 0.0 + (fluidMeshContainer.bassAmplitude * 0.08)
-                    contrast: 0.0 + (fluidMeshContainer.bassAmplitude * 0.05)
+                    saturation: 0.6 + (fluidMeshContainer.bassAmplitude * 0.3)
+                    brightness: 0.0 + (fluidMeshContainer.bassAmplitude * 0.1)
+                    contrast: 0.0 + (fluidMeshContainer.bassAmplitude * 0.08)
                 }
 
                 property bool animateBlobs: root.show && rootContext && !rootContext.playbackPaused && !root.isLayoutTransitioning
@@ -227,7 +255,8 @@ Item {
                 height: parent.height * 1.2
                 radius: Math.min(width, height) / 2
                 color: rootContext ? rootContext.extractedColor : "transparent"
-                opacity: 0.6
+                opacity: 0.6 + (fluidMeshContainer.bassAmplitude * 0.2)
+                scale: 1.0 + (fluidMeshContainer.bassAmplitude * 0.05)
                 x: parent.width * 0.1
                 y: parent.height * 0.1
                 
@@ -251,7 +280,8 @@ Item {
                 height: parent.height * 0.8
                 radius: Math.min(width, height) / 2
                 color: rootContext ? rootContext.pillColor : "transparent"
-                opacity: 0.5
+                opacity: 0.5 + (fluidMeshContainer.bassAmplitude * 0.25)
+                scale: 1.0 + (fluidMeshContainer.bassAmplitude * 0.03)
                 x: parent.width * 0.2
                 y: parent.height * 0.5
                 
@@ -279,7 +309,8 @@ Item {
                 height: parent.height * 1.3
                 radius: Math.min(width, height) / 2
                 color: rootContext ? rootContext.loaderAccentColor : "transparent"
-                opacity: 0.55
+                opacity: 0.55 + (fluidMeshContainer.bassAmplitude * 0.2)
+                scale: 1.0 + (fluidMeshContainer.bassAmplitude * 0.04)
                 x: -parent.width * 0.3
                 y: parent.height * 0.2
                 
@@ -307,7 +338,8 @@ Item {
                 height: parent.width * 1.1
                 radius: width / 2
                 color: rootContext ? rootContext.extractedColor : "transparent"
-                opacity: 0.4
+                opacity: 0.4 + (fluidMeshContainer.bassAmplitude * 0.3)
+                scale: 1.0 + (fluidMeshContainer.bassAmplitude * 0.06)
                 x: parent.width * 0.5
                 y: -parent.height * 0.2
                 
@@ -332,6 +364,7 @@ Item {
                 radius: Math.min(width, height) / 2
                 color: rootContext ? rootContext.backgroundColor : "transparent"
                 opacity: 0.8
+                scale: 1.0 + (fluidMeshContainer.bassAmplitude * 0.02)
                 x: -parent.width * 0.2
                 y: parent.height * 0.6
                 
@@ -351,78 +384,7 @@ Item {
         }
         } // End fluidMeshMaskWrapper
 
-        function updateCanvasPlayback() {
-            if (!canvasPlayer.source || canvasPlayer.source.toString() === "") {
-                return
-            }
-            
-            const shouldPlay = root.elementsVisible && rootContext && !rootContext.playbackPaused
-            
-            if (shouldPlay) {
-                if (canvasPlayer.mediaStatus === MediaPlayer.LoadedMedia || canvasPlayer.mediaStatus === MediaPlayer.BufferedMedia) {
-                    canvasPlayer.play()
-                }
-            } else {
-                canvasPlayer.pause()
-            }
-        }
 
-        MediaPlayer {
-            id: canvasPlayer
-            // Only set source if we have a valid non-empty URL
-            source: {
-                if (rootContext && rootContext.showVideoInThumbnail && rootContext.currentMusicVideoUrl && rootContext.currentMusicVideoUrl.length > 0) {
-                    return rootContext.currentMusicVideoUrl
-                }
-                return ""
-            }
-            loops: MediaPlayer.Infinite
-            autoPlay: false  // Manual control to prevent race conditions
-            videoOutput: canvasOutput
-            // No audioOutput — muted, visual only
-
-            onPlaybackStateChanged: {
-                console.log("[CanvasPlayer] Playback state changed:", playbackState, "hasVideo=", hasVideo)
-                if (playbackState === MediaPlayer.PlayingState) {
-                    if (hasVideo) bgLayer.canvasReady = true
-                } else if (playbackState === MediaPlayer.StoppedState || playbackState === MediaPlayer.StalledState) {
-                    bgLayer.canvasReady = false
-                }
-            }
-            onMediaStatusChanged: {
-                console.log("[CanvasPlayer] Media status changed:", mediaStatus)
-                // Only auto-play when media is fully loaded/buffered
-                if (mediaStatus === MediaPlayer.LoadedMedia || mediaStatus === MediaPlayer.BufferedMedia) {
-                    bgLayer.updateCanvasPlayback()
-                } else if (mediaStatus === MediaPlayer.InvalidMedia || mediaStatus === MediaPlayer.EndOfMedia) {
-                    bgLayer.canvasReady = false
-                    canvasPlayer.stop()
-                }
-            }
-            onHasVideoChanged: {
-                console.log("[CanvasPlayer] hasVideo changed:", hasVideo)
-                if (hasVideo && playbackState === MediaPlayer.PlayingState) {
-                    bgLayer.canvasReady = true
-                } else if (!hasVideo) {
-                    bgLayer.canvasReady = false
-                }
-            }
-
-            onSourceChanged: {
-                console.log("[CanvasPlayer] Source changed:", source)
-                bgLayer.canvasReady = false
-                // Reset player state when source changes
-                if (!source || source.length === 0) {
-                    canvasPlayer.stop()
-                }
-            }
-            onErrorOccurred: (error, errorString) => {
-                console.error("[CanvasPlayer] Error:", error, errorString)
-                bgLayer.canvasReady = false
-                // Stop playback on error to prevent cascading failures
-                canvasPlayer.stop()
-            }
-        }
 
 
         // Gradient overlay utilizing quantized colors
@@ -512,7 +474,7 @@ Item {
                 && !!rootContext.currentTrack
                 && !!rootContext.currentTrack.isVideoTrack
                 && (
-                    (!bgLayer.canvasReady && (rootContext.currentTrack.landscapeArtCandidates || []).length > 0)
+                    ((rootContext.currentTrack.landscapeArtCandidates || []).length > 0)
                     || (rootContext.showVideoInThumbnail)
                 )
             on_TrackIdChanged: {
@@ -558,7 +520,7 @@ Item {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: true
-                    visible: !bgLayer.canvasReady && status === Image.Ready && currentSource !== ""
+                    visible: status === Image.Ready && currentSource !== ""
 
                     property var candidateList: rootContext && rootContext.currentTrack
                         ? (rootContext.currentTrack.landscapeArtCandidates || [])
@@ -582,32 +544,11 @@ Item {
                     anchors.fill: parent
                     source: rootContext.displayedArtFilePath || ""
                     fillMode: Image.PreserveAspectCrop
-                    visible: !bgLayer.canvasReady && !landscapeHero.visible && rootContext.displayedArtFilePath !== ""
+                    visible: !landscapeHero.visible && rootContext.displayedArtFilePath !== ""
                     radius: 32
                 }
                 
-                Item {
-                    id: canvasClip
-                    anchors.fill: parent
-                    
-                    opacity: bgLayer.canvasReady ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
 
-                    layer.enabled: opacity > 0 && !root.isWindowTransitioning
-                    layer.effect: OpacityMask {
-                        maskSource: Rectangle {
-                            width: canvasClip.width
-                            height: canvasClip.height
-                            radius: 32
-                        }
-                    }
-
-                    VideoOutput {
-                        id: canvasOutput
-                        anchors.fill: parent
-                        fillMode: VideoOutput.PreserveAspectCrop
-                    }
-                }
 
                 RippleButton {
                     anchors.top: parent.top

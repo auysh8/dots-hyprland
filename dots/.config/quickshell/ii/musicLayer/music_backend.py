@@ -201,10 +201,6 @@ class MusicBackend:
         elif cmd == "get_output_device":
             self.player.get_output_device()
 
-        elif cmd == "get_video_stream":
-            video_id = req.get("videoId")
-            if video_id:
-                threading.Thread(target=self.player._fetch_video_stream, args=(video_id,), daemon=True).start()
 
         elif cmd == "get_credits":
             video_id = req.get("videoId")
