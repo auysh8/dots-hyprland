@@ -9,7 +9,7 @@ if status is-interactive
     end
     if test "$TERM" != "linux"
         starship init fish | source
-        enable_transience
+        # enable_transience # Disabled: known to cause bugs where typed text doesn't display in fish
     end
     
     # Colors
@@ -33,6 +33,8 @@ if status is-interactive
 end
 
 # OpenClaw Completion
-source "/home/auysh/.openclaw/completions/openclaw.fish"
+if test -f "/home/auysh/.openclaw/completions/openclaw.fish"
+    source "/home/auysh/.openclaw/completions/openclaw.fish"
+end
 
 fish_add_path /home/auysh/.spicetify
