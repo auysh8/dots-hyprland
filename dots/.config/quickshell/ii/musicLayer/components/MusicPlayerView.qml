@@ -374,8 +374,7 @@ Item {
                 if (rootContext && rootContext.showVideoInThumbnail && rootContext.currentMusicVideoUrl && rootContext.currentMusicVideoUrl.length > 0) {
                     return rootContext.currentMusicVideoUrl
                 }
-                const url = rootContext ? rootContext.currentCanvasUrl : ""
-                return (url && url.length > 0 && url !== "about:blank") ? url : ""
+                return ""
             }
             loops: MediaPlayer.Infinite
             autoPlay: false  // Manual control to prevent race conditions

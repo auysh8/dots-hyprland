@@ -318,8 +318,7 @@ class MusicBackend:
             what = req.get("what", "all")  # "all", "audio", "art"
             self.cache.clear(
                 clear_art=(what in ("all", "art")),
-                clear_audio=(what in ("all", "audio")),
-                clear_canvas=(what in ("all", "canvas")),
+                clear_audio=(what in ("all", "audio"))
             )
             self.log(f"Cache cleared: {what}")
             threading.Thread(target=lambda: self.send_response({

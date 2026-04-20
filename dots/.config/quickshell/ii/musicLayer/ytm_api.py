@@ -43,11 +43,7 @@ class YTMClient:
         self._song_meta_cache = {}
         self._song_meta_cache_ttl = 1800  # 30 minutes
         
-        # Canvas cache
-        self._canvas_cache_path = os.path.expanduser("~/.cache/quickshell/media/canvas_cache.json")
-        self._canvas_cache = {}
-        self._canvas_cache_ttl = 86400 * 7  # 7 days
-        self._load_canvas_cache()
+
         
         self.ytm = None
         try:
@@ -60,21 +56,7 @@ class YTMClient:
 
 
 
-    def _load_canvas_cache(self):
-        try:
-            if os.path.exists(self._canvas_cache_path):
-                with open(self._canvas_cache_path, "r", encoding="utf-8") as f:
-                    self._canvas_cache = json.load(f)
-        except Exception:
-            self._canvas_cache = {}
 
-    def _save_canvas_cache(self):
-        try:
-            os.makedirs(os.path.dirname(self._canvas_cache_path), exist_ok=True)
-            with open(self._canvas_cache_path, "w", encoding="utf-8") as f:
-                json.dump(self._canvas_cache, f)
-        except Exception:
-            pass
 
     def _make_oauth_credentials(self):
         from ytmusicapi.auth.oauth.credentials import OAuthCredentials

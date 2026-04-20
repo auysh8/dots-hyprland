@@ -106,7 +106,6 @@ FocusScope {
     property bool isLoading: true
     property bool refreshing: false
     property var currentTrack: null
-    property string currentCanvasUrl: ""  // Animated canvas art URL for the current track
     property string currentMusicVideoUrl: ""
     property bool showVideoInThumbnail: true
     property string currentOutputDevice: "Unknown"
@@ -738,12 +737,10 @@ FocusScope {
                         root.isTrackLoading = true
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
-                        root.currentCanvasUrl = ""  // Clear canvas on new track load
                         root.currentTrackCredits.clear() // Clear credits
                         root.currentTrack = root.buildTrackState(data)
                     } else if (data.type === "playback_started") {
                         root.isTrackLoading = false
-                        root.currentCanvasUrl = ""  // Reset; canvas_url event will arrive separately
                         root.currentMusicVideoUrl = "" // Reset; video_stream event will arrive if triggered
                         root.currentTrack = root.buildTrackState(data)
                         root.currentTrackLiked = data.isLiked || false
@@ -772,23 +769,10 @@ FocusScope {
                                 quality: root.currentTrack.quality
                             })
                         }
-                    } else if (data.type === "canvas_url") {
-                        // Only apply if it matches the currently playing track
-                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
-                            // Validate URL before assigning - prevent empty/invalid URLs
-                            const url = data.url || ""
-                            if (url && url.length > 0 && url !== "about:blank" && (url.startsWith("http") || url.startsWith("file://"))) {
-                                root.currentCanvasUrl = url
-                            } else {
-                                console.log("[MusicApp] Invalid canvas URL received:", url)
-                                root.currentCanvasUrl = ""
-                            }
-                        }
                     } else if (data.type === "playback_stopped") {
                         if (!root.isTrackLoading) {
                             root.currentTrack = null
                         }
-                        root.currentCanvasUrl = ""
                         root.playbackPaused = false
                     } else if (data.type === "playback_paused") {
                         root.playbackPaused = true
