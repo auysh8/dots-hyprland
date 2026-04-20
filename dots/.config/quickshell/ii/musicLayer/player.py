@@ -111,7 +111,7 @@ class Player:
         self.repeat_mode = int(mode)
         self.log(f"Repeat mode set to: {self.repeat_mode}")
 
-    def play(self, video_id, title, artist, art_url, queue_tracks=None, artist_id="", album_id=""):
+    def play(self, video_id, title, artist, art_url, queue_tracks=None, artist_id="", album_id="", is_liked=False):
         """
         Play a song with optional queue.
         
@@ -178,7 +178,11 @@ class Player:
         with self._state_lock:
             self._playback_token += 1
             token = self._playback_token
-        threading.Thread(target=self._play_task, args=(video_id, title, artist, art_url, token, is_auto, artist_id, album_id), daemon=True).start()
+        threading.Thread(
+            target=self._play_task,
+            args=(video_id, title, artist, art_url, token, is_auto, artist_id, album_id, is_liked),
+            daemon=True,
+        ).start()
 
 
 
@@ -314,7 +318,7 @@ class Player:
             "quality": quality,
         }
 
-    def _play_task(self, video_id, title, artist, art_url, token, is_auto=False, artist_id="", album_id=""):
+    def _play_task(self, video_id, title, artist, art_url, token, is_auto=False, artist_id="", album_id="", is_liked_hint=False):
         self.log(f"[PLAY_TASK] Starting for: {title} ({video_id}) token={token}")
         try:
             time.sleep(0.25)
@@ -591,10 +595,23 @@ class Player:
                     art_local_path=art_file_path or "",
                     artist_id=artist_id,
                     album_id=album_id,
-                    is_liked=False,
+                    is_liked=is_liked_hint,
                     quality=quality,
                 )
             )
+
+            if not is_liked_hint:
+                def _fetch_like_status():
+                    try:
+                        song_data = self.api.ytm.get_song(video_id)
+                        is_liked = song_data.get("videoDetails", {}).get("likeStatus") == "LIKE"
+                        with self._state_lock:
+                            if self._playback_token != token:
+                                return
+                        self.send_response({"type": "like_status", "videoId": video_id, "isLiked": is_liked})
+                    except Exception as e:
+                        self.log(f"Like status fetch error: {e}")
+                threading.Thread(target=_fetch_like_status, daemon=True).start()
 
             def _fetch_lyrics():
                 try:

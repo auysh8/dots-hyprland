@@ -54,13 +54,12 @@ Item {
     // Internal scrolling logic
     property bool manualScrollMode: false
     
-    // Auto-scroll when currentLine changes
     onCurrentLineChanged: {
         if (!manualScrollMode && currentLine >= 0 && currentLine < resolvedLyricsCount && lyricsLoaded) {
             if (experimentalMode) {
-                experimentalLyricsView.resync()
+                if (experimentalLoader.item) experimentalLoader.item.resync()
             } else {
-                lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+                if (standardLoader.item) standardLoader.item.positionViewAtIndex(currentLine, ListView.Center)
             }
         }
     }
@@ -69,9 +68,9 @@ Item {
     onLyricsLoadedChanged: {
         if (lyricsLoaded && currentLine >= 0) {
             if (experimentalMode) {
-                experimentalLyricsView.resync()
+                if (experimentalLoader.item) experimentalLoader.item.resync()
             } else {
-                lyricsView.positionViewAtIndex(currentLine, ListView.Center)
+                if (standardLoader.item) standardLoader.item.positionViewAtIndex(currentLine, ListView.Center)
             }
         }
     }
@@ -215,6 +214,7 @@ Item {
 
         // 3. The Lyrics List - only instantiated when not in experimental mode
         Loader {
+            id: standardLoader
             active: root.resolvedLyricsCount > 0 && !root.experimentalMode
             anchors.fill: parent
             anchors.margins: 16
@@ -595,6 +595,7 @@ Item {
 
         // Experimental Lyrics Stack - only instantiated when experimental mode is on
         Loader {
+            id: experimentalLoader
             active: root.resolvedLyricsCount > 0 && root.experimentalMode
             anchors.fill: parent
             anchors.margins: 16
@@ -669,10 +670,10 @@ Item {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (root.experimentalMode) {
-                        experimentalLyricsView.resync()
+                        if (experimentalLoader.item) experimentalLoader.item.resync()
                         root.manualScrollMode = false
                     } else {
-                        lyricsView.resync()
+                        if (standardLoader.item) standardLoader.item.resync()
                     }
                 }
             }

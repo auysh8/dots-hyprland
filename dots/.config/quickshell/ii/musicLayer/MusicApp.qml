@@ -303,7 +303,14 @@ FocusScope {
         }
     }
 
-    function playTrack(videoId, title, artist, artUrl, queueTracks, artistId, albumId) {
+    function playTrack(videoId, title, artist, artUrl, queueTracks, artistId, albumId, likedHint) {
+        let isLiked = false;
+        if (likedHint !== undefined && likedHint !== null) {
+            isLiked = likedHint;
+        } else if (root.activePlaylistId === "LM") {
+            isLiked = true;
+        }
+
         root.currentTrack = root.buildTrackState({
             videoId: videoId,
             title: title,
@@ -316,7 +323,9 @@ FocusScope {
             landscapeArtCandidates: [],
             quality: root.musicSettingsTidalLossless ? "Checking Tidal..." : "YouTube Music"
         })
+        root.currentTrackLiked = isLiked;
         root.isTrackLoading = true
+        
         let msg = {
             "command": "play",
             "videoId": videoId,
@@ -324,7 +333,8 @@ FocusScope {
             "artist": artist,
             "artUrl": artUrl,
             "artistId": artistId || "",
-            "albumId": albumId || ""
+            "albumId": albumId || "",
+            "isLiked": isLiked
         }
         
         // If queueTracks is explicitly provided, send it. If undefined, send empty to clear.
