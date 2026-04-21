@@ -355,13 +355,11 @@ Item {
             if (!canvasPlayer.source || canvasPlayer.source.toString() === "") {
                 return
             }
-            
+
             const shouldPlay = root.elementsVisible && rootContext && !rootContext.playbackPaused
-            
+
             if (shouldPlay) {
-                if (canvasPlayer.mediaStatus === MediaPlayer.LoadedMedia || canvasPlayer.mediaStatus === MediaPlayer.BufferedMedia) {
-                    canvasPlayer.play()
-                }
+                canvasPlayer.play()
             } else {
                 canvasPlayer.pause()
             }
@@ -378,12 +376,11 @@ Item {
                 return (url && url.length > 0 && url !== "about:blank") ? url : ""
             }
             loops: MediaPlayer.Infinite
-            autoPlay: false  // Manual control to prevent race conditions
+            autoPlay: true  // Enable autoPlay to force stream buffering on source change
             videoOutput: canvasOutput
             // No audioOutput — muted, visual only
 
             onPlaybackStateChanged: {
-                console.log("[CanvasPlayer] Playback state changed:", playbackState, "hasVideo=", hasVideo)
                 if (playbackState === MediaPlayer.PlayingState) {
                     if (hasVideo) bgLayer.canvasReady = true
                 } else if (playbackState === MediaPlayer.StoppedState || playbackState === MediaPlayer.StalledState) {
@@ -391,17 +388,12 @@ Item {
                 }
             }
             onMediaStatusChanged: {
-                console.log("[CanvasPlayer] Media status changed:", mediaStatus)
-                // Only auto-play when media is fully loaded/buffered
-                if (mediaStatus === MediaPlayer.LoadedMedia || mediaStatus === MediaPlayer.BufferedMedia) {
-                    bgLayer.updateCanvasPlayback()
-                } else if (mediaStatus === MediaPlayer.InvalidMedia || mediaStatus === MediaPlayer.EndOfMedia) {
+                if (mediaStatus === MediaPlayer.InvalidMedia || mediaStatus === MediaPlayer.EndOfMedia) {
                     bgLayer.canvasReady = false
                     canvasPlayer.stop()
                 }
             }
             onHasVideoChanged: {
-                console.log("[CanvasPlayer] hasVideo changed:", hasVideo)
                 if (hasVideo && playbackState === MediaPlayer.PlayingState) {
                     bgLayer.canvasReady = true
                 } else if (!hasVideo) {
@@ -410,14 +402,13 @@ Item {
             }
 
             onSourceChanged: {
-                console.log("[CanvasPlayer] Source changed:", source)
                 bgLayer.canvasReady = false
-                // Reset player state when source changes
-                if (!source || source.length === 0) {
+                if (!source || source.toString().length === 0 || source.toString() === "about:blank") {
                     canvasPlayer.stop()
+                } else {
+                    bgLayer.updateCanvasPlayback()
                 }
-            }
-            onErrorOccurred: (error, errorString) => {
+            }            onErrorOccurred: (error, errorString) => {
                 console.error("[CanvasPlayer] Error:", error, errorString)
                 bgLayer.canvasReady = false
                 // Stop playback on error to prevent cascading failures

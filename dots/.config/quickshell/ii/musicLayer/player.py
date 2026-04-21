@@ -15,6 +15,7 @@ from thumbnail_utils import (
     normalize_square_art_url,
 )
 from tidal_api import TidalClient
+from apple_music_fetcher import AppleMusicCanvasFetcher
 
 class Player:
     """Handles audio playback using mpv and track fetching using yt-dlp."""
@@ -41,6 +42,9 @@ class Player:
         
         # Tidal client
         self.tidal = TidalClient(logger)
+        
+        # Apple Music Fetcher
+        self.apple_music = AppleMusicCanvasFetcher(logger)
 
         # Stream URL cache for gapless playback: {video_id: (url, expiry_timestamp)}
         self._stream_cache = {}
@@ -624,7 +628,22 @@ class Player:
                     self.log(f"Lyrics fetch error: {e}")
             threading.Thread(target=_fetch_lyrics, daemon=True).start()
 
-
+            def _fetch_canvas():
+                try:
+                    self.log(f"Fetching Apple Music canvas for: {title} by {artist}")
+                    canvas_url = self.apple_music.get_canvas_mp4(title, artist)
+                    with self._state_lock:
+                        if self._playback_token != token:
+                            return
+                    if canvas_url:
+                        self.log(f"Sending canvas_ready IPC message for videoId {video_id}")
+                        self.send_response({"type": "canvas_ready", "videoId": video_id, "url": canvas_url})
+                    else:
+                        self.log(f"Sending canvas_failed IPC message for videoId {video_id}")
+                        self.send_response({"type": "canvas_failed", "videoId": video_id})
+                except Exception as e:
+                    self.log(f"Canvas fetch error: {e}")
+            threading.Thread(target=_fetch_canvas, daemon=True).start()
 
             self.mpris.publish()
             if getattr(self, "mpris", None):

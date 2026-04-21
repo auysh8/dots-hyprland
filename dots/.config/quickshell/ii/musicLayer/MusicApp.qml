@@ -106,6 +106,7 @@ FocusScope {
     property bool isLoading: true
     property bool refreshing: false
     property var currentTrack: null
+    property string currentCanvasUrl: ""
     property string currentOutputDevice: "Unknown"
     property ListModel currentTrackCredits: ListModel {}
     property bool currentTrackLiked: false
@@ -745,6 +746,7 @@ FocusScope {
                         root.isTrackLoading = true
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
+                        root.currentCanvasUrl = ""
                         root.currentTrackCredits.clear() // Clear credits
                         root.currentTrack = root.buildTrackState(data)
                     } else if (data.type === "playback_started") {
@@ -754,6 +756,19 @@ FocusScope {
                         root.playbackPaused = false
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
+                        root.currentCanvasUrl = ""
+                    } else if (data.type === "canvas_ready") {
+                        console.log("[MusicBackend] Received canvas_ready for videoId:", data.videoId, "url:", data.url)
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
+                            root.currentCanvasUrl = data.url
+                            console.log("[MusicApp] Assigned currentCanvasUrl:", root.currentCanvasUrl)
+                        } else {
+                            console.warn("[MusicApp] Ignored canvas_ready. Expected videoId:", root.currentTrack ? root.currentTrack.videoId : "null", "Got:", data.videoId)
+                        }
+                    } else if (data.type === "canvas_failed") {
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
+                            root.currentCanvasUrl = ""
+                        }
                     } else if (data.type === "art_downloaded") {
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentTrack = root.buildTrackState({
