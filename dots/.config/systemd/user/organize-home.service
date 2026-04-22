@@ -1,0 +1,10 @@
+[Unit]
+Description=Organize Home Folder Script
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/auysh/dots-hyprland/dots/.local/bin/organize_home.py
+
+[Install]
+WantedBy=default.target

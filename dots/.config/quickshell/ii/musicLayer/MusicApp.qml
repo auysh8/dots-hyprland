@@ -756,7 +756,6 @@ FocusScope {
                         root.playbackPaused = false
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
-                        root.currentCanvasUrl = ""
                     } else if (data.type === "canvas_ready") {
                         console.log("[MusicBackend] Received canvas_ready for videoId:", data.videoId, "url:", data.url)
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {

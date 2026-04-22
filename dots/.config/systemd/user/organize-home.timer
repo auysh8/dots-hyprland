@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Organize Home Folder Script every night at 2 AM
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=organize-home.service
+
+[Install]
+WantedBy=timers.target

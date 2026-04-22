@@ -478,12 +478,18 @@ class CacheManager:
             art_count = sum(1 for e in self.meta.values() if e["type"] == "art")
             audio_count = sum(1 for e in self.meta.values() if e["type"] == "audio")
             canvas_count = sum(1 for e in self.meta.values() if e["type"] == "canvas")
-            cv_count = sum(1 for e in self.meta.values() if e["type"] == "canvas_video")
-            
+
+            # Count actual files in canvas directory because AppleMusic fetcher caches independently
+            cv_count = 0
+            cv_size = 0
+            if self.canvas_video_dir.exists():
+                for f in self.canvas_video_dir.glob("*.mp4"):
+                    cv_count += 1
+                    cv_size += f.stat().st_size
+
             art_size = sum(e["size"] for e in self.meta.values() if e["type"] == "art")
             audio_size = sum(e["size"] for e in self.meta.values() if e["type"] == "audio")
             canvas_size = sum(e["size"] for e in self.meta.values() if e["type"] == "canvas")
-            cv_size = sum(e["size"] for e in self.meta.values() if e["type"] == "canvas_video")
 
             total_size = art_size + audio_size + canvas_size + cv_size
 
@@ -500,7 +506,6 @@ class CacheManager:
                 "max_size_mb": self.max_size_bytes / 1024 / 1024,
                 "utilization": total_size / self.max_size_bytes * 100,
             }
-
     def clear(self, clear_art: bool = True, clear_audio: bool = True, clear_canvas: bool = True):
         """
         Clear cache.
@@ -526,6 +531,14 @@ class CacheManager:
                 except Exception:
                     pass
                 del self.meta[file_hash]
+            
+            # Manually clear the canvas_videos directory since it's unmanaged by meta
+            if clear_canvas and self.canvas_video_dir.exists():
+                for f in self.canvas_video_dir.glob("*.mp4"):
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
 
             self._save_meta()
             self.log(f"Cache cleared: {len(to_remove)} files removed")
@@ -540,6 +553,9 @@ class CacheManager:
                 if file_path.suffix == ".tmp":
                     file_path.unlink()
                     orphan_count += 1
+                    continue
+                # Apple Music fetcher manages canvas videos externally
+                if cache_dir == self.canvas_video_dir and file_path.suffix == ".mp4":
                     continue
                 file_str = str(file_path)
                 found = any(e["path"] == file_str for e in self.meta.values())

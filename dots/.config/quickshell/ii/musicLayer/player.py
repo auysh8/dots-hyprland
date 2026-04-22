@@ -630,33 +630,63 @@ class Player:
 
             def _fetch_canvas():
                 try:
-                    if not album_id:
-                        self.log(f"Skipping Apple Music canvas for: {title} by {artist} — missing album_id")
-                        self.send_response({"type": "canvas_failed", "videoId": video_id})
-                        return
-
-                    album_title = self.api.get_album_title(album_id) if getattr(self, "api", None) else ""
-                    if not album_title:
-                        self.log(
-                            f"Skipping Apple Music canvas for: {title} by {artist} — "
-                            f"failed to resolve album title for {album_id}"
-                        )
-                        self.send_response({"type": "canvas_failed", "videoId": video_id})
-                        return
-
-                    self.log(f"Fetching Apple Music canvas for: {title} by {artist} on album '{album_title}'")
-                    canvas_url = self.apple_music.get_canvas_mp4(
+                    album_title = self.api.get_album_title(album_id) if album_id and getattr(self, "api", None) else ""
+                    
+                    # 1. Check local cache first to avoid unnecessary network lookups
+                    cached_url = self.apple_music.get_cached_canvas(
                         title,
                         artist,
                         album_title=album_title,
                         album_key=album_id,
                     )
+                    
+                    if cached_url:
+                        with self._state_lock:
+                            if self._playback_token != token:
+                                return
+                        self.log(f"Found cached Apple Music canvas for: {title}")
+                        self.send_response({"type": "canvas_ready", "videoId": video_id, "url": cached_url})
+                        return
+
+                    self.log(f"Fetching Apple Music canvas for: {title} by {artist} on album '{album_title}'")
+                    m3u8_url = self.apple_music.get_canvas_m3u8(
+                        title,
+                        artist,
+                        album_title=album_title,
+                        album_key=album_id,
+                    )
+                    
+                    if m3u8_url:
+                        # Resolve the direct MP4 URL to bypass GStreamer's terrible HLS buffering
+                        stream_url = self.apple_music.get_direct_mp4_url(m3u8_url)
+                    else:
+                        stream_url = None
+                    
                     with self._state_lock:
                         if self._playback_token != token:
                             return
-                    if canvas_url:
-                        self.log(f"Sending canvas_ready IPC message for videoId {video_id}")
-                        self.send_response({"type": "canvas_ready", "videoId": video_id, "url": canvas_url})
+
+                    if stream_url:
+                        self.log(f"Sending initial canvas stream URL for videoId {video_id}")
+                        self.send_response({"type": "canvas_ready", "videoId": video_id, "url": stream_url})
+                        
+                        # Start background download to MP4 for smooth looping and caching
+                        def _download_task():
+                            local_path = self.apple_music.m3u8_to_mp4(
+                                m3u8_url, # Still use m3u8 for ffmpeg or just pass stream_url
+                                title,
+                                artist,
+                                album_title=album_title,
+                                album_key=album_id
+                            )
+                            if local_path and local_path != stream_url:
+                                with self._state_lock:
+                                    if self._playback_token != token:
+                                        return
+                                self.log(f"Canvas download complete, switching to local file: {local_path}")
+                                self.send_response({"type": "canvas_ready", "videoId": video_id, "url": local_path})
+
+                        threading.Thread(target=_download_task, daemon=True).start()
                     else:
                         self.log(f"Sending canvas_failed IPC message for videoId {video_id}")
                         self.send_response({"type": "canvas_failed", "videoId": video_id})

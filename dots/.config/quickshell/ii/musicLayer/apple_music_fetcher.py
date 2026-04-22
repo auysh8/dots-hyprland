@@ -154,11 +154,17 @@ class AppleMusicCanvasFetcher:
             self.log(f"[AppleMusic] Search failed: {e}")
             return []
 
-    def get_canvas_m3u8(self, title, artist, album_title=None, album_key=None):
-        if not album_title:
-            self.log(f"[AppleMusic] Skipping canvas lookup for '{title}' by '{artist}' — missing album title")
-            return None
+    def get_cached_canvas(self, title, artist, album_title=None, album_key=None):
+        import hashlib
+        cache_dir = os.path.expanduser("~/.cache/quickshell/music/canvas_videos")
+        cache_identity = album_key or album_title or ""
+        safe_name = hashlib.md5(f"{title}-{artist}-{cache_identity}".encode()).hexdigest()
+        output_path = os.path.join(cache_dir, f"{safe_name}.mp4")
+        if os.path.exists(output_path):
+            return f"file://{output_path}"
+        return None
 
+    def get_canvas_m3u8(self, title, artist, album_title=None, album_key=None):
         if not self._check_and_refresh_token():
             return None
 
@@ -193,14 +199,14 @@ class AppleMusicCanvasFetcher:
                 if not editorial_video:
                     return None
                     
-                # Prefer Tall (Portrait) format, fallback to square
+                # Prefer Square format for the square UI thumbnail, fallback to Tall
                 video_url = None
-                if "motionDetailTall" in editorial_video:
-                    video_url = editorial_video["motionDetailTall"].get("video")
-                elif "motionSquareVideo1x1" in editorial_video:
+                if "motionSquareVideo1x1" in editorial_video:
                     video_url = editorial_video["motionSquareVideo1x1"].get("video")
                 elif "motionDetailSquare" in editorial_video:
                     video_url = editorial_video["motionDetailSquare"].get("video")
+                elif "motionDetailTall" in editorial_video:
+                    video_url = editorial_video["motionDetailTall"].get("video")
                     
                 if video_url:
                     return (album_id, video_url)
@@ -228,8 +234,43 @@ class AppleMusicCanvasFetcher:
         )
         return None
 
-    def get_canvas_mp4(self, title, artist, album_title=None, album_key=None):
-        m3u8_url = self.get_canvas_m3u8(title, artist, album_title=album_title, album_key=album_key)
+    def get_direct_mp4_url(self, m3u8_url):
+        import urllib.request
+        import urllib.parse
+        try:
+            req = urllib.request.Request(m3u8_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req) as response:
+                content = response.read().decode('utf-8')
+            
+            lines = content.split('\n')
+            best_child_url = None
+            for i, line in enumerate(lines):
+                if line.startswith('#EXT-X-STREAM-INF') and 'RESOLUTION' in line:
+                    if i + 1 < len(lines) and lines[i+1] and not lines[i+1].startswith('#'):
+                        child_uri = lines[i+1].strip()
+                        if not child_uri.startswith('http'):
+                            child_uri = urllib.parse.urljoin(m3u8_url, child_uri)
+                        best_child_url = child_uri
+            
+            if not best_child_url: return m3u8_url
+            
+            req = urllib.request.Request(best_child_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req) as response:
+                child_content = response.read().decode('utf-8')
+                
+            for line in child_content.split('\n'):
+                if line.strip().endswith('.mp4'):
+                    mp4_uri = line.strip()
+                    if not mp4_uri.startswith('http'):
+                        mp4_uri = urllib.parse.urljoin(best_child_url, mp4_uri)
+                    return mp4_uri
+                    
+            return m3u8_url
+        except Exception as e:
+            self.log(f"[AppleMusic] Failed to resolve direct MP4 URL: {e}")
+            return m3u8_url
+
+    def m3u8_to_mp4(self, m3u8_url, title, artist, album_title=None, album_key=None):
         if not m3u8_url:
             return None
 
@@ -244,7 +285,6 @@ class AppleMusicCanvasFetcher:
 
         # If already cached, return immediately
         if os.path.exists(output_path):
-            self.log(f"[AppleMusic] Returning cached canvas: {output_path}")
             return f"file://{output_path}"
 
         self.log(f"[AppleMusic] Downloading m3u8 stream to MP4 via ffmpeg: {output_path}")
@@ -265,3 +305,7 @@ class AppleMusicCanvasFetcher:
             if os.path.exists(output_path):
                 os.remove(output_path)
             return None
+
+    def get_canvas_mp4(self, title, artist, album_title=None, album_key=None):
+        m3u8_url = self.get_canvas_m3u8(title, artist, album_title=album_title, album_key=album_key)
+        return self.m3u8_to_mp4(m3u8_url, title, artist, album_title=album_title, album_key=album_key)
