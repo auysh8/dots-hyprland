@@ -79,22 +79,53 @@ class AppleMusicCanvasFetcher:
                 self.log(f"[AppleMusic] Failed to refresh token: {e}")
                 return False
 
-    def search_album_ids(self, title, artist):
+    def _normalize_text(self, value):
+        if not value:
+            return ""
+        text = value.lower().strip()
+        text = re.sub(r"[^\w\s]", " ", text)
+        text = re.sub(r"\s+", " ", text)
+        return text.strip()
+
+    def search_album_ids(self, title, artist, album_title=None):
         try:
             # Clean up query
-            query = f"{title} {artist}"
+            query = f"{title} {artist} {album_title or ''}"
             query = re.sub(r'\(.*?\)', '', query)
             query = re.sub(r'\[.*?\]', '', query)
             query = query.replace('feat.', '').strip()
             
             # Search both albums and songs and collect all unique collectionIds
-            ids = []
+            candidates = []
+            seen_ids = set()
+            normalized_album_title = self._normalize_text(album_title)
             
             def is_artist_match(result_artist, search_artist):
-                if not result_artist or not search_artist: return False
+                if not result_artist or not search_artist:
+                    return False
                 r_lower = result_artist.lower()
                 s_lower = search_artist.lower()
                 return s_lower in r_lower or r_lower in s_lower
+
+            def try_add_candidate(result):
+                cid = str(result.get("collectionId") or "")
+                if not cid or cid in seen_ids:
+                    return
+
+                res_artist = result.get("artistName", "")
+                if not is_artist_match(res_artist, artist):
+                    return
+
+                res_album = result.get("collectionName", "") or result.get("collectionCensoredName", "") or ""
+                if normalized_album_title and self._normalize_text(res_album) != normalized_album_title:
+                    return
+
+                seen_ids.add(cid)
+                candidates.append({
+                    "id": cid,
+                    "album": res_album,
+                    "artist": res_artist,
+                })
 
             # 1. Search Albums
             url_albums = "https://itunes.apple.com/search?" + urllib.parse.urlencode({
@@ -105,10 +136,7 @@ class AppleMusicCanvasFetcher:
             })
             data_albums = self._get(url_albums)
             for r in data_albums.get("results", []):
-                cid = str(r.get("collectionId"))
-                res_artist = r.get("artistName", "")
-                if cid and cid not in ids and is_artist_match(res_artist, artist):
-                    ids.append(cid)
+                try_add_candidate(r)
                     
             # 2. Search Songs (to find parent albums of the exact song)
             url_songs = "https://itunes.apple.com/search?" + urllib.parse.urlencode({
@@ -119,26 +147,34 @@ class AppleMusicCanvasFetcher:
             })
             data_songs = self._get(url_songs)
             for r in data_songs.get("results", []):
-                cid = str(r.get("collectionId"))
-                res_artist = r.get("artistName", "")
-                if cid and cid not in ids and is_artist_match(res_artist, artist):
-                    ids.append(cid)
-                    
-            return ids
+                try_add_candidate(r)
+
+            return candidates
         except Exception as e:
             self.log(f"[AppleMusic] Search failed: {e}")
             return []
 
-    def get_canvas_m3u8(self, title, artist):
+    def get_canvas_m3u8(self, title, artist, album_title=None, album_key=None):
+        if not album_title:
+            self.log(f"[AppleMusic] Skipping canvas lookup for '{title}' by '{artist}' — missing album title")
+            return None
+
         if not self._check_and_refresh_token():
             return None
 
-        album_ids = self.search_album_ids(title, artist)
-        if not album_ids:
-            self.log(f"[AppleMusic] Could not find any Apple Music albums for '{title}' by '{artist}'")
+        album_candidates = self.search_album_ids(title, artist, album_title=album_title)
+        if not album_candidates:
+            self.log(
+                f"[AppleMusic] Could not find matching Apple Music album for '{title}' by '{artist}' "
+                f"on release '{album_title}'"
+            )
             return None
             
-        self.log(f"[AppleMusic] Found {len(album_ids)} potential Album IDs to check for canvas...")
+        album_ids = [candidate["id"] for candidate in album_candidates]
+        self.log(
+            f"[AppleMusic] Found {len(album_ids)} matching Album IDs to check for canvas "
+            f"for release '{album_title}'..."
+        )
         
         headers = {"authorization": f"Bearer {self.token}", "origin": "https://music.apple.com"}
         
@@ -186,11 +222,14 @@ class AppleMusicCanvasFetcher:
                     # The other threads will finish silently in the background
                     return video_url
                 
-        self.log(f"[AppleMusic] Exhausted all {len(album_ids)} albums. No animated canvas found for '{title}'.")
+        self.log(
+            f"[AppleMusic] Exhausted all {len(album_ids)} matching albums. "
+            f"No animated canvas found for '{title}' on release '{album_title}'."
+        )
         return None
 
-    def get_canvas_mp4(self, title, artist):
-        m3u8_url = self.get_canvas_m3u8(title, artist)
+    def get_canvas_mp4(self, title, artist, album_title=None, album_key=None):
+        m3u8_url = self.get_canvas_m3u8(title, artist, album_title=album_title, album_key=album_key)
         if not m3u8_url:
             return None
 
@@ -199,7 +238,8 @@ class AppleMusicCanvasFetcher:
         os.makedirs(cache_dir, exist_ok=True)
         
         import hashlib
-        safe_name = hashlib.md5(f"{title}-{artist}".encode()).hexdigest()
+        cache_identity = album_key or album_title or ""
+        safe_name = hashlib.md5(f"{title}-{artist}-{cache_identity}".encode()).hexdigest()
         output_path = os.path.join(cache_dir, f"{safe_name}.mp4")
 
         # If already cached, return immediately

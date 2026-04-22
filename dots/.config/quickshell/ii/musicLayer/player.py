@@ -630,8 +630,27 @@ class Player:
 
             def _fetch_canvas():
                 try:
-                    self.log(f"Fetching Apple Music canvas for: {title} by {artist}")
-                    canvas_url = self.apple_music.get_canvas_mp4(title, artist)
+                    if not album_id:
+                        self.log(f"Skipping Apple Music canvas for: {title} by {artist} — missing album_id")
+                        self.send_response({"type": "canvas_failed", "videoId": video_id})
+                        return
+
+                    album_title = self.api.get_album_title(album_id) if getattr(self, "api", None) else ""
+                    if not album_title:
+                        self.log(
+                            f"Skipping Apple Music canvas for: {title} by {artist} — "
+                            f"failed to resolve album title for {album_id}"
+                        )
+                        self.send_response({"type": "canvas_failed", "videoId": video_id})
+                        return
+
+                    self.log(f"Fetching Apple Music canvas for: {title} by {artist} on album '{album_title}'")
+                    canvas_url = self.apple_music.get_canvas_mp4(
+                        title,
+                        artist,
+                        album_title=album_title,
+                        album_key=album_id,
+                    )
                     with self._state_lock:
                         if self._playback_token != token:
                             return

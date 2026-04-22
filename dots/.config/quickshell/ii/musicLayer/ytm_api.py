@@ -42,6 +42,8 @@ class YTMClient:
         # Song metadata cache
         self._song_meta_cache = {}
         self._song_meta_cache_ttl = 1800  # 30 minutes
+        self._album_title_cache = {}
+        self._album_title_cache_ttl = 3600  # 1 hour
         
 
         
@@ -175,6 +177,33 @@ class YTMClient:
                 pass
         return self._extract_nested_duration_text(item)
 
+    def _extract_album_id(self, item):
+        if not isinstance(item, dict):
+            return ""
+
+        album_data = item.get("album")
+        if isinstance(album_data, dict):
+            return album_data.get("id") or album_data.get("browseId") or ""
+
+        for key in ("albums", "albumData"):
+            value = item.get(key)
+            if isinstance(value, list) and value:
+                first = value[0]
+                if isinstance(first, dict):
+                    album_id = first.get("id") or first.get("browseId") or ""
+                    if album_id:
+                        return album_id
+            elif isinstance(value, dict):
+                album_id = value.get("id") or value.get("browseId") or ""
+                if album_id:
+                    return album_id
+
+        browse_id = item.get("browseId", "")
+        if isinstance(browse_id, str) and browse_id.startswith("MPREb_"):
+            return browse_id
+
+        return ""
+
     def format_track_item(self, item, index_offset=0):
         try:
             artist_name = ""
@@ -204,10 +233,7 @@ class YTMClient:
             if isinstance(artists_list, list) and artists_list:
                 artist_id = artists_list[0].get("id", "") or artists_list[0].get("browseId", "")
             
-            album_id = ""
-            album_data = item.get("album")
-            if isinstance(album_data, dict):
-                album_id = album_data.get("id") or album_data.get("browseId") or ""
+            album_id = self._extract_album_id(item)
 
             final_id = item.get("videoId") or item.get("playlistId") or item.get("browseId")
             if not final_id and item.get("resultType") in ["artist", "profile"] and artist_id:
@@ -615,6 +641,31 @@ class YTMClient:
         except Exception as e:
             self.log(f"Failed to rate song on YouTube Music: {e}")
 
+    def get_album_title(self, browse_id: str) -> str:
+        if not browse_id:
+            return ""
+
+        now = time.time()
+        cached = self._album_title_cache.get(browse_id)
+        if cached and (now - cached["ts"]) < self._album_title_cache_ttl:
+            return cached["title"]
+
+        if not self.ytm:
+            try:
+                self._init_ytm()
+            except Exception as e:
+                self.log(f"Deferred YTMusic init failed while resolving album title: {e}")
+                return ""
+
+        try:
+            album = self.ytm.get_album(browse_id)
+            title = (album or {}).get("title", "") or ""
+            self._album_title_cache[browse_id] = {"title": title, "ts": now}
+            return title
+        except Exception as e:
+            self.log(f"Failed to resolve album title for {browse_id}: {e}")
+            return ""
+
     def _fetch_explore_task(self):
         if not self.ytm:
             try:
@@ -706,6 +757,7 @@ class YTMClient:
                     "videoId": vid,
                     "title": release.get("title", "Unknown"),
                     "artist": artist_name,
+                    "albumId": self._extract_album_id(release),
                     "duration": self._extract_duration(release) or "",
                     "artUrl": art_url,
                 })
@@ -769,6 +821,7 @@ class YTMClient:
                         "videoId": vid,
                         "title": item.get("title", ""),
                         "artist": artist_name,
+                        "albumId": self._extract_album_id(item),
                         "cover": art,
                     }
                     recent_tracks.append(track_item)
@@ -925,6 +978,7 @@ class YTMClient:
                     "videoId": vid,
                     "title": item.get("title", "Unknown"),
                     "artist": artist_name,
+                    "albumId": self._extract_album_id(item),
                     "artUrl": self._extract_art_url(item),
                     "duration": self._extract_duration(item) or "",
                     "plays": item.get("views", ""),
@@ -1133,6 +1187,7 @@ class YTMClient:
                     "videoId": t.get("videoId"),
                     "title": t.get("title", ""),
                     "artist": artist_name,
+                    "albumId": self._extract_album_id(t),
                     "duration": t.get("duration", ""),
                     "artUrl": art,
                     "plays": t.get("views", "")
@@ -1236,6 +1291,7 @@ class YTMClient:
                     "videoId": t.get("videoId"),
                     "title": t.get("title", ""),
                     "artist": artist_name,
+                    "albumId": self._extract_album_id(t),
                     "duration": t.get("duration", ""),
                     "artUrl": art
                 })
