@@ -129,10 +129,11 @@ class MusicBackend:
             art_url = req.get("artUrl", "")
             artist_id = req.get("artistId", "")
             album_id = req.get("albumId", "")
+            album_name = req.get("album", "")
             queue = req.get("queue")
             is_liked = req.get("isLiked", False)
             if video_id:
-                self.player.play(video_id, title, artist, art_url, queue, artist_id, album_id, is_liked=is_liked)
+                self.player.play(video_id, title, artist, art_url, queue, artist_id, album_id, album_name=album_name, is_liked=is_liked)
 
         elif cmd == "pause":
             self.player.pause()

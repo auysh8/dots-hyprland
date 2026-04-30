@@ -204,6 +204,29 @@ class YTMClient:
 
         return ""
 
+    def _extract_album_name(self, item):
+        if not isinstance(item, dict):
+            return ""
+
+        album_data = item.get("album")
+        if isinstance(album_data, dict):
+            return album_data.get("name") or album_data.get("title") or ""
+
+        for key in ("albums", "albumData"):
+            value = item.get(key)
+            if isinstance(value, list) and value:
+                first = value[0]
+                if isinstance(first, dict):
+                    album_name = first.get("name") or first.get("title") or ""
+                    if album_name:
+                        return album_name
+            elif isinstance(value, dict):
+                album_name = value.get("name") or value.get("title") or ""
+                if album_name:
+                    return album_name
+
+        return ""
+
     def format_track_item(self, item, index_offset=0):
         try:
             artist_name = ""
@@ -234,6 +257,7 @@ class YTMClient:
                 artist_id = artists_list[0].get("id", "") or artists_list[0].get("browseId", "")
             
             album_id = self._extract_album_id(item)
+            album_name = self._extract_album_name(item)
 
             final_id = item.get("videoId") or item.get("playlistId") or item.get("browseId")
             if not final_id and item.get("resultType") in ["artist", "profile"] and artist_id:
@@ -249,6 +273,7 @@ class YTMClient:
                 "artist": artist_name,
                 "artistId": artist_id,
                 "albumId": album_id,
+                "album": album_name,
                 "duration": self._extract_duration(item),
                 "plays": item.get("views") or item.get("plays") or "",
                 "artUrl": art_url,

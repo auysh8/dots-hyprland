@@ -298,13 +298,14 @@ FocusScope {
             artLocalPath: payload.artLocalPath || "",
             artistId: payload.artistId || "",
             albumId: payload.albumId || "",
+            album: payload.album || "",
             isVideoTrack: !!payload.isVideoTrack,
             landscapeArtCandidates: payload.landscapeArtCandidates || [],
             quality: payload.quality || ""
         }
     }
 
-    function playTrack(videoId, title, artist, artUrl, queueTracks, artistId, albumId, likedHint) {
+    function playTrack(videoId, title, artist, artUrl, queueTracks, artistId, albumId, likedHint, album) {
         let isLiked = false;
         if (likedHint !== undefined && likedHint !== null) {
             isLiked = likedHint;
@@ -319,6 +320,7 @@ FocusScope {
             artUrl: artUrl,
             artistId: artistId || "",
             albumId: albumId || "",
+            album: album || "",
             artLocalPath: "",
             isVideoTrack: false,
             landscapeArtCandidates: [],
@@ -335,6 +337,7 @@ FocusScope {
             "artUrl": artUrl,
             "artistId": artistId || "",
             "albumId": albumId || "",
+            "album": album || "",
             "isLiked": isLiked
         }
         
@@ -756,6 +759,22 @@ FocusScope {
                         root.playbackPaused = false
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
+                    } else if (data.type === "track_metadata_resolved") {
+                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
+                            root.currentTrack = root.buildTrackState({
+                                videoId: root.currentTrack.videoId,
+                                title: root.currentTrack.title,
+                                artist: root.currentTrack.artist,
+                                artUrl: root.currentTrack.artUrl,
+                                artLocalPath: root.currentTrack.artLocalPath,
+                                artistId: data.artistId || root.currentTrack.artistId,
+                                albumId: data.albumId || root.currentTrack.albumId,
+                                album: data.album || root.currentTrack.album,
+                                isVideoTrack: root.currentTrack.isVideoTrack,
+                                landscapeArtCandidates: root.currentTrack.landscapeArtCandidates,
+                                quality: data.quality || root.currentTrack.quality
+                            })
+                        }
                     } else if (data.type === "canvas_ready") {
                         console.log("[MusicBackend] Received canvas_ready for videoId:", data.videoId, "url:", data.url)
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
@@ -778,6 +797,7 @@ FocusScope {
                                 artLocalPath: data.path,
                                 artistId: root.currentTrack.artistId,
                                 albumId: root.currentTrack.albumId,
+                                album: root.currentTrack.album,
                                 isVideoTrack: root.currentTrack.isVideoTrack,
                                 landscapeArtCandidates: root.currentTrack.landscapeArtCandidates,
                                 quality: root.currentTrack.quality

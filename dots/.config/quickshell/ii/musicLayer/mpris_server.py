@@ -228,7 +228,7 @@ class MprisServer:
         self._backend.seek(Position / 1_000_000.0)
 
     # ── metadata update (called from backend) ────────────────────────────────
-    def update(self, status, title="", artist="", art_local_path="", video_id="", art_url=""):
+    def update(self, status, title="", artist="", album="", art_local_path="", video_id="", art_url=""):
         from gi.repository import GLib as _GLib
 
         self._status = status
@@ -249,6 +249,9 @@ class MprisServer:
             "xesam:artist": _GLib.Variant("as", [artist] if artist else []),
             "xesam:url": _GLib.Variant("s", ""),
         }
+        if album:
+            meta["xesam:album"] = _GLib.Variant("s", album)
+
         if art_local_path and os.path.exists(art_local_path):
             meta["mpris:artUrl"] = _GLib.Variant("s", f"file://{art_local_path}")
         elif art_url:

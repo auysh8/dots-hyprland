@@ -115,7 +115,7 @@ class Player:
         self.repeat_mode = int(mode)
         self.log(f"Repeat mode set to: {self.repeat_mode}")
 
-    def play(self, video_id, title, artist, art_url, queue_tracks=None, artist_id="", album_id="", is_liked=False):
+    def play(self, video_id, title, artist, art_url, queue_tracks=None, artist_id="", album_id="", album_name="", is_liked=False):
         """
         Play a song with optional queue.
         
@@ -127,8 +127,9 @@ class Player:
             queue_tracks: List of track dicts to add to queue (optional)
             artist_id: Artist browse/channel ID
             album_id: Album browse ID
+            album_name: Album title
         """
-        self.log(f"Playing: {title} by {artist} (artist_id={artist_id}, album_id={album_id})")
+        self.log(f"Playing: {title} by {artist} (artist_id={artist_id}, album_id={album_id}, album_name={album_name})")
         art_url = normalize_square_art_url(art_url)
         self._push_play_stack(video_id)
         is_auto = getattr(self, "_is_auto_advancing", False)
@@ -166,6 +167,9 @@ class Player:
         self._current_artist = artist
         self._current_art_url = art_url
         self._current_quality = initial_quality
+        self._current_artist_id = artist_id
+        self._current_album_id = album_id
+        self._current_album_name = album_name
 
         self.send_response(
             self._build_track_payload(
@@ -184,7 +188,7 @@ class Player:
             token = self._playback_token
         threading.Thread(
             target=self._play_task,
-            args=(video_id, title, artist, art_url, token, is_auto, artist_id, album_id, is_liked),
+            args=(video_id, title, artist, art_url, token, is_auto, artist_id, album_id, album_name, is_liked),
             daemon=True,
         ).start()
 
@@ -306,7 +310,7 @@ class Player:
             raise last_error
         return None
 
-    def _build_track_payload(self, event_type, video_id, title, artist, art_url, *, art_local_path="", artist_id="", album_id="", is_liked=False, quality=""):
+    def _build_track_payload(self, event_type, video_id, title, artist, art_url, *, art_local_path="", artist_id="", album_id="", album_name="", is_liked=False, quality=""):
         return {
             "type": event_type,
             "videoId": video_id,
@@ -314,6 +318,7 @@ class Player:
             "artist": artist,
             "artistId": artist_id,
             "albumId": album_id,
+            "album": album_name,
             "artUrl": art_url,
             "artLocalPath": art_local_path,
             "isVideoTrack": is_video_track(video_id, art_url),
@@ -322,7 +327,74 @@ class Player:
             "quality": quality,
         }
 
-    def _play_task(self, video_id, title, artist, art_url, token, is_auto=False, artist_id="", album_id="", is_liked_hint=False):
+    def _extract_album_metadata_from_song(self, song_data):
+        if not isinstance(song_data, dict):
+            return ("", "")
+
+        album_id = ""
+        album_name = ""
+
+        try:
+            if getattr(self, "api", None):
+                album_id = self.api._extract_album_id(song_data) or ""
+                album_name = self.api._extract_album_name(song_data) or ""
+        except Exception:
+            pass
+
+        if not album_id:
+            for key in ("album", "albums", "albumData"):
+                value = song_data.get(key)
+                if isinstance(value, dict):
+                    album_id = value.get("id") or value.get("browseId") or album_id
+                    album_name = value.get("name") or value.get("title") or album_name
+                elif isinstance(value, list) and value and isinstance(value[0], dict):
+                    album_id = value[0].get("id") or value[0].get("browseId") or album_id
+                    album_name = value[0].get("name") or value[0].get("title") or album_name
+                if album_id and album_name:
+                    break
+
+        return (album_id or "", album_name or "")
+
+    def _resolve_missing_album_metadata(self, video_id, title, artist, artist_id, art_url, token, album_id="", album_name=""):
+        if album_id and album_name:
+            return (album_id, album_name)
+
+        try:
+            song_data = self.api.ytm.get_song(video_id)
+            resolved_album_id, resolved_album_name = self._extract_album_metadata_from_song(song_data)
+            final_album_id = album_id or resolved_album_id
+            final_album_name = album_name or resolved_album_name
+
+            if not final_album_id and not final_album_name:
+                return (album_id, album_name)
+
+            with self._state_lock:
+                if self._playback_token != token or self.current_video_id != video_id:
+                    return (album_id, album_name)
+                self._current_album_id = final_album_id
+                self._current_album_name = final_album_name
+
+            if final_album_id != album_id or final_album_name != album_name:
+                self.send_response(
+                    self._build_track_payload(
+                        "track_metadata_resolved",
+                        video_id,
+                        title,
+                        artist,
+                        art_url,
+                        artist_id=artist_id,
+                        album_id=final_album_id,
+                        album_name=final_album_name,
+                        quality=getattr(self, "_current_quality", ""),
+                    )
+                )
+
+            return (final_album_id, final_album_name)
+        except Exception as e:
+            self.log(f"Album metadata resolve failed: {e}")
+            return (album_id, album_name)
+
+    def _play_task(self, video_id, title, artist, art_url, token, is_auto=False, artist_id="", album_id="", album_name="", is_liked_hint=False):
         self.log(f"[PLAY_TASK] Starting for: {title} ({video_id}) token={token}")
         try:
             time.sleep(0.25)
@@ -519,12 +591,12 @@ class Player:
                         cached_path = self.cache.cache_art(art_url, image_data) if image_data else None
                         if cached_path:
                             self.send_response({"type": "art_downloaded", "videoId": video_id, "path": cached_path})
-                            self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=cached_path, video_id=video_id, art_url=art_url)
+                            self.mpris.update(status="Playing", title=title, artist=artist, album=album_name, art_local_path=cached_path, video_id=video_id, art_url=art_url)
                     except Exception as e:
                         self.log(f"Art download failed: {e}")
                 elif art_file_path:
                     self.send_response({"type": "art_downloaded", "videoId": video_id, "path": art_file_path})
-                    self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=art_file_path, video_id=video_id, art_url=art_url)
+                    self.mpris.update(status="Playing", title=title, artist=artist, album=album_name, art_local_path=art_file_path, video_id=video_id, art_url=art_url)
             threading.Thread(target=_deferred_art_download, daemon=True).start()
 
             # ── Deferred audio caching ─────────────────────────────────────────
@@ -630,16 +702,25 @@ class Player:
 
             def _fetch_canvas():
                 try:
-                    album_title = self.api.get_album_title(album_id) if album_id and getattr(self, "api", None) else ""
-                    
+                    resolved_album_id, resolved_album_name = self._resolve_missing_album_metadata(
+                        video_id,
+                        title,
+                        artist,
+                        artist_id,
+                        art_url,
+                        token,
+                        album_id=album_id,
+                        album_name=album_name,
+                    )
+                    album_title = resolved_album_name or ""
+
                     # 1. Check local cache first to avoid unnecessary network lookups
                     cached_url = self.apple_music.get_cached_canvas(
                         title,
                         artist,
                         album_title=album_title,
-                        album_key=album_id,
-                    )
-                    
+                        album_key=resolved_album_id,
+                    )                    
                     if cached_url:
                         with self._state_lock:
                             if self._playback_token != token:
@@ -653,7 +734,7 @@ class Player:
                         title,
                         artist,
                         album_title=album_title,
-                        album_key=album_id,
+                        album_key=resolved_album_id,
                     )
                     
                     if m3u8_url:
@@ -677,7 +758,7 @@ class Player:
                                 title,
                                 artist,
                                 album_title=album_title,
-                                album_key=album_id
+                                album_key=resolved_album_id
                             )
                             if local_path and local_path != stream_url:
                                 with self._state_lock:
@@ -697,7 +778,7 @@ class Player:
             self.mpris.publish()
             if getattr(self, "mpris", None):
                 self.mpris.emit_seeked(0)
-            self.mpris.update(status="Playing", title=title, artist=artist, art_local_path=art_file_path or "", video_id=video_id, art_url=art_url)
+            self.mpris.update(status="Playing", title=title, artist=artist, album=album_name, art_local_path=art_file_path or "", video_id=video_id, art_url=art_url)
 
             def _sync_history():
                 try:
@@ -799,7 +880,10 @@ class Player:
                     "videoId": self.current_video_id,
                     "title": self._current_title,
                     "artist": self._current_artist,
-                    "artUrl": self._current_art_url
+                    "artUrl": self._current_art_url,
+                    "artistId": getattr(self, "_current_artist_id", ""),
+                    "albumId": getattr(self, "_current_album_id", ""),
+                    "album": getattr(self, "_current_album_name", "")
                 }
             else:
                 next_track = self._current_queue.pop(0)
@@ -816,7 +900,16 @@ class Player:
                     threading.Thread(target=self._extend_queue_task, args=(extension_seed_id,), daemon=True).start()
 
             self._is_auto_advancing = True
-            self.play(next_track["videoId"], next_track.get("title", ""), next_track.get("artist", ""), next_track.get("artUrl", ""), self._current_queue)
+            self.play(
+                next_track["videoId"],
+                next_track.get("title", ""),
+                next_track.get("artist", ""),
+                next_track.get("artUrl", ""),
+                self._current_queue,
+                next_track.get("artistId", ""),
+                next_track.get("albumId", ""),
+                next_track.get("album", "")
+            )
 
     def get_output_device(self):
         try:
@@ -870,7 +963,10 @@ class Player:
                     "videoId": vid,
                     "title": getattr(self, "_current_title", ""),
                     "artist": getattr(self, "_current_artist", ""),
-                    "artUrl": getattr(self, "_current_art_url", "")
+                    "artUrl": getattr(self, "_current_art_url", ""),
+                    "artistId": getattr(self, "_current_artist_id", ""),
+                    "albumId": getattr(self, "_current_album_id", ""),
+                    "album": getattr(self, "_current_album_name", "")
                 }
                 self._current_queue.insert(0, abandoned_track)
                 self.send_response({"type": "queue_updated", "queue": self._current_queue})

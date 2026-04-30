@@ -87,6 +87,45 @@ class AppleMusicCanvasFetcher:
         text = re.sub(r"\s+", " ", text)
         return text.strip()
 
+    def _normalize_release_title(self, value):
+        text = self._normalize_text(value)
+        if not text:
+            return ""
+        text = re.sub(
+            r"\b("
+            r"single|ep|deluxe|deluxe edition|extended edition|expanded edition|"
+            r"remastered|remaster|bonus track version|acoustic|live"
+            r")\b",
+            " ",
+            text,
+        )
+        text = re.sub(r"\s+", " ", text)
+        return text.strip()
+
+    def _is_title_match(self, left, right):
+        norm_left = self._normalize_text(left)
+        norm_right = self._normalize_text(right)
+        if not norm_left or not norm_right:
+            return False
+        return (
+            norm_left == norm_right
+            or norm_left in norm_right
+            or norm_right in norm_left
+        )
+
+    def _album_match_score(self, result_album, requested_album):
+        wanted = self._normalize_release_title(requested_album)
+        found = self._normalize_release_title(result_album)
+        if not wanted or not found:
+            return 0
+        if wanted == found:
+            return 3
+        if found.startswith(wanted) or wanted.startswith(found):
+            return 2
+        if wanted in found:
+            return 1
+        return 0
+
     def search_album_ids(self, title, artist, album_title=None):
         try:
             # Clean up query
@@ -98,7 +137,8 @@ class AppleMusicCanvasFetcher:
             # Search both albums and songs and collect all unique collectionIds
             candidates = []
             seen_ids = set()
-            normalized_album_title = self._normalize_text(album_title)
+            normalized_title = self._normalize_text(title)
+            normalized_album_title = self._normalize_release_title(album_title)
             
             def is_artist_match(result_artist, search_artist):
                 if not result_artist or not search_artist:
@@ -107,7 +147,7 @@ class AppleMusicCanvasFetcher:
                 s_lower = search_artist.lower()
                 return s_lower in r_lower or r_lower in s_lower
 
-            def try_add_candidate(result):
+            def try_add_candidate(result, source_kind):
                 cid = str(result.get("collectionId") or "")
                 if not cid or cid in seen_ids:
                     return
@@ -117,14 +157,30 @@ class AppleMusicCanvasFetcher:
                     return
 
                 res_album = result.get("collectionName", "") or result.get("collectionCensoredName", "") or ""
-                if normalized_album_title and self._normalize_text(res_album) != normalized_album_title:
-                    return
+                album_score = self._album_match_score(res_album, album_title)
+                res_track = result.get("trackName", "")
+                track_match = self._is_title_match(res_track, title) if res_track else False
+                
+                if normalized_album_title:
+                    # When we know the release title, keep matches strict enough to avoid
+                    # pulling editorial videos from a different release with a similar name.
+                    if album_score <= 0:
+                        return
+                    # Song results must also match the requested track title.
+                    if source_kind == "song" and not track_match:
+                        return
+                else:
+                    # Without a reliable album title, only accept exact track-led matches
+                    # from song results. Album-only hits are too ambiguous and often wrong.
+                    if source_kind != "song" or not track_match:
+                        return
 
                 seen_ids.add(cid)
                 candidates.append({
                     "id": cid,
                     "album": res_album,
                     "artist": res_artist,
+                    "score": album_score + (4 if track_match else 0),
                 })
 
             # 1. Search Albums
@@ -136,7 +192,7 @@ class AppleMusicCanvasFetcher:
             })
             data_albums = self._get(url_albums)
             for r in data_albums.get("results", []):
-                try_add_candidate(r)
+                try_add_candidate(r, "album")
                     
             # 2. Search Songs (to find parent albums of the exact song)
             url_songs = "https://itunes.apple.com/search?" + urllib.parse.urlencode({
@@ -147,8 +203,9 @@ class AppleMusicCanvasFetcher:
             })
             data_songs = self._get(url_songs)
             for r in data_songs.get("results", []):
-                try_add_candidate(r)
+                try_add_candidate(r, "song")
 
+            candidates.sort(key=lambda candidate: candidate.get("score", 0), reverse=True)
             return candidates
         except Exception as e:
             self.log(f"[AppleMusic] Search failed: {e}")
