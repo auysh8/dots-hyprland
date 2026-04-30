@@ -11,10 +11,18 @@ StyledFlickable {
     property string queryText: ""
     readonly property var flickable: root
 
-
+    z: 100
     anchors.fill: parent
-    contentHeight: resultsColumn.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32)
+
+    // Background to hide underlying views since search now overlays them
+    Rectangle {
+        anchors.fill: parent
+        color: rootContext ? rootContext.backgroundColor : "transparent"
+        z: -1
+    }
+    contentHeight: Math.max(height, resultsColumn.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32))
     contentWidth: width
+    flickableDirection: Flickable.VerticalFlick
     pressDelay: 150
 
     Behavior on width {
@@ -25,7 +33,7 @@ StyledFlickable {
         }
     }
 
-    property bool show: queryText.length > 0 && rootContext && rootContext.currentView !== "playlist" && rootContext.currentView !== "artist" && rootContext.currentView !== "artist_items" && !rootContext.isLoading
+    property bool show: queryText.length > 0 && rootContext && !rootContext.isLoading
     opacity: show ? 1.0 : 0.0
     visible: opacity > 0
     enabled: show

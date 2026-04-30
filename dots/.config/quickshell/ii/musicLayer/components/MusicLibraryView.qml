@@ -23,8 +23,9 @@ StyledFlickable {
 
     anchors.fill: parent
     clip: true
-    contentHeight: libraryLayout.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32)
+    contentHeight: Math.max(height, libraryLayout.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32))
     contentWidth: width
+    flickableDirection: Flickable.VerticalFlick
     pressDelay: 150
 
     Behavior on width {

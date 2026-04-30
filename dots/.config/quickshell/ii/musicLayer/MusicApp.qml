@@ -195,6 +195,7 @@ FocusScope {
     property bool musicSettingsHighQuality: true
     property bool musicSettingsTidalLossless: false
     property bool musicSettingsExperimentalLyrics: false
+    property bool musicSettingsOfflineMode: false
 
     function updateMusicSettings(key, value) {
         let updates = {}
@@ -236,6 +237,12 @@ FocusScope {
     
     function navigateTo(viewName) {
         root.currentView = viewName
+        
+        // Clear search input to dismiss search overlay when navigating
+        if (searchInput && searchInput.text.length > 0) {
+            searchInput.text = ""
+            root.searchSuggestions.clear()
+        }
         
         // Centralized lazy-load policy
         if (viewName === "home" && root.homeContent.count === 0 && root.quickPicks.count === 0 && !root.isLoading) {
@@ -352,6 +359,12 @@ FocusScope {
     
     function openPlaylist(browseId) {
         if (!browseId) return;
+        
+        if (searchInput && searchInput.text.length > 0) {
+            searchInput.text = ""
+            root.searchSuggestions.clear()
+        }
+
         root.returnView = root.currentView
         root.currentView = "playlist"
         root.isLoading = true
@@ -371,6 +384,11 @@ FocusScope {
     }
 
     function openArtist(channelId) {
+        if (searchInput && searchInput.text.length > 0) {
+            searchInput.text = ""
+            root.searchSuggestions.clear()
+        }
+        
         root.returnView = root.currentView
         root.currentView = "artist"
         root.isLoading = true
@@ -617,23 +635,26 @@ FocusScope {
                 try {
                     let data = JSON.parse(line)
                     
-                    if (data.type === "ready") {
+                    switch (data.type) {
+                        case "ready":
                         if (data.authenticated !== undefined) {
                             root.isAuthenticated = data.authenticated
                             if (data.accountName) root.accountName = data.accountName
                         }
                         root.sendCommand({ "command": "get_settings" })
                         root.getHome()
-                    } else if (data.type === "suggestions") {
+                        break;
+                        case "suggestions":
                         if (root.suppressSuggestionResponses) {
                             return
                         }
                         root.searchSuggestions.clear()
-                        let results = data.results || []
-                        for (let i = 0; i < results.length; i++) {
+                        var results = data.results || []
+                        for (var i = 0; i < results.length; i++) {
                             root.searchSuggestions.append({ "text": results[i] })
                         }
-                    } else if (data.type === "search_results") {
+                        break;
+                        case "search_results":
                         root.isLoading = false
                         root.refreshing = false
                         root.artistResults.clear()
@@ -641,71 +662,78 @@ FocusScope {
                         root.albumResults.clear()
                         root.lastSearchQuery = data.query || root.lastSearchQuery
                         
-                        let artists = data.artists || []
-                        let songs = data.songs || []
-                        let albums = data.albums || []
+                        var artists = data.artists || []
+                        var songs = data.songs || []
+                        var albums = data.albums || []
                         root.cachedSongResults = songs
                         
-                        for (let i = 0; i < artists.length; i++) {
+                        for (var i = 0; i < artists.length; i++) {
                             root.artistResults.append(artists[i])
                         }
-                        for (let i = 0; i < albums.length; i++) root.albumResults.append(albums[i])
+                        for (var i = 0; i < albums.length; i++) root.albumResults.append(albums[i])
                         root.applyVisibleSongResults()
                         
-                    } else if (data.type === "home_section") {
+                        break;
+                        case "home_section":
                         root.isLoading = false
                         root.refreshing = false
-                        let items = data.items || []
+                        var items = data.items || []
                         if (data.section === "recommendations") {
                             root.homeContent.clear()
-                            for (let i = 0; i < items.length; i++) root.homeContent.append(items[i])
+                            for (var i = 0; i < items.length; i++) root.homeContent.append(items[i])
                         } else if (data.section === "quick_picks") {
                             root.quickPicks.clear()
-                            for (let i = 0; i < items.length; i++) root.quickPicks.append(items[i])
+                            for (var i = 0; i < items.length; i++) root.quickPicks.append(items[i])
                         } else if (data.section === "shorts") {
                             root.shortsContent.clear()
-                            for (let i = 0; i < items.length; i++) root.shortsContent.append(items[i])
+                            for (var i = 0; i < items.length; i++) root.shortsContent.append(items[i])
                         }
-                    } else if (data.type === "home_content") {
+                        break;
+                        case "home_content":
                         root.isLoading = false
                         root.refreshing = false
                         root.homeContent.clear()
                         root.quickPicks.clear()
                         root.shortsContent.clear()
                         
-                        let recs = data.recommendations || data.results || []
-                        let picks = data.quick_picks || []
-                        let shorts = data.shorts_content || []
+                        var recs = data.recommendations || data.results || []
+                        var picks = data.quick_picks || []
+                        var shorts = data.shorts_content || []
                         
-                        for (let i = 0; i < recs.length; i++) {
+                        for (var i = 0; i < recs.length; i++) {
                             root.homeContent.append(recs[i])
                         }
-                        for (let i = 0; i < picks.length; i++) {
+                        for (var i = 0; i < picks.length; i++) {
                             root.quickPicks.append(picks[i])
                         }
-                        for (let i = 0; i < shorts.length; i++) {
+                        for (var i = 0; i < shorts.length; i++) {
                             root.shortsContent.append(shorts[i])
                         }
-                    } else if (data.type === "explore_section") {
+                        break;
+                        case "explore_section":
                         root.isLoading = false
                         root.refreshing = false
-                        let items = data.items || []
+                        var items = data.items || []
                         if (data.section === "trending") {
                             root.exploreTrending.clear()
-                            for (let i = 0; i < items.length; i++) root.exploreTrending.append(items[i])
+                            for (var i = 0; i < items.length; i++) root.exploreTrending.append(items[i])
                         } else if (data.section === "new_releases") {
                             root.exploreNewReleases.clear()
-                            for (let i = 0; i < items.length; i++) root.exploreNewReleases.append(items[i])
+                            for (var i = 0; i < items.length; i++) root.exploreNewReleases.append(items[i])
                         }
-                    } else if (data.type === "library_section") {
+                        break;
+                        case "library_section":
                         root.applyLibrarySection(data)
-                    } else if (data.type === "playlist_details") {
+                        break;
+                        case "playlist_details":
                         root.applyPlaylistDetails(data)
-                    } else if (data.type === "artist_details") {
+                        break;
+                        case "artist_details":
                         root.applyArtistDetails(data)
-                    } else if (data.type === "artist_full_songs") {
+                        break;
+                        case "artist_full_songs":
                         root.isLoading = false
-                        let fullSongs = data.items || []
+                        var fullSongs = data.items || []
                         root.activeArtistSongsFull = true
 
                         root.returnView = "artist"
@@ -714,52 +742,59 @@ FocusScope {
                         root.activePlaylistAuthor = root.activeArtistName
                         root.activePlaylistTrackCount = fullSongs.length
                         root.activePlaylistTracks.clear()
-                        for (let i = 0; i < fullSongs.length; i++) {
+                        for (var i = 0; i < fullSongs.length; i++) {
                             root.activePlaylistTracks.append(fullSongs[i])
                         }
                         root.activePlaylistCover = root.activeArtistThumbnail
-                        root.currentView = "playlist"                    } else if (data.type === "artist_full_albums") {
+                        root.currentView = "playlist"
+                        break;
+                        case "artist_full_albums":
                         root.isLoading = false
-                        let fullAlbums = data.items || []
+                        var fullAlbums = data.items || []
                         root.activeArtistAlbums.clear()
-                        for (let i = 0; i < fullAlbums.length; i++) {
+                        for (var i = 0; i < fullAlbums.length; i++) {
                             root.activeArtistAlbums.append(fullAlbums[i])
                         }
                         root.activeArtistAlbumsFull = true
                         root.activeArtistItemsTitle = "All Albums"
                         root.activeArtistItemsModel = root.activeArtistAlbums
                         root.currentView = "artist_items"
-                    } else if (data.type === "artist_full_singles") {
+                        break;
+                        case "artist_full_singles":
                         root.isLoading = false
-                        let fullSingles = data.items || []
+                        var fullSingles = data.items || []
                         root.activeArtistSingles.clear()
-                        for (let i = 0; i < fullSingles.length; i++) {
+                        for (var i = 0; i < fullSingles.length; i++) {
                             root.activeArtistSingles.append(fullSingles[i])
                         }
                         root.activeArtistSinglesFull = true
                         root.activeArtistItemsTitle = "All Singles & EPs"
                         root.activeArtistItemsModel = root.activeArtistSingles
                         root.currentView = "artist_items"
-                    } else if (data.type === "error") {
+                        break;
+                        case "error":
                         root.isLoading = false
                         root.refreshing = false
                         root.isTrackLoading = false
                         console.error("[MusicBackend] Error:", data.message)
-                    } else if (data.type === "track_loading") {
+                        break;
+                        case "track_loading":
                         root.isTrackLoading = true
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
                         root.currentCanvasUrl = ""
                         root.currentTrackCredits.clear() // Clear credits
                         root.currentTrack = root.buildTrackState(data)
-                    } else if (data.type === "playback_started") {
+                        break;
+                        case "playback_started":
                         root.isTrackLoading = false
                         root.currentTrack = root.buildTrackState(data)
                         root.currentTrackLiked = data.isLiked || false
                         root.playbackPaused = false
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
-                    } else if (data.type === "track_metadata_resolved") {
+                        break;
+                        case "track_metadata_resolved":
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentTrack = root.buildTrackState({
                                 videoId: root.currentTrack.videoId,
@@ -775,7 +810,8 @@ FocusScope {
                                 quality: data.quality || root.currentTrack.quality
                             })
                         }
-                    } else if (data.type === "canvas_ready") {
+                        break;
+                        case "canvas_ready":
                         console.log("[MusicBackend] Received canvas_ready for videoId:", data.videoId, "url:", data.url)
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentCanvasUrl = data.url
@@ -783,11 +819,13 @@ FocusScope {
                         } else {
                             console.warn("[MusicApp] Ignored canvas_ready. Expected videoId:", root.currentTrack ? root.currentTrack.videoId : "null", "Got:", data.videoId)
                         }
-                    } else if (data.type === "canvas_failed") {
+                        break;
+                        case "canvas_failed":
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentCanvasUrl = ""
                         }
-                    } else if (data.type === "art_downloaded") {
+                        break;
+                        case "art_downloaded":
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentTrack = root.buildTrackState({
                                 videoId: root.currentTrack.videoId,
@@ -803,46 +841,59 @@ FocusScope {
                                 quality: root.currentTrack.quality
                             })
                         }
-                    } else if (data.type === "playback_stopped") {
+                        break;
+                        case "playback_stopped":
                         if (!root.isTrackLoading) {
                             root.currentTrack = null
                         }
                         root.playbackPaused = false
-                    } else if (data.type === "playback_paused") {
+                        break;
+                        case "playback_paused":
                         root.playbackPaused = true
-                    } else if (data.type === "playback_resumed") {
+                        break;
+                        case "playback_resumed":
                         root.playbackPaused = false
-                    } else if (data.type === "playback_progress") {
+                        break;
+                        case "playback_progress":
                         root.trackPositionSec = data.positionSec || 0
                         if (data.durationSec > 0) root.trackDurationSec = data.durationSec
-                    } else if (data.type === "playback_duration") {
+                        break;
+                        case "playback_duration":
                         root.trackDurationSec = data.durationSec || 0
-                    } else if (data.type === "like_status") {
+                        break;
+                        case "like_status":
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentTrackLiked = data.isLiked || false
                         }
-                    } else if (data.type === "queue_fetching") {
+                        break;
+                        case "queue_fetching":
                         root.isQueueLoading = true
-                    } else if (data.type === "queue_updated") {
+                        break;
+                        case "queue_updated":
                         root.queueList.clear()
-                        let q = data.queue || []
-                        for (let i = 0; i < q.length; i++) {
+                        var q = data.queue || []
+                        for (var i = 0; i < q.length; i++) {
                             root.queueList.append(q[i])
                         }
                         root.isQueueLoading = false
-                    } else if (data.type === "oauth_code") {
+                        break;
+                        case "oauth_code":
                         root.oauthUrl = data.url
                         root.oauthCode = data.user_code
-                    } else if (data.type === "settings_info") {
+                        break;
+                        case "settings_info":
                         if (data.max_cache_size_mb !== undefined) root.musicSettingsCacheLimit = data.max_cache_size_mb
                         if (data.high_audio_quality !== undefined) root.musicSettingsHighQuality = data.high_audio_quality
                         if (data.tidal_lossless !== undefined) root.musicSettingsTidalLossless = data.tidal_lossless
                         if (data.experimental_lyrics !== undefined) root.musicSettingsExperimentalLyrics = data.experimental_lyrics
-                    } else if (data.type === "account_info") {
+                        if (data.offline_mode !== undefined) root.musicSettingsOfflineMode = data.offline_mode
+                        break;
+                        case "account_info":
                         if (data.accountName) root.accountName = data.accountName
                         if (data.channelHandle) root.channelHandle = data.channelHandle
                         if (data.accountPhotoUrl) root.accountPhotoUrl = data.accountPhotoUrl
-                    } else if (data.type === "oauth_success") {
+                        break;
+                        case "oauth_success":
                         if (data.success === false) {
                             root.isAuthenticated = false
                             root.accountName = ""
@@ -858,32 +909,43 @@ FocusScope {
                         if (data.accountName) root.accountName = data.accountName
                         root.getHome()
                         root.getLibrary()
-                    } else if (data.type === "lyrics") {
+                        break;
+                        case "lyrics":
                         root._applyLocalLyrics(data)
-                    } else if (data.type === "lyrics_line") {
+                        break;
+                        case "lyrics_line":
                         root.localLyricsCurrentLine = data.currentLine !== undefined ? data.currentLine : -1
-                    } else if (data.type === "auth_refreshed") {
+                        break;
+                        case "auth_refreshed":
                         if (data.success) {
                             root.isAuthenticated = true
                             root.getHome()
                             root.getLibrary()
                         }
-                    } else if (data.type === "output_device") {
+                        break;
+                        case "output_device":
                         root.currentOutputDevice = data.device || "Unknown"
-                    } else if (data.type === "credits") {
+                        break;
+                        case "credits":
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentTrackCredits.clear()
-                            let credits = data.credits || []
-                            for (let i = 0; i < credits.length; i++) {
+                            var credits = data.credits || []
+                            for (var i = 0; i < credits.length; i++) {
                                 root.currentTrackCredits.append({ "text": credits[i] })
                             }
                         }
-                    } else if (data.type === "error_toast") {
+                        break;
+                        case "error_toast":
                         root.showToastArgs(data.message || "An error occurred", data.icon || "error")
-                    } else if (data.type === "cache_stats") {
+                        break;
+                        case "cache_stats":
                         cacheView.onCacheStats(data)
+                        break;
+                        default:
+                            console.warn("[MusicApp] Unknown IPC message type:", data.type);
+                            break;
                     }
-                } catch(e) { 
+                    } catch(e) { 
                     console.error("[MusicBackend] Parse Error on line:", line)
                 }
             }

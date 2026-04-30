@@ -21,7 +21,7 @@ StyledFlickable {
 
     anchors.fill: parent
     clip: true
-    contentHeight: itemsContainer.implicitHeight + (rootContext && rootContext.currentTrack ? 120 : 32)
+    contentHeight: Math.max(height, itemsContainer.implicitHeight + (rootContext && rootContext.currentTrack ? 120 : 32))
     contentWidth: width
     flickableDirection: Flickable.VerticalFlick
     // This view is dense with full-card tap targets, so give the page flick

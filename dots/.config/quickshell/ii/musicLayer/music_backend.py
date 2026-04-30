@@ -4,6 +4,7 @@ import os
 import signal
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import subprocess
 from queue import Queue
 
@@ -26,6 +27,7 @@ class MusicBackend:
 
         # Instantiate sub-components
         self.mpris = MprisServer(self)
+        self.executor = ThreadPoolExecutor(max_workers=10)
         
         cache_dir = os.path.expanduser("~/.cache/quickshell/music")
         self.cache = CacheManager(cache_dir, max_size_mb=self.settings.get("max_cache_size_mb", 500.0), logger=self.log)
@@ -178,22 +180,22 @@ class MusicBackend:
 
         elif cmd == "populate_radio":
             video_id = req.get("videoId")
-            threading.Thread(target=self.player._fetch_queue_task, args=(video_id,), daemon=True).start()
+            self.executor.submit(self.player._fetch_queue_task, video_id)
 
         # ---- API ACTIONS ----
         elif cmd == "get_home":
-            threading.Thread(target=self.api.get_home, daemon=True).start()
+            self.executor.submit(self.api.get_home)
 
         elif cmd == "get_explore":
-            threading.Thread(target=self.api.get_explore, daemon=True).start()
+            self.executor.submit(self.api.get_explore)
 
         elif cmd == "get_library":
-            threading.Thread(target=self.api.get_library, daemon=True).start()
+            self.executor.submit(self.api.get_library)
 
         elif cmd == "search":
             query = req.get("query", "")
             if query:
-                threading.Thread(target=self.api.search, args=(query,), daemon=True).start()
+                self.executor.submit(self.api.search, query)
 
         elif cmd == "get_suggestions":
             query = req.get("query", "")
@@ -207,19 +209,19 @@ class MusicBackend:
         elif cmd == "get_credits":
             video_id = req.get("videoId")
             if video_id:
-                threading.Thread(target=self.api.get_credits, args=(video_id,), daemon=True).start()
+                self.executor.submit(self.api.get_credits, video_id)
 
         elif cmd == "get_artist":
             channel_id = req.get("channelId")
             if channel_id:
-                threading.Thread(target=self.api.get_artist, args=(channel_id,), daemon=True).start()
+                self.executor.submit(self.api.get_artist, channel_id)
 
         elif cmd == "get_artist_items":
             channel_id = req.get("channelId")
             params = req.get("params")
             item_type = req.get("itemType")
             if channel_id and params and item_type:
-                threading.Thread(target=self.api.get_artist_items, args=(channel_id, params, item_type), daemon=True).start()
+                self.executor.submit(self.api.get_artist_items, channel_id, params, item_type)
 
         elif cmd == "get_artist_full_items":
             # Alias for get_artist_items - used by MusicArtistView for "See all" actions
@@ -227,50 +229,61 @@ class MusicBackend:
             params = req.get("params")
             item_type = req.get("itemType")
             if channel_id and params and item_type:
-                threading.Thread(target=self.api.get_artist_items, args=(channel_id, params, item_type), daemon=True).start()
+                self.executor.submit(self.api.get_artist_items, channel_id, params, item_type)
 
         elif cmd == "get_artist_full_songs":
             channel_id = req.get("channelId")
             songs_browse_id = req.get("songsBrowseId")
             if channel_id and songs_browse_id:
-                threading.Thread(target=self.api.get_artist_full_songs, args=(channel_id, songs_browse_id), daemon=True).start()
+                self.executor.submit(self.api.get_artist_full_songs, channel_id, songs_browse_id)
 
         elif cmd == "get_playlist":
             browse_id = req.get("browseId")
             if browse_id:
-                threading.Thread(target=self.api.get_playlist, args=(browse_id,), daemon=True).start()
+                self.executor.submit(self.api.get_playlist, browse_id)
 
         elif cmd == "fetch_playlist_for_queue":
             video_id = req.get("videoId")
             if video_id:
-                threading.Thread(target=self.player.fetch_playlist, args=(video_id,), daemon=True).start()
+                self.executor.submit(self.player.fetch_playlist, video_id)
 
         elif cmd == "toggle_like":
             video_id = req.get("videoId")
             is_liked = req.get("isLiked", False)
             if video_id:
-                threading.Thread(target=self.api._toggle_like_task, args=(video_id, is_liked), daemon=True).start()
+                self.executor.submit(self.api._toggle_like_task, video_id, is_liked)
 
         elif cmd == "start_oauth":
-            threading.Thread(target=self.api.start_oauth, daemon=True).start()
+            self.executor.submit(self.api.start_oauth)
 
         elif cmd == "cancel_oauth":
             self.api.cancel_oauth()
 
         elif cmd == "get_account_info":
-            threading.Thread(target=self.api.get_account_info, daemon=True).start()
+            self.executor.submit(self.api.get_account_info)
 
         elif cmd == "logout":
             self.api.logout()
 
         elif cmd == "refresh_auth":
-            threading.Thread(target=self.api.refresh_auth, daemon=True).start()
+            self.executor.submit(self.api.refresh_auth)
 
         elif cmd == "sync_queue":
             queue = req.get("queue", [])
             with self.player._state_lock:
                 self.player._current_queue = queue
+                self.player._stream_cache.clear()  # Invalidate gapless cache on queue change
             self.log(f"Queue synced, {len(queue)} tracks")
+
+        elif cmd == "reorder_queue":
+            from_idx = req.get("from")
+            to_idx = req.get("to")
+            with self.player._state_lock:
+                if 0 <= from_idx < len(self.player._current_queue) and 0 <= to_idx < len(self.player._current_queue):
+                    track = self.player._current_queue.pop(from_idx)
+                    self.player._current_queue.insert(to_idx, track)
+                    self.player._stream_cache.clear()
+            self.log(f"Queue reordered from {from_idx} to {to_idx}")
 
         elif cmd == "get_settings":
             self.send_response({
@@ -307,10 +320,10 @@ class MusicBackend:
                     self.log(f"Clipboard error: {e}")
 
         elif cmd == "cache_stats":
-            threading.Thread(target=lambda: self.send_response({
+            self.executor.submit(lambda: self.send_response({
                 "type": "cache_stats",
                 **self.cache.get_stats()
-            }), daemon=True).start()
+            }))
 
         elif cmd == "clear_cache":
             what = req.get("what", "all")  # "all", "audio", "art"
@@ -319,10 +332,10 @@ class MusicBackend:
                 clear_audio=(what in ("all", "audio"))
             )
             self.log(f"Cache cleared: {what}")
-            threading.Thread(target=lambda: self.send_response({
+            self.executor.submit(lambda: self.send_response({
                 "type": "cache_stats",
                 **self.cache.get_stats()
-            }), daemon=True).start()
+            }))
 
         else:
             self.log(f"Unknown command: {cmd}")
@@ -332,7 +345,7 @@ class MusicBackend:
         threading.Thread(target=self._process_responses, daemon=True).start()
 
         # Cleanup orphaned cache files on startup (non-blocking)
-        threading.Thread(target=self.cache.cleanup_orphans, daemon=True).start()
+        self.executor.submit(self.cache.cleanup_orphans)
 
         # Send ready signal immediately
         self.send_response({

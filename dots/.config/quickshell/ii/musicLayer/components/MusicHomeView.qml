@@ -20,7 +20,7 @@ StyledFlickable {
     readonly property real refreshY: -60
 
     anchors.fill: parent
-    contentHeight: homeColumn.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32)
+    contentHeight: Math.max(height, homeColumn.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32))
     contentWidth: width
     flickableDirection: Flickable.VerticalFlick
     pressDelay: 150

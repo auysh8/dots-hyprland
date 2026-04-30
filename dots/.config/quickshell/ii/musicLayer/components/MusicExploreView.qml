@@ -24,8 +24,9 @@ StyledFlickable {
 
     anchors.fill: parent
     clip: true
-    contentHeight: exploreColumn.implicitHeight + bottomPadding
+    contentHeight: Math.max(height, exploreColumn.implicitHeight + bottomPadding)
     contentWidth: width
+    flickableDirection: Flickable.VerticalFlick
     pressDelay: 150
 
     Behavior on width {

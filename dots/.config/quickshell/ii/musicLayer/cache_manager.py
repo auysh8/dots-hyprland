@@ -544,8 +544,11 @@ class CacheManager:
             self.log(f"Cache cleared: {len(to_remove)} files removed")
 
     def cleanup_orphans(self):
-        """Remove cache files not in metadata."""
+        """Remove cache files not in metadata and delete old canvas videos."""
         orphan_count = 0
+        deleted_canvas_count = 0
+        now = time.time()
+        
         for cache_dir in [self.art_cache_dir, self.audio_cache_dir, self.canvas_video_dir]:
             if not cache_dir.exists():
                 continue
@@ -554,9 +557,17 @@ class CacheManager:
                     file_path.unlink()
                     orphan_count += 1
                     continue
-                # Apple Music fetcher manages canvas videos externally
+                # Apple Music fetcher manages canvas videos externally, but we should enforce a TTL
                 if cache_dir == self.canvas_video_dir and file_path.suffix == ".mp4":
+                    try:
+                        # 7 days TTL for Apple Music canvases
+                        if now - file_path.stat().st_mtime > 7 * 86400:
+                            file_path.unlink()
+                            deleted_canvas_count += 1
+                    except Exception:
+                        pass
                     continue
+                    
                 file_str = str(file_path)
                 found = any(e["path"] == file_str for e in self.meta.values())
                 if not found:
@@ -565,3 +576,5 @@ class CacheManager:
 
         if orphan_count:
             self.log(f"Cleaned up {orphan_count} orphan cache files")
+        if deleted_canvas_count:
+            self.log(f"Cleaned up {deleted_canvas_count} old canvas videos")

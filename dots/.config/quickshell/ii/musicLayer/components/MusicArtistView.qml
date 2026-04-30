@@ -20,7 +20,8 @@ StyledFlickable {
 
     anchors.fill: parent
     contentWidth: width
-    contentHeight: artistContainer.implicitHeight + 32
+    contentHeight: Math.max(height, artistContainer.height + (rootContext && rootContext.currentTrack ? 120 : 32) + 16)
+    flickableDirection: Flickable.VerticalFlick
     pressDelay: 150
 
     Behavior on width {
@@ -99,8 +100,8 @@ StyledFlickable {
 
             // Circular artist photo
             Rectangle {
-                width: 200
-                height: 200
+                Layout.preferredWidth: 200
+                Layout.preferredHeight: 200
                 radius: 100
                 color: root.artPlaceholderColor
                 clip: true
@@ -219,7 +220,8 @@ StyledFlickable {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: songsColumn.implicitHeight + 16
+                implicitHeight: songsColumn.implicitHeight + 16
+                Layout.preferredHeight: implicitHeight
                 radius: 20
                 color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer1
 
@@ -509,7 +511,7 @@ StyledFlickable {
         // Bottom spacer for miniplayer
         Item {
             Layout.fillWidth: true
-            height: rootContext ? (rootContext.currentTrack ? 80 : 0) : 0
+            Layout.preferredHeight: rootContext ? (rootContext.currentTrack ? 80 : 0) : 0
         }
     }
 }
