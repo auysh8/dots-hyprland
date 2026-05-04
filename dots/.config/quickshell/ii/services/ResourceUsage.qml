@@ -24,6 +24,10 @@ Singleton {
     property real networkUploadSpeed: 0
     property real lastRx: 0
     property real lastTx: 0
+    property real diskUsedPercentage: 0
+    property string diskUsedString: "--"
+    property string diskTotalString: "--"
+    property string diskAvailableString: "--"
     property real cpuUsage: 0
     property var previousCpuStats
 
@@ -44,6 +48,16 @@ Singleton {
         if (bytes < 1024) return bytes.toFixed(0) + " B/s";
         else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB/s";
         else return (bytes / (1024 * 1024)).toFixed(1) + " MB/s";
+    }
+
+    function kbToSizeString(kb) {
+        if (kb < 1024 * 1024) return (kb / 1024).toFixed(1) + " MB";
+        return (kb / (1024 * 1024)).toFixed(1) + " GB";
+    }
+
+    function updateDiskUsage() {
+        diskUsageProc.running = false;
+        diskUsageProc.running = true;
     }
 
     function updateMemoryUsageHistory() {
@@ -136,6 +150,7 @@ Singleton {
                 temperature = Number(tempText) / 1000
             }
 
+            root.updateDiskUsage()
             root.updateHistories()
             interval = Config.options?.resources?.updateInterval ?? 3000
         }
@@ -147,6 +162,33 @@ Singleton {
 	    FileView { 
 	        id: fileTemp
 	        path: "/sys/class/thermal/thermal_zone0/temp" 
+	    }
+
+	    Process {
+	        id: diskUsageProc
+	        command: ["df", "-P", "/"]
+	        stdout: StdioCollector {
+	            id: diskUsageCollector
+	            onStreamFinished: {
+	                const lines = diskUsageCollector.text.trim().split("\n")
+	                if (lines.length < 2) return
+
+	                const parts = lines[1].trim().split(/\s+/)
+	                if (parts.length < 5) return
+
+	                const total = Number(parts[1])
+	                const used = Number(parts[2])
+	                const available = Number(parts[3])
+	                const usedPercent = Number(String(parts[4]).replace("%", ""))
+
+	                if (total <= 0 || isNaN(usedPercent)) return
+
+	                root.diskUsedPercentage = usedPercent / 100
+	                root.diskUsedString = root.kbToSizeString(used)
+	                root.diskTotalString = root.kbToSizeString(total)
+	                root.diskAvailableString = root.kbToSizeString(available)
+	            }
+	        }
 	    }
 	
 	    Process {

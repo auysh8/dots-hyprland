@@ -27,19 +27,19 @@ class MusicBackend:
 
         # Instantiate sub-components
         self.mpris = MprisServer(self)
-        self.executor = ThreadPoolExecutor(max_workers=10)
+        self.executor = ThreadPoolExecutor(max_workers=20)
         
         cache_dir = os.path.expanduser("~/.cache/quickshell/music")
-        self.cache = CacheManager(cache_dir, max_size_mb=self.settings.get("max_cache_size_mb", 500.0), logger=self.log)
+        self.cache = CacheManager(cache_dir, max_size_mb=self.settings.get("max_cache_size_mb", 500.0), logger=self.log, executor=self.executor)
         
         # Create player first (needs send_response and log)
-        self.player = Player(self.send_response, self.log)
+        self.player = Player(self.send_response, self.log, executor=self.executor)
         self.player.settings = self.settings # Pass settings reference
         # Set cache reference
         self.player.cache = self.cache
         
         # Then create API with player reference
-        self.api = YTMClient(self.send_response, self.log, self.player)
+        self.api = YTMClient(self.send_response, self.log, self.player, executor=self.executor)
         # Set cross-references
         self.player.api = self.api
         self.player.mpris = self.mpris

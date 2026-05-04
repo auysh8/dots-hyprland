@@ -15,7 +15,8 @@ class YTMClient:
     _OAUTH_CLIENT_ID = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com"
     _OAUTH_CLIENT_SECRET = "SboVhoG9s0rNafixCSGGKXAT"
 
-    def __init__(self, send_response_callback, logger, player_ref=None):
+    def __init__(self, send_response_callback, logger, player_ref=None, executor=None):
+        self.executor = executor
         self.send_response = send_response_callback
         self.log = logger
         self.player = player_ref  # Reference to Player for accessing _play_stack
@@ -586,7 +587,10 @@ class YTMClient:
 
     def get_home(self):
         self.log("UI requested get_home")
-        threading.Thread(target=self._fetch_home_task, daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._fetch_home_task)
+        else:
+            threading.Thread(target=self._fetch_home_task, daemon=True).start()
 
     def _fetch_home_task(self):
         if not self.ytm:
@@ -651,7 +655,10 @@ class YTMClient:
             for section in self._explore_cache["sections"]:
                 self.send_response(section)
             return
-        threading.Thread(target=self._fetch_explore_task, daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._fetch_explore_task)
+        else:
+            threading.Thread(target=self._fetch_explore_task, daemon=True).start()
 
     def _toggle_like_task(self, video_id, is_liked):
         if not video_id:
@@ -802,7 +809,10 @@ class YTMClient:
 
     def get_library(self):
         self.log("UI requested get_library")
-        threading.Thread(target=self._fetch_library_task, daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._fetch_library_task)
+        else:
+            threading.Thread(target=self._fetch_library_task, daemon=True).start()
 
     def _fetch_library_task(self):
         if not self.ytm:
@@ -963,7 +973,10 @@ class YTMClient:
         self.log("Streamed library data complete.")
 
     def get_artist(self, channel_id):
-        threading.Thread(target=self._artist_task, args=(channel_id,), daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._artist_task, channel_id)
+        else:
+            threading.Thread(target=self._artist_task, args=(channel_id,), daemon=True).start()
 
     def _artist_task(self, channel_id):
         if not self.ytm:
@@ -1079,7 +1092,10 @@ class YTMClient:
             self.send_response({"type": "error", "message": "Couldn't load artist."})
 
     def get_artist_items(self, channel_id, params, item_type):
-        threading.Thread(target=self._artist_items_task, args=(channel_id, params, item_type), daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._artist_items_task, channel_id, params, item_type)
+        else:
+            threading.Thread(target=self._artist_items_task, args=(channel_id, params, item_type,), daemon=True).start()
 
     def _artist_items_task(self, channel_id, params, item_type):
         if not self.ytm:
@@ -1180,7 +1196,10 @@ class YTMClient:
             self.send_response({"type": "error", "message": f"Couldn't load full {item_type}."})
 
     def get_artist_full_songs(self, channel_id, songs_browse_id):
-        threading.Thread(target=self._artist_full_songs_task, args=(channel_id, songs_browse_id), daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._artist_full_songs_task, channel_id, songs_browse_id)
+        else:
+            threading.Thread(target=self._artist_full_songs_task, args=(channel_id, songs_browse_id,), daemon=True).start()
 
     def _artist_full_songs_task(self, channel_id, songs_browse_id):
         if not self.ytm:
@@ -1228,7 +1247,10 @@ class YTMClient:
             self.send_response({"type": "error", "message": "Couldn't load full songs."})
 
     def get_playlist(self, browse_id):
-        threading.Thread(target=self._playlist_task, args=(browse_id,), daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._playlist_task, browse_id)
+        else:
+            threading.Thread(target=self._playlist_task, args=(browse_id,), daemon=True).start()
 
     def _playlist_task(self, browse_id):
         if not self.ytm:
@@ -1337,7 +1359,10 @@ class YTMClient:
             self.send_response({"type": "error", "message": "Couldn't load playlist."})
 
     def search(self, query, song_limit=20):
-        threading.Thread(target=self._search_task, args=(query, song_limit), daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._search_task, query, song_limit)
+        else:
+            threading.Thread(target=self._search_task, args=(query, song_limit,), daemon=True).start()
 
     def _search_task(self, query, song_limit=20):
         if not self.ytm:
@@ -1423,7 +1448,10 @@ class YTMClient:
                 self.log(f"Cleaned up {len(stale_keys)} stale search cache entries.")
 
     def get_search_suggestions(self, query):
-        threading.Thread(target=self._search_suggestions_task, args=(query,), daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._search_suggestions_task, query)
+        else:
+            threading.Thread(target=self._search_suggestions_task, args=(query,), daemon=True).start()
 
     def _search_suggestions_task(self, query):
         if not self.ytm:
@@ -1481,7 +1509,10 @@ class YTMClient:
 
     def refresh_auth(self):
         """Extract fresh cookies from browser and re-init YTMusic client."""
-        threading.Thread(target=self._refresh_auth_task, daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._refresh_auth_task)
+        else:
+            threading.Thread(target=self._refresh_auth_task, daemon=True).start()
 
     def _refresh_auth_task(self):
         self.log("Refreshing auth from browser cookies...")
@@ -1513,7 +1544,10 @@ class YTMClient:
 
     def start_oauth(self):
         self._oauth_cancel = False
-        threading.Thread(target=self._oauth_task, daemon=True).start()
+        if getattr(self, 'executor', None):
+            self.executor.submit(self._oauth_task)
+        else:
+            threading.Thread(target=self._oauth_task, daemon=True).start()
 
     def cancel_oauth(self):
         self._oauth_cancel = True

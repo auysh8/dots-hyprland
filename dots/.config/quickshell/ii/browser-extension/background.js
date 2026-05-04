@@ -12,6 +12,16 @@ connectToNative();
 
 let lastCheckTime = 0;
 let lastBytesReceived = 0;
+let activeDownloadIds = new Set();
+let terminalStatusHoldUntil = 0;
+
+function postStatus(message) {
+    try {
+        port.postMessage(message);
+    } catch (e) {
+        // Port disconnected, will retry on reconnect
+    }
+}
 
 function formatSpeed(bytesPerSec) {
     if (bytesPerSec === 0) return "0 KB/s";
@@ -25,9 +35,11 @@ function sendStatus() {
     browser.downloads.search({ state: "in_progress" }).then((items) => {
         if (items.length > 0) {
             // Found active downloads
+            terminalStatusHoldUntil = 0;
             let totalBytes = 0;
             let currentBytesReceived = 0;
             let filename = "";
+            activeDownloadIds = new Set(items.map(item => item.id));
 
             // Focus on the primary download (first one) for details, sum progress for total
             for (let item of items) {
@@ -58,27 +70,47 @@ function sendStatus() {
             lastCheckTime = now;
             lastBytesReceived = currentBytesReceived;
 
-            try {
-                port.postMessage({
-                    active: true,
-                    filename: filename,
-                    progress: percentage,
-                    count: items.length,
-                    speed: speed
-                });
-            } catch (e) {
-                // Port disconnected, will retry on reconnect
-            }
+            postStatus({
+                active: true,
+                status: "active",
+                filename: filename,
+                progress: percentage,
+                count: items.length,
+                speed: speed
+            });
         } else {
+            if (Date.now() < terminalStatusHoldUntil) return;
+
             // No downloads
             lastCheckTime = 0;
             lastBytesReceived = 0;
-            try {
-                port.postMessage({
-                    active: false
-                });
-            } catch (e) { }
+            postStatus({
+                active: false,
+                status: "idle"
+            });
         }
+    });
+}
+
+function sendTerminalStatus(downloadId, status) {
+    browser.downloads.search({ id: downloadId }).then((items) => {
+        const item = items[0] || {};
+        const filename = item.filename ? item.filename.split('/').pop() : "";
+        const totalBytes = item.totalBytes || 0;
+        const receivedBytes = item.bytesReceived || 0;
+
+        activeDownloadIds.delete(downloadId);
+        terminalStatusHoldUntil = Date.now() + 4000;
+        postStatus({
+            active: activeDownloadIds.size > 0,
+            status: status,
+            filename: filename,
+            progress: totalBytes > 0 ? receivedBytes / totalBytes : (status === "completed" ? 1 : 0),
+            count: activeDownloadIds.size,
+            speed: ""
+        });
+
+        if (activeDownloadIds.size > 0) sendStatus();
     });
 }
 
@@ -87,4 +119,16 @@ setInterval(sendStatus, 1000);
 
 // Also listen for events to update immediately
 browser.downloads.onCreated.addListener(sendStatus);
-browser.downloads.onChanged.addListener(sendStatus);
+browser.downloads.onChanged.addListener((delta) => {
+    if (delta.state && delta.state.current === "complete") {
+        sendTerminalStatus(delta.id, "completed");
+        return;
+    }
+
+    if (delta.state && delta.state.current === "interrupted") {
+        sendTerminalStatus(delta.id, "interrupted");
+        return;
+    }
+
+    sendStatus();
+});

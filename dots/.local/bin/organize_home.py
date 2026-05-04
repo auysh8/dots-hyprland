@@ -1,182 +1,545 @@
 #!/usr/bin/env python3
-import os
-import shutil
+import argparse
+import fcntl
 import hashlib
+import logging
+import shutil
+import sys
 import time
-from pathlib import Path
+import tomllib
+from contextlib import contextmanager
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
-# --- Configuration ---
-SOURCE_DIRS = [
-    Path.home(),
-    Path.home() / "Downloads",
-    Path.home() / "Desktop"
+HOME = Path.home()
+CONFIG_FILE = HOME / ".config" / "organize-home" / "config.toml"
+STATE_DIR = HOME / ".local" / "state" / "organize-home"
+LOG_FILE = STATE_DIR / "organize.log"
+LOCK_FILE = STATE_DIR / "organize.lock"
+
+DEFAULT_SOURCE_DIRS = [
+    "~",
+    "~/Downloads",
+    "~/Desktop",
+    "~/Documents",
 ]
 
-CATEGORIES = {
+DEFAULT_CATEGORIES = {
     "Videos": [".mp4", ".mkv", ".avi", ".mov", ".flv", ".wmv", ".webm"],
-    "Documents": [".pdf"],
-    "Pictures": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"],
-    "Music": [".mp3", ".flac", ".wav", ".m4a", ".ogg"],
-    "Documents/Archives": [".zip", ".tar.gz", ".tar.xz", ".rar", ".7z"],
+    "Documents": [".pdf", ".doc", ".docx", ".odt", ".txt", ".md"],
+    "Documents/Spreadsheets": [".xls", ".xlsx", ".ods", ".csv"],
+    "Documents/Presentations": [".ppt", ".pptx", ".odp"],
+    "Pictures": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".avif"],
+    "Music": [".mp3", ".flac", ".wav", ".m4a", ".ogg", ".opus"],
+    "Documents/Archives": [".zip", ".tar.gz", ".tar.xz", ".tar.bz2", ".rar", ".7z"],
     "Documents/ISOs": [".iso", ".img", ".qcow2", ".vmdk"],
     "Documents/Books": [".epub", ".mobi", ".azw3"],
-    "Documents/Android/Builds": [".apk", ".aab"]
+    "Documents/Android/Builds": [".apk", ".aab"],
+    "Documents/Patches": [".rvp"],
 }
 
-# Directories to NEVER move or scan for project detection
-EXCLUDE_DIRS = [
-    ".local", ".config", ".cache", "dots-hyprland", "scripts", 
-    "Projects", "Music", "Videos", "Pictures", "Documents", 
-    "Desktop", "Downloads", "Themes", "icons", ".icons", 
-    ".gnupg", ".ssh", ".git", ".npm", ".node-lts", ".cargo", "go"
+DEFAULT_EXCLUDE_DIRS = {
+    ".local",
+    ".config",
+    ".cache",
+    ".gnupg",
+    ".ssh",
+    ".git",
+    ".npm",
+    ".node-lts",
+    ".cargo",
+    "go",
+    "dots-hyprland",
+    "scripts",
+    "Projects",
+    "Music",
+    "Videos",
+    "Pictures",
+    "Documents",
+    "Desktop",
+    "Downloads",
+    "Themes",
+    "icons",
+    ".icons",
+}
+
+DEFAULT_PROJECT_MARKERS = [
+    ".git",
+    "package.json",
+    "pyproject.toml",
+    "Cargo.toml",
+    "go.mod",
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
+    "settings.gradle.kts",
+    "pom.xml",
+    "CMakeLists.txt",
 ]
 
+DEFAULT_CLEANUP_DIRS = [
+    "~/Downloads",
+    "~/Desktop",
+]
+
+DEFAULT_EMPTY_DIR_CLEANUP_ROOTS = [
+    "~/Downloads",
+    "~/Desktop",
+    "~/Documents/2026",
+    "~/Documents/Android",
+    "~/Documents/Archives",
+    "~/Documents/Books",
+    "~/Documents/ISOs",
+    "~/Documents/Patches",
+    "~/Documents/Presentations",
+    "~/Documents/Spreadsheets",
+]
+
+DEFAULT_PROTECTED_EMPTY_DIRS = [
+    "~",
+    "~/Downloads",
+    "~/Desktop",
+    "~/Documents",
+]
+
+SOURCE_DIRS = []
+CATEGORIES = {}
+EXCLUDE_DIRS = set()
+PROJECT_MARKERS = []
+CLEANUP_DIRS = []
+EMPTY_DIR_CLEANUP_ROOTS = []
+PROTECTED_EMPTY_DIRS = set()
 CLEANUP_EXTENSIONS = [".crdownload", ".part"]
 CLEANUP_THRESHOLD_DAYS = 7
+DUPLICATE_DIR = HOME / "Documents" / "Duplicates"
+RECENT_FILE_DELAY_SECONDS = 120
+STABLE_CHECK_INTERVAL_SECONDS = 2
 
-# --- Helpers ---
 
-def get_file_hash(path):
-    """Calculate SHA256 hash of a file."""
+def expand_path(value):
+    return Path(value).expanduser()
+
+
+def normalize_extensions(extensions):
+    normalized = []
+    for extension in extensions:
+        extension = extension.lower()
+        normalized.append(extension if extension.startswith(".") else f".{extension}")
+    return normalized
+
+
+def read_config():
+    if not CONFIG_FILE.exists():
+        return {}
+
+    try:
+        with CONFIG_FILE.open("rb") as file:
+            return tomllib.load(file)
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        logging.warning("Could not read config %s: %s", CONFIG_FILE, error)
+        return {}
+
+
+def load_settings():
+    global SOURCE_DIRS
+    global CATEGORIES
+    global EXCLUDE_DIRS
+    global PROJECT_MARKERS
+    global CLEANUP_DIRS
+    global EMPTY_DIR_CLEANUP_ROOTS
+    global PROTECTED_EMPTY_DIRS
+    global CLEANUP_EXTENSIONS
+    global CLEANUP_THRESHOLD_DAYS
+    global DUPLICATE_DIR
+    global RECENT_FILE_DELAY_SECONDS
+    global STABLE_CHECK_INTERVAL_SECONDS
+
+    config = read_config()
+    general = config.get("general", {})
+    cleanup = config.get("cleanup", {})
+
+    SOURCE_DIRS = [expand_path(path) for path in general.get("source_dirs", DEFAULT_SOURCE_DIRS)]
+    CATEGORIES = {
+        category: normalize_extensions(extensions)
+        for category, extensions in config.get("categories", DEFAULT_CATEGORIES).items()
+    }
+    EXCLUDE_DIRS = set(general.get("exclude_dirs", sorted(DEFAULT_EXCLUDE_DIRS)))
+    PROJECT_MARKERS = list(general.get("project_markers", DEFAULT_PROJECT_MARKERS))
+
+    CLEANUP_DIRS = [expand_path(path) for path in cleanup.get("cleanup_dirs", DEFAULT_CLEANUP_DIRS)]
+    EMPTY_DIR_CLEANUP_ROOTS = [
+        expand_path(path)
+        for path in cleanup.get("empty_dir_cleanup_roots", DEFAULT_EMPTY_DIR_CLEANUP_ROOTS)
+    ]
+    PROTECTED_EMPTY_DIRS = {
+        expand_path(path).resolve()
+        for path in cleanup.get("protected_empty_dirs", DEFAULT_PROTECTED_EMPTY_DIRS)
+    }
+    CLEANUP_EXTENSIONS = normalize_extensions(cleanup.get("partial_extensions", [".crdownload", ".part"]))
+    CLEANUP_THRESHOLD_DAYS = int(cleanup.get("partial_cleanup_days", 7))
+    DUPLICATE_DIR = expand_path(cleanup.get("duplicate_dir", "~/Documents/Duplicates"))
+    RECENT_FILE_DELAY_SECONDS = int(cleanup.get("recent_file_delay_seconds", 120))
+    STABLE_CHECK_INTERVAL_SECONDS = int(cleanup.get("stable_check_interval_seconds", 2))
+
+
+def setup_logging(verbose=False):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    handlers = [
+        RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=5),
+        logging.StreamHandler(sys.stdout),
+    ]
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=handlers,
+    )
+
+
+@contextmanager
+def single_instance():
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    lock_handle = LOCK_FILE.open("w")
+    try:
+        fcntl.flock(lock_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        logging.info("Another organize-home run is already active; skipping this run.")
+        lock_handle.close()
+        yield False
+        return
+
+    try:
+        lock_handle.write(str(os_getpid()))
+        lock_handle.flush()
+        yield True
+    finally:
+        fcntl.flock(lock_handle, fcntl.LOCK_UN)
+        lock_handle.close()
+
+
+def os_getpid():
+    try:
+        import os
+
+        return os.getpid()
+    except OSError:
+        return ""
+
+
+def file_hash(path):
     hasher = hashlib.sha256()
     try:
-        with open(path, "rb") as f:
-            while chunk := f.read(8192):
+        with path.open("rb") as file:
+            for chunk in iter(lambda: file.read(1024 * 1024), b""):
                 hasher.update(chunk)
         return hasher.hexdigest()
-    except Exception as e:
+    except OSError as error:
+        logging.warning("Could not hash %s: %s", path, error)
         return None
 
-def get_unique_path(path):
-    """Avoid overwriting by adding a numeric suffix."""
+
+def unique_path(path):
     if not path.exists():
         return path
+
     counter = 1
+    suffix = "".join(path.suffixes)
+    stem = path.name[: -len(suffix)] if suffix else path.name
     while True:
-        new_path = path.parent / f"{path.stem} ({counter}){path.suffix}"
-        if not new_path.exists():
-            return new_path
+        candidate = path.with_name(f"{stem} ({counter}){suffix}")
+        if not candidate.exists():
+            return candidate
         counter += 1
 
-def cleanup_old_files():
-    """Delete partial downloads and empty folders older than threshold."""
-    print(f"--- Cleanup Phase ---")
+
+def has_extension(path, extensions):
+    name = path.name.lower()
+    return any(name.endswith(extension) for extension in extensions)
+
+
+def is_inside(path, directory):
+    try:
+        path.resolve().relative_to(directory.resolve())
+        return True
+    except ValueError:
+        return False
+    except OSError:
+        return False
+
+
+def is_recent(path):
+    if RECENT_FILE_DELAY_SECONDS <= 0:
+        return False
+
+    try:
+        return time.time() - path.stat().st_mtime < RECENT_FILE_DELAY_SECONDS
+    except OSError as error:
+        logging.warning("Could not stat %s: %s", path, error)
+        return True
+
+
+def is_stable_file(path, dry_run=False):
+    if dry_run or STABLE_CHECK_INTERVAL_SECONDS <= 0:
+        return True
+
+    try:
+        first = path.stat()
+        time.sleep(STABLE_CHECK_INTERVAL_SECONDS)
+        second = path.stat()
+    except OSError as error:
+        logging.warning("Could not stability-check %s: %s", path, error)
+        return False
+
+    if first.st_size != second.st_size or first.st_mtime_ns != second.st_mtime_ns:
+        logging.info("Skipping changing file: %s", path)
+        return False
+
+    return True
+
+
+def move_path(source, target, dry_run=False):
+    target = unique_path(target)
+    logging.info("%s -> %s", source, target)
+    if dry_run:
+        return target
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(target))
+    return target
+
+
+def delete_or_quarantine_duplicate(path, dry_run=False):
+    target = DUPLICATE_DIR / datetime.now().strftime("%Y-%m-%d") / path.name
+    logging.info("Duplicate quarantined: %s -> %s", path, target)
+    if dry_run:
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(path), str(unique_path(target)))
+
+
+def cleanup_old_files(dry_run=False):
+    logging.info("--- Cleanup phase ---")
     now = time.time()
     threshold = CLEANUP_THRESHOLD_DAYS * 86400
 
-    for source_dir in SOURCE_DIRS:
-        if not source_dir.exists(): continue
+    for source_dir in CLEANUP_DIRS:
+        if not source_dir.exists():
+            continue
+
         for item in source_dir.rglob("*"):
             try:
-                if item.is_file() and item.suffix.lower() in CLEANUP_EXTENSIONS:
-                    if now - item.stat().st_mtime > threshold:
-                        print(f"  Deleting old partial download: {item.name}")
+                age = now - item.stat().st_mtime
+                if item.is_file() and item.suffix.lower() in CLEANUP_EXTENSIONS and age > threshold:
+                    logging.info("Deleting old partial download: %s", item)
+                    if not dry_run:
                         item.unlink()
-                if item.is_dir() and not any(item.iterdir()):
-                    if now - item.stat().st_mtime > threshold:
-                        print(f"  Deleting old empty folder: {item.name}")
+                elif item.is_dir() and age > threshold and not any(item.iterdir()):
+                    logging.info("Deleting old empty folder: %s", item)
+                    if not dry_run:
                         item.rmdir()
-            except: continue
+            except OSError as error:
+                logging.warning("Cleanup skipped %s: %s", item, error)
 
-def handle_special_folders():
-    """Handle Screenshots, Themes, and Project Detection."""
-    print(f"--- Special Folder Organization ---")
-    home = Path.home()
 
-    # 1. Screenshots Organizer
-    ss_dir = home / "Screenshots"
-    if ss_dir.exists() and ss_dir.is_dir():
-        for ss in ss_dir.iterdir():
-            if ss.is_file() and not ss.name.startswith('.'):
-                mtime = datetime.fromtimestamp(ss.stat().st_mtime)
-                dest = home / "Pictures" / "Screenshots" / str(mtime.year) / mtime.strftime("%B")
-                dest.mkdir(parents=True, exist_ok=True)
-                print(f"  Screenshot: {ss.name} -> Pictures/Screenshots/")
-                shutil.move(str(ss), str(get_unique_path(dest / ss.name)))
+def remove_empty_folders(dry_run=False):
+    removed_count = 0
 
-    # 2. Themes Consolidator
-    theme_dest = home / "Themes"
-    for item in home.iterdir():
+    for root in EMPTY_DIR_CLEANUP_ROOTS:
+        if not root.exists() or not root.is_dir():
+            continue
+
+        directories = [root]
+        directories.extend(path for path in root.rglob("*") if path.is_dir())
+        for directory in sorted(directories, key=lambda path: len(path.parts), reverse=True):
+            try:
+                resolved_directory = directory.resolve()
+            except OSError as error:
+                logging.warning("Empty folder cleanup skipped %s: %s", directory, error)
+                continue
+
+            if resolved_directory in PROTECTED_EMPTY_DIRS:
+                continue
+
+            try:
+                if any(directory.iterdir()):
+                    continue
+                logging.info("Removing empty folder: %s", directory)
+                if not dry_run:
+                    directory.rmdir()
+                removed_count += 1
+            except OSError as error:
+                logging.warning("Empty folder cleanup skipped %s: %s", directory, error)
+
+    return removed_count
+
+
+def organize_screenshots(dry_run=False):
+    screenshots_dir = HOME / "Screenshots"
+    if not screenshots_dir.is_dir():
+        return
+
+    for screenshot in screenshots_dir.iterdir():
+        if screenshot.is_file() and not screenshot.name.startswith("."):
+            if is_recent(screenshot) or not is_stable_file(screenshot, dry_run):
+                continue
+            mtime = datetime.fromtimestamp(screenshot.stat().st_mtime)
+            target = HOME / "Pictures" / "Screenshots" / str(mtime.year) / mtime.strftime("%B") / screenshot.name
+            move_path(screenshot, target, dry_run)
+
+
+def is_project_directory(path):
+    return any((path / marker).exists() for marker in PROJECT_MARKERS)
+
+
+def organize_special_folders(dry_run=False):
+    logging.info("--- Special folder organization ---")
+    organize_screenshots(dry_run)
+
+    themes_dir = HOME / "Themes"
+    projects_dir = HOME / "Projects"
+    scripts_dir = HOME / "scripts"
+
+    for item in HOME.iterdir():
         if item.is_dir() and item.name.endswith("-themes-collection") and item.name not in EXCLUDE_DIRS:
-            theme_dest.mkdir(exist_ok=True)
-            print(f"  Theme: {item.name} -> Themes/")
-            # Using shutil.move for directories
-            target = get_unique_path(theme_dest / item.name)
-            shutil.move(str(item), str(target))
+            move_path(item, themes_dir / item.name, dry_run)
 
-    # 3. Project Detector
-    project_dest = home / "Projects"
-    for item in home.iterdir():
-        if item.is_dir() and not item.name.startswith('.') and item.name not in EXCLUDE_DIRS:
-            # Check for project indicators
-            if (item / ".git").exists() or (item / "package.json").exists():
-                project_dest.mkdir(exist_ok=True)
-                print(f"  Project: {item.name} -> Projects/")
-                target = get_unique_path(project_dest / item.name)
-                shutil.move(str(item), str(target))
+    for item in HOME.iterdir():
+        if item.is_dir() and not item.name.startswith(".") and item.name not in EXCLUDE_DIRS:
+            if is_project_directory(item):
+                move_path(item, projects_dir / item.name, dry_run)
 
-    # 4. Script Tidy (Loose files in ~)
-    script_dest = home / "scripts"
-    for item in home.iterdir():
-        if item.is_file() and item.suffix.lower() in [".py", ".sh"] and item.name not in ["organize_home.py"]:
-            script_dest.mkdir(exist_ok=True)
-            print(f"  Script: {item.name} -> scripts/")
-            shutil.move(str(item), str(get_unique_path(script_dest / item.name)))
+    for item in HOME.iterdir():
+        if item.is_file() and has_extension(item, [".py", ".sh"]) and item.name != "organize_home.py":
+            if is_recent(item) or not is_stable_file(item, dry_run):
+                continue
+            move_path(item, scripts_dir / item.name, dry_run)
 
-def organize():
-    print("--- Starting Advanced Home Organization ---")
-    
-    cleanup_old_files()
-    handle_special_folders()
 
+def index_category_sizes(destination):
+    sizes = {}
+    if not destination.exists():
+        return sizes
+
+    for path in destination.rglob("*"):
+        try:
+            if path.is_file():
+                sizes.setdefault(path.stat().st_size, []).append(path)
+        except OSError as error:
+            logging.warning("Could not stat %s: %s", path, error)
+    return sizes
+
+
+def has_duplicate(candidate, destination_size_index):
+    try:
+        same_size_paths = destination_size_index.get(candidate.stat().st_size, [])
+        candidate_path = candidate.resolve()
+    except OSError as error:
+        logging.warning("Could not stat %s: %s", candidate, error)
+        return False
+
+    if not same_size_paths:
+        return False
+
+    candidate_hash = file_hash(candidate)
+    if not candidate_hash:
+        return False
+
+    for existing_path in same_size_paths:
+        try:
+            if existing_path.resolve() == candidate_path:
+                continue
+        except OSError:
+            continue
+
+        existing_hash = file_hash(existing_path)
+        if existing_hash and existing_hash == candidate_hash:
+            return True
+
+    return False
+
+
+def collect_candidates(destination_root, extensions):
+    candidates = []
+    for source_dir in SOURCE_DIRS:
+        if not source_dir.exists():
+            continue
+
+        for item in source_dir.iterdir():
+            if not item.is_file() or item.name.startswith("."):
+                continue
+            if not has_extension(item, extensions):
+                continue
+            if item.parent != destination_root and is_inside(item, destination_root):
+                continue
+            if is_recent(item):
+                logging.info("Skipping recent file: %s", item)
+                continue
+            candidates.append(item)
+
+    return candidates
+
+
+def organize_files(dry_run=False):
     moved_count = 0
-    deleted_duplicates = 0
-    category_hashes = {}
+    duplicate_count = 0
 
     for category, extensions in CATEGORIES.items():
-        dest_root = Path.home() / category
-        dest_root.mkdir(parents=True, exist_ok=True)
-        
-        # Index existing files (subset for performance if needed, but keeping full for now)
-        hashes = set()
-        for file_path in dest_root.rglob("*"):
-            if file_path.is_file():
-                f_hash = get_file_hash(file_path)
-                if f_hash: hashes.add(f_hash)
-        category_hashes[category] = hashes
+        destination_root = HOME / category
+        candidates = collect_candidates(destination_root, extensions)
 
-        for source_dir in SOURCE_DIRS:
-            if not source_dir.exists(): continue
-            for item in source_dir.iterdir():
-                if item.is_file() and not item.name.startswith('.') and item.suffix.lower() in extensions:
-                    if str(dest_root) in str(item.resolve()): continue
+        if not candidates:
+            continue
 
-                    source_hash = get_file_hash(item)
-                    if not source_hash: continue
+        destination_size_index = index_category_sizes(destination_root)
 
-                    if source_hash in category_hashes[category]:
-                        print(f"  Duplicate: {item.name} -> Deleted.")
-                        item.unlink()
-                        deleted_duplicates += 1
-                        continue
+        for item in candidates:
+            if not is_stable_file(item, dry_run):
+                continue
 
-                    mtime = datetime.fromtimestamp(item.stat().st_mtime)
-                    date_path = dest_root / str(mtime.year) / mtime.strftime("%B")
-                    date_path.mkdir(parents=True, exist_ok=True)
-                    
-                    try:
-                        print(f"  File: {item.name} -> {category}/")
-                        shutil.move(str(item), str(get_unique_path(date_path / item.name)))
-                        category_hashes[category].add(source_hash)
-                        moved_count += 1
-                    except Exception as e:
-                        print(f"  Error: {item.name} {e}")
+            if has_duplicate(item, destination_size_index):
+                delete_or_quarantine_duplicate(item, dry_run)
+                duplicate_count += 1
+                continue
 
-    print(f"--- Summary ---")
-    print(f"Files organized: {moved_count}")
-    print(f"Duplicates removed: {deleted_duplicates}")
-    print(f"--- Done ---")
+            mtime = datetime.fromtimestamp(item.stat().st_mtime)
+            target = destination_root / str(mtime.year) / mtime.strftime("%B") / item.name
+            moved_path = move_path(item, target, dry_run)
+            if not dry_run:
+                try:
+                    destination_size_index.setdefault(moved_path.stat().st_size, []).append(moved_path)
+                except OSError as error:
+                    logging.warning("Could not stat moved file %s: %s", moved_path, error)
+            moved_count += 1
+
+    return moved_count, duplicate_count
+
+
+def organize(dry_run=False):
+    logging.info("--- Starting home organization%s ---", " (dry run)" if dry_run else "")
+    cleanup_old_files(dry_run)
+    organize_special_folders(dry_run)
+    moved_count, duplicate_count = organize_files(dry_run)
+    empty_folder_count = remove_empty_folders(dry_run)
+    logging.info("--- Summary ---")
+    logging.info("Files organized: %s", moved_count)
+    logging.info("Duplicates quarantined: %s", duplicate_count)
+    logging.info("Empty folders removed: %s", empty_folder_count)
+    logging.info("--- Done ---")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Organize loose files in home, Downloads, Desktop, and Documents.")
+    parser.add_argument("--dry-run", action="store_true", help="Log planned changes without moving or deleting anything.")
+    parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
-    organize()
+    args = parse_args()
+    setup_logging(args.verbose)
+    load_settings()
+    with single_instance() as acquired:
+        if acquired:
+            organize(args.dry_run)

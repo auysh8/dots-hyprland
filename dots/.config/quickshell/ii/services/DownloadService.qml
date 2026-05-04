@@ -13,6 +13,7 @@ Singleton {
     property real progress: 0.0
     property int count: 0
     property string speed: ""
+    property string status: "idle"
 
     // Path to the file written by the python native host
     readonly property string statusFile: "/tmp/quickshell_downloads.json"
@@ -63,8 +64,10 @@ Singleton {
                 root.progress = data.progress || 0.0;
                 root.count = data.count || 0;
                 root.speed = data.speed || "";
+                root.status = data.status || (root.active ? "active" : "idle");
             } catch (e) {
                 root.active = false;
+                root.status = "idle";
             }
         }
         
@@ -73,8 +76,10 @@ Singleton {
                 // Recreate the file and continue polling silently.
                 ensureStatusFile.running = true;
                 root.active = false;
+                root.status = "idle";
             } else {
                 root.active = false;
+                root.status = "idle";
             }
         }
     }

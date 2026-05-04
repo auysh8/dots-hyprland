@@ -15,7 +15,7 @@ from pathlib import Path
 class CacheManager:
     """Manages file-based cache for album art and audio streams with size limits."""
 
-    def __init__(self, cache_dir: str, max_size_mb: float = 500.0, logger=None):
+    def __init__(self, cache_dir: str, max_size_mb: float = 500.0, logger=None, executor=None):
         """
         Initialize cache manager.
 
@@ -23,6 +23,7 @@ class CacheManager:
             cache_dir: Base directory for cache files
             max_size_mb: Maximum cache size in megabytes (default 500MB)
             logger: Optional logger function
+            executor: Optional executor for async tasks
         """
         self.cache_dir = Path(cache_dir)
         self.max_size_bytes = int(max_size_mb * 1024 * 1024)
@@ -338,7 +339,10 @@ class CacheManager:
                 if temp_path.exists():
                     temp_path.unlink()
 
-        threading.Thread(target=_download, daemon=True).start()
+        if self.executor:
+            self.executor.submit(_download)
+        else:
+            threading.Thread(target=_download, daemon=True).start()
         return str(file_path)
 
     # ── Canvas Art & Video Caching ──────────────────────────────────────────────
@@ -393,7 +397,10 @@ class CacheManager:
                 if temp_path.exists():
                     temp_path.unlink()
 
-        threading.Thread(target=_download, daemon=True).start()
+        if self.executor:
+            self.executor.submit(_download)
+        else:
+            threading.Thread(target=_download, daemon=True).start()
         return str(file_path)
 
     def get_canvas(self, video_id: str) -> dict | None:

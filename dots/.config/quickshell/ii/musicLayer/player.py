@@ -20,7 +20,8 @@ from apple_music_fetcher import AppleMusicCanvasFetcher
 class Player:
     """Handles audio playback using mpv and track fetching using yt-dlp."""
 
-    def __init__(self, send_response_callback, logger):
+    def __init__(self, send_response_callback, logger, executor=None):
+        self.executor = executor
         self.send_response = send_response_callback
         self.log = logger
         self.mpv_process = None
@@ -563,7 +564,10 @@ class Player:
                         _os.unlink(mpd_path)
                     except Exception:
                         pass
-                threading.Thread(target=_cleanup_mpd, daemon=True).start()
+                if getattr(self, 'executor', None):
+                    self.executor.submit(_cleanup_mpd)
+                else:
+                    threading.Thread(target=_cleanup_mpd, daemon=True).start()
 
             self.log(f"mpv PID: {process.pid}")
 
@@ -581,7 +585,10 @@ class Player:
                 next_id = video_id if self.repeat_mode == 2 else (next_track.get("videoId") if next_track else None)
                 next_title = next_track.get("title", next_id or "") if next_track else (title if self.repeat_mode == 2 else "")
             if next_id:
-                threading.Thread(target=self._prefetch_stream_url, args=(next_id, next_title), daemon=True).start()
+                if getattr(self, 'executor', None):
+                    self.executor.submit(self._prefetch_stream_url, next_id, next_title)
+                else:
+                    threading.Thread(target=self._prefetch_stream_url, args=(next_id, next_title,), daemon=True).start()
 
 
             def _deferred_art_download():
@@ -597,7 +604,10 @@ class Player:
                 elif art_file_path:
                     self.send_response({"type": "art_downloaded", "videoId": video_id, "path": art_file_path})
                     self.mpris.update(status="Playing", title=title, artist=artist, album=album_name, art_local_path=art_file_path, video_id=video_id, art_url=art_url)
-            threading.Thread(target=_deferred_art_download, daemon=True).start()
+            if getattr(self, 'executor', None):
+                self.executor.submit(_deferred_art_download)
+            else:
+                threading.Thread(target=_deferred_art_download, daemon=True).start()
 
             # ── Deferred audio caching ─────────────────────────────────────────
             is_live_stream = not stream_url.startswith("file://")
@@ -639,7 +649,10 @@ class Player:
                                 temp_path.unlink()
                         except Exception:
                             pass
-                threading.Thread(target=_cache_tidal_flac, daemon=True).start()
+                if getattr(self, 'executor', None):
+                    self.executor.submit(_cache_tidal_flac)
+                else:
+                    threading.Thread(target=_cache_tidal_flac, daemon=True).start()
 
             elif is_live_stream and not is_tidal_stream:
                 # YouTube Music stream — download via yt-dlp for future offline playback.
@@ -659,7 +672,10 @@ class Player:
                         args=(video_id, title),
                         daemon=True,
                     ).start()
-                threading.Thread(target=_deferred_audio_cache, daemon=True).start()
+                if getattr(self, 'executor', None):
+                    self.executor.submit(_deferred_audio_cache)
+                else:
+                    threading.Thread(target=_deferred_audio_cache, daemon=True).start()
 
             self.send_response(
                 self._build_track_payload(
@@ -687,7 +703,10 @@ class Player:
                         self.send_response({"type": "like_status", "videoId": video_id, "isLiked": is_liked})
                     except Exception as e:
                         self.log(f"Like status fetch error: {e}")
-                threading.Thread(target=_fetch_like_status, daemon=True).start()
+                if getattr(self, 'executor', None):
+                    self.executor.submit(_fetch_like_status)
+                else:
+                    threading.Thread(target=_fetch_like_status, daemon=True).start()
 
             def _fetch_lyrics():
                 try:
@@ -698,7 +717,10 @@ class Player:
                     self._lyrics_engine.load(lyrics or [], source, token)
                 except Exception as e:
                     self.log(f"Lyrics fetch error: {e}")
-            threading.Thread(target=_fetch_lyrics, daemon=True).start()
+            if getattr(self, 'executor', None):
+                self.executor.submit(_fetch_lyrics)
+            else:
+                threading.Thread(target=_fetch_lyrics, daemon=True).start()
 
             def _fetch_canvas():
                 try:
@@ -767,13 +789,19 @@ class Player:
                                 self.log(f"Canvas download complete, switching to local file: {local_path}")
                                 self.send_response({"type": "canvas_ready", "videoId": video_id, "url": local_path})
 
-                        threading.Thread(target=_download_task, daemon=True).start()
+                        if getattr(self, 'executor', None):
+                            self.executor.submit(_download_task)
+                        else:
+                            threading.Thread(target=_download_task, daemon=True).start()
                     else:
                         self.log(f"Sending canvas_failed IPC message for videoId {video_id}")
                         self.send_response({"type": "canvas_failed", "videoId": video_id})
                 except Exception as e:
                     self.log(f"Canvas fetch error: {e}")
-            threading.Thread(target=_fetch_canvas, daemon=True).start()
+            if getattr(self, 'executor', None):
+                self.executor.submit(_fetch_canvas)
+            else:
+                threading.Thread(target=_fetch_canvas, daemon=True).start()
 
             self.mpris.publish()
             if getattr(self, "mpris", None):
@@ -790,7 +818,10 @@ class Player:
                             self.log("History sync OK")
                 except Exception as e:
                     self.log(f"History sync failed: {e}")
-            threading.Thread(target=_sync_history, daemon=True).start()
+            if getattr(self, 'executor', None):
+                self.executor.submit(_sync_history)
+            else:
+                threading.Thread(target=_sync_history, daemon=True).start()
 
             def _wait_for_duration():
                 for _ in range(20):
@@ -802,7 +833,10 @@ class Player:
                         self.log(f"Duration: {dur}s")
                         self.send_response({"type": "playback_duration", "durationSec": int(dur)})
                         break
-            threading.Thread(target=_wait_for_duration, daemon=True).start()
+            if getattr(self, 'executor', None):
+                self.executor.submit(_wait_for_duration)
+            else:
+                threading.Thread(target=_wait_for_duration, daemon=True).start()
 
             def _progress_task():
                 last_paused = None
@@ -853,7 +887,10 @@ class Player:
                             continue
                             
                     time.sleep(1.0)
-            threading.Thread(target=_progress_task, daemon=True).start()
+            if getattr(self, 'executor', None):
+                self.executor.submit(_progress_task)
+            else:
+                threading.Thread(target=_progress_task, daemon=True).start()
 
         except Exception as e:
             with self._state_lock:
@@ -897,7 +934,10 @@ class Player:
             if len(self._current_queue) <= 3 and self.repeat_mode == 0:
                 extension_seed_id = next_track.get("videoId")
                 if extension_seed_id:
-                    threading.Thread(target=self._extend_queue_task, args=(extension_seed_id,), daemon=True).start()
+                    if getattr(self, 'executor', None):
+                        self.executor.submit(self._extend_queue_task, extension_seed_id)
+                    else:
+                        threading.Thread(target=self._extend_queue_task, args=(extension_seed_id,), daemon=True).start()
 
             self._is_auto_advancing = True
             self.play(

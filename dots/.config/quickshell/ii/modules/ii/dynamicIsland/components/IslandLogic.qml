@@ -28,6 +28,24 @@ Item {
         running: true
         onTriggered: root.ignoreClipboard = false
     }
+
+    function isStoragePopup(title, message, category) {
+        return category === "storage" || category === "disk" ||
+            title.includes("storage") || title.includes("disk") ||
+            message.includes("storage") || message.includes("disk")
+    }
+
+    function showPopup(type, title, message, category, action) {
+        root.popupType = type
+        root.popupTitle = title
+        root.popupMessage = message
+        root.popupCategory = category
+        root.popupAction = action
+        root.hasPopup = true
+        root.lastPopupContent = title + message
+        root.lastPopupTime = new Date().getTime()
+        popupTimer.restart()
+    }
     
     // -------------------------------------------------------------------------
     // Notification Service Bridge
@@ -179,18 +197,25 @@ Connections {
                     var cat = parts.length >= 4 ? parts[3].trim().toLowerCase() : "generic";
                     var act = parts.length >= 5 ? parts[4].trim().toLowerCase() : "";
 
+                    if (root.isStoragePopup(t, m, cat) && ResourceUsage.diskUsedPercentage < 0.95)
+                        return;
+
+                    if ((cat === "download" || t.includes("download") || m.includes("download")) && (m.includes("downloaded") || m.includes("completed") || m.includes("done") || m.includes("finished")) && DownloadService.status !== "completed")
+                        return;
+
                     // Migration Fallbacks for Legacy Scripts (Mapping titles to categories)
                     if (cat === "generic") {
                         if (t === "now playing" || t.startsWith("now playing")) {
                             cat = "media";
                             act = "playing";
                         }
-                        else if (t.includes("download")) cat = "download";
+                        else if (t.includes("download") || m.includes("download")) cat = "download";
                         else if (t.includes("wifi")) cat = "wifi";
                         else if (t.includes("bluetooth")) cat = "bluetooth";
                         else if (t.includes("battery") || t.includes("power")) cat = "battery";
                         else if (t.includes("microphone")) cat = "microphone";
                         else if (t.includes("screenshot")) cat = "screenshot";
+                        else if (t.includes("storage") || t.includes("disk")) cat = "storage";
                         else if (t.includes("clipboard")) cat = "clipboard";
                         else if (t.includes("pomodoro")) cat = "pomodoro";
                         else if (t.includes("update")) cat = "update";

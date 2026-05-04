@@ -93,6 +93,12 @@ Item {
 
                 StyledText {
                     text: {
+                        if (DownloadService.status === "completed")
+                            return "COMPLETED";
+
+                        if (DownloadService.status === "interrupted")
+                            return "INTERRUPTED";
+
                         if (!DownloadService.active)
                             return "PAUSED";
 

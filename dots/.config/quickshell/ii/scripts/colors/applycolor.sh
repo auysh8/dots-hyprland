@@ -42,7 +42,23 @@ apply_kitty() {
   done
 
   # Reload
-  kill -SIGUSR1 $(pidof kitty)
+  if pidof kitty >/dev/null; then
+    kill -SIGUSR1 $(pidof kitty)
+  fi
+}
+
+tty_has_kitty_term() {
+  local tty_name="${1#/dev/}"
+  local pid
+
+  while read -r pid; do
+    [ -r "/proc/$pid/environ" ] || continue
+    if tr '\0' '\n' <"/proc/$pid/environ" | grep -qx "TERM=xterm-kitty"; then
+      return 0
+    fi
+  done < <(ps -t "$tty_name" -o pid= 2>/dev/null)
+
+  return 1
 }
 
 apply_anyterm() {
@@ -63,6 +79,9 @@ apply_anyterm() {
 
   for file in /dev/pts/*; do
     if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
+      if tty_has_kitty_term "$file"; then
+        continue
+      fi
       {
       cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"
       } & disown || true

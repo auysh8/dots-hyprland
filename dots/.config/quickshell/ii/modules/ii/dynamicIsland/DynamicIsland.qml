@@ -83,19 +83,22 @@ Scope {
                 property string customBatteryName: "Battery"
                 property bool isCharging: batterySource === "system" ? Battery.isPluggedIn : customBatteryCharging
                 property real batteryPercent: batterySource === "system" ? Battery.percentage : customBatteryPercent
+                // Reactive open-window tracking (polling fallback)
+                property bool hasOpenWindow: false
+                property bool hasFullscreen: false
+                property bool suppressAutomaticModes: hasFullscreen
+                property bool effectiveHasPopup: hasPopup && !suppressAutomaticModes
                 // Modes: 0=Idle/Media, 1=Volume, 2=Brightness, 3=CustomPopup, 4=Battery
                 property int modeOverride: 0
-                property int mode: modeOverride > 0 ? modeOverride : (hasPopup ? 3 : 0)
+                property int mode: suppressAutomaticModes ? 0 : (modeOverride > 0 ? modeOverride : (effectiveHasPopup ? 3 : 0))
                 property string expandedPageKey: "media"
                 property real lastVolume: Audio.value
                 property real lastBrightness: Brightness.monitors.length > 0 ? Brightness.monitors[0].brightness : 0
                 // Prevent startup triggers and hide island for 1s
                 property bool initialized: false
-                // Reactive open-window tracking (polling fallback)
-                property bool hasOpenWindow: false
-                property bool hasFullscreen: false
-                property bool islandVisible: !GlobalStates.overviewOpen && (triggerArea.containsMouse || expanded || mode !== 0 || (!hasOpenWindow) || (hasOpenWindow && idleMon.isIdle && !hasFullscreen))
-                property bool expanded: (islandHoverTracker.hovered || expandTimer.running) && mode === 0 && !hasPopup
+                property bool islandVisible: !GlobalStates.overviewOpen && (triggerArea.containsMouse || expanded || (!suppressAutomaticModes && (mode !== 0 || (!hasOpenWindow) || (hasOpenWindow && idleMon.isIdle))))
+                property bool expanded: (islandHoverTracker.hovered || expandTimer.running) && mode === 0 && !effectiveHasPopup
+                property bool storageWarningActive: false
                 // Time State
                 // Time State
                 property string currentTime: Qt.formatTime(new Date(), "h:mm AP")
@@ -189,12 +192,18 @@ Scope {
                     id: logic
 
                     onBatteryEvent: (plugged) => {
+                        if (islandContainer.suppressAutomaticModes)
+                            return;
+
                         islandContainer.batterySource = "system"; // Reset to system
                         islandContainer.isCharging = plugged;
                         islandContainer.modeOverride = 4;
                         modeTimer.restart();
                     }
                     onRequestCustomBattery: (percent, name) => {
+                        if (islandContainer.suppressAutomaticModes)
+                            return;
+
                         islandContainer.batterySource = "custom";
                         islandContainer.customBatteryPercent = percent;
                         islandContainer.customBatteryName = name;
@@ -216,6 +225,9 @@ Scope {
                 Connections {
                     function onVolumeChanged() {
                         if (!islandContainer.initialized)
+                            return ;
+
+                        if (islandContainer.suppressAutomaticModes)
                             return ;
 
                         var v = Audio.value;
@@ -240,6 +252,9 @@ Scope {
                         if (!islandContainer.initialized)
                             return ;
 
+                        if (islandContainer.suppressAutomaticModes)
+                            return ;
+
                         islandContainer.lastVolume = Audio.value;
                         islandContainer.modeOverride = 1;
                         modeTimer.restart();
@@ -250,6 +265,9 @@ Scope {
 
                 Connections {
                     function onBrightnessChanged() {
+                        if (islandContainer.suppressAutomaticModes)
+                            return ;
+
                         // Snapshot current brightness before expanding
                         islandContainer.lastBrightness = (Brightness.monitors.length > 0) ? Brightness.monitors[0].brightness : islandContainer.lastBrightness;
                         islandContainer.modeOverride = 2;
@@ -261,6 +279,9 @@ Scope {
 
                 Connections {
                     function onIsPluggedInChanged() {
+                        if (islandContainer.suppressAutomaticModes)
+                            return ;
+
                         islandContainer.isCharging = Battery.isPluggedIn;
                         logic.popupCategory = "battery";
                         logic.popupAction = Battery.isPluggedIn ? "charging" : "unplugged";
@@ -269,6 +290,9 @@ Scope {
                     }
 
                     function onPercentageChanged() {
+                        if (islandContainer.suppressAutomaticModes)
+                            return ;
+
                         // Trigger if plugged in and reaches 100% (or very close to it)
                         // Use a flag or check checks to avoid spam, but since modeTimer resets status, a re-trigger is acceptable if it fluctuates logic wise.
                         if (Battery.isPluggedIn && Battery.percentage >= 0.99) {
@@ -282,6 +306,24 @@ Scope {
                     }
 
                     target: Battery
+                }
+
+                Connections {
+                    function onDiskUsedPercentageChanged() {
+                        if (ResourceUsage.diskUsedPercentage >= 0.95) {
+                            if (islandContainer.storageWarningActive)
+                                return ;
+
+                            islandContainer.storageWarningActive = true;
+                            logic.showPopup("bad", "Storage", Math.round(ResourceUsage.diskUsedPercentage * 100) + "% full", "storage", "low");
+                            if (!islandContainer.suppressAutomaticModes)
+                                modeTimer.restart();
+                        } else {
+                            islandContainer.storageWarningActive = false;
+                        }
+                    }
+
+                    target: ResourceUsage
                 }
 
                 // Poll at a lower rate to reduce background CPU usage.
@@ -802,6 +844,8 @@ Scope {
                                                 return Appearance.colors.colError;
 
                                             return Appearance.colors.colPrimary;
+                                        case "storage":
+                                            return islandContainer.popupAction === "low" ? Appearance.colors.colError : Appearance.colors.colPrimary;
                                         default:
                                             return Appearance.colors.colPrimary;
                                         }
@@ -857,6 +901,8 @@ Scope {
                                             return "mail";
                                         case "update":
                                             return "update";
+                                        case "storage":
+                                            return "storage";
                                         case "keyboard":
                                             return "keyboard";
                                         case "notification":
