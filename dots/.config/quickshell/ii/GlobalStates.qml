@@ -20,6 +20,7 @@ Singleton {
     property bool osdVolumeOpen: false
     property bool oskOpen: false
     property bool overlayOpen: false
+    property bool geminiOverlayOpen: false
     property bool overviewOpen: false
     property bool regionSelectorOpen: false
     property bool searchOpen: false
@@ -33,6 +34,27 @@ Singleton {
     property bool notesLayerOpen: false
     property bool wallpaperSelectorOpen: false
     property bool workspaceShowNumbers: false
+
+    GlobalShortcut {
+        name: "geminiOverlayToggle"
+        description: "Toggles the Gemini chatbot overlay"
+        onPressed: {
+            root.geminiOverlayOpen = !root.geminiOverlayOpen;
+        }
+    }
+
+    IpcHandler {
+        target: "geminiOverlay"
+        function toggle(): void {
+            root.geminiOverlayOpen = !root.geminiOverlayOpen;
+        }
+        function close(): void {
+            root.geminiOverlayOpen = false;
+        }
+        function open(): void {
+            root.geminiOverlayOpen = true;
+        }
+    }
 
     onSidebarRightOpenChanged: {
         if (GlobalStates.sidebarRightOpen) {

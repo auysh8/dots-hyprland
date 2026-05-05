@@ -13,6 +13,7 @@ import "kdeConnect"
 import "modules/ii/overview"
 import "lyricsLayer"
 import "notesLayer"
+import "chatbotLayer"
 
 import QtQuick
 import QtQuick.Window
@@ -30,6 +31,7 @@ ShellRoot {
     LyricsWindow {}
     NotesWindow {}
     KDEDrawer {}
+    GeminiOverlayWindow {}
 
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
