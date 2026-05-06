@@ -63,17 +63,25 @@ async def startup_event():
     except Exception as e:
         print(f"Failed to initialize GeminiClient: {e}")
 
+from fastapi.responses import StreamingResponse
+import json
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     global client
     if not client:
         raise HTTPException(status_code=500, detail="GeminiClient not initialized")
     
-    try:
-        response = await client.generate_content(request.prompt)
-        return {"response": response.text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    async def generate():
+        try:
+            async for chunk in client.generate_content_stream(request.prompt):
+                if hasattr(chunk, 'text_delta') and chunk.text_delta:
+                    # Yield the text delta encoded as JSON to handle newlines safely
+                    yield f"data: {json.dumps({'text': chunk.text_delta})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 if __name__ == "__main__":
     import uvicorn

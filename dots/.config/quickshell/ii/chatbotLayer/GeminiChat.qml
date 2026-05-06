@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Io
 import qs.modules.common
 import qs.modules.common.widgets
 
@@ -86,27 +87,73 @@ Item {
         return html;
     }
 
+    // ─── Network Request Process ───────────────────────────────────────
+    Process {
+        id: curlProcess
+        property int loadingIndex: -1
+        property string currentResponseText: ""
+        stdout: SplitParser {
+            onRead: data => {
+                if (curlProcess.loadingIndex === -1) return;
+                const trimmedData = data.trim();
+                if (!trimmedData) return;
+                
+                // Parse SSE data
+                if (trimmedData.startsWith("data: ")) {
+                    try {
+                        const jsonStr = trimmedData.substring(6);
+                        const parsed = JSON.parse(jsonStr);
+                        
+                        if (parsed.text) {
+                            // Turn off thinking state on first chunk
+                            if (root.isLoading) {
+                                root.isLoading = false;
+                                curlProcess.currentResponseText = "";
+                            }
+                            
+                            curlProcess.currentResponseText += parsed.text;
+                            chatModel.setProperty(curlProcess.loadingIndex, "text", curlProcess.currentResponseText);
+                        } else if (parsed.error) {
+                            root.isLoading = false;
+                            chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Error: ${parsed.error}`);
+                        }
+                    } catch (e) {
+                        console.log("[Gemini Overlay] Error parsing SSE chunk:", e, data);
+                    }
+                }
+            }
+        }
+        onExited: {
+            root.isLoading = false;
+            wakeAnim.restart();
+            // If it exited but was still "loading", it means we got no chunks
+            if (chatModel.get(curlProcess.loadingIndex).text === "...") {
+                chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Connection closed unexpectedly`);
+            }
+            curlProcess.loadingIndex = -1;
+        }
+    }
+
     function sendMessage() {
         const prompt = inputField.text.trim();
         if (!prompt || root.isLoading) return;
         chatModel.append({ role: "user", text: prompt });
         inputField.clear();
         chatModel.append({ role: "bot", text: "..." });
-        const loadingIndex = chatModel.count - 1;
+        
+        curlProcess.loadingIndex = chatModel.count - 1;
+        curlProcess.currentResponseText = "...";
         root.isLoading = true;
         wakeAnim.restart();
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "http://127.0.0.1:8000/chat");
-        xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.onreadystatechange = () => {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return;
-            root.isLoading = false;
-            wakeAnim.restart();
-            chatModel.setProperty(loadingIndex, "text",
-                xhr.status === 200 ? JSON.parse(xhr.responseText).response
-                                   : `⚠️ Error ${xhr.status}: ${xhr.statusText}`);
-        };
-        xhr.send(JSON.stringify({ prompt }));
+        
+        const payload = JSON.stringify({ prompt: prompt });
+        // Use bash to construct the curl command properly
+        curlProcess.command = [
+            "bash", 
+            "-c", 
+            `curl -N -s -X POST http://127.0.0.1:8000/chat -H "Content-Type: application/json" -d '${payload.replace(/'/g, "'\\''")}'`
+        ];
+        curlProcess.running = true;
     }
 
     // ─── Height animation ──────────────────────────────────────────────
