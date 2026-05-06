@@ -31,34 +31,30 @@ Flickable {
             var scrollFactor = Math.abs(wheelEvent.angleDelta.y) >= root.mouseScrollDeltaThreshold ? root.mouseScrollFactor : root.touchpadScrollFactor;
 
             const maxY = Math.max(0, root.contentHeight - root.height);
-            const base = scrollAnim.running ? root.scrollTargetY : root.contentY;
+            const base = root.contentY;
             var targetY = Math.max(0, Math.min(base - delta * scrollFactor, maxY));
 
             root.scrollTargetY = targetY;
-            scrollAnim.stop();
-            scrollAnim.to = targetY;
-            scrollAnim.start();
+            root.contentY = targetY;
             wheelEvent.accepted = true;
         }
     }
 
     onMovementStarted: {
-        scrollAnim.stop()
         root.scrollTargetY = root.contentY
     }
 
-    NumberAnimation {
-        id: scrollAnim
-        target: root
-        property: "contentY"
-        duration: Appearance.animation.scroll.duration
-        easing.type: Appearance.animation.scroll.type
-        easing.bezierCurve: Appearance.animation.scroll.bezierCurve
+    // No NumberAnimation here, using Behavior for smoothness if needed, or just instant
+    Behavior on contentY {
+        NumberAnimation {
+            id: scrollAnim
+            duration: Appearance.animation.scroll.duration
+            easing.type: Appearance.animation.scroll.type
+            easing.bezierCurve: Appearance.animation.scroll.bezierCurve
+        }
     }
 
     onContentYChanged: {
-        if (!scrollAnim.running) {
-            root.scrollTargetY = root.contentY;
-        }
+        root.scrollTargetY = root.contentY;
     }
 }

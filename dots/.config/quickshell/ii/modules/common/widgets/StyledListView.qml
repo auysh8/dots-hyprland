@@ -51,37 +51,32 @@ ListView {
             var scrollFactor = Math.abs(wheelEvent.angleDelta.y) >= root.mouseScrollDeltaThreshold ? root.mouseScrollFactor : root.touchpadScrollFactor;
 
             const maxY = Math.max(0, root.contentHeight - root.height);
-            const base = scrollAnim.running ? root.scrollTargetY : root.contentY;
+            const base = root.contentY;
             var targetY = Math.max(0, Math.min(base - delta * scrollFactor, maxY));
 
             root.scrollTargetY = targetY;
-            scrollAnim.stop();
-            scrollAnim.to = targetY;
-            scrollAnim.start();
+            root.contentY = targetY;
             wheelEvent.accepted = true;
         }
     }
 
     onMovementStarted: {
-        scrollAnim.stop()
         root.scrollTargetY = root.contentY
     }
 
-    NumberAnimation {
-        id: scrollAnim
-        target: root
-        property: "contentY"
-        alwaysRunToEnd: false
-        duration: Appearance.animation.scroll.duration
-        easing.type: Appearance.animation.scroll.type
-        easing.bezierCurve: Appearance.animation.scroll.bezierCurve
+    Behavior on contentY {
+        NumberAnimation {
+            id: scrollAnim
+            alwaysRunToEnd: true
+            duration: Appearance.animation.scroll.duration
+            easing.type: Appearance.animation.scroll.type
+            easing.bezierCurve: Appearance.animation.scroll.bezierCurve
+        }
     }
 
     // Keep target synced when not animating (e.g., drag/flick or programmatic changes)
     onContentYChanged: {
-        if (!scrollAnim.running) {
-            root.scrollTargetY = root.contentY;
-        }
+        root.scrollTargetY = root.contentY;
     }
 
     add: Transition {

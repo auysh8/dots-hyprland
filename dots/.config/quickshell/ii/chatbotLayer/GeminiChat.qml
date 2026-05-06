@@ -13,7 +13,7 @@ Item {
     readonly property real compactHeight: 72
     readonly property real expandedHeight: 580
     implicitHeight: expanded ? expandedHeight : compactHeight
-    implicitWidth: 480
+    implicitWidth: 800
     // Clip so content is masked by the shrinking container during collapse animation
     clip: true
 
@@ -75,9 +75,9 @@ Item {
         let html = text;
         html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         html = html.replace(/```([\s\S]*?)```/g, (_, code) =>
-            `<pre style='background:#1c1b1c;padding:10px;border-radius:8px;font-family:monospace;'><code>${code}</code></pre>`);
+            `<pre style='background:${Appearance.colors.colLayer1Base};padding:10px;border-radius:8px;font-family:monospace;'><code>${code}</code></pre>`);
         html = html.replace(/`([^`]+)`/g,
-            `<code style='background:#1c1b1c;padding:2px 6px;border-radius:4px;font-family:monospace;'>$1</code>`);
+            `<code style='background:${Appearance.colors.colLayer1};padding:2px 6px;border-radius:4px;font-family:monospace;'>$1</code>`);
         html = html.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
         html = html.replace(/\*([^*]+)\*/g, "<i>$1</i>");
         html = html.replace(/^### (.+)$/mg, "<h3>$1</h3>");
@@ -286,7 +286,7 @@ Item {
                 delegate: Item {
                     id: delegateRoot
                     width: ListView.view.width
-                    height: bubbleLoader.implicitHeight + 4
+                    height: bubbleLoader.implicitHeight + 12
                     readonly property bool isUser: model.role === "user"
                     readonly property bool isThinking: model.text === "..."
 
@@ -299,12 +299,12 @@ Item {
                         Component {
                             id: userBubble
                             Item {
-                                implicitHeight: userMsg.implicitHeight + 20
+                                implicitHeight: userMsg.implicitHeight + 24
                                 anchors.right: parent?.right
 
                                 Rectangle {
                                     anchors.right: parent.right
-                                    width: Math.min(userMsg.implicitWidth + 32, delegateRoot.width * 0.80)
+                                    width: Math.min(userMsg.implicitWidth + 32, delegateRoot.width * 0.75)
                                     height: parent.implicitHeight
                                     radius: Appearance.rounding.large
                                     color: Appearance.colors.colSecondaryContainer
@@ -329,17 +329,17 @@ Item {
                         Component {
                             id: botBubble
                             ColumnLayout {
-                                spacing: 6
+                                spacing: 8
                                 width: parent?.width ?? 0
 
                                 // Thinking state
                                 RowLayout {
                                     visible: delegateRoot.isThinking
-                                    spacing: 10
-                                    Layout.leftMargin: 4
+                                    spacing: 12
+                                    Layout.leftMargin: 8
 
                                     MaterialLoadingIndicator {
-                                        implicitSize: 26; loading: true
+                                        implicitSize: 24; loading: true
                                         shapeColor: Appearance.colors.colPrimary
                                         color: "transparent"
                                     }
@@ -350,60 +350,87 @@ Item {
                                     }
                                 }
 
-                                // Response text
-                                Text {
+                                // Bot Card
+                                Rectangle {
                                     visible: !delegateRoot.isThinking
                                     Layout.fillWidth: true
-                                    Layout.leftMargin: 4
-                                    text: parseMarkdown(model.text)
-                                    textFormat: Text.RichText
-                                    color: Appearance.colors.colOnLayer0
-                                    font.family: Appearance.font.family.main
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    wrapMode: Text.WordWrap
-                                    lineHeight: 1.5
-                                    renderType: Text.NativeRendering
-                                }
+                                    Layout.maximumWidth: delegateRoot.width * 0.85
+                                    implicitHeight: botContent.implicitHeight + 24
+                                    radius: Appearance.rounding.large
+                                    color: Appearance.colors.colLayer2
+                                    border.width: 1
+                                    border.color: Appearance.colors.colLayer0Border
 
-                                // Copy chip — M3 assist chip style
-                                RippleButton {
-                                    visible: !delegateRoot.isThinking
-                                    implicitWidth: copyRow.implicitWidth + 20
-                                    implicitHeight: 30
-                                    buttonRadius: Appearance.rounding.full
-                                    colBackground: Appearance.colors.colLayer2
-                                    Layout.leftMargin: 2
-
-                                    property bool justCopied: false
-                                    Timer {
-                                        id: resetCopy
-                                        interval: 1200
-                                        onTriggered: parent.justCopied = false
-                                    }
-
-                                    contentItem: RowLayout {
-                                        id: copyRow
-                                        anchors.centerIn: parent
-                                        spacing: 5
-                                        MaterialSymbol {
-                                            text: parent.parent.justCopied ? "check" : "content_copy"
-                                            iconSize: Appearance.font.pixelSize.smaller
-                                            color: parent.parent.justCopied
-                                                ? Appearance.colors.colPrimary
-                                                : Appearance.colors.colOnLayer2
+                                    ColumnLayout {
+                                        id: botContent
+                                        anchors {
+                                            left: parent.left; leftMargin: 16
+                                            right: parent.right; rightMargin: 16
+                                            top: parent.top; topMargin: 12
                                         }
-                                        StyledText {
-                                            text: parent.parent.justCopied ? "Copied" : "Copy"
-                                            font.pixelSize: Appearance.font.pixelSize.smaller
-                                            color: parent.parent.justCopied
-                                                ? Appearance.colors.colPrimary
-                                                : Appearance.colors.colOnLayer2
+                                        spacing: 12
+
+                                        // Response text
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: parseMarkdown(model.text)
+                                            textFormat: Text.RichText
+                                            color: Appearance.colors.colOnLayer2
+                                            font.family: Appearance.font.family.main
+                                            font.pixelSize: Appearance.font.pixelSize.small
+                                            wrapMode: Text.WordWrap
+                                            lineHeight: 1.5
+                                            renderType: Text.NativeRendering
                                         }
-                                    }
-                                    onClicked: {
-                                        Quickshell.clipboardText = model.text;
-                                        justCopied = true;
-                                        resetCopy.restart();
+
+                                        // Action Row
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            Layout.topMargin: 4
+                                            spacing: 8
+
+                                            // Copy chip — M3 assist chip style
+                                            RippleButton {
+                                                implicitWidth: copyRow.implicitWidth + 24
+                                                implicitHeight: 32
+                                                buttonRadius: Appearance.rounding.full
+                                                colBackground: Appearance.colors.colLayer3
+                                                
+                                                property bool justCopied: false
+                                                Timer {
+                                                    id: resetCopy
+                                                    interval: 1500
+                                                    onTriggered: parent.justCopied = false
+                                                }
+
+                                                contentItem: RowLayout {
+                                                    id: copyRow
+                                                    anchors.centerIn: parent
+                                                    spacing: 6
+                                                    MaterialSymbol {
+                                                        text: parent.parent.justCopied ? "check" : "content_copy"
+                                                        iconSize: Appearance.font.pixelSize.smaller
+                                                        color: parent.parent.justCopied
+                                                            ? Appearance.colors.colPrimary
+                                                            : Appearance.colors.colOnLayer2
+                                                    }
+                                                    StyledText {
+                                                        text: parent.parent.justCopied ? "Copied" : "Copy"
+                                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                                        color: parent.parent.justCopied
+                                                            ? Appearance.colors.colPrimary
+                                                            : Appearance.colors.colOnLayer2
+                                                    }
+                                                }
+                                                onClicked: {
+                                                    Quickshell.clipboardText = model.text;
+                                                    justCopied = true;
+                                                    resetCopy.restart();
+                                                }
+                                            }
+
+                                            Item { Layout.fillWidth: true } // Spacer
+                                        }
                                     }
                                 }
                             }
@@ -411,13 +438,7 @@ Item {
                     }
                 }
             }
-
-            ScrollEdgeFade {
-                target: chatList
-                color: Appearance.colors.colLayer0Base
-            }
         }
-
     }
 
     // ── Input area (M3 Search Bar) — anchored to root bottom ──────────────

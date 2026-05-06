@@ -95,15 +95,16 @@ Scope {
         // ── Panel container ───────────────────────────────────────────
         Item {
             id: panelContainer
-            width: 520
+            width: 800
 
-            // Always centered. Height is the only animated property —
-            // both expand and collapse move the top and bottom edges
-            // symmetrically from the screen center. Clean, artifact-free.
+            // Bottom-docked. Height is animated to expand upwards.
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 24
 
             height: chatUI.implicitHeight
+
+            transform: Translate { id: panelTranslate }
 
             // Animate height changes (chat expand / collapse)
             Behavior on height {
@@ -121,16 +122,18 @@ Scope {
                 State {
                     name: "open"
                     when: GlobalStates.geminiOverlayOpen
-                    PropertyChanges { target: panelContainer; opacity: 1.0; scale: 1.0 }
+                    PropertyChanges { target: panelContainer; opacity: 1.0 }
+                    PropertyChanges { target: panelTranslate; y: 0 }
                 },
                 State {
                     name: "closed"
-                    PropertyChanges { target: panelContainer; opacity: 0.0; scale: 0.92 }
+                    PropertyChanges { target: panelContainer; opacity: 0.0 }
+                    PropertyChanges { target: panelTranslate; y: 120 }
                 }
             ]
 
             transitions: [
-                // Enter — decelerate (panel rushes in and settles)
+                // Enter — slide up and fade in
                 Transition {
                     to: "open"
                     ParallelAnimation {
@@ -141,14 +144,15 @@ Scope {
                             easing.bezierCurve: Common.Appearance.animation.elementMoveEnter.bezierCurve
                         }
                         NumberAnimation {
-                            property: "scale"
+                            target: panelTranslate
+                            property: "y"
                             duration: Common.Appearance.animation.elementMoveEnter.duration
                             easing.type: Common.Appearance.animation.elementMoveEnter.type
                             easing.bezierCurve: Common.Appearance.animation.elementMoveEnter.bezierCurve
                         }
                     }
                 },
-                // Exit — accelerate (panel sweeps away decisively)
+                // Exit — slide down and fade out
                 Transition {
                     to: "closed"
                     ParallelAnimation {
@@ -158,9 +162,8 @@ Scope {
                             easing.type: Easing.InCubic
                         }
                         NumberAnimation {
-                            property: "scale"
-                            // Shrinks slightly further than the enter start (0.92 vs 0.94)
-                            // so the exit reads as a distinct, intentional motion.
+                            target: panelTranslate
+                            property: "y"
                             duration: 200
                             easing.type: Easing.InCubic
                         }
