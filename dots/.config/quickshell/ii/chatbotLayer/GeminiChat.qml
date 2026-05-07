@@ -5,6 +5,8 @@ import Quickshell
 import Quickshell.Io
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
+import qs.modules.ii.sidebarLeft.aiChat
 
 Item {
     id: root
@@ -69,23 +71,6 @@ Item {
 
     // ─── Data ──────────────────────────────────────────────────────────
     ListModel { id: chatModel }
-
-    function parseMarkdown(text) {
-        if (!text) return "";
-        let html = text;
-        html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        html = html.replace(/```([\s\S]*?)```/g, (_, code) =>
-            `<pre style='background:${Appearance.colors.colLayer1Base};padding:10px;border-radius:8px;font-family:monospace;'><code>${code}</code></pre>`);
-        html = html.replace(/`([^`]+)`/g,
-            `<code style='background:${Appearance.colors.colLayer1};padding:2px 6px;border-radius:4px;font-family:monospace;'>$1</code>`);
-        html = html.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
-        html = html.replace(/\*([^*]+)\*/g, "<i>$1</i>");
-        html = html.replace(/^### (.+)$/mg, "<h3>$1</h3>");
-        html = html.replace(/^## (.+)$/mg, "<h2>$1</h2>");
-        html = html.replace(/^# (.+)$/mg, "<h1>$1</h1>");
-        html = html.replace(/\n/g, "<br>");
-        return html;
-    }
 
     // ─── Network Request Process ───────────────────────────────────────
     Process {
@@ -175,6 +160,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: inputToolbar.top
         spacing: 0
+        clip: true
 
         // ── Top App Bar ─────────────────────────────────────────────────
         Item {
@@ -370,17 +356,54 @@ Item {
                                         }
                                         spacing: 12
 
-                                        // Response text
-                                        Text {
+                                        // Response text blocks
+                                        ColumnLayout {
                                             Layout.fillWidth: true
-                                            text: parseMarkdown(model.text)
-                                            textFormat: Text.RichText
-                                            color: Appearance.colors.colOnLayer2
-                                            font.family: Appearance.font.family.main
-                                            font.pixelSize: Appearance.font.pixelSize.small
-                                            wrapMode: Text.WordWrap
-                                            lineHeight: 1.5
-                                            renderType: Text.NativeRendering
+                                            spacing: 0
+                                            
+                                            Repeater {
+                                                model: ScriptModel {
+                                                    values: StringUtils.splitMarkdownBlocks(model.text)
+                                                }
+                                                delegate: DelegateChooser {
+                                                    role: "type"
+                                                    DelegateChoice { 
+                                                        roleValue: "code"
+                                                        MessageCodeBlock {
+                                                            editing: false
+                                                            renderMarkdown: true
+                                                            enableMouseSelection: true
+                                                            segmentContent: modelData.content
+                                                            segmentLang: modelData.lang
+                                                            messageData: { "role": "bot", "content": model.text, "done": !delegateRoot.isThinking }
+                                                        }
+                                                    }
+                                                    DelegateChoice { 
+                                                        roleValue: "think"
+                                                        MessageThinkBlock {
+                                                            editing: false
+                                                            renderMarkdown: true
+                                                            enableMouseSelection: true
+                                                            segmentContent: modelData.content
+                                                            messageData: { "role": "bot", "content": model.text, "done": !delegateRoot.isThinking }
+                                                            done: !delegateRoot.isThinking
+                                                            completed: modelData.completed ?? false
+                                                        }
+                                                    }
+                                                    DelegateChoice { 
+                                                        roleValue: "text"
+                                                        MessageTextBlock {
+                                                            editing: false
+                                                            renderMarkdown: true
+                                                            enableMouseSelection: true
+                                                            segmentContent: modelData.content
+                                                            messageData: { "role": "bot", "content": model.text, "done": !delegateRoot.isThinking }
+                                                            done: !delegateRoot.isThinking
+                                                            forceDisableChunkSplitting: model.text.includes("```")
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         // Action Row

@@ -15,20 +15,32 @@ Scope {
     // ── Exit-animation gate ────────────────────────────────────────────
     // Keeps the PanelWindow alive long enough for the close animation to
     // finish before the surface is actually destroyed.
-    property bool isExiting: false
+    property bool actuallyVisible: GlobalStates.geminiOverlayOpen
 
     Timer {
         id: exitTimer
         // Slightly longer than the exit transition so the surface doesn't
         // vanish mid-animation. Tweak alongside the Transition duration.
         interval: 220
-        onTriggered: root.isExiting = false
+        onTriggered: root.actuallyVisible = false
+    }
+
+    Connections {
+        target: GlobalStates
+        function onGeminiOverlayOpenChanged() {
+            if (GlobalStates.geminiOverlayOpen) {
+                exitTimer.stop();
+                root.actuallyVisible = true;
+            } else {
+                exitTimer.restart();
+            }
+        }
     }
 
     PanelWindow {
         id: panelWindow
         // Stay visible while either open OR animating closed.
-        visible: GlobalStates.geminiOverlayOpen || root.isExiting
+        visible: root.actuallyVisible
         exclusiveZone: 0
         anchors { top: true; bottom: true; left: true; right: true }
         color: "transparent"
@@ -44,17 +56,6 @@ Scope {
                 GlobalFocusGrab.addDismissable(panelWindow);
             } else {
                 GlobalFocusGrab.removeDismissable(panelWindow);
-            }
-        }
-
-        // Arm the exit timer whenever the overlay closes.
-        Connections {
-            target: GlobalStates
-            function onGeminiOverlayOpenChanged() {
-                if (!GlobalStates.geminiOverlayOpen) {
-                    root.isExiting = true;
-                    exitTimer.restart();
-                }
             }
         }
 
@@ -121,16 +122,17 @@ Scope {
             states: [
                 State {
                     name: "open"
-                    when: GlobalStates.geminiOverlayOpen
                     PropertyChanges { target: panelContainer; opacity: 1.0 }
                     PropertyChanges { target: panelTranslate; y: 0 }
                 },
                 State {
                     name: "closed"
                     PropertyChanges { target: panelContainer; opacity: 0.0 }
-                    PropertyChanges { target: panelTranslate; y: 120 }
+                    PropertyChanges { target: panelTranslate; y: panelContainer.height + 50 }
                 }
             ]
+            
+            state: GlobalStates.geminiOverlayOpen ? "open" : "closed"
 
             transitions: [
                 // Enter — slide up and fade in
