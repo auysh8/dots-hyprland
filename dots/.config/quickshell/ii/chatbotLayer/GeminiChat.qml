@@ -263,16 +263,34 @@ Item {
                 anchors.rightMargin: 16
                 model: chatModel
                 spacing: 8
-                animateAppearance: true
-                popin: true
-                remove: Transition {}
-                removeDisplaced: Transition {}
-                onCountChanged: Qt.callLater(() => chatList.positionViewAtEnd())
+                popin: false
+                animateAppearance: false
+                add: null
+
+                onContentHeightChanged: {
+                    if (dragging) return;
+                    if (atYEnd || (contentHeight - contentY - height < 50)) {
+                        Qt.callLater(() => chatList.positionViewAtEnd());
+                    }
+                }
+
+                onCountChanged: {
+                    if (dragging) return;
+                    if (atYEnd || (contentHeight - contentY - height < 50)) {
+                        Qt.callLater(() => chatList.positionViewAtEnd());
+                    }
+                }
 
                 delegate: Item {
                     id: delegateRoot
                     width: ListView.view.width
-                    height: bubbleLoader.implicitHeight + 12
+                    height: Math.max(bubbleLoader.implicitHeight + 12, _maxHeight)
+                    property real _maxHeight: 12
+                    onHeightChanged: {
+                        if (height > _maxHeight && !delegateRoot.isThinking) {
+                            _maxHeight = height;
+                        }
+                    }
                     readonly property bool isUser: model.role === "user"
                     readonly property bool isThinking: model.text === "..."
 
@@ -286,22 +304,19 @@ Item {
                             id: userBubble
                             Item {
                                 implicitHeight: userMsg.implicitHeight + 24
-                                anchors.right: parent?.right
+                                width: parent?.width ?? 0
 
                                 Rectangle {
                                     anchors.right: parent.right
-                                    width: Math.min(userMsg.implicitWidth + 32, delegateRoot.width * 0.75)
+                                    width: userMsg.width + 32
                                     height: parent.implicitHeight
                                     radius: Appearance.rounding.large
                                     color: Appearance.colors.colSecondaryContainer
 
                                     StyledText {
                                         id: userMsg
-                                        anchors {
-                                            left: parent.left; leftMargin: 16
-                                            right: parent.right; rightMargin: 16
-                                            verticalCenter: parent.verticalCenter
-                                        }
+                                        width: Math.min(implicitWidth, Math.max(100, delegateRoot.width * 0.75 - 32))
+                                        anchors.centerIn: parent
                                         text: model.text
                                         wrapMode: Text.WordWrap
                                         color: Appearance.colors.colOnSecondaryContainer
@@ -339,8 +354,7 @@ Item {
                                 // Bot Card
                                 Rectangle {
                                     visible: !delegateRoot.isThinking
-                                    Layout.fillWidth: true
-                                    Layout.maximumWidth: delegateRoot.width * 0.85
+                                    Layout.preferredWidth: Math.max(200, delegateRoot.width * 0.85)
                                     implicitHeight: botContent.implicitHeight + 24
                                     radius: Appearance.rounding.large
                                     color: Appearance.colors.colLayer2
