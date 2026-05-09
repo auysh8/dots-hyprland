@@ -195,39 +195,58 @@ class Player:
 
 
 
-    def _prefetch_stream_url(self, video_id, title=""):
-        # Check cache with TTL — HLS URLs are valid ~6 hours
+    def _prefetch_stream_url(self, video_id, title="", artist="", art_url=""):
+        # Check cache with TTL — HLS/Proxy URLs are valid for a few hours
         with self._state_lock:
             cached = self._stream_cache.get(video_id)
             if cached and cached[1] > time.time():
                 return  # Still valid
-        self.log(f"Background prefetching next URL for gapless playback: {video_id}")
-        try:
-            ytdlp = self._resolve_ytdlp_path()
-            cmd = [
-                ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings",
-                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "--extractor-args", "youtube:player_client=android_music",
-                f"https://music.youtube.com/watch?v={video_id}"
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
-            stream_url = result.stdout.strip().split("\n")[-1].strip()
-            if stream_url:
-                expiry = time.time() + 6 * 3600  # HLS URLs valid ~6h
-                with self._state_lock:
-                    self._stream_cache[video_id] = (stream_url, expiry)
-                self.log(f"Gapless URL ready for {video_id}")
+        
+        self.log(f"Background prefetching next URL for gapless playback: {title or video_id}")
+        
+        tidal_on = getattr(self, "settings", {}).get("tidal_lossless", False)
+        # Skip Tidal for video tracks (music videos)
+        if tidal_on and is_video_track(video_id, art_url):
+            tidal_on = False
 
-                # Pre-cache audio for the next track — only when Tidal is OFF.
-                # When Tidal is enabled we don't want a YouTube AAC file saved;
-                # the track will play via Tidal FLAC when it actually starts.
-                tidal_on = getattr(self, "settings", {}).get("tidal_lossless", False)
-                if self.cache and not self.cache.get_audio_path(video_id) and not tidal_on:
-                    threading.Thread(
-                        target=self._download_audio_to_cache,
-                        args=(video_id, title or video_id),
-                        daemon=True,
-                    ).start()
+        try:
+            stream_url = None
+            quality_label = "YouTube Music"
+
+            # 1. Try Tidal Pre-resolution first if enabled
+            if tidal_on:
+                # Check if already in local FLAC cache
+                cached_path = self.cache.get_audio_path(video_id)
+                if cached_path and cached_path.endswith(".flac"):
+                    stream_url = f"file://{cached_path}"
+                    quality_label = "Tidal Lossless"
+                else:
+                    self.log(f"[Tidal] Pre-resolving stream for: {title} by {artist}")
+                    t_url, t_quality = self.tidal.resolve_stream(title, artist)
+                    if t_url:
+                        stream_url = t_url
+                        quality_label = t_quality or "Tidal Lossless"
+
+            # 2. Fallback to YouTube Music if Tidal failed or is OFF
+            if not stream_url:
+                ytdlp = self._resolve_ytdlp_path()
+                cmd = [
+                    ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings",
+                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "--extractor-args", "youtube:player_client=android_music",
+                    f"https://music.youtube.com/watch?v={video_id}"
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
+                stream_url = result.stdout.strip().split("\n")[-1].strip()
+                quality_label = "YouTube Music"
+
+            if stream_url:
+                expiry = time.time() + 6 * 3600  # URLs valid ~6h
+                with self._state_lock:
+                    # Store as (url, expiry, quality_label)
+                    self._stream_cache[video_id] = (stream_url, expiry, quality_label)
+                self.log(f"Gapless URL ready for {video_id} ({quality_label})")
+
         except Exception as e:
             self.log(f"Failed gapless prefetch: {e}")
 
@@ -415,13 +434,10 @@ class Player:
                 except Exception as e:
                     self.log(f"Failed to resolve: {e}")
 
-            # Smart cache check: use cached Tidal FLAC files but skip stale YouTube AAC.
-            # .flac = Tidal-cached lossless  /  .m4a or .webm = YouTube-sourced, skip when Tidal on.
+            # Play any cached file first to save bandwidth and avoid slow proxy searches.
+            # (We now only cache .flac files going forward, but old .m4a files will still play instantly).
             tidal_enabled = getattr(self, "settings", {}).get("tidal_lossless", False)
-            _raw_cache_path = self.cache.get_audio_path(video_id)
-            if tidal_enabled and _raw_cache_path and not _raw_cache_path.endswith(".flac"):
-                _raw_cache_path = None  # Ignore YouTube AAC/WebM; will use Tidal stream instead
-            cached_audio_path = _raw_cache_path
+            cached_audio_path = self.cache.get_audio_path(video_id)
             stream_url = None
             quality = "YouTube Music"
             is_tidal_stream = False
@@ -471,23 +487,28 @@ class Player:
             else:
                 with self._state_lock:
                     cached_entry = self._stream_cache.pop(video_id, None)
-                # Unwrap tuple (url, expiry) — discard if expired
+                # Unwrap tuple (url, expiry, quality) — discard if expired
                 if cached_entry and cached_entry[1] > time.time():
                     stream_url = cached_entry[0]
+                    # Restore quality if it was pre-resolved (e.g. Tidal Lossless)
+                    if len(cached_entry) > 2:
+                        quality = cached_entry[2]
+                        if "Tidal" in quality:
+                            is_tidal_stream = True
                 else:
                     stream_url = None
-                cmd = [
-                    self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings",
-                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "--extractor-args", "youtube:player_client=android_music",
-                    f"https://music.youtube.com/watch?v={video_id}"
-                ]
-
+                
                 if stream_url:
-                    self.log(f"Using pre-fetched gapless URL")
+                    self.log(f"Using pre-fetched gapless URL ({quality})")
 
                 else:
                     self.log("Fetching stream URL...")
+                    cmd = [
+                        self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings", 
+                        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                        "--extractor-args", "youtube:player_client=android_music",
+                        f"https://music.youtube.com/watch?v={video_id}"
+                    ]
                     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     self._ytdlp_proc = proc
                     stdout, stderr = proc.communicate(timeout=30)
@@ -584,11 +605,13 @@ class Player:
                 next_track = None if self.repeat_mode == 2 else (self._current_queue[0] if self._current_queue else None)
                 next_id = video_id if self.repeat_mode == 2 else (next_track.get("videoId") if next_track else None)
                 next_title = next_track.get("title", next_id or "") if next_track else (title if self.repeat_mode == 2 else "")
+                next_artist = next_track.get("artist", "") if next_track else (artist if self.repeat_mode == 2 else "")
+                next_art = next_track.get("artUrl", "") if next_track else (art_url if self.repeat_mode == 2 else "")
             if next_id:
                 if getattr(self, 'executor', None):
-                    self.executor.submit(self._prefetch_stream_url, next_id, next_title)
+                    self.executor.submit(self._prefetch_stream_url, next_id, next_title, next_artist, next_art)
                 else:
-                    threading.Thread(target=self._prefetch_stream_url, args=(next_id, next_title,), daemon=True).start()
+                    threading.Thread(target=self._prefetch_stream_url, args=(next_id, next_title, next_artist, next_art), daemon=True).start()
 
 
             def _deferred_art_download():
@@ -653,29 +676,6 @@ class Player:
                     self.executor.submit(_cache_tidal_flac)
                 else:
                     threading.Thread(target=_cache_tidal_flac, daemon=True).start()
-
-            elif is_live_stream and not is_tidal_stream:
-                # YouTube Music stream — download via yt-dlp for future offline playback.
-                # For video tracks, wait much longer before downloading: starting a full yt-dlp download
-                # 30s into playback creates two simultaneous YouTube connections and causes audio stutter.
-                # Delay 3 minutes for video tracks so the download only kicks off near end of song.
-                _cache_delay = 180 if _is_video_track else 30
-                def _deferred_audio_cache(delay=_cache_delay):
-                    time.sleep(delay)
-                    with self._state_lock:
-                        if self._playback_token != token:
-                            return  # Song was skipped
-                    if self.cache.get_audio_path(video_id):
-                        return  # Already cached by now
-                    threading.Thread(
-                        target=self._download_audio_to_cache,
-                        args=(video_id, title),
-                        daemon=True,
-                    ).start()
-                if getattr(self, 'executor', None):
-                    self.executor.submit(_deferred_audio_cache)
-                else:
-                    threading.Thread(target=_deferred_audio_cache, daemon=True).start()
 
             self.send_response(
                 self._build_track_payload(

@@ -8,6 +8,81 @@ import io
 import re
 import tempfile
 import os
+import random
+from pathlib import Path
+
+class ProxyManager:
+    """Manages persistent scores for Tidal proxies to prioritize reliable instances."""
+    
+    SCORE_SUCCESS = 10
+    SCORE_FAILURE = -5
+    SCORE_FLOOR = -20
+    
+    def __init__(self, logger, score_file=None):
+        self.log = logger
+        if score_file:
+            self.score_file = Path(score_file)
+        else:
+            self.score_file = Path(os.path.expanduser("~/.cache/quickshell/music/proxy_scores.json"))
+        
+        self.scores = {}
+        self._load()
+
+    def _load(self):
+        try:
+            if self.score_file.exists():
+                with open(self.score_file, "r") as f:
+                    self.scores = json.load(f)
+        except Exception as e:
+            self.log(f"[ProxyManager] Failed to load scores: {e}")
+
+    def _save(self):
+        try:
+            self.score_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.score_file, "w") as f:
+                json.dump(self.scores, f, indent=4)
+        except Exception as e:
+            self.log(f"[ProxyManager] Failed to save scores: {e}")
+
+    def report_success(self, proxy_url):
+        data = self.scores.get(proxy_url, {"score": 0})
+        data["score"] += self.SCORE_SUCCESS
+        data["last_used"] = time.time()
+        self.scores[proxy_url] = data
+        self._save()
+
+    def report_failure(self, proxy_url):
+        data = self.scores.get(proxy_url, {"score": 0})
+        data["score"] = max(self.SCORE_FLOOR, data["score"] + self.SCORE_FAILURE)
+        data["last_used"] = time.time()
+        self.scores[proxy_url] = data
+        self._save()
+
+    def get_prioritized_proxies(self, default_proxies):
+        """Returns a list of proxies sorted by score, with random shuffling for equal scores."""
+        # Ensure all default proxies exist in scores
+        for p in default_proxies:
+            if p not in self.scores:
+                self.scores[p] = {"score": 0}
+        
+        # Group proxies by their score
+        by_score = {}
+        for p in default_proxies:
+            score = self.scores[p].get("score", 0)
+            if score not in by_score:
+                by_score[score] = []
+            by_score[score].append(p)
+            
+        # Sort scores descending
+        sorted_scores = sorted(by_score.keys(), reverse=True)
+        
+        final_list = []
+        for s in sorted_scores:
+            group = by_score[s]
+            random.shuffle(group)
+            final_list.extend(group)
+            
+        return final_list
 
 class TidalClient:
     """A minimal Python client for Tidal using Monochrome community proxies.
@@ -23,8 +98,11 @@ class TidalClient:
     """
 
     # Community proxy instances (monochrome-style FastAPI proxy servers)
-    # arran.monochrome.tf is excluded — consistently 502 Bad Gateway
     PROXIES = [
+        "https://eu-central.monochrome.tf",
+        "https://us-west.monochrome.tf",
+        "https://api.monochrome.tf",
+        "https://monochrome-api.samidy.com",
         "https://triton.squid.wtf",
         "https://wolf.qqdl.site",
         "https://maus.qqdl.site",
@@ -32,14 +110,16 @@ class TidalClient:
         "https://katze.qqdl.site",
         "https://hund.qqdl.site",
         "https://hifi.p1nkhamster.xyz",
+        "https://tidal.kinoplus.online",
     ]
 
     def __init__(self, logger):
         self.log = logger
         # Cache search results by (title, artist) to avoid re-searching on retry
         self._search_cache = {}
+        self.proxy_mgr = ProxyManager(logger)
 
-    def _request(self, url, data=None, headers=None, method=None, timeout=8):
+    def _request(self, url, data=None, headers=None, method=None, timeout=12):
         """Helper to make HTTP requests with proper headers and decompression."""
         if headers is None:
             headers = {}
@@ -280,8 +360,11 @@ class TidalClient:
         Returns (stream_url, quality_label) or (None, None).
         """
         last_track_id = None
+        
+        # Get prioritized proxies instead of pure random shuffle
+        proxies = self.proxy_mgr.get_prioritized_proxies(self.PROXIES)
 
-        for proxy_base in self.PROXIES:
+        for proxy_base in proxies:
             self.log(f"[Tidal] Trying proxy: {proxy_base}")
             try:
                 # Step 1: Search (reuse track_id if already found)
@@ -290,6 +373,7 @@ class TidalClient:
                     track_id = self.search_track_via_proxy(proxy_base, title, artist)
                     if not track_id:
                         self.log(f"[Tidal] No search results from {proxy_base}")
+                        # Not necessarily a proxy failure, but we won't reward it here
                         continue
                     last_track_id = track_id
 
@@ -297,10 +381,14 @@ class TidalClient:
                 stream_url, quality_label = self.get_stream_via_proxy(proxy_base, track_id)
                 if stream_url:
                     self.log(f"[Tidal] ✓ Stream resolved via {proxy_base}: {quality_label}")
+                    self.proxy_mgr.report_success(proxy_base)
                     return stream_url, quality_label
+                else:
+                    self.proxy_mgr.report_failure(proxy_base)
 
             except Exception as e:
                 self.log(f"[Tidal] Proxy {proxy_base} error: {e}")
+                self.proxy_mgr.report_failure(proxy_base)
                 continue
 
         self.log("[Tidal] All proxies exhausted — falling back to YouTube Music")
