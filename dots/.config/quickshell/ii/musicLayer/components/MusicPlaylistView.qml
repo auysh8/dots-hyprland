@@ -208,6 +208,7 @@ StyledFlickable {
                         rootContext: root.rootContext
                         track: model
                         indexNumber: index + 1
+                        fallbackArtUrl: rootContext ? rootContext.activePlaylistCover : ""
                         
                         onClicked: {
                             if (!rootContext) return
@@ -221,11 +222,11 @@ StyledFlickable {
                                         videoId: t.videoId,
                                         title: t.title,
                                         artist: t.artist,
-                                        artUrl: t.artUrl,
+                                        artUrl: t.artUrl || (rootContext ? rootContext.activePlaylistCover : ""),
                                         duration: t.duration || ""
                                     })
                                 }
-                                rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks, model.artistId, model.albumId)
+                                rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl || (rootContext ? rootContext.activePlaylistCover : ""), queueTracks, model.artistId, model.albumId)
                                 }
                                 }
                                 }

@@ -12,6 +12,7 @@ Item {
     property var rootContext
     property var track
     property int indexNumber: -1 // Optional number to display on the left
+    property string fallbackArtUrl: ""
 
     Layout.fillWidth: true
     height: 64
@@ -49,7 +50,7 @@ Item {
 
             RoundedImage {
                 anchors.fill: parent
-                source: root.track.artUrl || ""
+                source: root.track.artUrl || root.fallbackArtUrl || ""
                 sourceSize.width: 96
                 sourceSize.height: 96
                 fillMode: Image.PreserveAspectCrop

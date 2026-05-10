@@ -77,6 +77,7 @@ Item {
         id: curlProcess
         property int loadingIndex: -1
         property string currentResponseText: ""
+        property string errorBuffer: ""
         stdout: SplitParser {
             onRead: data => {
                 if (curlProcess.loadingIndex === -1) return;
@@ -105,17 +106,26 @@ Item {
                     } catch (e) {
                         console.log("[Gemini Overlay] Error parsing SSE chunk:", e, data);
                     }
+                } else {
+                    curlProcess.errorBuffer += trimmedData + "\n";
                 }
             }
         }
-        onExited: {
+        onExited: (exitCode, exitStatus) => {
             root.isLoading = false;
             wakeAnim.restart();
             // If it exited but was still "loading", it means we got no chunks
             if (chatModel.get(curlProcess.loadingIndex).text === "...") {
-                chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Connection closed unexpectedly`);
+                if (exitCode === 7) {
+                    chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Failed to connect to local server at 127.0.0.1:8000.\nPlease ensure gemini_server.py is running.`);
+                } else if (curlProcess.errorBuffer.trim() !== "") {
+                    chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Server returned an error:\n${curlProcess.errorBuffer.trim()}`);
+                } else {
+                    chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Connection closed unexpectedly (exit code ${exitCode})`);
+                }
             }
             curlProcess.loadingIndex = -1;
+            curlProcess.errorBuffer = "";
         }
     }
 
@@ -284,13 +294,7 @@ Item {
                 delegate: Item {
                     id: delegateRoot
                     width: ListView.view.width
-                    height: Math.max(bubbleLoader.implicitHeight + 12, _maxHeight)
-                    property real _maxHeight: 12
-                    onHeightChanged: {
-                        if (height > _maxHeight && !delegateRoot.isThinking) {
-                            _maxHeight = height;
-                        }
-                    }
+                    height: bubbleLoader.implicitHeight + 12
                     readonly property bool isUser: model.role === "user"
                     readonly property bool isThinking: model.text === "..."
 

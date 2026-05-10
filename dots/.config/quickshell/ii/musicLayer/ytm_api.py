@@ -260,8 +260,13 @@ class YTMClient:
             album_id = self._extract_album_id(item)
             album_name = self._extract_album_name(item)
 
-            final_id = item.get("videoId") or item.get("playlistId") or item.get("browseId")
-            if not final_id and item.get("resultType") in ["artist", "profile"] and artist_id:
+            rt = item.get("resultType")
+            if rt == "album":
+                final_id = item.get("browseId") or item.get("playlistId") or item.get("videoId")
+            else:
+                final_id = item.get("videoId") or item.get("playlistId") or item.get("browseId")
+
+            if not final_id and rt in ["artist", "profile"] and artist_id:
                 final_id = artist_id
 
             return {
@@ -913,6 +918,8 @@ class YTMClient:
                     liked_song_count = int(liked["trackCount"])
                     if liked.get("thumbnails"):
                         liked_song_art = liked["thumbnails"][-1].get("url", "")
+                        if "=w" in liked_song_art and "-h" in liked_song_art:
+                            liked_song_art = re.sub(r"=w\d+-h\d+", "=w544-h544", liked_song_art)
             except Exception:
                 pass
 
@@ -1282,6 +1289,8 @@ class YTMClient:
                     thumbs = item.get("thumbnails", [])
                     if thumbs:
                         cover_url = thumbs[-1].get("url", "")
+                        if "=w" in cover_url and "-h" in cover_url:
+                            cover_url = re.sub(r"=w\d+-h\d+", "=w544-h544", cover_url)
                         break
 
             elif browse_id.startswith("MPREb_"):

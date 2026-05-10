@@ -37,6 +37,23 @@ Scope {
         }
     }
 
+    Process {
+        id: geminiServerProcess
+        running: true
+        command: [
+            Quickshell.shellPath("scripts/venv/bin/python3").replace("file://", ""),
+            "-u",
+            Quickshell.shellPath("scripts/gemini_server.py").replace("file://", "")
+        ]
+        
+        stdout: SplitParser {
+            onRead: data => console.log("[Gemini Server] " + data.trim())
+        }
+        stderr: SplitParser {
+            onRead: data => console.log("[Gemini Server ERROR] " + data.trim())
+        }
+    }
+
     PanelWindow {
         id: panelWindow
         // Stay visible while either open OR animating closed.

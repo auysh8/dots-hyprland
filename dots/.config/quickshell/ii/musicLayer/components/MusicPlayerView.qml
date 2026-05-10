@@ -601,31 +601,6 @@ Item {
                     }
                 }
 
-                RippleButton {
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.margins: 12
-                    width: 44
-                    height: 44
-                    buttonRadius: 22
-                    visible: !!rootContext && !!rootContext.currentTrack && !!rootContext.currentTrack.isVideoTrack
-                    colBackground: ColorUtils.applyAlpha(Appearance.colors.colLayer0, 0.4)
-                    colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colLayer1Hover, 0.6)
-                    onClicked: {
-                        if (rootContext) {
-                            rootContext.showVideoInThumbnail = !rootContext.showVideoInThumbnail;
-                            if (rootContext.showVideoInThumbnail && !rootContext.currentMusicVideoUrl) {
-                                rootContext.sendCommand({"command": "get_video_stream", "videoId": rootContext.currentTrack.videoId});
-                            }
-                        }
-                    }
-                    contentItem: MaterialSymbol {
-                        text: (rootContext && rootContext.showVideoInThumbnail) ? "image" : "movie"
-                        iconSize: 24
-                        color: Appearance.colors.colOnLayer0
-                        anchors.centerIn: parent
-                    }
-                }
             }
         }
 
