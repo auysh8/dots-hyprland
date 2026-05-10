@@ -117,7 +117,7 @@ Item {
             // If it exited but was still "loading", it means we got no chunks
             if (chatModel.get(curlProcess.loadingIndex).text === "...") {
                 if (exitCode === 7) {
-                    chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Failed to connect to local server at 127.0.0.1:8000.\nPlease ensure gemini_server.py is running.`);
+                    chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Failed to connect to local server at 127.0.0.1:8000.\nThe server might still be starting up (it takes ~5-10s on first load). Please wait a moment and try again.`);
                 } else if (curlProcess.errorBuffer.trim() !== "") {
                     chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Server returned an error:\n${curlProcess.errorBuffer.trim()}`);
                 } else {

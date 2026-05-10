@@ -454,6 +454,20 @@ class Player:
             # Used below to avoid bandwidth contention during active streaming.
             _is_video_track = is_video_track(video_id, art_url)
 
+            # Check gapless cache before attempting any new resolution
+            with self._state_lock:
+                cached_entry = self._stream_cache.pop(video_id, None)
+            
+            gapless_stream_url = None
+            if cached_entry and cached_entry[1] > time.time():
+                gapless_stream_url = cached_entry[0]
+                if len(cached_entry) > 2:
+                    quality = cached_entry[2]
+                    if "Tidal" in quality:
+                        is_tidal_stream = True
+                # We already prefetched (Tidal or YT), so skip network resolve
+                tidal_enabled = False
+
             if tidal_enabled:
                 # Use Tidal-cached FLAC if available (skip network resolve)
                 if cached_audio_path:
@@ -481,57 +495,43 @@ class Player:
                 stream_url = f"file://{cached_audio_path}"
                 # Cached Tidal FLAC — same quality, just label as "Tidal Lossless"
                 quality = "Tidal Lossless" if cached_audio_path.endswith(".flac") else "Local Cache"
+            elif gapless_stream_url:
+                stream_url = gapless_stream_url
+                self.log(f"Using pre-fetched gapless URL ({quality})")
             elif stream_url:
                 # Tidal URL already set above
                 pass
             else:
-                with self._state_lock:
-                    cached_entry = self._stream_cache.pop(video_id, None)
-                # Unwrap tuple (url, expiry, quality) — discard if expired
-                if cached_entry and cached_entry[1] > time.time():
-                    stream_url = cached_entry[0]
-                    # Restore quality if it was pre-resolved (e.g. Tidal Lossless)
-                    if len(cached_entry) > 2:
-                        quality = cached_entry[2]
-                        if "Tidal" in quality:
-                            is_tidal_stream = True
-                else:
-                    stream_url = None
+                self.log("Fetching stream URL...")
+                cmd = [
+                    self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings", 
+                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "--extractor-args", "youtube:player_client=android_music",
+                    f"https://music.youtube.com/watch?v={video_id}"
+                ]
+                proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                self._ytdlp_proc = proc
+                stdout, stderr = proc.communicate(timeout=30)
+                self._ytdlp_proc = None
                 
-                if stream_url:
-                    self.log(f"Using pre-fetched gapless URL ({quality})")
-
-                else:
-                    self.log("Fetching stream URL...")
-                    cmd = [
-                        self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings", 
-                        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                        "--extractor-args", "youtube:player_client=android_music",
-                        f"https://music.youtube.com/watch?v={video_id}"
-                    ]
-                    proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                    self._ytdlp_proc = proc
-                    stdout, stderr = proc.communicate(timeout=30)
-                    self._ytdlp_proc = None
-                    
-                    with self._state_lock:
-                        if self._playback_token != token:
-                            self.log("Aborted after stream fetch (superseded)")
-                            return
-
-                    if proc.returncode != 0:
-                        self.log(f"yt-dlp error: {stderr}")
-                        raise ValueError(f"yt-dlp exited with code {proc.returncode}")
-                        
-                    stream_url = stdout.strip().split("\n")[-1].strip()
-                    self.log(f"Stream URL fetched")
-
-
-
                 with self._state_lock:
                     if self._playback_token != token:
-                        self.log("Aborted after stream fetch")
+                        self.log("Aborted after stream fetch (superseded)")
                         return
+
+                if proc.returncode != 0:
+                    self.log(f"yt-dlp error: {stderr}")
+                    raise ValueError(f"yt-dlp exited with code {proc.returncode}")
+                    
+                stream_url = stdout.strip().split("\n")[-1].strip()
+                self.log(f"Stream URL fetched")
+
+
+
+            with self._state_lock:
+                if self._playback_token != token:
+                    self.log("Aborted after stream fetch")
+                    return
 
             if not stream_url:
                 raise ValueError("No stream URL")

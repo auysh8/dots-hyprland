@@ -20,7 +20,7 @@ StyledFlickable {
 
     anchors.fill: parent
     contentWidth: width
-    contentHeight: Math.max(height, artistContainer.height + (rootContext && rootContext.currentTrack ? 120 : 32) + 16)
+    contentHeight: Math.max(height, contentContainer.y + contentContainer.height + (rootContext && rootContext.currentTrack ? 120 : 32) + 16)
     flickableDirection: Flickable.VerticalFlick
     pressDelay: 150
 
@@ -66,102 +66,175 @@ StyledFlickable {
         }
     }
 
+    // ─── Floating Back Button ────────────────────────────────────────
+    RowLayout {
+        width: parent.width - 64
+        y: 16 + Math.max(0, root.contentY) // Stays relative to scroll for a bit or just fixed? Actually flickable children move. 
+        // We'll just let it scroll normally but sit on top of the banner.
+        x: 32
+        z: 10
+        
+        MusicBackButton {
+            rootContext: root.rootContext
+            onClicked: {
+                if (rootContext) {
+                    if (rootContext.returnView && rootContext.returnView !== "artist")
+                        rootContext.currentView = rootContext.returnView
+                    else
+                        rootContext.currentView = "home"
+                }
+            }
+        }
+    }
+
+    // ─── Asymmetric Background Hero ──────────────────────────────────
+    Item {
+        id: heroBanner
+        width: root.width
+        
+        // Parallax effect: The image scrolls up at half the speed of the content
+        y: root.contentY > 0 ? root.contentY * 0.5 : Math.min(0, root.contentY)
+        
+        // Dynamic height for overscroll
+        height: 850 - Math.min(0, root.contentY)
+        
+        // Fade out the image as the user scrolls down into the track list
+        opacity: Math.max(0, 1 - (root.contentY / 600))
+        z: 0
+
+        // Blurred background layer (same image, heavily blurred) for the immersive cloud glow effect
+        RoundedImage {
+            anchors.fill: parent
+            source: rootContext ? rootContext.activeArtistThumbnail : ""
+            fillMode: Image.PreserveAspectCrop
+            horizontalAlignment: Image.AlignHCenter
+            verticalAlignment: Image.AlignVCenter
+            asynchronous: true
+            cache: true
+            opacity: 0.4
+            layer.enabled: true
+            layer.effect: FastBlur {
+                radius: 80
+            }
+        }
+
+        RoundedImage {
+            id: heroImage
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            width: parent.width
+            height: parent.height
+            source: rootContext ? rootContext.activeArtistThumbnail : ""
+            fillMode: Image.PreserveAspectCrop
+            horizontalAlignment: Image.AlignHCenter
+            verticalAlignment: Image.AlignTop
+            asynchronous: true
+            cache: true
+        }
+
+        // Top gradient fade
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+                GradientStop { position: 0.0; color: rootContext ? rootContext.backgroundColor : Appearance.colors.colBase }
+                GradientStop { position: 0.12; color: ColorUtils.applyAlpha(rootContext ? rootContext.backgroundColor : Appearance.colors.colBase, 0.0) }
+            }
+        }
+
+        // Bottom gradient fade
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            gradient: Gradient {
+                orientation: Gradient.Vertical
+                GradientStop { position: 0.35; color: ColorUtils.applyAlpha(rootContext ? rootContext.backgroundColor : Appearance.colors.colBase, 0.0) }
+                GradientStop { position: 1.0; color: rootContext ? rootContext.backgroundColor : Appearance.colors.colBase }
+            }
+        }
+
+        // Left gradient fade
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: rootContext ? rootContext.backgroundColor : Appearance.colors.colBase }
+                GradientStop { position: 0.12; color: ColorUtils.applyAlpha(rootContext ? rootContext.backgroundColor : Appearance.colors.colBase, 0.0) }
+            }
+        }
+
+        // Right gradient fade
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.88; color: ColorUtils.applyAlpha(rootContext ? rootContext.backgroundColor : Appearance.colors.colBase, 0.0) }
+                GradientStop { position: 1.0; color: rootContext ? rootContext.backgroundColor : Appearance.colors.colBase }
+            }
+        }
+    }
+
     ColumnLayout {
         id: artistContainer
         width: parent.width - 64
-        anchors.top: parent.top
-        anchors.topMargin: 16
+        anchors.bottom: parent.top
+        anchors.bottomMargin: -850 + 48 // Sit 48px above the bottom of the banner
         anchors.left: parent.left
         anchors.leftMargin: 32
-        spacing: 32
+        spacing: 48
 
-        // Back button
-        RowLayout {
-            Layout.fillWidth: true
+        // ─── Header Section ──────────────────────────────────────────
+        ColumnLayout {
             spacing: 16
+
+            StyledText {
+                text: rootContext ? rootContext.activeArtistName : ""
+                font.pixelSize: 84
+                font.weight: 900
+                color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
+            }
             
-            MusicBackButton {
+            StyledText {
+                text: rootContext ? rootContext.activeArtistSubscribers : ""
+                font.pixelSize: 16
+                font.weight: 600
+                color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
+                visible: text.length > 0
+            }
+
+            StyledText {
+                Layout.maximumWidth: parent.width * 0.6
+                text: rootContext ? rootContext.activeArtistDescription : ""
+                font.pixelSize: 14
+                color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
+                wrapMode: Text.WordWrap
+                maximumLineCount: 4
+                elide: Text.ElideRight
+                visible: text.length > 0
+            }
+
+            Item { Layout.preferredHeight: 8 }
+
+            MusicActionButtons {
                 rootContext: root.rootContext
-                onClicked: {
-                    if (rootContext) {
-                        if (rootContext.returnView && rootContext.returnView !== "artist")
-                            rootContext.currentView = rootContext.returnView
-                        else
-                            rootContext.currentView = "home"
-                    }
-                }
+                tracksModel: root.rootContext ? root.rootContext.activeArtistSongs : null
+                coverUrl: root.rootContext ? root.rootContext.activeArtistThumbnail : ""
+                authorName: root.rootContext ? root.rootContext.activeArtistName : ""
             }
         }
+    }
 
-        // ─── Artist Header ───────────────────────────────────────────
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 32
-
-            // Circular artist photo
-            Rectangle {
-                Layout.preferredWidth: 200
-                Layout.preferredHeight: 200
-                radius: 100
-                color: root.artPlaceholderColor
-                clip: true
-
-                RoundedImage {
-                    anchors.fill: parent
-                    source: rootContext ? rootContext.activeArtistThumbnail : ""
-                    sourceSize.width: 400
-                    sourceSize.height: 400
-                    fillMode: Image.PreserveAspectCrop
-                    radius: 100
-                    asynchronous: true
-                    cache: true
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 8
-
-                StyledText {
-                    text: rootContext ? rootContext.activeArtistName : ""
-                    font.pixelSize: 36
-                    font.weight: 800
-                    color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
-                    wrapMode: Text.WordWrap
-                    Layout.fillWidth: true
-                }
-
-                StyledText {
-                    text: rootContext ? rootContext.activeArtistSubscribers : ""
-                    font.pixelSize: 14
-                    color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
-                    visible: text.length > 0
-                }
-
-                // Description (truncated)
-                StyledText {
-                    text: rootContext ? rootContext.activeArtistDescription : ""
-                    font.pixelSize: 13
-                    color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 3
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                    visible: text.length > 0
-                }
-
-                Item { Layout.preferredHeight: 8 }
-
-                // Shuffle all / Play buttons
-                MusicActionButtons {
-                    rootContext: root.rootContext
-                    tracksModel: root.rootContext ? root.rootContext.activeArtistSongs : null
-                    coverUrl: root.rootContext ? root.rootContext.activeArtistThumbnail : ""
-                    authorName: root.rootContext ? root.rootContext.activeArtistName : ""
-                }
-            }
-        }
+    ColumnLayout {
+        id: contentContainer
+        width: parent.width - 64
+        anchors.top: parent.top
+        anchors.topMargin: Math.max(850, artistContainer.y + artistContainer.height + 48)
+        anchors.left: parent.left
+        anchors.leftMargin: 32
+        spacing: 48
 
         // ─── Top Songs ───────────────────────────────────────────────
         ColumnLayout {
@@ -241,6 +314,7 @@ StyledFlickable {
                             Layout.fillWidth: true
                             rootContext: root.rootContext
                             track: model
+                            fallbackArtUrl: rootContext ? rootContext.activeArtistThumbnail : ""
                             indexNumber: index + 1
 
                             onClicked: {
@@ -254,11 +328,11 @@ StyledFlickable {
                                             videoId: t.videoId,
                                             title: t.title,
                                             artist: t.artist,
-                                            artUrl: t.artUrl,
+                                            artUrl: t.artUrl || (rootContext ? rootContext.activeArtistThumbnail : ""),
                                             duration: t.duration || ""
                                         })
                                     }
-                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl, queueTracks, model.artistId, model.albumId)
+                                    rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl || (rootContext ? rootContext.activeArtistThumbnail : ""), queueTracks, model.artistId, model.albumId)
                                 }
                             }
                         }

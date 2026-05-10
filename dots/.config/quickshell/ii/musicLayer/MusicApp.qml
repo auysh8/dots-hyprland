@@ -1089,8 +1089,9 @@ FocusScope {
                         Item {
                             z: 999
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 80
-
+                            Layout.preferredHeight: visible ? 80 : 0
+                            visible: root.currentView !== "artist"
+                            
                             Rectangle {
                                 id: searchContainer
                                 anchors.centerIn: parent

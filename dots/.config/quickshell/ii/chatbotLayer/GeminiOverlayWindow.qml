@@ -41,9 +41,9 @@ Scope {
         id: geminiServerProcess
         running: true
         command: [
-            Quickshell.shellPath("scripts/venv/bin/python3").replace("file://", ""),
+            Quickshell.shellPath("../scripts/venv/bin/python3").replace("file://", ""),
             "-u",
-            Quickshell.shellPath("scripts/gemini_server.py").replace("file://", "")
+            Quickshell.shellPath("../scripts/gemini_server.py").replace("file://", "")
         ]
         
         stdout: SplitParser {

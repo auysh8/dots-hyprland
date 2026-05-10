@@ -319,6 +319,25 @@ class YTMClient:
                 art = re.sub(r"=s\d+", f"=s{size}", art)
         return art
 
+    def _extract_art_url_wide(self, item, width=2880, height=1200):
+        """Fetch a wide-aspect banner image (2.4:1 ratio) matching YTM's cinematic banner format."""
+        thumbnails = item.get("thumbnails") or item.get("thumbnail") or []
+        if isinstance(thumbnails, dict):
+            thumbnails = thumbnails.get("thumbnails", [])
+        if isinstance(thumbnails, list) and thumbnails:
+            last_thumb = thumbnails[-1]
+            art = last_thumb.get("url", "") if isinstance(last_thumb, dict) else ""
+        else:
+            art = ""
+        if art:
+            if "=w" in art and "-h" in art:
+                art = re.sub(r"=w\d+-h\d+", f"=w{width}-h{height}", art)
+            elif "googleusercontent.com" in art and "=s" in art:
+                art = re.sub(r"=s\d+", f"=s{width}", art)
+        return art
+
+
+
     def _append_unique(self, target, source, cap=96):
         if not source:
             return
@@ -774,13 +793,7 @@ class YTMClient:
                 if not vid:
                     continue
 
-                release_thumbs = release.get("thumbnails", [])
-                art_url = release_thumbs[-1].get("url", "") if release_thumbs else ""
-                if art_url:
-                    if "=w" in art_url and "-h" in art_url:
-                        art_url = re.sub(r"=w\d+-h\d+", "=w544-h544", art_url)
-                    elif "googleusercontent.com" in art_url and "=s" in art_url:
-                        art_url = re.sub(r"=s\d+", "=s544", art_url)
+                art_url = self._extract_art_url(release)
 
                 artist_name = "Unknown Artist"
                 artists_list = release.get("artists", [])
@@ -844,12 +857,7 @@ class YTMClient:
                     if not vid or vid in seen_vids:
                         continue
 
-                    art = ""
-                    thumbs = item.get("thumbnails", [])
-                    if thumbs:
-                        art = thumbs[-1].get("url", "")
-                        if "=w" in art and "-h" in art:
-                            art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                    art = self._extract_art_url(item)
 
                     artist_name = "Unknown Artist"
                     artists = item.get("artists", [])
@@ -888,12 +896,7 @@ class YTMClient:
             for p in lib_playlists:
                 title = p.get("title", "")
                 count = str(p.get("count", "0"))
-                art = ""
-                thumbs = p.get("thumbnails", [])
-                if thumbs:
-                    art = thumbs[-1].get("url", "")
-                    if "=w" in art and "-h" in art:
-                        art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                art = self._extract_art_url(p)
 
                 if title in ["Your Likes", "Liked Music"]:
                     try:
@@ -916,10 +919,7 @@ class YTMClient:
                 liked = self.ytm.get_liked_songs(limit=1)
                 if liked and "trackCount" in liked:
                     liked_song_count = int(liked["trackCount"])
-                    if liked.get("thumbnails"):
-                        liked_song_art = liked["thumbnails"][-1].get("url", "")
-                        if "=w" in liked_song_art and "-h" in liked_song_art:
-                            liked_song_art = re.sub(r"=w\d+-h\d+", "=w544-h544", liked_song_art)
+                    liked_song_art = self._extract_art_url(liked)
             except Exception:
                 pass
 
@@ -937,12 +937,7 @@ class YTMClient:
             for shelf in home_data:
                 if "community" in str(shelf.get("title", "")).lower():
                     for r in shelf.get("contents", [])[:8]:
-                        thumbs = r.get("thumbnails", [])
-                        art = thumbs[-1].get("url", "") if thumbs else ""
-                        if art and "=w" in art and "-h" in art:
-                            art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
-                        elif "googleusercontent.com" in art and "=s" in art:
-                            art = re.sub(r"=s\d+", "=s544", art)
+                        art = self._extract_art_url(r)
 
                         community_playlists.append({
                             "id": str(r.get("playlistId") or ""),
@@ -962,10 +957,7 @@ class YTMClient:
                 results = self.ytm.search(query, filter="playlists", limit=6)
 
                 for r in results:
-                    thumbs = r.get("thumbnails", [])
-                    art = thumbs[-1].get("url", "") if thumbs else ""
-                    if art and "=w" in art and "-h" in art:
-                        art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                    art = self._extract_art_url(r)
 
                     community_playlists.append({
                         "id": str(r.get("browseId") or ""),
@@ -1006,7 +998,8 @@ class YTMClient:
             views = data.get("views", "")
 
             thumbs = data.get("thumbnails", [])
-            thumb_url = self._extract_art_url(data) if thumbs else ""
+            # Request wide-aspect (2.4:1) image matching YTM's banner format for best quality
+            thumb_url = self._extract_art_url_wide(data) if thumbs else ""
 
             songs_data = data.get("songs", {})
             songs_browse_id = songs_data.get("browseId", "")
@@ -1223,12 +1216,7 @@ class YTMClient:
 
             songs = []
             for t in items:
-                art = ""
-                thumbs = t.get("thumbnails", [])
-                if thumbs:
-                    art = thumbs[-1].get("url", "")
-                    if "=w" in art and "-h" in art:
-                        art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                art = self._extract_art_url(t)
 
                 artist_name = "Unknown Artist"
                 if t.get("artists"):
@@ -1286,11 +1274,8 @@ class YTMClient:
                 items = p.get("tracks", [])
 
                 for item in items:
-                    thumbs = item.get("thumbnails", [])
-                    if thumbs:
-                        cover_url = thumbs[-1].get("url", "")
-                        if "=w" in cover_url and "-h" in cover_url:
-                            cover_url = re.sub(r"=w\d+-h\d+", "=w544-h544", cover_url)
+                    cover_url = self._extract_art_url(item)
+                    if cover_url:
                         break
 
             elif browse_id.startswith("MPREb_"):
@@ -1307,11 +1292,7 @@ class YTMClient:
 
                 description = p.get("description", "")
                 track_count = p.get("trackCount", 0)
-                thumbs = p.get("thumbnails", [])
-                if thumbs:
-                    cover_url = thumbs[-1].get("url", "")
-                    if "=w" in cover_url and "-h" in cover_url:
-                        cover_url = re.sub(r"=w\d+-h\d+", "=w544-h544", cover_url)
+                cover_url = self._extract_art_url(p)
 
                 items = p.get("tracks", [])
             else:
@@ -1323,21 +1304,12 @@ class YTMClient:
                 author = p.get("author", {}).get("name", "") if isinstance(p.get("author"), dict) else p.get("author", "")
                 description = p.get("description", "")
                 track_count = p.get("trackCount", 0)
-                thumbs = p.get("thumbnails", [])
-                if thumbs:
-                    cover_url = thumbs[-1].get("url", "")
-                    if "=w" in cover_url and "-h" in cover_url:
-                        cover_url = re.sub(r"=w\d+-h\d+", "=w544-h544", cover_url)
+                cover_url = self._extract_art_url(p)
 
                 items = p.get("tracks", [])
 
             for t in items:
-                art = ""
-                thumbs = t.get("thumbnails", [])
-                if thumbs:
-                    art = thumbs[-1].get("url", "")
-                    if "=w" in art and "-h" in art:
-                        art = re.sub(r"=w\d+-h\d+", "=w544-h544", art)
+                art = self._extract_art_url(t)
 
                 artist_name = "Unknown Artist"
                 if t.get("artists"):
