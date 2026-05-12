@@ -281,7 +281,7 @@ class TidalClient:
         try:
             data = self._request(url, timeout=10)
             if not data:
-                return None
+                raise ValueError("Empty or invalid response data")
 
             # Response: {version, data: {items: [...], limit, offset, totalNumberOfItems}}
             items = data.get("data", {}).get("items", [])
@@ -321,7 +321,7 @@ class TidalClient:
 
         except Exception as e:
             self.log(f"[Tidal] Search via {proxy_base} failed: {e}")
-            return None
+            raise e
 
     def get_stream_via_proxy(self, proxy_base, track_id):
         """
