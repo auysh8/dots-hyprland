@@ -53,7 +53,7 @@ case "${SKIP_HYPRLAND}" in
       echo 'hyprland.conf has been renamed to hyprland.conf.old. This is to allow the new lua config to load.'
     fi
     for i in hyprlock.conf ; do
-      install_file__auto_backup "dots/.config/hypr/$i" "${XDG_CONFIG_HOME}/hypr/$i"
+      install_file__auto_backup "dots/.config/hypr/$i.new" "${XDG_CONFIG_HOME}/hypr/$i"
     done
     for i in hyprland.lua ; do
       case "${SKIP_HYPRLAND_ENTRY}" in
@@ -65,7 +65,7 @@ case "${SKIP_HYPRLAND}" in
       if [[ "${INSTALL_VIA_NIX}" == true ]]; then
         install_file__auto_backup "dots-extra/via-nix/$i" "${XDG_CONFIG_HOME}/hypr/$i"
       else
-        install_file__auto_backup "dots/.config/hypr/$i" "${XDG_CONFIG_HOME}/hypr/$i"
+        install_file__auto_backup "dots/.config/hypr/$i.new" "${XDG_CONFIG_HOME}/hypr/$i"
       fi
     done
     if [ "$OS_GROUP_ID" = "fedora" ];then

@@ -48,10 +48,10 @@ patterns:
     mode: "sync"
     excludes: ["custom", "hyprlock.conf", "hypridle.conf"]
   # Hyprland special files
-  - from: "dots/.config/hypr/hypridle.conf"
+  - from: "dots/.config/hypr/hypridle.conf.new"
     to: "$XDG_CONFIG_HOME/hypr/hypridle.conf"
     mode: "soft-backup"
-  - from: "dots/.config/hypr/hyprlock.conf"
+  - from: "dots/.config/hypr/hyprlock.conf.new"
     to: "$XDG_CONFIG_HOME/hypr/hyprlock.conf"
     mode: "soft-backup"
   - from: "dots/.config/hypr/custom"
