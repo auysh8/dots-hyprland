@@ -42,9 +42,10 @@ apply_kitty() {
   done
 
   # Reload
-  if pidof kitty >/dev/null; then
-    kill -SIGUSR1 $(pidof kitty)
+  if ! pgrep -f kitty >/dev/null; then
+    return
   fi
+  kill -SIGUSR1 $(pidof kitty)
 }
 
 tty_has_kitty_term() {
@@ -90,13 +91,8 @@ apply_anyterm() {
 }
 
 apply_term() {
-  apply_kitty
-  apply_anyterm
-}
-
-apply_qt() {
-  sh "$CONFIG_DIR/scripts/kvantum/materialQT.sh"          # generate kvantum theme
-  python "$CONFIG_DIR/scripts/kvantum/changeAdwColors.py" # apply config colors
+  apply_anyterm &
+  apply_kitty &
 }
 
 apply_icon() {
