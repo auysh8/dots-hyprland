@@ -73,6 +73,18 @@ Item {
     ListModel { id: chatModel }
 
     // ─── Network Request Process ───────────────────────────────────────
+    Timer {
+        id: updateTimer
+        interval: 300 // Update UI every 300ms for smoothness
+        repeat: true
+        running: curlProcess.loadingIndex !== -1 && !root.isLoading
+        onTriggered: {
+            if (curlProcess.loadingIndex !== -1 && chatModel.get(curlProcess.loadingIndex).text !== curlProcess.currentResponseText) {
+                chatModel.setProperty(curlProcess.loadingIndex, "text", curlProcess.currentResponseText);
+            }
+        }
+    }
+
     Process {
         id: curlProcess
         property int loadingIndex: -1
@@ -98,7 +110,7 @@ Item {
                             }
                             
                             curlProcess.currentResponseText += parsed.text;
-                            chatModel.setProperty(curlProcess.loadingIndex, "text", curlProcess.currentResponseText);
+                            // Delay update to sync with updateTimer
                         } else if (parsed.error) {
                             root.isLoading = false;
                             chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Error: ${parsed.error}`);
@@ -114,6 +126,10 @@ Item {
         onExited: (exitCode, exitStatus) => {
             root.isLoading = false;
             wakeAnim.restart();
+            // Force final sync
+            if (curlProcess.loadingIndex !== -1 && chatModel.get(curlProcess.loadingIndex).text !== curlProcess.currentResponseText) {
+                chatModel.setProperty(curlProcess.loadingIndex, "text", curlProcess.currentResponseText);
+            }
             // If it exited but was still "loading", it means we got no chunks
             if (chatModel.get(curlProcess.loadingIndex).text === "...") {
                 if (exitCode === 7) {
@@ -297,6 +313,13 @@ Item {
                     height: bubbleLoader.implicitHeight + 12
                     readonly property bool isUser: model.role === "user"
                     readonly property bool isThinking: model.text === "..."
+
+                    Behavior on height {
+                        NumberAnimation {
+                            duration: 250
+                            easing.type: Easing.OutQuad
+                        }
+                    }
 
                     Loader {
                         id: bubbleLoader

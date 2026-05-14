@@ -1371,16 +1371,47 @@ class YTMClient:
             song_ids = set()
 
             general_limit = max(30, song_limit + 10)
-            general_results = self.ytm.search(query, limit=general_limit)
+
+            from concurrent.futures import ThreadPoolExecutor
+
+            def safe_search(filter_type, limit):
+                try:
+                    return self.ytm.search(query, filter=filter_type, limit=limit)
+                except Exception as e:
+                    self.log(f"Search fallback ({filter_type}) failed: {e}")
+                    return []
+
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                future_general = executor.submit(safe_search, None, general_limit)
+                future_songs = executor.submit(safe_search, "songs", song_limit)
+                future_artists = executor.submit(safe_search, "artists", 5)
+                future_albums = executor.submit(safe_search, "albums", 5)
+
+                general_results = future_general.result()
+                songs_res = future_songs.result()
+                artists_res = future_artists.result()
+                albums_res = future_albums.result()
 
             artists, albums = self._collect_search_cards(general_results)
 
+            if len(artists) < 5 and artists_res:
+                a_more, _ = self._collect_search_cards(artists_res)
+                for a in a_more:
+                    if not any(x['videoId'] == a['videoId'] for x in artists):
+                        artists.append(a)
+
+            if len(albums) < 5 and albums_res:
+                _, al_more = self._collect_search_cards(albums_res)
+                for al in al_more:
+                    if not any(x['videoId'] == al['videoId'] for x in albums):
+                        albums.append(al)
+
             try:
                 self._append_search_songs(
-                    songs, song_ids, self.ytm.search(query, filter="songs", limit=song_limit), song_limit
+                    songs, song_ids, songs_res, song_limit
                 )
             except Exception as e:
-                self.log(f"Song search fallback (songs) failed: {e}")
+                self.log(f"Song search formatting failed: {e}")
 
             if len(songs) < song_limit:
                 try:
@@ -1510,6 +1541,12 @@ class YTMClient:
 
             if result.get("success"):
                 self.log(f"Cookie extraction OK ({result.get('cookies_found', 0)} cookies)")
+                if os.path.exists(self.oauth_path):
+                    try:
+                        os.remove(self.oauth_path)
+                        self.log("Removed old oauth.json to prefer new browser cookies")
+                    except Exception as e:
+                        self.log(f"Failed to remove old oauth.json: {e}")
                 from ytmusicapi import YTMusic
                 self.ytm = YTMusic(self.headers_path)
                 self._set_default_timeout(self.ytm)
