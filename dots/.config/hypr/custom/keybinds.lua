@@ -1,1 +1,5 @@
-hl.bind("CTRL+SUPER+ALT+Slash", hl.dsp.exec_cmd("xdg-open ~/.config/hypr/custom/keybinds.lua"), {description = "Edit user keybinds"} )
+hl.bind("SUPER + Escape", hl.dsp.exec_cmd("qs -p $HOME/.config/quickshell/ii/sysmon.qml"))
+hl.bind("SUPER + ALT + N", hl.dsp.global("quickshell:notesToggle"))
+hl.unbind("SUPER + M")
+hl.bind("SUPER + M", hl.dsp.exec_cmd("qs -p $HOME/.config/quickshell/ii/music.qml"))
+hl.bind("SUPER + SHIFT + G", hl.dsp.global("quickshell:geminiOverlayToggle"), { description = "Toggle Gemini overlay" })

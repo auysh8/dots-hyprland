@@ -1,1 +1,10 @@
-
+hl.on("hyprland.start", function ()
+    hl.exec_cmd("/usr/lib/geoclue-2.0/demos/agent")
+    hl.exec_cmd("python3 $HOME/.config/hypr/custom/scripts/quote.py")
+    hl.exec_cmd("$HOME/.config/hypr/custom/scripts/slideshow.sh")
+    hl.exec_cmd("$HOME/.config/hypr/custom/scripts/patcher.sh")
+    hl.exec_cmd("$HOME/.config/hypr/custom/scripts/check_keys.sh")
+    hl.exec_cmd("$HOME/.config/hypr/custom/scripts/monitor_devices.py")
+    hl.exec_cmd("sleep 2 && echo \"neutral|SYSTEM|Welcome Back\" >> /tmp/qs_popup.log")
+    hl.exec_cmd("bash $HOME/.config/quickshell/scripts/autostart_triggers.sh")
+end)
