@@ -12,6 +12,7 @@ Item {
     id: root
     property bool expanded: chatModel.count > 0
     property bool isLoading: false
+    readonly property bool responseInProgress: curlProcess.loadingIndex !== -1
     readonly property real compactHeight: 72
     readonly property real expandedHeight: 580
     implicitHeight: expanded ? expandedHeight : compactHeight
@@ -133,7 +134,7 @@ Item {
             // If it exited but was still "loading", it means we got no chunks
             if (chatModel.get(curlProcess.loadingIndex).text === "...") {
                 if (exitCode === 7) {
-                    chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Failed to connect to local server at 127.0.0.1:8000.\nThe server might still be starting up (it takes ~5-10s on first load). Please wait a moment and try again.`);
+                    chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Failed to connect to local server at 127.0.0.1:8765.\nThe server might still be starting up (it takes ~5-10s on first load). Please wait a moment and try again.`);
                 } else if (curlProcess.errorBuffer.trim() !== "") {
                     chatModel.setProperty(curlProcess.loadingIndex, "text", `⚠️ Server returned an error:\n${curlProcess.errorBuffer.trim()}`);
                 } else {
@@ -147,7 +148,7 @@ Item {
 
     function sendMessage() {
         const prompt = inputField.text.trim();
-        if (!prompt || root.isLoading) return;
+        if (!prompt || root.responseInProgress) return;
         chatModel.append({ role: "user", text: prompt });
         inputField.clear();
         chatModel.append({ role: "bot", text: "..." });
@@ -162,7 +163,7 @@ Item {
         curlProcess.command = [
             "bash", 
             "-c", 
-            `curl -N -s -X POST http://127.0.0.1:8000/chat -H "Content-Type: application/json" -d '${payload.replace(/'/g, "'\\''")}'`
+            `curl -N -s -X POST http://127.0.0.1:8765/chat -H "Content-Type: application/json" -d '${payload.replace(/'/g, "'\\''")}'`
         ];
         curlProcess.running = true;
     }
@@ -189,11 +190,12 @@ Item {
         clip: true
 
         // ── Top App Bar ─────────────────────────────────────────────────
-        Item {
+        Rectangle {
             id: topBar
             Layout.fillWidth: true
             implicitHeight: 64
             visible: root.showContent
+            color: Appearance.colors.colLayer1
 
             RowLayout {
                 anchors.fill: parent
@@ -207,7 +209,7 @@ Item {
                 Loader {
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 40
-                    sourceComponent: root.isLoading ? loadingComp : iconComp
+                    sourceComponent: root.responseInProgress ? loadingComp : iconComp
                     Behavior on opacity {
                         NumberAnimation { duration: Appearance.animation.elementMoveFast.duration }
                     }
@@ -240,7 +242,7 @@ Item {
                 // Title
                 StyledText {
                     Layout.fillWidth: true
-                    text: root.isLoading ? "Generating…" : "Gemini"
+                    text: root.responseInProgress ? "Generating…" : "Gemini"
                     color: Appearance.colors.colOnLayer0
                     font.pixelSize: Appearance.font.pixelSize.title
                     font.family: Appearance.font.family.title
@@ -264,13 +266,6 @@ Item {
                 }
             }
 
-            // M3 divider
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width; height: 1
-                color: Appearance.colors.colOutlineVariant
-                opacity: 0.4
-            }
         }
 
         // ── Chat list ───────────────────────────────────────────────────
@@ -291,20 +286,40 @@ Item {
                 spacing: 8
                 popin: false
                 animateAppearance: false
+                cacheBuffer: Math.max(height * 6, 3200)
                 add: null
 
+                // Match sidebar scroll speed
+                touchpadScrollFactor: Config.options.interactions.scrolling.touchpadScrollFactor * 1.4
+                mouseScrollFactor: Config.options.interactions.scrolling.mouseScrollFactor * 1.4
+
+                // Track whether user has intentionally scrolled away from bottom
+                property bool userScrolledUp: false
+
+                onMovementStarted: {
+                    // User initiated a scroll — check direction after a frame
+                    scrollTargetY = contentY;
+                }
+
+                onDraggingChanged: {
+                    if (!dragging) return;
+                    userScrolledUp = !atYEnd;
+                }
+
+                onAtYEndChanged: {
+                    if (atYEnd) userScrolledUp = false;
+                }
+
                 onContentHeightChanged: {
-                    if (dragging) return;
-                    if (atYEnd || (contentHeight - contentY - height < 50)) {
-                        Qt.callLater(() => chatList.positionViewAtEnd());
-                    }
+                    if (userScrolledUp || ScrollBar.vertical.pressed || dragging) return;
+                    if (atYEnd || (contentHeight - contentY - height < 50))
+                        positionViewAtEnd();
                 }
 
                 onCountChanged: {
-                    if (dragging) return;
-                    if (atYEnd || (contentHeight - contentY - height < 50)) {
-                        Qt.callLater(() => chatList.positionViewAtEnd());
-                    }
+                    if (userScrolledUp || ScrollBar.vertical.pressed || dragging) return;
+                    if (atYEnd || (contentHeight - contentY - height < 50))
+                        positionViewAtEnd();
                 }
 
                 delegate: Item {
@@ -384,9 +399,7 @@ Item {
                                     Layout.preferredWidth: Math.max(200, delegateRoot.width * 0.85)
                                     implicitHeight: botContent.implicitHeight + 24
                                     radius: Appearance.rounding.large
-                                    color: Appearance.colors.colLayer2
-                                    border.width: 1
-                                    border.color: Appearance.colors.colLayer0Border
+                                    color: Appearance.colors.colLayer1
 
                                     ColumnLayout {
                                         id: botContent
@@ -502,6 +515,57 @@ Item {
                     }
                 }
             }
+
+            // ── Scroll-to-bottom button (appears when scrolled up) ────────
+            RippleButton {
+                z: 3
+                anchors {
+                    bottom: parent.bottom
+                    horizontalCenter: parent.horizontalCenter
+                    bottomMargin: 10
+                }
+
+                opacity: !chatList.atYEnd ? 1 : 0
+                scale: !chatList.atYEnd ? 1 : 0.7
+                visible: opacity > 0
+                Behavior on opacity {
+                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                }
+                Behavior on scale {
+                    animation: Appearance.animation.elementResize.numberAnimation.createObject(this)
+                }
+
+                implicitWidth: scrollBtnRow.implicitWidth + 8 * 2
+                implicitHeight: scrollBtnRow.implicitHeight + 4 * 2
+                colBackground: Appearance.colors.colSecondary
+                colBackgroundHover: Appearance.colors.colSecondaryHover
+                colRipple: Appearance.colors.colSecondaryActive
+                buttonRadius: Appearance.rounding.verysmall
+
+                downAction: () => {
+                    chatList.userScrolledUp = false;
+                    chatList.positionViewAtEnd();
+                }
+
+                contentItem: Row {
+                    id: scrollBtnRow
+                    spacing: 4
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "arrow_downward"
+                        font.pixelSize: Appearance.font.pixelSize.larger
+                        color: Appearance.colors.colOnSecondary
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Scroll to Bottom"
+                        font.pixelSize: Appearance.font.pixelSize.smallie
+                        color: Appearance.colors.colOnSecondary
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+            }
         }
     }
 
@@ -542,10 +606,10 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
                 text: "auto_awesome"
                 iconSize: Appearance.font.pixelSize.larger
-                color: (inputField.text.trim().length > 0 || root.isLoading || inputField.activeFocus)
+                color: (inputField.text.trim().length > 0 || root.responseInProgress || inputField.activeFocus)
                     ? Appearance.colors.colPrimary
                     : Appearance.colors.colSubtext
-                fill: (root.isLoading || inputField.activeFocus) ? 1 : 0
+                fill: (root.responseInProgress || inputField.activeFocus) ? 1 : 0
                 verticalAlignment: Text.AlignVCenter
                 Behavior on color {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -583,10 +647,12 @@ Item {
             RippleButton {
                 id: sendButton
                 Layout.alignment: Qt.AlignVCenter
+                enabled: !root.responseInProgress && inputField.text.trim().length > 0
+                opacity: enabled ? 1 : 0.55
                 implicitWidth: 36
                 implicitHeight: 36
                 buttonRadius: Appearance.rounding.full
-                colBackground: (inputField.text.trim().length > 0 || root.isLoading)
+                colBackground: (inputField.text.trim().length > 0 && !root.responseInProgress)
                     ? Appearance.colors.colPrimaryContainer
                     : "transparent"
                 colRipple: Appearance.colors.colPrimaryContainer
@@ -595,21 +661,17 @@ Item {
                 }
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
-                    text: root.isLoading ? "stop_circle" : "arrow_upward"
+                    text: root.responseInProgress ? "hourglass_empty" : "arrow_upward"
                     iconSize: Appearance.font.pixelSize.large
-                    color: (inputField.text.trim().length > 0 || root.isLoading)
+                    color: (inputField.text.trim().length > 0 && !root.responseInProgress)
                         ? Appearance.colors.colOnPrimaryContainer
                         : Appearance.colors.colSubtext
                     Behavior on color {
                         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                     }
                 }
-                onClicked: { if (!root.isLoading) sendMessage(); }
+                onClicked: sendMessage()
             }
         }
     }
 }
-
-
-
-

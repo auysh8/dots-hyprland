@@ -29,7 +29,7 @@ if is_file_exists(HOME .. "/.config/hypr/custom/rules.lua") then
     require("custom.rules")
 end
 if is_file_exists(HOME .. "/.config/hypr/custom/keybinds.lua") then
-    require("custom.keybinds")
+    package.loaded["custom.keybinds"] = nil; require("custom.keybinds")
 end
 
 -- nwg-displays support: re-add the files if it updates later

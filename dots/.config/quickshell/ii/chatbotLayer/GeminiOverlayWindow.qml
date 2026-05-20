@@ -7,6 +7,7 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import "../modules/common" as Common
 import "../modules/common/widgets" as CommonWidgets
+import qs.services
 import qs
 
 Scope {
@@ -206,8 +207,6 @@ Scope {
                 anchors.fill: parent
                 color: Common.Appearance.colors.colLayer0
                 radius: Common.Appearance.rounding.screenRounding
-                border.width: 1
-                border.color: Common.Appearance.colors.colLayer0Border
                 clip: true
 
                 // Prevent click-through to scrim

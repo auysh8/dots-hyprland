@@ -6,7 +6,10 @@ import qs.modules.common.functions
 ScrollBar {
     id: root
 
+    property real minimumThumbLength: 44
+
     policy: ScrollBar.AsNeeded
+    minimumSize: Math.min(1, minimumThumbLength / Math.max(1, height - topPadding - bottomPadding))
     topPadding: Appearance.rounding.normal
     bottomPadding: Appearance.rounding.normal
     active: hovered || pressed

@@ -12,6 +12,7 @@ client = None
 
 class ChatRequest(BaseModel):
     prompt: str
+    model: str | None = None
 
 def extract_cookies():
     # Path to Zen browser default profile
@@ -74,7 +75,7 @@ async def chat(request: ChatRequest):
     
     async def generate():
         try:
-            async for chunk in client.generate_content_stream(request.prompt):
+            async for chunk in client.generate_content_stream(request.prompt, model=request.model or "unspecified"):
                 if hasattr(chunk, 'text_delta') and chunk.text_delta:
                     # Yield the text delta encoded as JSON to handle newlines safely
                     yield f"data: {json.dumps({'text': chunk.text_delta})}\n\n"
@@ -85,4 +86,4 @@ async def chat(request: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8765)

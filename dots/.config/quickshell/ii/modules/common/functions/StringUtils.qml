@@ -51,7 +51,7 @@ Singleton {
      * @returns {Array<{type: "text" | "think" | "code", content: string, lang?: string, completed?: boolean}>}
      */
     function splitMarkdownBlocks(markdown) {
-        const regex = /```(\w+)?\n([\s\S]*?)```|<think>([\s\S]*?)<\/think>/g;
+        const regex = /```[ \t]*([^\r\n`]*)[ \t]*(?:\r?\n)([\s\S]*?)(?:^|\r?\n)```[ \t]*(?=\r?\n|$)|<think>([\s\S]*?)<\/think>/gm;
         /**
          * @type {{type: "text" | "think" | "code"; content: string; lang: string | undefined; completed: boolean | undefined}[]}
          */
@@ -70,9 +70,10 @@ Singleton {
             }
             if (match[0].startsWith('```')) {
                 if (match[2] && match[2].trim()) {
+                    const lang = (match[1] || "").trim().split(/\s+/)[0];
                     result.push({
                         type: "code",
-                        lang: match[1] || "",
+                        lang: lang,
                         content: match[2],
                         completed: true
                     });
@@ -119,14 +120,26 @@ Singleton {
                     });
                 }
                 // Try to detect language after ```
-                const codeLangMatch = text.slice(codeStart + 3).match(/^(\w+)?\n/);
+                const codeLangMatch = text.slice(codeStart + 3).match(/^[ \t]*([^\r\n`]*)[ \t]*(?:\r?\n)/);
                 let lang = "";
                 let codeContentStart = codeStart + 3;
                 if (codeLangMatch) {
-                    lang = codeLangMatch[1] || "";
+                    lang = (codeLangMatch[1] || "").trim().split(/\s+/)[0];
                     codeContentStart += codeLangMatch[0].length;
-                } else if (text[codeStart + 3] === '\n') {
+                } else if (text[codeStart + 3] === '\n' || (text[codeStart + 3] === '\r' && text[codeStart + 4] === '\n')) {
                     codeContentStart += 1;
+                    if (text[codeStart + 3] === '\r')
+                        codeContentStart += 1;
+                }
+                const codeRemainder = text.slice(codeContentStart);
+                const repeatedFenceRegex = /(?:^|\r?\n)```[ \t]*([^\r\n`]*)[ \t]*(?:\r?\n)/g;
+                let repeatedFenceMatch;
+                while ((repeatedFenceMatch = repeatedFenceRegex.exec(codeRemainder)) !== null) {
+                    const repeatedLang = (repeatedFenceMatch[1] || "").trim().split(/\s+/)[0];
+                    if (repeatedLang) {
+                        lang = repeatedLang;
+                        codeContentStart += repeatedFenceMatch.index + repeatedFenceMatch[0].length;
+                    }
                 }
                 const codeContent = text.slice(codeContentStart);
                 if (codeContent.trim()) {

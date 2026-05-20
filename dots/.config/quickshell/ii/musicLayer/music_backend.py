@@ -405,6 +405,11 @@ class MusicBackend:
             except Exception as e:
                 self.log(f"Command error: {e}")
 
+        # EOF reached (e.g. Quickshell parent died)
+        self.log("stdin EOF reached, cleaning up and exiting...")
+        self.player._cleanup_on_exit()
+        sys.exit(0)
+
 if __name__ == "__main__":
     backend = MusicBackend()
     backend.run()
