@@ -23,10 +23,14 @@ ApiStrategy {
 
         promptParts.push("Assistant:");
 
-        return {
+        const result = {
             prompt: promptParts.join("\n\n---\n\n"),
             model: model.model
         };
+        if (filePath && filePath.length > 0) {
+            result.file_path = filePath;
+        }
+        return result;
     }
 
     function buildAuthorizationHeader(apiKeyEnvVarName: string): string {

@@ -45,7 +45,7 @@ apply_kitty() {
   if ! pgrep -f kitty >/dev/null; then
     return
   fi
-  kill -SIGUSR1 $(pidof kitty)
+  kitty @ --to unix:@mykitty set-colors -a -c "$STATE_DIR/user/generated/terminal/kitty-theme.conf" 2>/dev/null || true
 }
 
 tty_has_kitty_term() {
@@ -80,9 +80,6 @@ apply_anyterm() {
 
   for file in /dev/pts/*; do
     if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
-      if tty_has_kitty_term "$file"; then
-        continue
-      fi
       {
       cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"
       } & disown || true

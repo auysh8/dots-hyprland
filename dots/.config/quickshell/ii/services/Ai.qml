@@ -18,6 +18,23 @@ import qs.services.ai
 Singleton {
     id: root
 
+    Process {
+        id: geminiServerProcess
+        running: true
+        command: [
+            Quickshell.shellPath("../scripts/venv/bin/python3").replace("file://", ""),
+            "-u",
+            Quickshell.shellPath("../scripts/gemini_server.py").replace("file://", "")
+        ]
+        
+        stdout: SplitParser {
+            onRead: data => console.log("[Gemini Server] " + data.trim())
+        }
+        stderr: SplitParser {
+            onRead: data => console.log("[Gemini Server ERROR] " + data.trim())
+        }
+    }
+
     property Component aiMessageComponent: AiMessageData {}
     property Component aiModelComponent: AiModel {}
     property Component geminiApiStrategy: GeminiApiStrategy {}
@@ -272,105 +289,6 @@ Singleton {
             "api_format": "gemini_web",
             "supportsTools": false,
         }),
-        "gemini-web-3-pro": aiModelComponent.createObject(this, {
-            "name": "Gemini Web 3 Pro",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's basic Pro model. Availability depends on your Gemini account."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-pro",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
-        "gemini-web-3-flash": aiModelComponent.createObject(this, {
-            "name": "Gemini Web 3 Flash",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's basic Flash model. Availability depends on your Gemini account."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-flash",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
-        "gemini-web-3-thinking": aiModelComponent.createObject(this, {
-            "name": "Gemini Web 3 Flash Thinking",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's basic Flash Thinking model. Availability depends on your Gemini account."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-flash-thinking",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
-        "gemini-web-plus-pro": aiModelComponent.createObject(this, {
-            "name": "Gemini Web Plus Pro",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's Plus Pro model. Requires a Gemini account with Plus access."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-pro-plus",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
-        "gemini-web-plus-flash": aiModelComponent.createObject(this, {
-            "name": "Gemini Web Plus Flash",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's Plus Flash model. Requires a Gemini account with Plus access."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-flash-plus",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
-        "gemini-web-plus-thinking": aiModelComponent.createObject(this, {
-            "name": "Gemini Web Plus Flash Thinking",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's Plus Flash Thinking model. Requires a Gemini account with Plus access."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-flash-thinking-plus",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
-        "gemini-web-advanced-pro": aiModelComponent.createObject(this, {
-            "name": "Gemini Web Advanced Pro",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's Advanced Pro model. Requires a Gemini account with Advanced access."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-pro-advanced",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
-        "gemini-web-advanced-flash": aiModelComponent.createObject(this, {
-            "name": "Gemini Web Advanced Flash",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's Advanced Flash model. Requires a Gemini account with Advanced access."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-flash-advanced",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
-        "gemini-web-advanced-thinking": aiModelComponent.createObject(this, {
-            "name": "Gemini Web Advanced Flash Thinking",
-            "icon": "google-gemini-symbolic",
-            "description": Translation.tr("Local | Cookie-backed Gemini web integration\nUses Gemini Web's Advanced Flash Thinking model. Requires a Gemini account with Advanced access."),
-            "homepage": "https://gemini.google.com",
-            "endpoint": "http://127.0.0.1:8765/chat",
-            "model": "gemini-3-flash-thinking-advanced",
-            "requires_key": false,
-            "api_format": "gemini_web",
-            "supportsTools": false,
-        }),
         "gemini-2.5-flash": aiModelComponent.createObject(this, {
             "name": "Gemini 2.5 Flash",
             "icon": "google-gemini-symbolic",
@@ -448,7 +366,7 @@ Singleton {
         }),
     }
     property var modelList: Object.keys(root.models)
-    property var currentModelId: Persistent.states?.ai?.model || modelList[0]
+    property var currentModelId: (Persistent.states?.ai?.model && (Persistent.states.ai.model in root.models)) ? Persistent.states.ai.model : modelList[0]
 
     property var apiStrategies: {
         "openai": openaiApiStrategy.createObject(this),
@@ -762,10 +680,6 @@ Singleton {
 
             /* Put API key in environment variable */
             if (model.requires_key) requester.environment[`${root.apiKeyEnvVarName}`] = root.apiKeys ? (root.apiKeys[model.key_id] ?? "") : ""
-            if (model.api_format === "gemini_web" && root.pendingFilePath.length > 0) {
-                root.addMessage(Translation.tr("Attachments are not supported by Gemini Web yet. Sending the text message without the attachment."), root.interfaceRole);
-                root.pendingFilePath = "";
-            }
 
             /* Build endpoint, request data */
             const endpoint = root.currentApiStrategy.buildEndpoint(model);
@@ -808,9 +722,14 @@ Singleton {
 
             /* Create extra setup when there's an attached file */
             let scriptFileSetupContent = ""
-            if (root.pendingFilePath && root.pendingFilePath.length > 0) {
+            if (root.pendingFilePath && root.pendingFilePath.length > 0 && model.api_format !== "gemini_web") {
                 requester.message.localFilePath = root.pendingFilePath;
                 scriptFileSetupContent = requester.currentStrategy.buildScriptFileSetup(root.pendingFilePath);
+                root.pendingFilePath = ""
+            } else if (root.pendingFilePath && root.pendingFilePath.length > 0 && model.api_format === "gemini_web") {
+                // For gemini_web, file_path was already captured in data by buildRequestData above.
+                // Store it for the chat bubble and clear it here.
+                requester.message.localFilePath = root.pendingFilePath;
                 root.pendingFilePath = ""
             }
 
@@ -1075,5 +994,53 @@ Singleton {
         } finally {
             getSavedChats.running = true;
         }
+    }
+
+    Timer {
+        id: modelFetcherTimer
+        interval: 3000
+        repeat: true
+        running: true
+        triggeredOnStart: true
+        onTriggered: {
+            fetchWebModels();
+        }
+    }
+
+    function fetchWebModels() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "http://127.0.0.1:8765/models", true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    try {
+                        var fetched = JSON.parse(xhr.responseText);
+                        if (fetched && fetched.length > 0) {
+                            modelFetcherTimer.running = false;
+                            for (var i = 0; i < fetched.length; i++) {
+                                var model = fetched[i];
+                                var modelKey = "gemini-web-" + model.id;
+                                if (!(modelKey in root.models)) {
+                                    root.addModel(modelKey, {
+                                        "name": "Gemini Web " + model.name,
+                                        "icon": "google-gemini-symbolic",
+                                        "description": Translation.tr("Local | Cookie-backed Gemini web integration\nModel: %1\n%2").arg(model.name).arg(model.description),
+                                        "homepage": "https://gemini.google.com",
+                                        "endpoint": "http://127.0.0.1:8765/chat",
+                                        "model": model.id,
+                                        "requires_key": false,
+                                        "api_format": "gemini_web",
+                                        "supportsTools": false
+                                    });
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.log("[Ai] Error parsing models: ", e);
+                    }
+                }
+            }
+        }
+        xhr.send();
     }
 }

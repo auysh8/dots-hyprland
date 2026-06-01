@@ -79,7 +79,7 @@ Item {
                     ...(root.aiChatEnabled ? [aiChat.createObject()] : []),
                     ...(root.translatorEnabled ? [translator.createObject()] : []),
                     ...((root.tabButtonList.length === 0 || (!root.aiChatEnabled && !root.translatorEnabled && root.animeCloset)) ? [placeholder.createObject()] : []),
-                    ...(root.animeEnabled ? [anime.createObject()] : []),
+                    ...(root.animeEnabled && !root.animeCloset ? [anime.createObject()] : []),
                 ]
             }
         }

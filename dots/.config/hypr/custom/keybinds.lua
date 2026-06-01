@@ -2,4 +2,3 @@ hl.bind("SUPER + Escape", hl.dsp.exec_cmd("qs -p $HOME/.config/quickshell/ii/sys
 hl.bind("SUPER + ALT + N", hl.dsp.global("quickshell:notesToggle"), { description = "Shell: Toggle notes" })
 hl.unbind("SUPER + M")
 hl.bind("SUPER + M", hl.dsp.exec_cmd("qs -p $HOME/.config/quickshell/ii/music.qml"), { description = "App: Music player" })
-hl.bind("SUPER + SHIFT + G", hl.dsp.global("quickshell:geminiOverlayToggle"), { description = "Shell: Toggle Gemini overlay" })

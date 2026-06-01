@@ -458,7 +458,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 id: suggestionRepeater
                 model: {
                     suggestions.selectedIndex = 0;
-                    return root.suggestionList.slice(0, 10);
+                    return root.suggestionList.slice(0, 20);
                 }
                 delegate: ApiCommandButton {
                     id: commandButton
