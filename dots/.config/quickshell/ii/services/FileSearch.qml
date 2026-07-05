@@ -106,7 +106,7 @@ Singleton {
     // Tag each line with d: or f: prefix
     const command = [
         "bash", "-c",
-        `plocate -i --basename --limit ${maxResults} '${trimmed}' | while IFS= read -r p; do [ -d "$p" ] && printf 'd:%s\n' "$p" || printf 'f:%s\n' "$p"; done`
+        `plocate -i --basename '${trimmed}' | while IFS= read -r p; do [ -d "$p" ] && printf 'd:%s\n' "$p" || printf 'f:%s\n' "$p"; done`
     ];
 
     plocateProc.runId = searchId;
