@@ -1,3 +1,4 @@
+// Quick Sliders Component implementation
 import qs
 import qs.services
 import qs.modules.common
@@ -33,10 +34,7 @@ Rectangle {
         }
 
         Loader {
-            anchors {
-                left: parent.left
-                right: parent.right
-            }
+            anchors { left: parent.left; right: parent.right }
             visible: active
             active: Config.options.sidebar.quickSliders.showBrightness
             sourceComponent: QuickSlider {
@@ -47,16 +45,10 @@ Rectangle {
                 tooltipContent: Hyprsunset.gamma === 100 ? `${Math.round(root.brightnessMonitor?.brightness * 100)}%` : `${Translation.tr("Gamma")} ${Hyprsunset.gamma}%`
                 onMoved: {
                     if (value >= 0.3) {
-                        // 0.3 - 1.0 brightness
                         root.brightnessMonitor.setBrightness((value - 0.3) / 0.7);
-                        if (Hyprsunset.gamma !== 100) {
-                            Hyprsunset.setGamma(100);
-                        }
+                        if (Hyprsunset.gamma !== 100) Hyprsunset.setGamma(100);
                     } else {
-                        // 0 - 0.3 gamma
-                        if (root.brightnessMonitor.brightness !== 0) {
-                            root.brightnessMonitor.setBrightness(0);
-                        }
+                        if (root.brightnessMonitor.brightness !== 0) root.brightnessMonitor.setBrightness(0);
                         Hyprsunset.setGamma((value / 0.3 * (100 - Hyprsunset.gammaLowerLimit) + Hyprsunset.gammaLowerLimit));
                     }
                 }
@@ -64,10 +56,7 @@ Rectangle {
         }
 
         Loader {
-            anchors {
-                left: parent.left
-                right: parent.right
-            }
+            anchors { left: parent.left; right: parent.right }
             visible: active
             active: Config.options.sidebar.quickSliders.showVolume
             sourceComponent: QuickSlider {
@@ -80,10 +69,7 @@ Rectangle {
         }
 
         Loader {
-            anchors {
-                left: parent.left
-                right: parent.right
-            }
+            anchors { left: parent.left; right: parent.right }
             visible: active
             active: Config.options.sidebar.quickSliders.showMic
             sourceComponent: QuickSlider {
@@ -96,14 +82,14 @@ Rectangle {
         }
     }
 
-    component QuickSlider: StyledSlider { 
+    component QuickSlider: StyledSlider {
         id: quickSlider
         required property string materialSymbol
         property string secondaryMaterialSymbol
         configuration: StyledSlider.Configuration.M
         stopIndicatorValues: []
         dividerValues: secondaryMaterialSymbol.length > 0 ? [secondaryIcon.iconLocation] : []
-        
+
         MaterialSymbol {
             id: icon
             property bool nearFull: quickSlider.value >= 0.9
@@ -116,12 +102,8 @@ Rectangle {
             color: nearFull ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSecondaryContainer
             text: quickSlider.materialSymbol
 
-            Behavior on color {
-                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-            }
-            Behavior on anchors.rightMargin {
-                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
+            Behavior on color { ColorAnimation { duration: 180 } }
+            Behavior on anchors.rightMargin { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
         }
 
         MaterialSymbol {
@@ -138,9 +120,8 @@ Rectangle {
             color: quickSlider.value >= iconLocation - 0.1 ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSecondaryContainer
             text: secondaryMaterialSymbol
 
-            Behavior on color {
-                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-            }
+            Behavior on color { ColorAnimation { duration: 180 } }
+            Behavior on anchors.rightMargin { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
         }
     }
 }

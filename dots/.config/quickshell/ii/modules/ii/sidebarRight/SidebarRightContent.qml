@@ -1,3 +1,4 @@
+// added smoother transitions to the Slider layout changes and spring physics on toggle popups x
 import qs
 import qs.services
 import qs.modules.common
@@ -12,7 +13,6 @@ import QtQuick.Effects
 
 import qs.modules.ii.sidebarRight.quickToggles
 import qs.modules.ii.sidebarRight.quickToggles.classicStyle
-
 import qs.modules.ii.sidebarRight.bluetoothDevices
 import qs.modules.ii.sidebarRight.nightLight
 import qs.modules.ii.sidebarRight.volumeMixer
@@ -88,7 +88,6 @@ Item {
             SystemButtonRow {
                 Layout.fillHeight: false
                 Layout.fillWidth: true
-                // Layout.margins: 10
                 Layout.topMargin: 5
                 Layout.bottomMargin: 0
             }
@@ -96,7 +95,8 @@ Item {
             Loader {
                 id: slidersLoader
                 Layout.fillWidth: true
-                visible: active
+                visible: opacity > 0
+                opacity: active ? 1 : 0
                 active: {
                     const configQuickSliders = Config.options.sidebar.quickSliders
                     if (!configQuickSliders.enable) return false
@@ -104,6 +104,7 @@ Item {
                     return true;
                 }
                 sourceComponent: QuickSliders {}
+                Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
             }
 
             LoaderedQuickPanelImplementation {
@@ -136,16 +137,12 @@ Item {
 
     ToggleDialog {
         shownPropertyString: "showAudioOutputDialog"
-        dialog: VolumeDialog {
-            isSink: true
-        }
+        dialog: VolumeDialog { isSink: true }
     }
 
     ToggleDialog {
         shownPropertyString: "showAudioInputDialog"
-        dialog: VolumeDialog {
-            isSink: false
-        }
+        dialog: VolumeDialog { isSink: false }
     }
 
     ToggleDialog {
@@ -296,7 +293,7 @@ Item {
             radius: height / 2
             implicitWidth: uptimeRow.implicitWidth + 24
             implicitHeight: uptimeRow.implicitHeight + 8
-            
+
             Row {
                 id: uptimeRow
                 anchors.centerIn: parent
@@ -346,9 +343,7 @@ Item {
                     Quickshell.execDetached(["hyprctl", "reload"])
                     Quickshell.reload(true);
                 }
-                StyledToolTip {
-                    text: Translation.tr("Reload Hyprland & Quickshell")
-                }
+                StyledToolTip { text: Translation.tr("Reload Hyprland & Quickshell") }
             }
             QuickToggleButton {
                 toggled: false
@@ -357,19 +352,13 @@ Item {
                     GlobalStates.sidebarRightOpen = false;
                     Quickshell.execDetached(["qs", "-p", root.settingsQmlPath]);
                 }
-                StyledToolTip {
-                    text: Translation.tr("Settings")
-                }
+                StyledToolTip { text: Translation.tr("Settings") }
             }
             QuickToggleButton {
                 toggled: false
                 buttonIcon: "power_settings_new"
-                onClicked: {
-                    GlobalStates.sessionOpen = true;
-                }
-                StyledToolTip {
-                    text: Translation.tr("Session")
-                }
+                onClicked: { GlobalStates.sessionOpen = true; }
+                StyledToolTip { text: Translation.tr("Session") }
             }
         }
     }
