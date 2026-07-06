@@ -1,18 +1,39 @@
 #!/bin/bash
-
-# --- CONFIGURATION ---
 DIR="$HOME/Pictures/Wallpapers/"
 THEME_SCRIPT="/home/auysh/.config/quickshell/ii/scripts/colors/switchwall.sh"
-INTERVAL=300
+POLL_INTERVAL=1
+LOCK_FILE="/tmp/quickshell-locked"
+
+pick_random_wallpaper() {
+    local wallpapers=()
+    mapfile -d '' wallpapers < <(find "$DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) -print0)
+    if [ "${#wallpapers[@]}" -eq 0 ]; then return 1; fi
+    printf '%s\n' "${wallpapers[RANDOM % ${#wallpapers[@]}]}"
+}
+
+change_wallpaper() {
+    local random_img
+    random_img="$(pick_random_wallpaper)" || return 0
+    if [ -n "$random_img" ] && [ -x "$THEME_SCRIPT" ]; then
+        "$THEME_SCRIPT" --image "$random_img" --mode "dark" > /dev/null 2>&1
+    fi
+}
+
+get_lock_state() {
+    if [ -f "$LOCK_FILE" ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
+last_state="$(get_lock_state)"
 
 while true; do
-    # 1. Pick Random Image (jpg, png, webp)
-    RANDOM_IMG=$(find "$DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) | shuf -n 1)
-
-    if [ -n "$RANDOM_IMG" ] && [ -x "$THEME_SCRIPT" ]; then
-        # Step A: Apply Wallpaper & Theme
-        "$THEME_SCRIPT" --image "$RANDOM_IMG" --mode "dark" > /dev/null 2>&1
+    current_state="$(get_lock_state)"
+    if [ "$last_state" = "yes" ] && [ "$current_state" = "no" ]; then
+        change_wallpaper
     fi
-    
-    sleep $INTERVAL
+    last_state="$current_state"
+    sleep "$POLL_INTERVAL"
 done

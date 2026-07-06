@@ -14,7 +14,7 @@ from thumbnail_utils import (
     iter_square_art_candidates,
     normalize_square_art_url,
 )
-from tidal_api import TidalClient
+
 from apple_music_fetcher import AppleMusicCanvasFetcher
 
 class Player:
@@ -41,8 +41,7 @@ class Player:
         self.api = None
         self.mpris = None
         
-        # Tidal client
-        self.tidal = TidalClient(logger)
+
         
         # Apple Music Fetcher
         self.apple_music = AppleMusicCanvasFetcher(logger)
@@ -160,8 +159,6 @@ class Player:
         initial_quality = "YouTube Music"
         if self.cache.get_audio_path(video_id):
             initial_quality = "Local Cache"
-        elif getattr(self, "settings", {}).get("tidal_lossless", False):
-            initial_quality = "Checking Tidal..."
 
         self.current_video_id = video_id
         self._current_title = title
@@ -204,41 +201,20 @@ class Player:
         
         self.log(f"Background prefetching next URL for gapless playback: {title or video_id}")
         
-        tidal_on = getattr(self, "settings", {}).get("tidal_lossless", False)
-        # Skip Tidal for video tracks (music videos)
-        if tidal_on and is_video_track(video_id, art_url):
-            tidal_on = False
-
         try:
             stream_url = None
             quality_label = "YouTube Music"
 
-            # 1. Try Tidal Pre-resolution first if enabled
-            if tidal_on:
-                # Check if already in local FLAC cache
-                cached_path = self.cache.get_audio_path(video_id)
-                if cached_path and cached_path.endswith(".flac"):
-                    stream_url = f"file://{cached_path}"
-                    quality_label = "Tidal Lossless"
-                else:
-                    self.log(f"[Tidal] Pre-resolving stream for: {title} by {artist}")
-                    t_url, t_quality = self.tidal.resolve_stream(title, artist)
-                    if t_url:
-                        stream_url = t_url
-                        quality_label = t_quality or "Tidal Lossless"
-
-            # 2. Fallback to YouTube Music if Tidal failed or is OFF
-            if not stream_url:
-                ytdlp = self._resolve_ytdlp_path()
-                cmd = [
-                    ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings",
-                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "--extractor-args", "youtube:player_client=android_music",
-                    f"https://music.youtube.com/watch?v={video_id}"
-                ]
-                result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30)
-                stream_url = result.stdout.strip().split("\n")[-1].strip()
-                quality_label = "YouTube Music"
+            ytdlp = self._resolve_ytdlp_path()
+            cmd = [
+                ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings",
+                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "--extractor-args", "youtube:player_client=android_music",
+                f"https://music.youtube.com/watch?v={video_id}"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120)
+            stream_url = result.stdout.strip().split("\n")[-1].strip()
+            quality_label = "YouTube Music"
 
             if stream_url:
                 expiry = time.time() + 6 * 3600  # URLs valid ~6h
@@ -436,19 +412,9 @@ class Player:
 
             # Play any cached file first to save bandwidth and avoid slow proxy searches.
             # (We now only cache .flac files going forward, but old .m4a files will still play instantly).
-            tidal_enabled = getattr(self, "settings", {}).get("tidal_lossless", False)
             cached_audio_path = self.cache.get_audio_path(video_id)
             stream_url = None
             quality = "YouTube Music"
-            is_tidal_stream = False
-
-            # Try Tidal if enabled — but not for YouTube video tracks.
-            # Video tracks (music videos, live performances) are identified by ytimg.com/vi/ art URLs.
-            # They don't exist on Tidal, so searching wastes time and often returns a wrong match.
-            if tidal_enabled and is_video_track(video_id, art_url):
-                self.log("[Tidal] Skipping '%s' — YouTube video track, not on Tidal" % title)
-                tidal_enabled = False
-                cached_audio_path = self.cache.get_audio_path(video_id)  # Restore normal cache lookup
 
             # Track whether this is a YouTube video (music video) track.
             # Used below to avoid bandwidth contention during active streaming.
@@ -463,44 +429,14 @@ class Player:
                 gapless_stream_url = cached_entry[0]
                 if len(cached_entry) > 2:
                     quality = cached_entry[2]
-                    if "Tidal" in quality:
-                        is_tidal_stream = True
-                # We already prefetched (Tidal or YT), so skip network resolve
-                tidal_enabled = False
-
-            if tidal_enabled:
-                # Use Tidal-cached FLAC if available (skip network resolve)
-                if cached_audio_path:
-                    self.log(f"[Tidal] Using cached FLAC for: {title}")
-                    is_tidal_stream = True  # Still a Tidal-quality stream
-                else:
-                    self.log(f"[Tidal] Attempting to resolve high-res stream for: {title} by {artist}")
-                    try:
-                        tidal_url, tidal_quality = self.tidal.resolve_stream(title, artist)
-                        if tidal_url:
-                            self.log(f"[Tidal] Success! Using Tidal stream ({tidal_quality}): {tidal_url[:60]}...")
-                            stream_url = tidal_url
-                            quality = tidal_quality or "Tidal Lossless"
-                            is_tidal_stream = True
-                        else:
-                            # Tidal failed — fall back to YouTube cache or live stream
-                            self.log("[Tidal] No stream found, falling back to YouTube Music")
-                            cached_audio_path = self.cache.get_audio_path(video_id)
-                    except Exception as e:
-                        self.log(f"[Tidal] Resolution failed: {e} — falling back to YouTube Music")
-                        cached_audio_path = self.cache.get_audio_path(video_id)
 
             if cached_audio_path:
                 self.log(f"Using cached audio: {title}")
                 stream_url = f"file://{cached_audio_path}"
-                # Cached Tidal FLAC — same quality, just label as "Tidal Lossless"
-                quality = "Tidal Lossless" if cached_audio_path.endswith(".flac") else "Local Cache"
+                quality = "Local Cache"
             elif gapless_stream_url:
                 stream_url = gapless_stream_url
                 self.log(f"Using pre-fetched gapless URL ({quality})")
-            elif stream_url:
-                # Tidal URL already set above
-                pass
             else:
                 self.log("Fetching stream URL...")
                 cmd = [
@@ -511,7 +447,7 @@ class Player:
                 ]
                 proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 self._ytdlp_proc = proc
-                stdout, stderr = proc.communicate(timeout=30)
+                stdout, stderr = proc.communicate(timeout=120)
                 self._ytdlp_proc = None
                 
                 with self._state_lock:
@@ -561,7 +497,7 @@ class Player:
 
             self._cleanup_socket()
 
-            # Detect Tidal HiRes DASH streams (local .mpd temp file)
+            # Detect HiRes DASH streams (local .mpd temp file)
             is_dash_mpd = stream_url.startswith("file://") and stream_url.endswith(".mpd")
             mpv_cmd = [
                 "mpv", "--no-video", "--no-terminal", "--really-quiet",
@@ -634,48 +570,6 @@ class Player:
 
             # ── Deferred audio caching ─────────────────────────────────────────
             is_live_stream = not stream_url.startswith("file://")
-
-            if is_live_stream and is_tidal_stream and stream_url.startswith("https://"):
-                # Tidal provided a direct CDN FLAC URL (BTS format, not DASH).
-                # Download it in the background so replays are instant.
-                _tidal_url_to_cache = stream_url
-                def _cache_tidal_flac():
-                    time.sleep(5)  # Brief delay to let mpv start
-                    with self._state_lock:
-                        if self._playback_token != token:
-                            return  # Track was skipped
-                    if self.cache.get_audio_path(video_id):
-                        return  # Already cached (e.g. from a previous play)
-                    try:
-                        import urllib.request as _urllib
-                        import shutil as _shutil
-                        ext = "flac" if ".flac" in _tidal_url_to_cache else "m4a"
-                        file_hash = self.cache._get_file_hash(video_id, "audio")
-                        file_path = self.cache.audio_cache_dir / f"{file_hash}.{ext}"
-                        temp_path = self.cache.audio_cache_dir / f"{file_hash}.{ext}.tmp"
-                        self.log(f"[Cache] Downloading Tidal FLAC for: {title}")
-                        req = _urllib.Request(
-                            _tidal_url_to_cache,
-                            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-                        )
-                        with _urllib.urlopen(req, timeout=300) as resp, open(temp_path, "wb") as f:
-                            _shutil.copyfileobj(resp, f)
-                        temp_path.rename(file_path)
-                        ok = self.cache.register_downloaded_audio(video_id, str(file_path))
-                        if ok:
-                            size_mb = file_path.stat().st_size / 1024 / 1024
-                            self.log(f"[Cache] Tidal FLAC cached: {title} ({size_mb:.1f}MB)")
-                    except Exception as e:
-                        self.log(f"[Cache] Tidal FLAC cache failed for {title}: {e}")
-                        try:
-                            if temp_path.exists():
-                                temp_path.unlink()
-                        except Exception:
-                            pass
-                if getattr(self, 'executor', None):
-                    self.executor.submit(_cache_tidal_flac)
-                else:
-                    threading.Thread(target=_cache_tidal_flac, daemon=True).start()
 
             self.send_response(
                 self._build_track_payload(

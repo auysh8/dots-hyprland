@@ -60,7 +60,7 @@ async def startup_event():
             secure_1psidts=cookies.get('__Secure-1PSIDTS'),
             secure_1psidcc=cookies.get('__Secure-1PSIDCC')
         )
-        await client.init()
+        await client.init(timeout=60)
         print("GeminiClient initialized successfully.")
     except Exception as e:
         print(f"Failed to initialize GeminiClient: {e}")

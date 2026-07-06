@@ -193,7 +193,7 @@ FocusScope {
     // Settings State
     property real musicSettingsCacheLimit: 500
     property bool musicSettingsHighQuality: true
-    property bool musicSettingsTidalLossless: false
+
     property bool musicSettingsExperimentalLyrics: false
     property bool musicSettingsOfflineMode: false
 
@@ -331,7 +331,7 @@ FocusScope {
             artLocalPath: "",
             isVideoTrack: false,
             landscapeArtCandidates: [],
-            quality: root.musicSettingsTidalLossless ? "Checking Tidal..." : "YouTube Music"
+            quality: "YouTube Music"
         })
         root.currentTrackLiked = isLiked;
         root.isTrackLoading = true
@@ -884,7 +884,7 @@ FocusScope {
                         case "settings_info":
                         if (data.max_cache_size_mb !== undefined) root.musicSettingsCacheLimit = data.max_cache_size_mb
                         if (data.high_audio_quality !== undefined) root.musicSettingsHighQuality = data.high_audio_quality
-                        if (data.tidal_lossless !== undefined) root.musicSettingsTidalLossless = data.tidal_lossless
+
                         if (data.experimental_lyrics !== undefined) root.musicSettingsExperimentalLyrics = data.experimental_lyrics
                         if (data.offline_mode !== undefined) root.musicSettingsOfflineMode = data.offline_mode
                         break;

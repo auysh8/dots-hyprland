@@ -80,6 +80,9 @@ apply_anyterm() {
 
   for file in /dev/pts/*; do
     if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
+      if tty_has_kitty_term "$file"; then
+        continue
+      fi
       {
       cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"
       } & disown || true

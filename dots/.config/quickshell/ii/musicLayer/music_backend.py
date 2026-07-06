@@ -20,7 +20,7 @@ class MusicBackend:
         self.settings = {
             "max_cache_size_mb": 500.0,
             "high_audio_quality": True,
-            "tidal_lossless": False,
+
             "experimental_lyrics": False
         }
         self._load_settings()

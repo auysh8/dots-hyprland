@@ -74,6 +74,7 @@ Scope {
             // Unlock the screen before exiting, or the compositor will display a
             // fallback lock you can't interact with.
             GlobalStates.screenLocked = false;
+            Quickshell.execDetached(["rm", "-f", "/tmp/quickshell-locked"]);
 
             // Reset
             lockContext.reset();
@@ -98,6 +99,7 @@ Scope {
             return;
         }
         GlobalStates.screenLocked = true;
+        Quickshell.execDetached(["touch", "/tmp/quickshell-locked"]);
     }
 
     IpcHandler {
