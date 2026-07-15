@@ -41,11 +41,11 @@ apply_kitty() {
     sed -i "s/${colorlist[$i]} #/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/terminal/kitty-theme.conf
   done
 
-  # Reload
+  # Reload is handled by apply_anyterm sending OSC sequences to avoid Wayland freeze.
   if ! pgrep -f kitty >/dev/null; then
     return
   fi
-  kitty @ --to unix:@mykitty set-colors -a -c "$STATE_DIR/user/generated/terminal/kitty-theme.conf" 2>/dev/null || true
+  # kitty @ --to unix:@mykitty set-colors -a -c "$STATE_DIR/user/generated/terminal/kitty-theme.conf" 2>/dev/null || true
 }
 
 tty_has_kitty_term() {
@@ -80,9 +80,6 @@ apply_anyterm() {
 
   for file in /dev/pts/*; do
     if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
-      if tty_has_kitty_term "$file"; then
-        continue
-      fi
       {
       cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"
       } & disown || true

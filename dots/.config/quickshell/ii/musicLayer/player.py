@@ -15,7 +15,7 @@ from thumbnail_utils import (
     normalize_square_art_url,
 )
 
-from apple_music_fetcher import AppleMusicCanvasFetcher
+
 
 class Player:
     """Handles audio playback using mpv and track fetching using yt-dlp."""
@@ -44,7 +44,7 @@ class Player:
 
         
         # Apple Music Fetcher
-        self.apple_music = AppleMusicCanvasFetcher(logger)
+
 
         # Stream URL cache for gapless playback: {video_id: (url, expiry_timestamp)}
         self._stream_cache = {}
@@ -209,7 +209,7 @@ class Player:
             cmd = [
                 ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings",
                 "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "--extractor-args", "youtube:player_client=android_music",
+                "--extractor-args", "youtube:player_client=default",
                 f"https://music.youtube.com/watch?v={video_id}"
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120)
@@ -252,7 +252,7 @@ class Player:
                 "--extract-audio", "--audio-format", "m4a",
                 "--audio-quality", quality_arg,
                 "--user-agent", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
-                "--extractor-args", "youtube:player_client=android_music",
+                "--extractor-args", "youtube:player_client=default",
                 "--output", dest_path,
                 f"https://music.youtube.com/watch?v={video_id}",
             ]
@@ -442,7 +442,7 @@ class Player:
                 cmd = [
                     self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings", 
                     "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "--extractor-args", "youtube:player_client=android_music",
+                    "--extractor-args", "youtube:player_client=default",
                     f"https://music.youtube.com/watch?v={video_id}"
                 ]
                 proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

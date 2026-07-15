@@ -22,6 +22,8 @@ FocusScope {
     property bool closing: false
     property alias isLayoutTransitioning: playerView.isLayoutTransitioning
     property alias isWindowTransitioning: playerView.isWindowTransitioning
+    
+    property bool rightSidebarVisible: true
 
     Timer {
         id: closeFallbackTimer
@@ -106,7 +108,7 @@ FocusScope {
     property bool isLoading: true
     property bool refreshing: false
     property var currentTrack: null
-    property string currentCanvasUrl: ""
+
     property string currentOutputDevice: "Unknown"
     property ListModel currentTrackCredits: ListModel {}
     property bool currentTrackLiked: false
@@ -643,6 +645,7 @@ FocusScope {
                         }
                         root.sendCommand({ "command": "get_settings" })
                         root.getHome()
+                        root.getLibrary()
                         break;
                         case "suggestions":
                         if (root.suppressSuggestionResponses) {
@@ -782,13 +785,22 @@ FocusScope {
                         root.isTrackLoading = true
                         root.trackPositionSec = 0
                         root.trackDurationSec = 0
-                        root.currentCanvasUrl = ""
                         root.currentTrackCredits.clear() // Clear credits
                         root.currentTrack = root.buildTrackState(data)
                         break;
                         case "playback_started":
                         root.isTrackLoading = false
                         root.currentTrack = root.buildTrackState(data)
+                        if (root.currentTrack && root.currentTrack.videoId) {
+                            if (root.libraryRecentTracks.count === 0 || root.libraryRecentTracks.get(0).videoId !== root.currentTrack.videoId) {
+                                root.libraryRecentTracks.insert(0, {
+                                    videoId: root.currentTrack.videoId,
+                                    title: root.currentTrack.title,
+                                    artist: root.currentTrack.artist,
+                                    cover: root.currentTrack.artUrl
+                                })
+                            }
+                        }
                         root.currentTrackLiked = data.isLiked || false
                         root.playbackPaused = false
                         root.trackPositionSec = 0
@@ -811,20 +823,7 @@ FocusScope {
                             })
                         }
                         break;
-                        case "canvas_ready":
-                        console.log("[MusicBackend] Received canvas_ready for videoId:", data.videoId, "url:", data.url)
-                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
-                            root.currentCanvasUrl = data.url
-                            console.log("[MusicApp] Assigned currentCanvasUrl:", root.currentCanvasUrl)
-                        } else {
-                            console.warn("[MusicApp] Ignored canvas_ready. Expected videoId:", root.currentTrack ? root.currentTrack.videoId : "null", "Got:", data.videoId)
-                        }
-                        break;
-                        case "canvas_failed":
-                        if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
-                            root.currentCanvasUrl = ""
-                        }
-                        break;
+
                         case "art_downloaded":
                         if (root.currentTrack && root.currentTrack.videoId === data.videoId) {
                             root.currentTrack = root.buildTrackState({
@@ -1075,10 +1074,15 @@ FocusScope {
                 }
                 
                 // Main Content
-                Item {
+                Rectangle {
                     id: mainContentShell
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    Layout.topMargin: root.isAppMode ? 8 : 16
+                    Layout.bottomMargin: root.isAppMode ? 8 : 16
+                    color: root.surfaceColor
+                    radius: 24
+                    clip: true
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -1371,17 +1375,150 @@ FocusScope {
                                 shapeColor: root.loaderAccentColor
                             }
                         }
+
+                        // Player Controls (Bottom of Main Content)
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 80
+                            color: "transparent"
+                            visible: root.currentTrack !== null
+                            
+                            // Top border separator
+                            Rectangle {
+                                anchors.top: parent.top
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                height: 1
+                                color: ColorUtils.applyAlpha(root.contentColor, 0.08)
+                            }
+                            
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 16
+                                spacing: 16
+
+                                // Like Button
+                                RippleButton {
+                                    Layout.preferredWidth: 40
+                                    Layout.preferredHeight: 40
+                                    buttonRadius: 20
+                                    colBackground: "transparent"
+                                    colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.1)
+                                    contentItem: MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: root.currentTrackLiked ? "favorite" : "favorite_border"
+                                        color: root.currentTrackLiked ? Appearance.colors.colHeart : root.contentColor
+                                        iconSize: 22
+                                    }
+                                    onClicked: root.toggleCurrentTrackLike()
+                                }
+
+                                // Timeline
+                                StyledText {
+                                    text: StringUtils.formatTime(root.trackPositionSec)
+                                    color: root.secondaryContentColor
+                                    font.pixelSize: 12
+                                }
+
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    from: 0
+                                    to: root.trackDurationSec > 0 ? root.trackDurationSec : 1
+                                    value: root.trackPositionSec
+                                    
+                                    // Sleeker timeline style
+                                    configuration: StyledSlider.Configuration.Sleek
+                                    trackColor: ColorUtils.applyAlpha(root.contentColor, 0.15)
+                                    highlightColor: root.pillColor
+                                    handleColor: root.pillColor
+
+                                    onMoved: {
+                                        if (root.trackDurationSec > 0) {
+                                            root.sendCommand({"command": "seek", "position": value})
+                                        }
+                                    }
+                                }
+
+                                StyledText {
+                                    text: StringUtils.formatTime(root.trackDurationSec)
+                                    color: root.secondaryContentColor
+                                    font.pixelSize: 12
+                                }
+
+                                // Controls
+                                RowLayout {
+                                    spacing: 8
+                                    
+                                    RippleButton {
+                                        Layout.preferredWidth: 36; Layout.preferredHeight: 36; buttonRadius: 18
+                                        colBackground: "transparent"; colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.1)
+                                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: "skip_previous"; color: root.contentColor; iconSize: 24 }
+                                        onClicked: root.sendCommand({"command": "previous"})
+                                    }
+                                    
+                                    RippleButton {
+                                        Layout.preferredWidth: 48; Layout.preferredHeight: 48; buttonRadius: 24
+                                        colBackground: root.pillColor; colBackgroundHover: root.pillColorHover
+                                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: root.playbackPaused ? "play_arrow" : "pause"; color: root.pillContentColor; iconSize: 28 }
+                                        onClicked: {
+                                            if (root.playbackPaused) root.sendCommand({"command": "resume"})
+                                            else root.sendCommand({"command": "pause"})
+                                        }
+                                    }
+                                    
+                                    RippleButton {
+                                        Layout.preferredWidth: 36; Layout.preferredHeight: 36; buttonRadius: 18
+                                        colBackground: "transparent"; colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.1)
+                                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: "skip_next"; color: root.contentColor; iconSize: 24 }
+                                        onClicked: root.sendCommand({"command": "next"})
+                                    }
+                                    
+                                    Item { Layout.preferredWidth: 16 } // Spacer
+
+                                    // Toggle Sidebar Button
+                                    RippleButton {
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        buttonRadius: 20
+                                        colBackground: root.rightSidebarVisible ? ColorUtils.applyAlpha(root.contentColor, 0.1) : "transparent"
+                                        colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.2)
+                                        contentItem: MaterialSymbol { 
+                                            anchors.centerIn: parent; text: "queue_music"
+                                            color: root.contentColor; iconSize: 22 
+                                        }
+                                        onClicked: root.rightSidebarVisible = !root.rightSidebarVisible
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right Sidebar Panel (Reimagined from Miniplayer)
+                Revealer {
+                    id: playerPanelRevealer
+                    reveal: root.rightSidebarVisible && root.currentTrack !== null
+                    vertical: false
+                    Layout.fillHeight: true
+                    
+                    // Wrapper Item to hold margins without layout jump
+                    Item {
+                        width: 340 + 32 // player width + left & right margin
+                        height: playerPanelRevealer.height
+                        
+                        MusicMiniPlayer {
+                            id: playerPanel
+                            rootContext: root
+                            navRailExpanded: navRail.expanded
+                            anchors.fill: parent
+                            anchors.margins: 16
+                        }
                     }
                 }
             }
         }
-        
-        // Floating Miniplayer
-        MusicMiniPlayer {
-            id: playerPanel
-            rootContext: root
-            navRailExpanded: navRail.expanded
-        }
+        // (Miniplayer moved to RowLayout)
         
         // Fullscreen Player Overlay
         MusicPlayerView {

@@ -46,7 +46,7 @@ class YTMClient:
         self._album_title_cache = {}
         self._album_title_cache_ttl = 3600  # 1 hour
         
-
+        self._init_lock = threading.Lock()
         
         self.ytm = None
         try:
@@ -66,16 +66,18 @@ class YTMClient:
         return OAuthCredentials(self._OAUTH_CLIENT_ID, self._OAUTH_CLIENT_SECRET)
 
     def _init_ytm(self):
-        if os.path.exists(self.oauth_path):
-            self.ytm = YTMusic(self.oauth_path, oauth_credentials=self._make_oauth_credentials())
-            self.log("Authenticated using oauth.json")
-        elif os.path.exists(self.headers_path):
-            self.ytm = YTMusic(self.headers_path)
-            self.log("Authenticated using headers_auth.json")
-        else:
-            self.ytm = YTMusic()
-            self.log("Running in anonymous mode")
-        self._set_default_timeout(self.ytm)
+        with self._init_lock:
+            if self.ytm: return
+            if os.path.exists(self.oauth_path):
+                self.ytm = YTMusic(self.oauth_path, oauth_credentials=self._make_oauth_credentials())
+                self.log("Authenticated using oauth.json")
+            elif os.path.exists(self.headers_path):
+                self.ytm = YTMusic(self.headers_path)
+                self.log("Authenticated using headers_auth.json")
+            else:
+                self.ytm = YTMusic()
+                self.log("Running in anonymous mode")
+            self._set_default_timeout(self.ytm)
 
     def _set_default_timeout(self, ytm_client):
         session = getattr(ytm_client, "_session", None)

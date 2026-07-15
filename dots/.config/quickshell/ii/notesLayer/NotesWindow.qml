@@ -17,14 +17,25 @@ Scope {
     property bool closing: false
 
     onShowNotesChanged: {
-        if (!showNotes) closing = true;
+        if (!showNotes) {
+            closing = true;
+            hideTimer.restart();
+        }
     }
 
     function closeWindow() {
         if (root.showNotes) {
             closing = true
             NotesService.open = false
+            hideTimer.restart()
         }
+    }
+
+    Timer {
+        id: hideTimer
+        interval: 300 // Match WindowDialog closeDuration + padding
+        repeat: false
+        onTriggered: root.closing = false
     }
 
     IpcHandler {
@@ -62,66 +73,51 @@ Scope {
             WlrLayershell.keyboardFocus: root.showNotes ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             color: "transparent"
 
-            // Scrim background (invisible)
-            Rectangle {
-                id: scrim
+            MouseArea {
                 anchors.fill: parent
-                color: "transparent"
+                acceptedButtons: Qt.AllButtons
+                hoverEnabled: true
+                onPressed: root.closeWindow()
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: root.closeWindow()
-                }
-            }
-
-            Rectangle {
-                id: notesPanel
-                anchors.horizontalCenter: parent.horizontalCenter
-
-                readonly property real floatingHeight: Math.min(parent.height * 0.8, 650)
-                readonly property real floatingY: (parent.height - floatingHeight) / 2
-
-                y: floatingY
-                width: Math.min(parent.width * 0.75, 900)
-                height: floatingHeight
-                radius: Appearance.rounding.large
-                color: Appearance.colors.colLayer0
-                clip: true
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
-
-                opacity: root.showNotes ? 1 : 0
-                scale: root.showNotes ? 1 : 0.9
-
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 200
-                        easing.type: Easing.OutQuad
-                        onRunningChanged: if (!running && !root.showNotes) root.closing = false
+                Rectangle {
+                    id: notesDialog
+                    width: Math.min(window.width * 0.85, 1100)
+                    height: Math.min(window.height * 0.85, 750)
+                    anchors.centerIn: parent
+                    color: Appearance.m3colors.m3surfaceContainer
+                    radius: Appearance.rounding.large
+                    clip: true
+                    
+                    opacity: root.showNotes ? 1 : 0
+                    scale: root.showNotes ? 1 : 0.95
+                    transformOrigin: Item.Center
+                    
+                    Behavior on opacity {
+                        NumberAnimation { 
+                            duration: 250
+                            easing.type: root.showNotes ? Easing.OutCubic : Easing.InCubic
+                        }
                     }
-                }
-
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: 200
-                        easing.type: Easing.OutQuad
+                    
+                    Behavior on scale {
+                        NumberAnimation { 
+                            duration: 350
+                            easing.type: root.showNotes ? Easing.OutBack : Easing.InCubic
+                            easing.overshoot: root.showNotes ? 0.8 : 0
+                        }
                     }
-                }
 
-                // Prevent click-through to scrim
-                MouseArea { anchors.fill: parent; onClicked: {} }
-
-                // Keyboard handling
-                Keys.onPressed: (event) => {
-                    if (event.key === Qt.Key_Escape) {
-                        root.closeWindow()
-                        event.accepted = true
+                    // Prevent clicks on the panel from closing the window
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.AllButtons
+                        hoverEnabled: true
                     }
-                }
 
-                NotesPanel {
-                    anchors.fill: parent
-                    onCloseRequested: root.closeWindow()
+                    NotesPanel {
+                        anchors.fill: parent
+                        onCloseRequested: root.closeWindow()
+                    }
                 }
             }
         }
