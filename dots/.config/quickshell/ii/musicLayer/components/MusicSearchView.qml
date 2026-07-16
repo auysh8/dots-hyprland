@@ -17,7 +17,7 @@ StyledFlickable {
     // Background to hide underlying views since search now overlays them
     Rectangle {
         anchors.fill: parent
-        color: rootContext ? rootContext.backgroundColor : "transparent"
+        color: rootContext ? rootContext.surfaceColor : "transparent"
         z: -1
     }
     contentHeight: Math.max(height, resultsColumn.implicitHeight + ((rootContext && rootContext.currentTrack) ? 120 : 32))

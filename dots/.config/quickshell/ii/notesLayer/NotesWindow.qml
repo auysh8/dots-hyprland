@@ -61,30 +61,24 @@ Scope {
     Variants {
         model: Quickshell.screens
 
-        PanelWindow {
+        LayerManagedPanelWindow {
             id: window
             required property var modelData
             screen: modelData
-            anchors { top: true; bottom: true; left: true; right: true }
-            visible: root.showNotes || root.closing
-            exclusionMode: ExclusionMode.Ignore
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.namespace: "quickshell:notes"
-            WlrLayershell.keyboardFocus: root.showNotes ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-            color: "transparent"
-
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.AllButtons
-                hoverEnabled: true
-                onPressed: root.closeWindow()
+            
+            shown: root.showNotes
+            closing: root.closing
+            layerNamespace: "quickshell:notes"
+            keyboardFocusMode: WlrKeyboardFocus.OnDemand
+            
+            onCloseRequested: root.closeWindow()
 
                 Rectangle {
                     id: notesDialog
                     width: Math.min(window.width * 0.85, 1100)
                     height: Math.min(window.height * 0.85, 750)
                     anchors.centerIn: parent
-                    color: Appearance.m3colors.m3surfaceContainer
+                    color: Appearance.colors.colLayer0Base
                     radius: Appearance.rounding.large
                     clip: true
                     
@@ -119,7 +113,6 @@ Scope {
                         onCloseRequested: root.closeWindow()
                     }
                 }
-            }
         }
     }
 }

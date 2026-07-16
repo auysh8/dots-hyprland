@@ -29,11 +29,7 @@ FocusScope {
         }
     }
 
-    // Use Base variant — standalone layer windows must be opaque (COLOR_RULES §11)
-    Rectangle {
-        anchors.fill: parent
-        color: Appearance.colors.colLayer0Base
-    }
+
 
     StackLayout {
         anchors.fill: parent

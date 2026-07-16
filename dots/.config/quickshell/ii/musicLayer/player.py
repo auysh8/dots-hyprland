@@ -29,6 +29,10 @@ class Player:
         self._playback_token = 0
         self._state_lock = threading.RLock()
 
+        # Kill any mpv processes that are still running from a previous session
+        # to prevent multiple instances stacking up when the app is reopened.
+        self._kill_orphaned_mpv()
+
         # Internal state
         self.current_video_id = None
         self._current_queue = []
@@ -56,6 +60,31 @@ class Player:
 
         # Independent lyrics engine
         self._lyrics_engine = LyricsSyncEngine(self.send_response)
+
+    def _kill_orphaned_mpv(self):
+        """Kill any orphaned mpv processes from a previous session using our IPC socket path."""
+        try:
+            import subprocess as _sp
+            ipc_arg = f"--input-ipc-server={self.ipc_socket}"
+            result = _sp.run(
+                ["pgrep", "-f", ipc_arg],
+                capture_output=True, text=True
+            )
+            pids = result.stdout.strip().split()
+            for pid in pids:
+                try:
+                    _sp.run(["kill", "-9", pid], capture_output=True)
+                    self.log(f"Killed orphaned mpv process PID {pid}")
+                except Exception:
+                    pass
+        except Exception as e:
+            self.log(f"Could not clean up orphaned mpv: {e}")
+        # Also remove stale socket file
+        if os.path.exists(self.ipc_socket):
+            try:
+                os.remove(self.ipc_socket)
+            except Exception:
+                pass
 
     def _sigterm_handler(self, signum, frame):
         self.log(f"Received signal {signum}, stopping player...")
@@ -616,86 +645,7 @@ class Player:
             else:
                 threading.Thread(target=_fetch_lyrics, daemon=True).start()
 
-            def _fetch_canvas():
-                try:
-                    resolved_album_id, resolved_album_name = self._resolve_missing_album_metadata(
-                        video_id,
-                        title,
-                        artist,
-                        artist_id,
-                        art_url,
-                        token,
-                        album_id=album_id,
-                        album_name=album_name,
-                    )
-                    album_title = resolved_album_name or ""
 
-                    # 1. Check local cache first to avoid unnecessary network lookups
-                    cached_url = self.apple_music.get_cached_canvas(
-                        title,
-                        artist,
-                        album_title=album_title,
-                        album_key=resolved_album_id,
-                    )                    
-                    if cached_url:
-                        with self._state_lock:
-                            if self._playback_token != token:
-                                return
-                        self.log(f"Found cached Apple Music canvas for: {title}")
-                        self.send_response({"type": "canvas_ready", "videoId": video_id, "url": cached_url})
-                        return
-
-                    self.log(f"Fetching Apple Music canvas for: {title} by {artist} on album '{album_title}'")
-                    m3u8_url = self.apple_music.get_canvas_m3u8(
-                        title,
-                        artist,
-                        album_title=album_title,
-                        album_key=resolved_album_id,
-                    )
-                    
-                    if m3u8_url:
-                        # Resolve the direct MP4 URL to bypass GStreamer's terrible HLS buffering
-                        stream_url = self.apple_music.get_direct_mp4_url(m3u8_url)
-                    else:
-                        stream_url = None
-                    
-                    with self._state_lock:
-                        if self._playback_token != token:
-                            return
-
-                    if stream_url:
-                        self.log(f"Sending initial canvas stream URL for videoId {video_id}")
-                        self.send_response({"type": "canvas_ready", "videoId": video_id, "url": stream_url})
-                        
-                        # Start background download to MP4 for smooth looping and caching
-                        def _download_task():
-                            local_path = self.apple_music.m3u8_to_mp4(
-                                m3u8_url, # Still use m3u8 for ffmpeg or just pass stream_url
-                                title,
-                                artist,
-                                album_title=album_title,
-                                album_key=resolved_album_id
-                            )
-                            if local_path and local_path != stream_url:
-                                with self._state_lock:
-                                    if self._playback_token != token:
-                                        return
-                                self.log(f"Canvas download complete, switching to local file: {local_path}")
-                                self.send_response({"type": "canvas_ready", "videoId": video_id, "url": local_path})
-
-                        if getattr(self, 'executor', None):
-                            self.executor.submit(_download_task)
-                        else:
-                            threading.Thread(target=_download_task, daemon=True).start()
-                    else:
-                        self.log(f"Sending canvas_failed IPC message for videoId {video_id}")
-                        self.send_response({"type": "canvas_failed", "videoId": video_id})
-                except Exception as e:
-                    self.log(f"Canvas fetch error: {e}")
-            if getattr(self, 'executor', None):
-                self.executor.submit(_fetch_canvas)
-            else:
-                threading.Thread(target=_fetch_canvas, daemon=True).start()
 
             self.mpris.publish()
             if getattr(self, "mpris", None):

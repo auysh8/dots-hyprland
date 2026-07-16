@@ -20,11 +20,7 @@ Item {
     onInitialTitleChanged: titleInput.text = initialTitle
     onInitialContentChanged: contentInput.text = initialContent
 
-    // Use Base variant — standalone layer must be opaque (COLOR_RULES §11)
-    Rectangle {
-        anchors.fill: parent
-        color: Appearance.colors.colLayer0Base
-    }
+
 
     ColumnLayout {
         anchors.fill: parent
@@ -134,7 +130,7 @@ Item {
                 Text {
                     anchors.fill: parent
                     verticalAlignment: Text.AlignVCenter
-                    text: "Note Title"
+                    text: "Untitled"
                     font: titleInput.font
                     color: Appearance.colors.colSubtext
                     opacity: 0.5
@@ -157,7 +153,7 @@ Item {
                 // Leave enough space at bottom for the floating toolbar
                 Layout.bottomMargin: 80
                 clip: true
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                ScrollBar.vertical: StyledScrollBar {}
 
                 StyledTextArea {
                     id: contentInput

@@ -33,7 +33,7 @@ Singleton {
         const now = Math.floor(Date.now() / 1000)
         const note = {
             "id": generateId(),
-            "title": title || "Untitled",
+            "title": title,
             "content": content,
             "created": now,
             "modified": now,
@@ -145,10 +145,6 @@ Singleton {
                 const fileContents = notesFileView.text()
                 root.notes = JSON.parse(fileContents)
                 console.log("[Notes] Loaded", root.notes.length, "notes")
-                // Auto-select first note
-                if (root.notes.length > 0 && root.selectedNoteId === "") {
-                    root.selectedNoteId = root.notes[0].id
-                }
             } catch (e) {
                 console.log("[Notes] Parse error:", e)
                 root.notes = []
