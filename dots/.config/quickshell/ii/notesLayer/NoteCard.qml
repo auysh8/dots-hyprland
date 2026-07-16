@@ -52,7 +52,7 @@ RippleButton {
                 color: Appearance.colors.colOnLayer1
                 elide: Text.ElideRight
                 maximumLineCount: 2
-                wrapMode: Text.WordWrap
+                wrapMode: Text.Wrap
             }
 
             // Content preview
@@ -67,12 +67,34 @@ RippleButton {
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: Appearance.colors.colSubtext
                 elide: Text.ElideRight
-                wrapMode: Text.WordWrap
+                wrapMode: Text.Wrap
                 verticalAlignment: Text.AlignTop
                 maximumLineCount: 5
             }
 
 
+        }
+
+        // Delete button
+        RippleButton {
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: 8
+            implicitWidth: 32
+            implicitHeight: 32
+            buttonRadius: Appearance.rounding.full
+            colBackground: "transparent"
+            colBackgroundHover: Appearance.colors.colLayer2Hover
+            visible: root.hovered
+
+            contentItem: MaterialSymbol {
+                anchors.centerIn: parent
+                text: "delete"
+                iconSize: 18
+                color: Appearance.colors.colSubtext
+            }
+
+            onClicked: root.deleteRequested()
         }
     }
 }
