@@ -85,10 +85,11 @@ RippleButton {
             buttonRadius: Appearance.rounding.full
             colBackground: "transparent"
             colBackgroundHover: Appearance.colors.colLayer2Hover
-            visible: root.hovered
 
             contentItem: MaterialSymbol {
                 anchors.centerIn: parent
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
                 text: "delete"
                 iconSize: 18
                 color: Appearance.colors.colSubtext

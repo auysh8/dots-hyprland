@@ -13,19 +13,24 @@ FocusScope {
 
     property var currentNote: null
     property string viewMode: "grid" // "grid" or "editor"
+    property string localSelectedNoteId: ""
+
+    onLocalSelectedNoteIdChanged: {
+        root.currentNote = NotesService.getNote(root.localSelectedNoteId)
+        root.viewMode = (root.localSelectedNoteId !== "") ? "editor" : "grid"
+    }
 
     Connections {
         target: NotesService
-        function onSelectedNoteIdChanged() {
-            // Use getNote(id) NOT getSelectedNote() — the latter has a side effect
-            // that forcibly sets selectedNoteId back to notes[0].id when it's "",
-            // which would trap the user in the editor forever.
-            root.currentNote = NotesService.getNote(NotesService.selectedNoteId)
-            root.viewMode = (NotesService.selectedNoteId !== "") ? "editor" : "grid"
-        }
         function onNotesChanged() {
-            if (NotesService.selectedNoteId !== "")
-                root.currentNote = NotesService.getNote(NotesService.selectedNoteId)
+            if (root.localSelectedNoteId !== "") {
+                let note = NotesService.getNote(root.localSelectedNoteId)
+                if (!note) {
+                    root.localSelectedNoteId = ""
+                } else {
+                    root.currentNote = note
+                }
+            }
         }
     }
 
@@ -40,10 +45,10 @@ FocusScope {
             Layout.fillHeight: true
 
             onAddClicked: {
-                NotesService.createNote()
+                root.localSelectedNoteId = NotesService.createNote()
             }
             onNoteClicked: function(noteId) {
-                NotesService.selectedNoteId = noteId
+                root.localSelectedNoteId = noteId
             }
         }
 
@@ -55,14 +60,14 @@ FocusScope {
             initialContent: root.currentNote ? root.currentNote.content : ""
 
             onCancelClicked: {
-                NotesService.selectedNoteId = ""
+                root.localSelectedNoteId = ""
             }
 
             onSaveClicked: function(title, content) {
                 if (root.currentNote) {
                     NotesService.updateNote(root.currentNote.id, title, content)
                 }
-                NotesService.selectedNoteId = ""
+                root.localSelectedNoteId = ""
             }
         }
     }

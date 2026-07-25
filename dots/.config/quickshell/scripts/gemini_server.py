@@ -16,11 +16,26 @@ class ChatRequest(BaseModel):
     file_path: str | None = None
 
 def extract_cookies():
-    # Path to Zen browser default profile
-    profile_path = os.path.expanduser("~/.zen/yem0tzbi.Default (release)/cookies.sqlite")
+    possible_bases = [
+        os.path.expanduser("~/.config/zen"),
+        os.path.expanduser("~/.zen")
+    ]
     
-    if not os.path.exists(profile_path):
-        raise FileNotFoundError(f"Cookies file not found at {profile_path}")
+    profile_path = None
+    for base in possible_bases:
+        if not os.path.exists(base):
+            continue
+        for root, dirs, files in os.walk(base):
+            if "cookies.sqlite" in files:
+                candidate = os.path.join(root, "cookies.sqlite")
+                profile_path = candidate
+                if "release" in root or "Default" in root:
+                    break
+        if profile_path:
+            break
+            
+    if not profile_path or not os.path.exists(profile_path):
+        raise FileNotFoundError(f"Cookies file not found in Zen browser profile paths ({possible_bases})")
 
     # Copy to temp file to avoid locking issues
     fd, temp_path = tempfile.mkstemp(suffix=".sqlite")

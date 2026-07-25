@@ -29,20 +29,17 @@ Item {
                 color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
                 Layout.fillWidth: true
             }
-            StyledText {
-                text: "See all"
-                font.pixelSize: 12
-                color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
-            }
         }
 
         // History/Queue Items with ListView for Animations
-        ListView {
+        StyledListView {
             id: historyList
             Layout.fillWidth: true
-            Layout.preferredHeight: count > 0 ? (Math.min(6, count) * (64 + 14) - 14) : 0
+            Layout.fillHeight: true
+            Layout.preferredHeight: count > 0 ? (Math.min(10, count) * (64 + 14) - 14) : 0
+            Layout.maximumHeight: count > 0 ? (Math.min(10, count) * (64 + 14) - 14) : 0
             spacing: 14
-            interactive: false // We only want it as a visual list, not scrollable since we limit height
+            interactive: true // Allow scrolling if it exceeds
             clip: true
             
             model: rootContext ? rootContext.libraryRecentTracks : null
@@ -57,46 +54,15 @@ Item {
                 NumberAnimation { properties: "x,y"; from: -30; duration: 500; easing.type: Easing.OutBack }
             }
 
-            delegate: Item {
+            delegate: MusicListTrackItem {
                 width: historyList.width
-                height: 64
+                rootContext: root.rootContext
+                track: model
+                fallbackArtUrl: model.cover || ""
                 
-                RowLayout {
-                    anchors.fill: parent
-                    spacing: 14
-                    
-                    Rectangle {
-                        Layout.preferredWidth: 56
-                        Layout.preferredHeight: 56
-                        radius: 8
-                        color: rootContext ? rootContext.surfaceColor : Appearance.colors.colLayer2
-                        clip: true
-                        RoundedImage {
-                            anchors.fill: parent
-                            source: model.artUrl || model.cover || ""
-                            radius: 8
-                            fillMode: Image.PreserveAspectCrop
-                        }
-                    }
-                    
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        StyledText {
-                            text: model.title || ""
-                            font.pixelSize: 15
-                            font.weight: 600
-                            color: rootContext ? rootContext.contentColor : Appearance.colors.colOnSurface
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-                        StyledText {
-                            text: model.artist || ""
-                            font.pixelSize: 13
-                            color: rootContext ? rootContext.secondaryContentColor : Appearance.colors.colSubtext
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
+                onClicked: {
+                    if (rootContext && rootContext.playTrack) {
+                        rootContext.playTrack(model.videoId, model.title, model.artist, model.artUrl || model.cover, undefined, model.artistId, model.albumId)
                     }
                 }
             }

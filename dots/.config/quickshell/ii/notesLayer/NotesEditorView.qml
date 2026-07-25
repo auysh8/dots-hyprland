@@ -20,6 +20,73 @@ Item {
     onInitialTitleChanged: titleInput.text = initialTitle
     onInitialContentChanged: contentInput.text = initialContent
 
+    function applyFormat(formatType) {
+        // Bold, Italic, Underline — use cursorSelection API (Qt 6.7+)
+        if (formatType === "format_bold") {
+            contentInput.cursorSelection.font.bold = !contentInput.cursorSelection.font.bold;
+            contentInput.forceActiveFocus();
+            return;
+        }
+        if (formatType === "format_italic") {
+            contentInput.cursorSelection.font.italic = !contentInput.cursorSelection.font.italic;
+            contentInput.forceActiveFocus();
+            return;
+        }
+        if (formatType === "format_underlined") {
+            contentInput.cursorSelection.font.underline = !contentInput.cursorSelection.font.underline;
+            contentInput.forceActiveFocus();
+            return;
+        }
+
+        // List formatting — use positional insert/remove (works in RichText mode)
+        var start = contentInput.selectionStart;
+        var end = contentInput.selectionEnd;
+        var selected = contentInput.selectedText;
+
+        var isBullet = formatType === "format_list_bulleted";
+        var isNum = formatType === "format_list_numbered";
+
+        if (isBullet || isNum) {
+            // For RichText, selectedText gives plain text of the selection.
+            // We operate line-by-line on the plain-text selection.
+            var selLines = selected.split('\n');
+            var newLines = [];
+
+            var bulletRegex = /^(\s*)-\s+/;
+            var numRegex = /^(\s*)\d+\.\s+/;
+
+            for (var i = 0; i < selLines.length; i++) {
+                var line = selLines[i];
+                var hasBullet = bulletRegex.test(line);
+                var hasNum = numRegex.test(line);
+
+                if (isBullet) {
+                    if (hasBullet) {
+                        line = line.replace(bulletRegex, '$1');
+                    } else if (hasNum) {
+                        line = line.replace(numRegex, '$1- ');
+                    } else {
+                        line = "- " + line;
+                    }
+                } else if (isNum) {
+                    if (hasNum) {
+                        line = line.replace(numRegex, '$1');
+                    } else if (hasBullet) {
+                        line = line.replace(bulletRegex, '$1' + (i+1) + '. ');
+                    } else {
+                        line = (i+1) + ". " + line;
+                    }
+                }
+                newLines.push(line);
+            }
+
+            var replacedText = newLines.join('\n');
+            contentInput.remove(start, end);
+            contentInput.insert(start, replacedText);
+            contentInput.select(start, start + replacedText.length);
+            contentInput.forceActiveFocus();
+        }
+    }
 
 
     ColumnLayout {
@@ -30,31 +97,21 @@ Item {
         // ── Header ──────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: 12
 
             // Cancel
             RippleButton {
-                implicitWidth: 100
-                implicitHeight: 36
+                implicitWidth: 40
+                implicitHeight: 40
                 buttonRadius: Appearance.rounding.full
-                colBackground: "transparent"
-                colBackgroundHover: Appearance.colors.colLayer1Hover
+                colBackground: Appearance.colors.colLayer1
+                colBackgroundHover: Appearance.colors.colLayer2Hover
 
-                contentItem: RowLayout {
-                    spacing: 6
+                contentItem: MaterialSymbol {
                     anchors.centerIn: parent
-
-                    MaterialSymbol {
-                        text: "arrow_back"
-                        iconSize: 18
-                        color: Appearance.colors.colPrimary
-                    }
-                    StyledText {
-                        text: "Cancel"
-                        font.pixelSize: Appearance.font.pixelSize.normal
-                        font.weight: Font.Medium
-                        color: Appearance.colors.colPrimary
-                    }
+                    text: "arrow_back"
+                    iconSize: 22
+                    color: Appearance.colors.colOnLayer0
                 }
 
                 onClicked: root.cancelClicked()
@@ -65,11 +122,11 @@ Item {
 
             // More options (placeholder)
             RippleButton {
-                implicitWidth: 36
-                implicitHeight: 36
+                implicitWidth: 40
+                implicitHeight: 40
                 buttonRadius: Appearance.rounding.full
-                colBackground: "transparent"
-                colBackgroundHover: Appearance.colors.colLayer1Hover
+                colBackground: Appearance.colors.colLayer1
+                colBackgroundHover: Appearance.colors.colLayer2Hover
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
                     text: "more_vert"
@@ -81,32 +138,25 @@ Item {
 
             // Save Note
             RippleButton {
-                implicitWidth: 120
+                implicitWidth: 40
                 implicitHeight: 40
                 buttonRadius: Appearance.rounding.full
-                colBackground: Appearance.colors.colPrimaryContainer
-                colBackgroundHover: Appearance.colors.colPrimaryContainerHover
-                colRipple: Appearance.colors.colPrimaryContainerActive
+                colBackground: Appearance.colors.colLayer1
+                colBackgroundHover: Appearance.colors.colLayer2Hover
 
-                contentItem: RowLayout {
+                contentItem: MaterialSymbol {
                     anchors.centerIn: parent
-                    spacing: 6
-
-                    MaterialSymbol {
-                        text: root.isSaving ? "sync" : "check_circle"
-                        iconSize: 17
-                        color: Appearance.colors.colOnPrimaryContainer
-                    }
-                    StyledText {
-                        text: root.isSaving ? "Saving..." : "Save Note"
-                        font.pixelSize: Appearance.font.pixelSize.normal
-                        font.weight: Font.Medium
-                        color: Appearance.colors.colOnPrimaryContainer
-                    }
+                    text: root.isSaving ? "sync" : "check"
+                    iconSize: 22
+                    color: Appearance.colors.colOnLayer0
                 }
+
+                StyledToolTip { text: root.isSaving ? "Saving..." : "Save Note" }
 
                 onClicked: root.saveClicked(titleInput.text, contentInput.text)
             }
+
+
         }
 
         // ── Editor ──────────────────────────────────────────────────────────
@@ -146,7 +196,7 @@ Item {
                 opacity: 0.4
             }
 
-            // Content — StyledTextArea already has proper colors
+            // Content — RichText for visual bold/italic/underline formatting
             ScrollView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -163,7 +213,7 @@ Item {
                     placeholderText: "Start typing your thoughts here..."
                     selectByMouse: true
                     persistentSelection: true
-                    textFormat: TextEdit.PlainText
+                    textFormat: TextEdit.MarkdownText
                     background: null
                     padding: 0
                     font.family: Appearance.font.family.reading
@@ -181,9 +231,7 @@ Item {
         implicitWidth: toolbarRow.implicitWidth + 24
         implicitHeight: 52
         radius: Appearance.rounding.full
-        color: Appearance.colors.colLayer2
-        border.color: Appearance.colors.colOutlineVariant
-        border.width: 1
+        color: Appearance.colors.colLayer3
 
         RowLayout {
             id: toolbarRow
@@ -196,8 +244,7 @@ Item {
                     { icon: "format_italic",          tip: "Italic" },
                     { icon: "format_underlined",      tip: "Underline" },
                     { icon: "format_list_bulleted",   tip: "Bullet list" },
-                    { icon: "format_list_numbered",   tip: "Numbered list" },
-                    { icon: "image",                  tip: "Insert image" }
+                    { icon: "format_list_numbered",   tip: "Numbered list" }
                 ]
 
                 RippleButton {
@@ -214,6 +261,8 @@ Item {
                         color: Appearance.colors.colPrimary
                     }
                     StyledToolTip { text: modelData.tip }
+
+                    onClicked: root.applyFormat(modelData.icon)
                 }
             }
         }

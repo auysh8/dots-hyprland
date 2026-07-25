@@ -259,7 +259,7 @@ FocusScope {
     function toggleCurrentTrackLike() {
         if (!currentTrack || isTrackLoading) return
         currentTrackLiked = !currentTrackLiked
-        sendCommand({ "command": "toggle_like", "liked": currentTrackLiked, "videoId": currentTrack.videoId })
+        sendCommand({ "command": "toggle_like", "isLiked": currentTrackLiked, "videoId": currentTrack.videoId })
     }
     
     function applyVisibleSongResults() {
@@ -1376,48 +1376,56 @@ FocusScope {
                             }
                         }
 
-                        // Player Controls (Bottom of Main Content)
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 80
-                            color: "transparent"
+                    } // End ColumnLayout
+
+                    // TRULY Floating Player Controls
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.margins: 24
+                        width: Math.min(parent.width - 48, 800)
+                        height: 80
+                        color: root.pillColor
+                        radius: 40
+                        z: 100
                             visible: root.currentTrack !== null
-                            
-                            // Top border separator
-                            Rectangle {
-                                anchors.top: parent.top
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                height: 1
-                                color: ColorUtils.applyAlpha(root.contentColor, 0.08)
-                            }
                             
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: 16
+                                anchors.topMargin: 16
+                                anchors.bottomMargin: 16
+                                anchors.leftMargin: 24
+                                anchors.rightMargin: 24
                                 spacing: 16
 
                                 // Like Button
                                 RippleButton {
+                                    padding: 0
                                     Layout.preferredWidth: 40
                                     Layout.preferredHeight: 40
                                     buttonRadius: 20
                                     colBackground: "transparent"
-                                    colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.1)
+                                    colBackgroundHover: ColorUtils.applyAlpha(root.pillContentColor, 0.15)
                                     contentItem: MaterialSymbol {
-                                        anchors.centerIn: parent
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
                                         text: root.currentTrackLiked ? "favorite" : "favorite_border"
-                                        color: root.currentTrackLiked ? Appearance.colors.colHeart : root.contentColor
+                                        color: root.currentTrackLiked ? Appearance.colors.colHeart : root.pillContentColor
                                         iconSize: 22
                                     }
                                     onClicked: root.toggleCurrentTrackLike()
                                 }
 
                                 // Timeline
-                                StyledText {
+                                Text {
+                                    verticalAlignment: Text.AlignVCenter
+                                    Layout.preferredWidth: 40
+                                    horizontalAlignment: Text.AlignRight
                                     text: StringUtils.formatTime(root.trackPositionSec)
-                                    color: root.secondaryContentColor
+                                    color: ColorUtils.applyAlpha(root.pillContentColor, 0.7)
                                     font.pixelSize: 12
+                                    font.family: Appearance.font.family.numbers
+                                    font.hintingPreference: Font.PreferDefaultHinting
                                 }
 
                                 StyledSlider {
@@ -1429,9 +1437,9 @@ FocusScope {
                                     
                                     // Sleeker timeline style
                                     configuration: StyledSlider.Configuration.Sleek
-                                    trackColor: ColorUtils.applyAlpha(root.contentColor, 0.15)
-                                    highlightColor: root.pillColor
-                                    handleColor: root.pillColor
+                                    trackColor: ColorUtils.applyAlpha(root.pillContentColor, 0.2)
+                                    highlightColor: root.pillContentColor
+                                    handleColor: root.pillContentColor
 
                                     onMoved: {
                                         if (root.trackDurationSec > 0) {
@@ -1440,27 +1448,34 @@ FocusScope {
                                     }
                                 }
 
-                                StyledText {
+                                Text {
+                                    verticalAlignment: Text.AlignVCenter
+                                    Layout.preferredWidth: 40
+                                    horizontalAlignment: Text.AlignLeft
                                     text: StringUtils.formatTime(root.trackDurationSec)
-                                    color: root.secondaryContentColor
+                                    color: ColorUtils.applyAlpha(root.pillContentColor, 0.7)
                                     font.pixelSize: 12
+                                    font.family: Appearance.font.family.numbers
+                                    font.hintingPreference: Font.PreferDefaultHinting
                                 }
 
                                 // Controls
                                 RowLayout {
-                                    spacing: 8
+                                    spacing: 16
                                     
                                     RippleButton {
+                                        padding: 0
                                         Layout.preferredWidth: 36; Layout.preferredHeight: 36; buttonRadius: 18
-                                        colBackground: "transparent"; colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.1)
-                                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: "skip_previous"; color: root.contentColor; iconSize: 24 }
+                                        colBackground: "transparent"; colBackgroundHover: ColorUtils.applyAlpha(root.pillContentColor, 0.15)
+                                        contentItem: MaterialSymbol { horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; text: "skip_previous"; color: root.pillContentColor; iconSize: 24 }
                                         onClicked: root.sendCommand({"command": "previous"})
                                     }
                                     
                                     RippleButton {
+                                        padding: 0
                                         Layout.preferredWidth: 48; Layout.preferredHeight: 48; buttonRadius: 24
-                                        colBackground: root.pillColor; colBackgroundHover: root.pillColorHover
-                                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: root.playbackPaused ? "play_arrow" : "pause"; color: root.pillContentColor; iconSize: 28 }
+                                        colBackground: root.pillContentColor; colBackgroundHover: ColorUtils.applyAlpha(root.pillContentColor, 0.85)
+                                        contentItem: MaterialSymbol { horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; text: root.playbackPaused ? "play_arrow" : "pause"; color: root.pillColor; iconSize: 28 }
                                         onClicked: {
                                             if (root.playbackPaused) root.sendCommand({"command": "resume"})
                                             else root.sendCommand({"command": "pause"})
@@ -1468,9 +1483,10 @@ FocusScope {
                                     }
                                     
                                     RippleButton {
+                                        padding: 0
                                         Layout.preferredWidth: 36; Layout.preferredHeight: 36; buttonRadius: 18
-                                        colBackground: "transparent"; colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.1)
-                                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: "skip_next"; color: root.contentColor; iconSize: 24 }
+                                        colBackground: "transparent"; colBackgroundHover: ColorUtils.applyAlpha(root.pillContentColor, 0.15)
+                                        contentItem: MaterialSymbol { horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; text: "skip_next"; color: root.pillContentColor; iconSize: 24 }
                                         onClicked: root.sendCommand({"command": "next"})
                                     }
                                     
@@ -1478,21 +1494,21 @@ FocusScope {
 
                                     // Toggle Sidebar Button
                                     RippleButton {
+                                        padding: 0
                                         Layout.preferredWidth: 40
                                         Layout.preferredHeight: 40
                                         buttonRadius: 20
-                                        colBackground: root.rightSidebarVisible ? ColorUtils.applyAlpha(root.contentColor, 0.1) : "transparent"
-                                        colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.2)
+                                        colBackground: root.rightSidebarVisible ? ColorUtils.applyAlpha(root.pillContentColor, 0.15) : "transparent"
+                                        colBackgroundHover: ColorUtils.applyAlpha(root.pillContentColor, 0.25)
                                         contentItem: MaterialSymbol { 
-                                            anchors.centerIn: parent; text: "queue_music"
-                                            color: root.contentColor; iconSize: 22 
+                                            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; text: "queue_music"
+                                            color: root.pillContentColor; iconSize: 22 
                                         }
                                         onClicked: root.rightSidebarVisible = !root.rightSidebarVisible
                                     }
                                 }
                             }
                         }
-                    }
                 }
 
                 // Right Sidebar Panel (Reimagined from Miniplayer)

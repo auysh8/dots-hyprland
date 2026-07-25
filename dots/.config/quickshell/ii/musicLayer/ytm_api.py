@@ -880,7 +880,7 @@ class YTMClient:
 
                     seen_vids.add(vid)
                     index += 1
-                    if len(recent_tracks) >= 10:
+                    if len(recent_tracks) >= 15:
                         break
 
                 if recent_tracks:

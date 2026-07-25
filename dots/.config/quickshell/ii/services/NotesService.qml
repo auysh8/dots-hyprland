@@ -16,7 +16,6 @@ Singleton {
 
     property bool open: false
     property var notes: []
-    property string selectedNoteId: ""
     property bool saving: false
     property string filePath: FileUtils.trimFileProtocol(`${Directories.state}/user/notes_collection.json`)
 
@@ -41,7 +40,6 @@ Singleton {
         }
         notes.push(note)
         root.notes = notes.slice(0) // trigger change
-        selectedNoteId = note.id
         save()
         return note.id
     }
@@ -62,21 +60,11 @@ Singleton {
 
     function deleteNote(id: string) {
         root.notes = notes.filter(n => n.id !== id)
-        if (selectedNoteId === id) {
-            selectedNoteId = notes.length > 0 ? notes[0].id : ""
-        }
         save()
     }
 
     function getNote(id: string) {
         return notes.find(n => n.id === id) || null
-    }
-
-    function getSelectedNote() {
-        if (selectedNoteId === "" && notes.length > 0) {
-            selectedNoteId = notes[0].id
-        }
-        return getNote(selectedNoteId)
     }
 
     function setNoteColor(id: string, color: string) {

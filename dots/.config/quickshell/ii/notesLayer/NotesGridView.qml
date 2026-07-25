@@ -14,7 +14,6 @@ Item {
     signal noteClicked(string noteId)
 
     property string searchQuery: ""
-    property bool showSearch: false
 
     ColumnLayout {
         anchors.fill: parent
@@ -26,138 +25,27 @@ Item {
             Layout.fillWidth: true
             spacing: 8
 
-            // Title — fades out when search is active
+            // Title
             StyledText {
-                opacity: root.showSearch ? 0 : 1
-                visible: opacity > 0
                 text: "Notes"
                 font.pixelSize: Appearance.font.pixelSize.huge * 1.8
                 font.family: Appearance.font.family.title
                 font.weight: Font.Bold
                 color: Appearance.colors.colOnLayer0
-                Behavior on opacity {
-                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-                }
-            }
-
-            // Animated inline search bar — fades in as overlay
-            Item {
-                Layout.fillWidth: true
-                implicitHeight: 44
-                opacity: root.showSearch ? 1 : 0
-                scale: root.showSearch ? 1 : 0.96
-                transformOrigin: Item.Left
-                visible: opacity > 0
-
-                Behavior on opacity {
-                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-                }
-                Behavior on scale {
-                    NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 0.5 }
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: Appearance.rounding.full
-                    color: Appearance.colors.colLayer2
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 16
-                        anchors.rightMargin: 16
-                        spacing: 10
-
-                        MaterialSymbol {
-                            text: "search"
-                            iconSize: 20
-                            color: Appearance.colors.colSubtext
-                        }
-
-                        StyledTextInput {
-                            id: searchInput
-                            Layout.fillWidth: true
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            color: Appearance.colors.colOnLayer2
-                            clip: true
-                            onTextChanged: root.searchQuery = text
-                            focus: root.showSearch
-
-                            Text {
-                                anchors.fill: parent
-                                verticalAlignment: Text.AlignVCenter
-                                text: "Search notes..."
-                                font: searchInput.font
-                                color: Appearance.colors.colSubtext
-                                visible: !searchInput.text && !searchInput.activeFocus
-                            }
-                        }
-
-                        // Clear search button
-                        RippleButton {
-                            visible: searchInput.text.length > 0
-                            implicitWidth: 28
-                            implicitHeight: 28
-                            buttonRadius: Appearance.rounding.full
-                            contentItem: MaterialSymbol {
-                                anchors.centerIn: parent
-                                text: "close"
-                                iconSize: 16
-                                color: Appearance.colors.colSubtext
-                            }
-                            onClicked: {
-                                searchInput.text = ""
-                                root.searchQuery = ""
-                            }
-                        }
-                    }
-                }
             }
 
             Item { Layout.fillWidth: true }
 
-            // Search toggle — uses colLayer2 when active to match the search bar color
-            RippleButton {
-                implicitWidth: 40
-                implicitHeight: 40
-                buttonRadius: Appearance.rounding.full
-                toggled: root.showSearch
-                colBackground: root.showSearch
-                    ? Appearance.colors.colLayer2
-                    : "transparent"
-                colBackgroundHover: root.showSearch
-                    ? Appearance.colors.colLayer2Hover
-                    : Appearance.colors.colLayer1Hover
-                contentItem: MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "search"
-                    iconSize: 22
-                    color: Appearance.colors.colOnLayer0
-                }
-                onClicked: {
-                    root.showSearch = !root.showSearch
-                    if (!root.showSearch) {
-                        searchInput.text = ""
-                        root.searchQuery = ""
-                    }
-                }
-                StyledToolTip { text: "Search notes" }
+            ToolbarTextField {
+                id: searchInput
+                Layout.preferredWidth: 250
+                Layout.preferredHeight: 40
+                Layout.fillHeight: false
+                placeholderText: "Search notes..."
+                onTextChanged: root.searchQuery = text
             }
 
-            // Settings (placeholder — no functionality yet)
-            RippleButton {
-                implicitWidth: 40
-                implicitHeight: 40
-                buttonRadius: Appearance.rounding.full
-                colBackground: "transparent"
-                colBackgroundHover: Appearance.colors.colLayer1Hover
-                contentItem: MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "settings"
-                    iconSize: 22
-                    color: Appearance.colors.colOnLayer0
-                }
-                StyledToolTip { text: "Settings (coming soon)" }
-            }
+
         }
 
         // ── Notes Grid ───────────────────────────────────────────────────────

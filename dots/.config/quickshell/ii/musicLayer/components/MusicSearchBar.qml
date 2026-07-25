@@ -21,7 +21,8 @@ Item {
         height: 48
         radius: 24
         color: rootContext.pillColor
-        border.width: 0
+        border.width: 1
+        border.color: ColorUtils.applyAlpha(rootContext.pillContentColor, 0.15)
         clip: true
         
         RowLayout {
