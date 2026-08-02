@@ -194,11 +194,28 @@ Singleton {
     }
 
     // Status update
+    property bool pendingUpdate: false
+
     function update() {
+        if (updateConnectionType.running || wifiStatusProcess.running ||
+            updateNetworkName.running || updateNetworkStrength.running) {
+            pendingUpdate = true;
+            return;
+        }
         updateConnectionType.startCheck();
-        wifiStatusProcess.running = true
+        wifiStatusProcess.running = true;
         updateNetworkName.running = true;
         updateNetworkStrength.running = true;
+    }
+
+    function maybeRunPendingUpdate() {
+        if (!pendingUpdate)
+            return;
+        if (updateConnectionType.running || wifiStatusProcess.running ||
+            updateNetworkName.running || updateNetworkStrength.running)
+            return;
+        pendingUpdate = false;
+        update();
     }
 
     Process {
@@ -260,6 +277,7 @@ Singleton {
             root.ethernet = hasEthernet;
             root.wifi = hasWifi;
         }
+        onRunningChanged: if (!running) root.maybeRunPendingUpdate()
     }
 
     Process {
@@ -272,6 +290,7 @@ Singleton {
                 root.networkName = data.trim();
             }
         }
+        onRunningChanged: if (!running) root.maybeRunPendingUpdate()
     }
 
     Process {
@@ -290,6 +309,7 @@ Singleton {
                     : (root.active?.strength ?? 0);
             }
         }
+        onRunningChanged: if (!running) root.maybeRunPendingUpdate()
     }
 
     Process {
@@ -305,6 +325,7 @@ Singleton {
                 root.wifiEnabled = text.trim() === "enabled";
             }
         }
+        onRunningChanged: if (!running) root.maybeRunPendingUpdate()
     }
 
     Process {
