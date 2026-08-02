@@ -142,6 +142,7 @@ DockButton {
     }
 
     onClicked: {
+        launchAnims.play(Config.options.dock.launchAnimation);
         if (appToplevel.toplevels.length === 0) {
             root.desktopEntry?.execute();
             return;
@@ -190,6 +191,9 @@ DockButton {
                     verticalCenter: parent.verticalCenter
                 }
                 active: !root.isSeparator
+                scale: launchAnims.scale
+                rotation: launchAnims.rot
+                transformOrigin: Item.Center
                 sourceComponent: IconImage {
                     source: Quickshell.iconPath(AppSearch.guessIcon(appToplevel.appId), "image-missing")
                     implicitSize: root.iconSize
@@ -235,5 +239,9 @@ DockButton {
                 }
             }
         }
+    }
+
+    DockLaunchAnimations {
+        id: launchAnims
     }
 }
