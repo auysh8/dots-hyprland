@@ -19,8 +19,6 @@ Item {
     property real audioSizeMb: 0
     property real artCount: 0
     property real artSizeMb: 0
-    property real canvasVideoCount: 0
-    property real canvasVideoSizeMb: 0
     property real totalSizeMb: 0
     property real maxSizeMb: 500
 
@@ -49,8 +47,6 @@ Item {
         root.audioSizeMb = (data.audio_size_mb || 0)
         root.artCount = data.art_count || 0
         root.artSizeMb = (data.art_size_mb || 0)
-        root.canvasVideoCount = data.canvas_video_count || 0
-        root.canvasVideoSizeMb = (data.canvas_video_size_mb || 0)
         root.totalSizeMb = (data.total_size_mb || 0)
         root.maxSizeMb = (data.max_size_mb || 500)
         root.utilization = (data.utilization || 0)
@@ -270,13 +266,6 @@ Item {
                 count: root.artCount
                 sizeText: root.artSizeMb.toFixed(1) + " MB"
                 clearWhat: "art"
-            }
-            StatRow {
-                icon: "videocam"
-                label: "Canvas videos"
-                count: root.canvasVideoCount
-                sizeText: root.canvasVideoSizeMb.toFixed(1) + " MB"
-                clearWhat: "canvas"
             }
         }
 

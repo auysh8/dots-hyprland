@@ -2,11 +2,18 @@
 import json
 import os
 import signal
+import socket
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
 from queue import Queue
+
+# Force IPv4 socket resolution to prevent urllib3/requests from hanging on IPv6
+_orig_getaddrinfo = socket.getaddrinfo
+def _ipv4_preferred_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+socket.getaddrinfo = _ipv4_preferred_getaddrinfo
 
 from mpris_server import MprisServer, PYDBUS_AVAILABLE
 from ytm_api import YTMClient

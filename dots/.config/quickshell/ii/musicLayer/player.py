@@ -221,6 +221,87 @@ class Player:
 
 
 
+    def _fetch_stream_url(self, video_id, token=None):
+        """
+        Fetch direct audio stream URL using multi-client fallback strategy (InnerTube API -> yt-dlp mobile clients).
+        """
+        # Tier 1: Direct InnerTube / ytmusicapi check
+        if self.api and self.api.ytm:
+            try:
+                self.log(f"Attempting direct InnerTube stream resolution for {video_id}...")
+                song_data = self.api.ytm.get_song(video_id)
+                formats = song_data.get("streamingData", {}).get("adaptiveFormats", [])
+                audio_formats = [f for f in formats if f.get("mimeType", "").startswith("audio/")]
+                direct_urls = [f for f in audio_formats if f.get("url")]
+                if direct_urls:
+                    direct_urls.sort(key=lambda x: int(x.get("bitrate", 0)), reverse=True)
+                    url = direct_urls[0].get("url")
+                    if url:
+                        self.log(f"Direct InnerTube stream URL obtained (bitrate: {direct_urls[0].get('bitrate')})")
+                        return url
+            except Exception as e:
+                self.log(f"Direct InnerTube resolution skipped/failed: {e}")
+
+        # Tier 2: Multi-client mobile/VR fallback with strict 15s timeout
+        self.log(f"Fetching stream URL via Mobile & VR client fallback for {video_id}...")
+        ytdlp_bin = self._resolve_ytdlp_path()
+        cmd = [
+            ytdlp_bin,
+            "-f", "bestaudio/best",
+            "-g",
+            "--no-warnings",
+            "--no-playlist",
+            "--force-ipv4",
+            "--socket-timeout", "10",
+            "--extractor-args", "youtube:player_client=ios,mweb,android_vr",
+            f"https://www.youtube.com/watch?v={video_id}"
+        ]
+        proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self._ytdlp_proc = proc
+        stdout, stderr = "", ""
+        try:
+            stdout, stderr = proc.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            if proc.poll() is None:
+                proc.kill()
+            self._ytdlp_proc = None
+            self.log("yt-dlp multi-client timeout after 15s - trying mweb fallback...")
+            cmd_fallback = [
+                ytdlp_bin,
+                "-f", "bestaudio/best",
+                "-g",
+                "--no-warnings",
+                "--no-playlist",
+                "--force-ipv4",
+                "--socket-timeout", "10",
+                "--extractor-args", "youtube:player_client=mweb",
+                f"https://www.youtube.com/watch?v={video_id}"
+            ]
+            proc_fb = subprocess.Popen(cmd_fallback, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            self._ytdlp_proc = proc_fb
+            try:
+                stdout, stderr = proc_fb.communicate(timeout=15)
+            except subprocess.TimeoutExpired:
+                if proc_fb.poll() is None:
+                    proc_fb.kill()
+                self._ytdlp_proc = None
+                raise ValueError("Stream URL fetch timed out on all client fallbacks")
+        finally:
+            self._ytdlp_proc = None
+
+        if token is not None:
+            with self._state_lock:
+                if self._playback_token != token:
+                    self.log("Aborted after stream fetch (superseded)")
+                    return None
+
+        if not stdout or not stdout.strip():
+            self.log(f"yt-dlp error: {stderr.strip() if stderr else 'No output'}")
+            raise ValueError("yt-dlp returned empty output")
+
+        stream_url = stdout.strip().split("\n")[-1].strip()
+        return stream_url
+
     def _prefetch_stream_url(self, video_id, title="", artist="", art_url=""):
         # Check cache with TTL — HLS/Proxy URLs are valid for a few hours
         with self._state_lock:
@@ -231,26 +312,12 @@ class Player:
         self.log(f"Background prefetching next URL for gapless playback: {title or video_id}")
         
         try:
-            stream_url = None
-            quality_label = "YouTube Music"
-
-            ytdlp = self._resolve_ytdlp_path()
-            cmd = [
-                ytdlp, "-f", "bestaudio/best", "-g", "--no-warnings",
-                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "--extractor-args", "youtube:player_client=default",
-                f"https://music.youtube.com/watch?v={video_id}"
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120)
-            stream_url = result.stdout.strip().split("\n")[-1].strip()
-            quality_label = "YouTube Music"
-
+            stream_url = self._fetch_stream_url(video_id)
             if stream_url:
                 expiry = time.time() + 6 * 3600  # URLs valid ~6h
                 with self._state_lock:
-                    # Store as (url, expiry, quality_label)
-                    self._stream_cache[video_id] = (stream_url, expiry, quality_label)
-                self.log(f"Gapless URL ready for {video_id} ({quality_label})")
+                    self._stream_cache[video_id] = (stream_url, expiry, "YouTube Music")
+                self.log(f"Gapless URL ready for {video_id} (YouTube Music)")
 
         except Exception as e:
             self.log(f"Failed gapless prefetch: {e}")
@@ -278,12 +345,13 @@ class Player:
                 ytdlp,
                 "-f", format_arg,
                 "--no-warnings", "--no-playlist",
+                "--force-ipv4",
+                "--socket-timeout", "10",
                 "--extract-audio", "--audio-format", "m4a",
                 "--audio-quality", quality_arg,
-                "--user-agent", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
-                "--extractor-args", "youtube:player_client=default",
+                "--extractor-args", "youtube:player_client=ios,mweb,android_vr",
                 "--output", dest_path,
-                f"https://music.youtube.com/watch?v={video_id}",
+                f"https://www.youtube.com/watch?v={video_id}",
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
             if result.returncode == 0:
@@ -468,27 +536,7 @@ class Player:
                 self.log(f"Using pre-fetched gapless URL ({quality})")
             else:
                 self.log("Fetching stream URL...")
-                cmd = [
-                    self._resolve_ytdlp_path(), "-f", "bestaudio/best", "-g", "--no-warnings", 
-                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "--extractor-args", "youtube:player_client=default",
-                    f"https://music.youtube.com/watch?v={video_id}"
-                ]
-                proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                self._ytdlp_proc = proc
-                stdout, stderr = proc.communicate(timeout=120)
-                self._ytdlp_proc = None
-                
-                with self._state_lock:
-                    if self._playback_token != token:
-                        self.log("Aborted after stream fetch (superseded)")
-                        return
-
-                if proc.returncode != 0:
-                    self.log(f"yt-dlp error: {stderr}")
-                    raise ValueError(f"yt-dlp exited with code {proc.returncode}")
-                    
-                stream_url = stdout.strip().split("\n")[-1].strip()
+                stream_url = self._fetch_stream_url(video_id, token)
                 self.log(f"Stream URL fetched")
 
 
@@ -504,8 +552,12 @@ class Player:
 
             try:
                 self.log(f"Getting art cache for: {art_url[:50] if art_url else 'None'}")
-                art_file_path = self.cache.get_art_path(art_url) if art_url else None
-                self.log(f"Art cache result: {'HIT' if art_file_path else 'MISS'}")
+                if art_url and art_url.startswith("file://"):
+                    art_file_path = art_url[7:]
+                    self.log(f"Art cache result: HIT (local file)")
+                else:
+                    art_file_path = self.cache.get_art_path(art_url) if art_url else None
+                    self.log(f"Art cache result: {'HIT' if art_file_path else 'MISS'}")
             except Exception as e:
                 import traceback
                 self.log(f"Art cache ERROR: {e}")
@@ -599,6 +651,16 @@ class Player:
 
             # ── Deferred audio caching ─────────────────────────────────────────
             is_live_stream = not stream_url.startswith("file://")
+            if is_live_stream:
+                def _bg_cache_audio():
+                    try:
+                        self._download_audio_to_cache(video_id, title)
+                    except Exception as e:
+                        self.log(f"[Cache] Audio caching failed: {e}")
+                if getattr(self, 'executor', None):
+                    self.executor.submit(_bg_cache_audio)
+                else:
+                    threading.Thread(target=_bg_cache_audio, daemon=True).start()
 
             self.send_response(
                 self._build_track_payload(

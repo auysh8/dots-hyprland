@@ -136,7 +136,7 @@ Item {
                             color: root.contentColor
                         }
                         StyledText {
-                            text: "Manage downloaded audio, art & canvas"
+                            text: "Manage downloaded audio & art"
                             font.pixelSize: 11
                             color: root.subtleColor
                         }

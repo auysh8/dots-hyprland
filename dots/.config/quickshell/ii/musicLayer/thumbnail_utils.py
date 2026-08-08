@@ -29,10 +29,17 @@ def normalize_square_art_url(art_url: str, size: int = 544) -> str:
     art = art_url or ""
     if not art:
         return ""
-    if "=w" in art and "-h" in art:
-        art = re.sub(r"=w\d+-h\d+", f"=w{size}-h{size}", art)
+    if "googleusercontent.com" in art and "=w" in art:
+        base_url = art.split("=w")[0]
+        return f"{base_url}=w{size}-h{size}"
     elif "googleusercontent.com" in art and "=s" in art:
-        art = re.sub(r"=s\d+", f"=s{size}", art)
+        base_url = art.split("=s")[0]
+        return f"{base_url}=s{size}"
+    elif "ggpht.com" in art and "=s" in art:
+        base_url = art.split("=s")[0]
+        return f"{base_url}=s{size}"
+    elif "=w" in art and "-h" in art:
+        art = re.sub(r"=w\d+-h\d+.*", f"=w{size}-h{size}", art)
     return art
 
 

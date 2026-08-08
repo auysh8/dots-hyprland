@@ -21,46 +21,45 @@ def extract_cookies():
         os.path.expanduser("~/.zen")
     ]
     
-    profile_path = None
+    candidates = []
     for base in possible_bases:
         if not os.path.exists(base):
             continue
         for root, dirs, files in os.walk(base):
             if "cookies.sqlite" in files:
-                candidate = os.path.join(root, "cookies.sqlite")
-                profile_path = candidate
-                if "release" in root or "Default" in root:
-                    break
-        if profile_path:
-            break
-            
-    if not profile_path or not os.path.exists(profile_path):
+                candidates.append(os.path.join(root, "cookies.sqlite"))
+                
+    if not candidates:
         raise FileNotFoundError(f"Cookies file not found in Zen browser profile paths ({possible_bases})")
 
-    # Copy to temp file to avoid locking issues
-    fd, temp_path = tempfile.mkstemp(suffix=".sqlite")
-    os.close(fd)
-    
-    try:
-        shutil.copy2(profile_path, temp_path)
+    for profile_path in candidates:
+        fd, temp_path = tempfile.mkstemp(suffix=".sqlite")
+        os.close(fd)
         
-        conn = sqlite3.connect(temp_path)
-        cursor = conn.cursor()
-        
-        # Query for Gemini cookies
-        cursor.execute("""
-            SELECT name, value 
-            FROM moz_cookies 
-            WHERE host LIKE '%google.com' 
-            AND name IN ('__Secure-1PSID', '__Secure-1PSIDTS', '__Secure-1PSIDCC')
-        """)
-        
-        cookies = {row[0]: row[1] for row in cursor.fetchall()}
-        conn.close()
-        
-        return cookies
-    finally:
-        os.remove(temp_path)
+        try:
+            shutil.copy2(profile_path, temp_path)
+            
+            conn = sqlite3.connect(temp_path)
+            cursor = conn.cursor()
+            
+            # Query for Gemini cookies
+            cursor.execute("""
+                SELECT name, value 
+                FROM moz_cookies 
+                WHERE host LIKE '%google.com' 
+                AND name IN ('__Secure-1PSID', '__Secure-1PSIDTS', '__Secure-1PSIDCC')
+            """)
+            
+            cookies = {row[0]: row[1] for row in cursor.fetchall()}
+            conn.close()
+            
+            if '__Secure-1PSID' in cookies:
+                return cookies
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    return {}
 
 @app.on_event("startup")
 async def startup_event():

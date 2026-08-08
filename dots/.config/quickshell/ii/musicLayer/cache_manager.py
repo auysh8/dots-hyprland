@@ -484,50 +484,35 @@ class CacheManager:
         with self._meta_lock:
             art_count = sum(1 for e in self.meta.values() if e["type"] == "art")
             audio_count = sum(1 for e in self.meta.values() if e["type"] == "audio")
-            canvas_count = sum(1 for e in self.meta.values() if e["type"] == "canvas")
-
-            # Count actual files in canvas directory because AppleMusic fetcher caches independently
-            cv_count = 0
-            cv_size = 0
-            if self.canvas_video_dir.exists():
-                for f in self.canvas_video_dir.glob("*.mp4"):
-                    cv_count += 1
-                    cv_size += f.stat().st_size
 
             art_size = sum(e["size"] for e in self.meta.values() if e["type"] == "art")
             audio_size = sum(e["size"] for e in self.meta.values() if e["type"] == "audio")
-            canvas_size = sum(e["size"] for e in self.meta.values() if e["type"] == "canvas")
 
-            total_size = art_size + audio_size + canvas_size + cv_size
+            total_size = art_size + audio_size
 
             return {
                 "art_count": art_count,
                 "audio_count": audio_count,
-                "canvas_count": canvas_count,
-                "canvas_video_count": cv_count,
                 "art_size_mb": art_size / 1024 / 1024,
                 "audio_size_mb": audio_size / 1024 / 1024,
-                "canvas_size_mb": canvas_size / 1024 / 1024,
-                "canvas_video_size_mb": cv_size / 1024 / 1024,
                 "total_size_mb": total_size / 1024 / 1024,
                 "max_size_mb": self.max_size_bytes / 1024 / 1024,
                 "utilization": total_size / self.max_size_bytes * 100,
             }
-    def clear(self, clear_art: bool = True, clear_audio: bool = True, clear_canvas: bool = True):
+
+    def clear(self, clear_art: bool = True, clear_audio: bool = True):
         """
         Clear cache.
 
         Args:
             clear_art: Clear album art cache
             clear_audio: Clear audio cache
-            clear_canvas: Clear canvas cache
         """
         with self._meta_lock:
             to_remove = [
                 h for h, e in self.meta.items()
                 if (clear_art and e["type"] == "art") or 
-                   (clear_audio and e["type"] == "audio") or
-                   (clear_canvas and e["type"] in ("canvas", "canvas_video"))
+                   (clear_audio and e["type"] == "audio")
             ]
 
             for file_hash in to_remove:
@@ -538,41 +523,21 @@ class CacheManager:
                 except Exception:
                     pass
                 del self.meta[file_hash]
-            
-            # Manually clear the canvas_videos directory since it's unmanaged by meta
-            if clear_canvas and self.canvas_video_dir.exists():
-                for f in self.canvas_video_dir.glob("*.mp4"):
-                    try:
-                        f.unlink()
-                    except Exception:
-                        pass
 
             self._save_meta()
             self.log(f"Cache cleared: {len(to_remove)} files removed")
 
     def cleanup_orphans(self):
-        """Remove cache files not in metadata and delete old canvas videos."""
+        """Remove cache files not in metadata."""
         orphan_count = 0
-        deleted_canvas_count = 0
-        now = time.time()
         
-        for cache_dir in [self.art_cache_dir, self.audio_cache_dir, self.canvas_video_dir]:
+        for cache_dir in [self.art_cache_dir, self.audio_cache_dir]:
             if not cache_dir.exists():
                 continue
             for file_path in cache_dir.glob("*"):
                 if file_path.suffix == ".tmp":
                     file_path.unlink()
                     orphan_count += 1
-                    continue
-                # Apple Music fetcher manages canvas videos externally, but we should enforce a TTL
-                if cache_dir == self.canvas_video_dir and file_path.suffix == ".mp4":
-                    try:
-                        # 7 days TTL for Apple Music canvases
-                        if now - file_path.stat().st_mtime > 7 * 86400:
-                            file_path.unlink()
-                            deleted_canvas_count += 1
-                    except Exception:
-                        pass
                     continue
                     
                 file_str = str(file_path)

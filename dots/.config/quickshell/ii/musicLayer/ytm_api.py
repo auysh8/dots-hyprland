@@ -305,6 +305,37 @@ class YTMClient:
     def _item_video_id(self, item):
         return item.get("videoId") or item.get("playlistId") or item.get("browseId")
 
+    def _get_cached_art_path(self, art_url: str) -> str | None:
+        if not art_url or art_url.startswith("file://"):
+            return None
+        import hashlib
+        url_hash = hashlib.sha256(art_url.encode('utf-8')).hexdigest()
+        file_path = os.path.join(self.cache_dir, f"{url_hash}.jpg")
+        if os.path.exists(file_path):
+            return file_path
+        return None
+
+    def _preload_art(self, art_url: str) -> str | None:
+        if not art_url or art_url.startswith("file://"):
+            return None
+        cached = self._get_cached_art_path(art_url)
+        if cached:
+            return cached
+        try:
+            import urllib.request, hashlib
+            url_hash = hashlib.sha256(art_url.encode('utf-8')).hexdigest()
+            file_path = os.path.join(self.cache_dir, f"{url_hash}.jpg")
+            req = urllib.request.Request(art_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = resp.read()
+                if data:
+                    with open(file_path, "wb") as f:
+                        f.write(data)
+                    return file_path
+        except Exception:
+            pass
+        return None
+
     def _extract_art_url(self, item, size=544):
         thumbnails = item.get("thumbnails") or item.get("thumbnail") or []
         if isinstance(thumbnails, dict):
@@ -315,10 +346,14 @@ class YTMClient:
         else:
             art = ""
         if art:
-            if "=w" in art and "-h" in art:
-                art = re.sub(r"=w\d+-h\d+", f"=w{size}-h{size}", art)
-            elif "googleusercontent.com" in art and "=s" in art:
-                art = re.sub(r"=s\d+", f"=s{size}", art)
+            from thumbnail_utils import normalize_square_art_url
+            art = normalize_square_art_url(art, size=size)
+            cached = self._get_cached_art_path(art)
+            if cached:
+                return f"file://{cached}"
+            file_path = self._preload_art(art)
+            if file_path:
+                return f"file://{file_path}"
         return art
 
     def _extract_art_url_wide(self, item, width=2880, height=1200):
@@ -353,6 +388,26 @@ class YTMClient:
             if len(target) >= cap:
                 break
 
+    def _preload_section_arts(self, section_items):
+        if not section_items:
+            return section_items
+        urls = [item.get("artUrl", "") for item in section_items if item and item.get("artUrl") and not item.get("artUrl", "").startswith("file://")]
+        if urls:
+            try:
+                from concurrent.futures import ThreadPoolExecutor, wait
+                with ThreadPoolExecutor(max_workers=min(16, len(urls))) as pool:
+                    futures = [pool.submit(self._preload_art, u) for u in urls]
+                    wait(futures, timeout=3.0)
+            except Exception as e:
+                self.log(f"Preload pool error: {e}")
+        for item in section_items:
+            art = item.get("artUrl", "")
+            if art and not art.startswith("file://"):
+                cached = self._get_cached_art_path(art)
+                if cached:
+                    item["artUrl"] = f"file://{cached}"
+        return section_items
+
     def _to_section_items(self, raw_items, limit, index_offset, sent_ids):
         out = []
         for item in raw_items:
@@ -366,7 +421,7 @@ class YTMClient:
             sent_ids.add(vid)
             if len(out) >= limit:
                 break
-        return out
+        return self._preload_section_arts(out)
 
     def _search_songs_for_home(self, query, limit=16):
         try:
@@ -559,7 +614,7 @@ class YTMClient:
             if len(shorts) >= 16:
                 break
 
-        return shorts, discover_title
+        return self._preload_section_arts(shorts), discover_title
 
     def _append_search_songs(self, songs, song_ids, items, song_limit, allowed_types=None):
         for item in items:
