@@ -422,31 +422,6 @@ Item {
             Layout.bottomMargin: 8
             spacing: 8
 
-            // Lyrics Toggle (Keep small and simple)
-            RippleButton {
-                id: lyricsToggle
-
-                implicitWidth: 32
-                implicitHeight: 32
-                buttonRadius: height / 2
-                toggled: LyricsService.open
-
-                colBackground: ColorUtils.applyAlpha(root.contentColor, 0.1)
-                colBackgroundHover: colBackground
-                colBackgroundToggled: root.pillColor
-                colBackgroundToggledHover: colBackgroundToggled
-                colRipple: root.contentColor
-                colRippleToggled: root.pillContentColor
-
-                onClicked: LyricsService.toggle()
-
-                contentItem: MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "lyrics"
-                    iconSize: 18
-                    color: lyricsToggle.toggled ? root.pillContentColor : root.contentColor
-                }
-            }
             Item { Layout.fillWidth: true }
 
             // Previous Button (Oval/Pill with bounce)

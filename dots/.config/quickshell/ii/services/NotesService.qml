@@ -28,7 +28,7 @@ Singleton {
         return Date.now().toString(36) + Math.random().toString(36).substring(2, 8)
     }
 
-    function createNote(title = "", content = ""): string {
+    function createNote(title = "", content = "", pinned = false): string {
         const now = Math.floor(Date.now() / 1000)
         const note = {
             "id": generateId(),
@@ -36,7 +36,8 @@ Singleton {
             "content": content,
             "created": now,
             "modified": now,
-            "color": "default"
+            "color": "default",
+            "pinned": pinned
         }
         notes.push(note)
         root.notes = notes.slice(0) // trigger change
@@ -78,6 +79,17 @@ Singleton {
         }
     }
 
+    function setPinned(id: string, pinned: bool) {
+        for (let i = 0; i < notes.length; i++) {
+            if (notes[i].id === id) {
+                notes[i].pinned = pinned
+                root.notes = notes.slice(0)
+                save()
+                return
+            }
+        }
+    }
+
     function save() {
         notesFileView.setText(JSON.stringify(root.notes, null, 2))
         root.saving = false
@@ -87,9 +99,32 @@ Singleton {
         notesFileView.reload()
     }
 
-    // Sort notes by most recently modified
+    // Sort notes: pinned first, then by most recently modified
     function getSortedNotes() {
-        return notes.slice(0).sort((a, b) => b.modified - a.modified)
+        return notes.slice(0).sort((a, b) => {
+            if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+            return b.modified - a.modified
+        })
+    }
+
+    // Fixed card-accent hues — documented COLOR_RULES §9 exception: card accents
+    // are deliberate design hues that stay independent of wallpaper theming so
+    // notes remain distinguishable. "default" = no accent bar; the gray swatch
+    // in the color picker represents that state.
+    property var noteColors: [
+        { id: "default", label: "Default", color: "#49464A" },
+        { id: "red",     label: "Red",     color: "#F28B82" },
+        { id: "orange",  label: "Orange",  color: "#FFB74D" },
+        { id: "yellow",  label: "Yellow",  color: "#FFF176" },
+        { id: "green",   label: "Green",   color: "#A5D6A7" },
+        { id: "teal",    label: "Teal",    color: "#80CBC4" },
+        { id: "blue",    label: "Blue",    color: "#90CAF9" },
+        { id: "purple",  label: "Purple",  color: "#CE93D8" },
+        { id: "pink",    label: "Pink",    color: "#F48FB1" }
+    ]
+
+    function noteColorFor(id: string) {
+        return noteColors.find(c => c.id === id) || noteColors[0]
     }
 
     function formatDate(timestamp) {

@@ -11,7 +11,6 @@ import "services"
 import "panelFamilies"
 import "kdeConnect"
 import "modules/ii/overview"
-import "lyricsLayer"
 import "notesLayer"
 
 import QtQuick
@@ -27,7 +26,6 @@ ShellRoot {
     ReloadPopup {}
     AppDrawerWindow {}
     OtherPopup {}
-    LyricsWindow {}
     NotesWindow {}
     KDEDrawer {}
 

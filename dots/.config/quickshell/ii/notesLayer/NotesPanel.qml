@@ -56,8 +56,12 @@ FocusScope {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
+            noteId: root.currentNote ? root.currentNote.id : ""
             initialTitle: root.currentNote ? root.currentNote.title : ""
             initialContent: root.currentNote ? root.currentNote.content : ""
+            initialModified: root.currentNote ? root.currentNote.modified : 0
+            initialPinned: root.currentNote ? root.currentNote.pinned : false
+            initialColor: root.currentNote ? root.currentNote.color : "default"
 
             onCancelClicked: {
                 root.localSelectedNoteId = ""

@@ -1,3 +1,0 @@
-module musicLayer
-MusicWindow 1.0 MusicWindow.qml
-MusicApp 1.0 MusicApp.qml
