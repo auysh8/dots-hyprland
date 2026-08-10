@@ -99,11 +99,12 @@ Singleton {
         notesFileView.reload()
     }
 
-    // Sort notes: pinned first, then by most recently modified
+    // Sort notes: pinned first, then by most recently modified, with created timestamp tie-breaker
     function getSortedNotes() {
         return notes.slice(0).sort((a, b) => {
             if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-            return b.modified - a.modified
+            if (b.modified !== a.modified) return b.modified - a.modified
+            return (b.created || 0) - (a.created || 0)
         })
     }
 

@@ -34,9 +34,27 @@ Item {
     readonly property MprisPlayer activePlayer: {
         if (selectedPlayer && availablePlayers.indexOf(selectedPlayer) >= 0) return selectedPlayer
         if (spotifyPlayer && spotifyPlayer.isPlaying) return spotifyPlayer
-        return MprisController.activePlayer ? MprisController.activePlayer : spotifyPlayer
+
+        let primary = MprisController.activePlayer;
+        if (primary && (!primary.trackArtUrl || primary.trackArtUrl.length === 0)) {
+            for (let i = 0; i < availablePlayers.length; ++i) {
+                let p = availablePlayers[i];
+                if (p && p.trackArtUrl && p.trackArtUrl.length > 0) {
+                    let t1 = (primary.trackTitle || "").toLowerCase();
+                    let t2 = (p.trackTitle || "").toLowerCase();
+                    if (t1.length > 0 && (t1.includes(t2) || t2.includes(t1) || p.isPlaying)) {
+                        console.log("[MediaPage] Preferring player with art:", p.identity, "(" + p.dbusName + ")");
+                        return p;
+                    }
+                }
+            }
+        }
+        return primary ? primary : spotifyPlayer
     }
     property bool showPlayerPicker: false
+
+    onActivePlayerChanged: console.log("[MediaPage] activePlayer is now:", activePlayer ? (activePlayer.identity + " | dbus: " + activePlayer.dbusName + " | artUrl: " + activePlayer.trackArtUrl) : "null")
+    onDisplayedArtFilePathChanged: console.log("[MediaPage] displayedArtFilePath is now:", displayedArtFilePath)
 
     function splitTrackMeta(rawTitle, rawArtist) {
         const title = rawTitle || ""
@@ -114,6 +132,23 @@ Item {
             fillMode: Image.PreserveAspectCrop
             visible: false
             asynchronous: true
+
+            onStatusChanged: {
+                if (status === Image.Error && root.displayedArtFilePath !== "") {
+                    artReloadTimer.start()
+                }
+            }
+        }
+
+        Timer {
+            id: artReloadTimer
+            interval: 200
+            repeat: false
+            onTriggered: {
+                var src = bgArt.source
+                bgArt.source = ""
+                bgArt.source = src
+            }
         }
 
         // Apply rounding natively via layer.effect instead of manual masks

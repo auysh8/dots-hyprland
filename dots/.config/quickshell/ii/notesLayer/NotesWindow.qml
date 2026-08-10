@@ -40,13 +40,13 @@ Scope {
 
     IpcHandler {
         target: "notes"
-        function toggle(): void {
+        function toggle() {
             NotesService.toggle()
         }
-        function open(): void {
+        function open() {
             NotesService.open = true
         }
-        function close(): void {
+        function close() {
             root.closeWindow()
         }
     }

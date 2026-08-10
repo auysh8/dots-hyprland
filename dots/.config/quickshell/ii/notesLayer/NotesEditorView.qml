@@ -1,18 +1,14 @@
-import qs.modules.common
-import qs.modules.common.widgets
-import qs.modules.common.functions
-import qs.services
-
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import qs.modules.common
+import qs.modules.common.functions
+import qs.modules.common.widgets
+import qs.services
 
 Item {
     id: root
-
-    signal cancelClicked()
-    signal saveClicked(string title, string content)
 
     property string noteId: ""
     property string initialTitle: ""
@@ -21,38 +17,12 @@ Item {
     property bool initialPinned: false
     property string initialColor: "default"
     property bool isSaving: NotesService.saving
-
     // Single source of truth: synced from the note via the initial* props
     // (handlers re-fire on note switch; manual toggles in the ⋮ menu override)
     property bool pinned: false
     property string activeColor: "default"
-
-    onInitialPinnedChanged: root.pinned = root.initialPinned
-    onInitialColorChanged: root.activeColor = root.initialColor
-
-    onInitialTitleChanged: titleInput.text = initialTitle
-    onInitialContentChanged: contentInput.text = initialContent
-    onInitialModifiedChanged: editedLabel = formatEdited()
-
     // Relative "Edited X ago" label, refreshed every minute
     property string editedLabel: ""
-    Timer {
-        interval: 60000
-        repeat: true
-        running: root.initialModified > 0
-        onTriggered: editedLabel = root.formatEdited()
-    }
-
-    function formatEdited() {
-        if (root.initialModified <= 0) return ""
-        const diff = Math.max(0, Math.floor(Date.now() / 1000) - root.initialModified)
-        if (diff < 60) return "Edited just now"
-        if (diff < 3600) return "Edited " + Math.floor(diff / 60) + "m ago"
-        if (diff < 86400) return "Edited " + Math.floor(diff / 3600) + "h ago"
-        if (diff < 604800) return "Edited " + Math.floor(diff / 86400) + "d ago"
-        return "Edited " + NotesService.formatDate(root.initialModified)
-    }
-
     // ── Overflow menu ────────────────────────────────────────────────────────
     // Config-driven action list: easy to extend by pushing {label, icon, action}.
     // Items with id "pin" have a dynamic label handled in the delegate.
@@ -61,50 +31,96 @@ Item {
     property bool menuOpen: false
     property bool showDeleteDialog: false
     property point menuPosition: Qt.point(0, 0) // Position of the ⋮ button, in root coords
-    property var menuItems: [
-        {
-            id: "pin",
-            label: "Pin note",
-            icon: "push_pin",
-            action: function() {
-                root.pinned = !root.pinned
-                NotesService.setPinned(root.noteId, root.pinned)
-            }
-        },
-        {
-            id: "delete",
-            label: "Delete note",
-            icon: "delete",
-            action: function() {
-                // Menu closes first (delegate), then the modal confirm appears
-                root.showDeleteDialog = true
-            }
-        },
-        {
-            id: "duplicate",
-            label: "Duplicate note",
-            icon: "file_copy",
-            action: function() {
-                // Duplicate what's currently on screen (including unsaved edits),
-                // preserving pin state and accent color
-                const newId = NotesService.createNote(titleInput.text, contentInput.text, root.pinned)
-                NotesService.setNoteColor(newId, root.activeColor)
-            }
-        },
-        {
-            id: "copy",
-            label: "Copy to clipboard",
-            icon: "content_copy",
-            action: function() {
-                Quickshell.clipboardText = contentInput.text
-            }
+    property var menuItems: [{
+        "id": "pin",
+        "label": "Pin note",
+        "icon": "push_pin",
+        "action": function() {
+            root.pinned = !root.pinned;
+            NotesService.setPinned(root.noteId, root.pinned);
         }
-    ]
+    }, {
+        "id": "delete",
+        "label": "Delete note",
+        "icon": "delete",
+        "action": function() {
+            // Menu closes first (delegate), then the modal confirm appears
+            root.showDeleteDialog = true;
+        }
+    }, {
+        "id": "duplicate",
+        "label": "Duplicate note",
+        "icon": "file_copy",
+        "action": function() {
+            // Duplicate what's currently on screen (including unsaved edits),
+            // preserving pin state and accent color
+            const newId = NotesService.createNote(titleInput.text, contentInput.text, root.pinned);
+            NotesService.setNoteColor(newId, root.activeColor);
+        }
+    }, {
+        "id": "copy",
+        "label": "Copy to clipboard",
+        "icon": "content_copy",
+        "action": function() {
+            Quickshell.clipboardText = contentInput.text;
+        }
+    }]
+
+    signal cancelClicked()
+    signal saveClicked(string title, string content)
+
+    function formatEdited() {
+        if (root.initialModified <= 0)
+            return "";
+
+        const diff = Math.max(0, Math.floor(Date.now() / 1000) - root.initialModified);
+        if (diff < 60)
+            return "Edited just now";
+
+        if (diff < 3600)
+            return "Edited " + Math.floor(diff / 60) + "m ago";
+
+        if (diff < 86400)
+            return "Edited " + Math.floor(diff / 3600) + "h ago";
+
+        if (diff < 604800)
+            return "Edited " + Math.floor(diff / 86400) + "d ago";
+
+        return "Edited " + NotesService.formatDate(root.initialModified);
+    }
 
     // A pin action also needs to update the label of the ⋮ button itself
     function menuLabel(item) {
-        if (item.id === "pin") return root.pinned ? "Unpin note" : "Pin note"
-        return item.label
+        if (item.id === "pin")
+            return root.pinned ? "Unpin note" : "Pin note";
+
+        return item.label;
+    }
+
+    // Measure the trigger button's position (in root coordinates) so the menu
+    // can be placed directly beneath it. Mirrors ApplicationDrawer's approach.
+    function updateMenuPosition() {
+        const pos = moreButton.mapToItem(root, 0, 0);
+        root.menuPosition = Qt.point(pos.x, pos.y);
+    }
+
+    onInitialPinnedChanged: root.pinned = root.initialPinned
+    onInitialColorChanged: root.activeColor = root.initialColor
+    onInitialTitleChanged: titleInput.text = initialTitle
+    onInitialContentChanged: contentInput.text = initialContent
+    onInitialModifiedChanged: editedLabel = formatEdited()
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_Escape) {
+            root.menuOpen = false;
+            event.accepted = true;
+        }
+    }
+
+    Timer {
+        interval: 60000
+        repeat: true
+        running: root.initialModified > 0
+        onTriggered: editedLabel = root.formatEdited()
     }
 
     // Clicking outside the menu closes it (WindowDialog dismissal pattern)
@@ -115,20 +131,6 @@ Item {
         acceptedButtons: Qt.AllButtons
         hoverEnabled: true
         onPressed: root.menuOpen = false
-    }
-
-    Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Escape) {
-            root.menuOpen = false
-            event.accepted = true
-        }
-    }
-
-    // Measure the trigger button's position (in root coordinates) so the menu
-    // can be placed directly beneath it. Mirrors ApplicationDrawer's approach.
-    function updateMenuPosition() {
-        const pos = moreButton.mapToItem(root, 0, 0)
-        root.menuPosition = Qt.point(pos.x, pos.y)
     }
 
     ColumnLayout {
@@ -148,6 +150,11 @@ Item {
                 buttonRadius: Appearance.rounding.full
                 colBackground: Appearance.colors.colLayer1
                 colBackgroundHover: Appearance.colors.colLayer2Hover
+                onClicked: root.cancelClicked()
+
+                StyledToolTip {
+                    text: "Discard changes and return"
+                }
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
@@ -156,32 +163,39 @@ Item {
                     color: Appearance.colors.colOnLayer0
                 }
 
-                onClicked: root.cancelClicked()
-                StyledToolTip { text: "Discard changes and return" }
             }
 
-            Item { Layout.fillWidth: true }
+            Item {
+                Layout.fillWidth: true
+            }
 
             // More options (overflow menu)
             RippleButton {
                 id: moreButton
+
                 implicitWidth: 40
                 implicitHeight: 40
                 buttonRadius: Appearance.rounding.full
                 colBackground: root.menuOpen ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer1
                 colBackgroundHover: Appearance.colors.colLayer2Hover
+                onClicked: {
+                    root.menuOpen = !root.menuOpen;
+                    if (root.menuOpen)
+                        root.updateMenuPosition();
+
+                }
+
+                StyledToolTip {
+                    text: "More options"
+                }
+
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
                     text: "more_vert"
                     iconSize: 22
                     color: Appearance.colors.colOnLayer0
                 }
-                StyledToolTip { text: "More options" }
 
-                onClicked: {
-                    root.menuOpen = !root.menuOpen
-                    if (root.menuOpen) root.updateMenuPosition()
-                }
             }
 
             // Save Note
@@ -192,6 +206,11 @@ Item {
                 colBackground: Appearance.colors.colPrimary
                 colBackgroundHover: Appearance.colors.colPrimaryHover
                 colRipple: ColorUtils.transparentize(Appearance.colors.colOnPrimary, 0.85)
+                onClicked: root.saveClicked(titleInput.text, contentInput.text)
+
+                StyledToolTip {
+                    text: root.isSaving ? "Saving..." : "Save Note"
+                }
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
@@ -203,9 +222,9 @@ Item {
                     iconSize: 24
                     fill: 1 // Filled (rounded) variant
                     color: Appearance.colors.colOnPrimary
-
                     // Spin the icon while a save is in flight
                     rotation: 0
+
                     RotationAnimator on rotation {
                         running: root.isSaving
                         from: 0
@@ -213,12 +232,11 @@ Item {
                         duration: 800
                         loops: Animation.Infinite
                     }
+
                 }
 
-                StyledToolTip { text: root.isSaving ? "Saving..." : "Save Note" }
-
-                onClicked: root.saveClicked(titleInput.text, contentInput.text)
             }
+
         }
 
         // ── Editor ──────────────────────────────────────────────────────────
@@ -230,6 +248,7 @@ Item {
             // Title — use StyledTextInput for consistent font/colors/selection
             StyledTextInput {
                 id: titleInput
+
                 Layout.fillWidth: true
                 text: root.initialTitle
                 font.pixelSize: Appearance.font.pixelSize.huge * 1.8
@@ -248,6 +267,7 @@ Item {
                     opacity: 0.5
                     visible: !titleInput.text && !titleInput.activeFocus
                 }
+
             }
 
             // Divider
@@ -265,10 +285,10 @@ Item {
                 // Keep the last line clear of the bottom-left "Edited" label
                 Layout.bottomMargin: 48
                 clip: true
-                ScrollBar.vertical: StyledScrollBar {}
 
                 StyledTextArea {
                     id: contentInput
+
                     width: parent.width
                     text: root.initialContent
                     wrapMode: TextEdit.WrapAnywhere
@@ -281,24 +301,32 @@ Item {
                     font.family: Appearance.font.family.reading
                     font.pixelSize: Appearance.font.pixelSize.large
                 }
+
+                ScrollBar.vertical: StyledScrollBar {
+                }
+
             }
+
         }
+
     }
 
     // ── Overflow menu popup ──────────────────────────────────────────────────
     // Positioned via measured coordinates (ApplicationDrawer pattern): placed
     // just below the ⋮ button, right-aligned to it, clamped to stay on-screen.            // Visuals + reveal animation match the shell's context menus (DockContextMenu):
-            // fade + scale + slide with elementMoveFast easing, shadow fading in with it.
-            // Surface color follows COLOR_RULES.md (elevated floater -> colLayer2Base, same as
-            // ApplicationDrawer's context menu) instead of the near-black m3surfaceContainer.
+    // fade + scale + slide with elementMoveFast easing, shadow fading in with it.
+    // Surface color follows the notes design directive (refine_floating_surface):
+    // elevated floater -> colLayer3Base with a subtle outline border for contrast.
     Item {
         id: overflowMenuOverlay
+
         visible: root.menuOpen || overflowMenu.opacity > 0
         z: 11
         anchors.fill: parent
 
         Rectangle {
             id: overflowMenu
+
             property real revealProgress: root.menuOpen ? 1 : 0
 
             x: Math.max(8, Math.min(root.menuPosition.x + moreButton.width - width, parent.width - width - 8))
@@ -306,19 +334,13 @@ Item {
             width: 200
             implicitHeight: overflowMenuColumn.implicitHeight + 16
             radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer2Base
+            color: Appearance.colors.colLayer3Base
+            border.width: 1
+            border.color: Appearance.colors.colLayer0Border
             opacity: overflowMenu.revealProgress
             scale: 0.96 + overflowMenu.revealProgress * 0.04
             transformOrigin: Item.TopRight
             visible: opacity > 0
-
-            Behavior on revealProgress {
-                NumberAnimation {
-                    duration: Appearance.animation.elementMoveFast.duration
-                    easing.type: Appearance.animation.elementMoveFast.type
-                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                }
-            }
 
             StyledRectangularShadow {
                 target: overflowMenu
@@ -328,6 +350,7 @@ Item {
 
             ColumnLayout {
                 id: overflowMenuColumn
+
                 anchors.fill: parent
                 anchors.margins: 8
                 spacing: 4
@@ -338,17 +361,19 @@ Item {
                     // Shared MenuButton (extended with optional iconText)
                     MenuButton {
                         required property var modelData
+
                         Layout.fillWidth: true
+                        implicitHeight: 44 // Standard MD3 menu item height
                         buttonRadius: Appearance.rounding.small
                         iconText: modelData.icon
                         buttonText: root.menuLabel(modelData)
                         colBackgroundHover: Appearance.colors.colLayer1Hover
-
                         onClicked: {
-                            root.menuOpen = false
-                            modelData.action()
+                            root.menuOpen = false;
+                            modelData.action();
                         }
                     }
+
                 }
 
                 // ── Note color section ──────────────────────────────────────
@@ -378,12 +403,17 @@ Item {
 
                         delegate: RippleButton {
                             required property var modelData
+
                             implicitWidth: 26
                             implicitHeight: 26
                             buttonRadius: Appearance.rounding.full
                             colBackground: modelData.color
                             colBackgroundHover: modelData.color
                             colRipple: ColorUtils.transparentize(modelData.color, 0.5)
+                            onClicked: {
+                                root.activeColor = modelData.id;
+                                NotesService.setNoteColor(root.noteId, modelData.id);
+                            }
 
                             contentItem: MaterialSymbol {
                                 anchors.centerIn: parent
@@ -392,22 +422,28 @@ Item {
                                 fill: 1
                                 // Contrast-aware check: light check on dark swatches (e.g. "default"),
                                 // dark check on the pastel accent swatches
-                                color: root.activeColor === modelData.id
-                                    ? (ColorUtils.isDark(modelData.color)
-                                        ? Qt.lighter(modelData.color, 2.5)
-                                        : Qt.darker(modelData.color, 3))
-                                    : "transparent"
+                                color: root.activeColor === modelData.id ? (ColorUtils.isDark(modelData.color) ? Qt.lighter(modelData.color, 2.5) : Qt.darker(modelData.color, 3)) : "transparent"
                             }
 
-                            onClicked: {
-                                root.activeColor = modelData.id
-                                NotesService.setNoteColor(root.noteId, modelData.id)
-                            }
                         }
+
                     }
+
                 }
+
             }
+
+            Behavior on revealProgress {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                }
+
+            }
+
         }
+
     }
 
     // ── Delete confirmation modal ─────────────────────────────────────────────
@@ -415,6 +451,7 @@ Item {
     // NightLight dialogs): title + warning message + Cancel / destructive Delete.
     WindowDialog {
         id: deleteConfirmDialog
+
         anchors.fill: parent
         z: 20 // Above the menu overlay (11) and its scrim (10)
         show: root.showDeleteDialog
@@ -424,7 +461,6 @@ Item {
         // overflowing at the window edges.
         backgroundWidth: 360
         backgroundHeight: 240
-
         // NOTE: never add `onShowChanged` at this level — an instance-level
         // handler shadows the component's internal show logic (opacity,
         // frozenHeight, open/close timers) and breaks the morph + sizing,
@@ -432,12 +468,15 @@ Item {
         onDismiss: root.showDeleteDialog = false
 
         Connections {
-            target: deleteConfirmDialog
             // QML property-change signals don't carry the new value as an
             // argument, so read the property directly here.
             function onShowChanged() {
-                if (deleteConfirmDialog.show) deleteConfirmDialog.forceActiveFocus()
+                if (deleteConfirmDialog.show)
+                    deleteConfirmDialog.forceActiveFocus();
+
             }
+
+            target: deleteConfirmDialog
         }
 
         WindowDialogTitle {
@@ -465,13 +504,15 @@ Item {
                 colBackgroundHover: Appearance.colors.colErrorHover
                 colText: Appearance.colors.colOnError
                 onClicked: {
-                    root.showDeleteDialog = false
+                    root.showDeleteDialog = false;
                     // NotesPanel's onNotesChanged detects the missing note and
                     // automatically returns to the grid view.
-                    NotesService.deleteNote(root.noteId)
+                    NotesService.deleteNote(root.noteId);
                 }
             }
+
         }
+
     }
 
     // ── Last-edited indicator ─────────────────────────────────────────────────
@@ -485,4 +526,5 @@ Item {
         color: Appearance.colors.colSubtext
         opacity: 0.6
     }
+
 }

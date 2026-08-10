@@ -44,20 +44,22 @@ Singleton {
         property var activeTrack;
 
         readonly property bool hasActivePlasmaIntegration: Mpris.players.values.some(
-                p => p.dbusName?.startsWith("org.mpris.MediaPlayer2.plasma-browser-integration")
+                p => (p.dbusName || "").includes("plasma-browser-integration")
         )
         function isRealPlayer(player) {
-        if (!Config.options.media.filterDuplicatePlayers) {
+            if (!Config.options.media.filterDuplicatePlayers) {
+                return true;
+            }
+            let name = player.dbusName || "";
+            let isBrowserNative = name.includes("firefox") || name.includes("chromium") || name.includes("chrome");
+            if (hasActivePlasmaIntegration && isBrowserNative && !name.includes("plasma-browser-integration")) {
+                console.log("[MprisController] Filtering out duplicate native browser player:", name);
+                return false;
+            }
+            if (name.includes("playerctld")) return false;
+            if (name.endsWith(".mpd") && !name.endsWith("MediaPlayer2.mpd")) return false;
             return true;
         }
-        return (
-            // Remove native browser buses only if plasma-browser-integration is actually active on D-Bus
-            !(hasActivePlasmaIntegration && player.dbusName.startsWith("org.mpris.MediaPlayer2.firefox")) && !(hasActivePlasmaIntegration && player.dbusName.startsWith("org.mpris.MediaPlayer2.chromium")) &&
-            // playerctld just copies other buses and we don't need duplicates
-            !player.dbusName?.startsWith('org.mpris.MediaPlayer2.playerctld') &&
-            // Non-instance mpd bus
-            !(player.dbusName?.endsWith('.mpd') && !player.dbusName.endsWith('MediaPlayer2.mpd')));
-    }
 
         // Original stuff from fox below
         Instantiator {
@@ -124,7 +126,7 @@ Singleton {
                 function onTrackArtUrlChanged() {
                         // console.log("arturl:", activePlayer.trackArtUrl)
                         // root.updateTrack();
-                        if (root.activePlayer.uniqueId == root.activeTrack.uniqueId && root.activePlayer.trackArtUrl != root.activeTrack.artUrl) {
+                        if (root.activePlayer && root.activeTrack && root.activePlayer.uniqueId == root.activeTrack.uniqueId && root.activePlayer.trackArtUrl != root.activeTrack.artUrl) {
                                 // cantata likes to send cover updates *BEFORE* updating the track info.
                                 // as such, art url changes shouldn't be able to break the reverse animation
                                 const r = root.__reverse;
@@ -138,13 +140,15 @@ Singleton {
         onActivePlayerChanged: this.updateTrack();
 
         function updateTrack() {
-                //console.log(`update: ${this.activePlayer?.trackTitle ?? ""} : ${this.activePlayer?.trackArtists}`)
+                let meta = this.activePlayer?.metadata || {};
+                let trackUrl = meta["xesam:url"] || meta["url"] || this.activePlayer?.url || this.activePlayer?.trackUrl || "";
                 this.activeTrack = {
                         uniqueId: this.activePlayer?.uniqueId ?? 0,
                         artUrl: this.activePlayer?.trackArtUrl ?? "",
                         title: this.activePlayer?.trackTitle || Translation.tr("Unknown Title"),
                         artist: this.activePlayer?.trackArtist || Translation.tr("Unknown Artist"),
                         album: this.activePlayer?.trackAlbum || Translation.tr("Unknown Album"),
+                        url: String(trackUrl),
                 };
 
                 this.trackChanged(__reverse);

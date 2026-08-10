@@ -1,66 +1,266 @@
-import qs.modules.common
-import qs.modules.common.widgets
-import qs.modules.common.functions
-import qs.services
-
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
+import qs.modules.common
+import qs.modules.common.functions
+import qs.modules.common.widgets
+import qs.services
 
 Item {
     id: root
 
+    property string searchQuery: ""
+    // Google Keep-style masonry settings
+    property int columnCount: 3
+    // ── Card overflow menu (MD3 note card action: more_vert) ───────────────
+    // Hosted here (a sibling of the flickable) so the menu can never be
+    // clipped by the grid's scroll clip. Same pattern as NotesEditorView's
+    // overflow menu: fade + scale reveal, colLayer2Base surface, shadow.
+    property string cardMenuNoteId: ""
+    property bool cardMenuOpen: false
+    property point cardMenuPos: Qt.point(0, 0)
+    readonly property int cardMenuWidth: 200
+    // Config-driven action list (same style as NotesEditorView.menuItems).
+    // Items with id "pin" have a dynamic label handled in the delegate.
+    property var cardMenuItems: [{
+        "id": "pin",
+        "label": "Pin note",
+        "icon": "push_pin",
+        "action": function() {
+            const note = NotesService.getNote(root.cardMenuNoteId);
+            if (note)
+                NotesService.setPinned(note.id, !note.pinned);
+        }
+    }, {
+        "id": "delete",
+        "label": "Delete note",
+        "icon": "delete",
+        "action": function() {
+            NotesService.deleteNote(root.cardMenuNoteId);
+        }
+    }]
+
     signal addClicked()
     signal noteClicked(string noteId)
 
-    property string searchQuery: ""
+    // A pin action also needs to update the menu row's label
+    function cardMenuLabel(item) {
+        const note = NotesService.getNote(root.cardMenuNoteId);
+        if (item.id === "pin")
+            return note && note.pinned ? "Unpin note" : "Pin note";
 
-    // Google Keep-style masonry settings
-    property int columnCount: 3
+        return item.label;
+    }
+
+    // Active accent color of the note the card menu is open for
+    function cardMenuActiveColor() {
+        const note = NotesService.getNote(root.cardMenuNoteId);
+        return note ? note.color : "default";
+    }
+
+    // Position the menu just below the card's more_vert button (top-right of
+    // the card), clamped to stay on-screen. `card` is the NoteCard delegate.
+    function openCardMenu(noteId, card) {
+        root.cardMenuNoteId = noteId;
+        // Map top-right of card (card.width, 36) to root item coordinates
+        const mapped = card.mapToItem(root, card.width, 36);
+        let menuX = mapped.x - root.cardMenuWidth;
+        let menuY = mapped.y;
+
+        // Clamp cleanly inside window boundaries
+        menuX = Math.max(16, Math.min(menuX, root.width - root.cardMenuWidth - 16));
+        menuY = Math.max(16, Math.min(menuY, root.height - 250));
+
+        root.cardMenuPos = Qt.point(menuX, menuY);
+        root.cardMenuOpen = true;
+    }
 
     // Notes visible in the current view (sorted, then filtered by search).
-    // Single source of truth for the header count, the masonry columns and the
-    // empty state.
     function visibleNotes() {
-        const sorted = NotesService.getSortedNotes()
+        const sorted = NotesService.getSortedNotes();
         if (root.searchQuery.length > 0) {
-            const q = root.searchQuery.toLowerCase()
-            return sorted.filter(n =>
-                n.title.toLowerCase().includes(q) ||
-                n.content.toLowerCase().includes(q))
+            const q = root.searchQuery.toLowerCase();
+            return sorted.filter((n) => {
+                return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+            });
         }
-        return sorted
+        return sorted;
     }
 
-    // Rough content-derived height estimate, used only to balance the masonry
-    // columns (Keep fills the currently-shortest column). Needs to be roughly
-    // monotonic with the card's real content height; exactness isn't required.
+    function pinnedNotes() {
+        return root.visibleNotes().filter(n => n.pinned);
+    }
+
+    function unpinnedNotes() {
+        return root.visibleNotes().filter(n => !n.pinned);
+    }
+
+    // Content-derived height estimate for masonry layout column balancing fallback
     function predictedNoteHeight(note) {
-        const title = note.title || "Untitled"
-        const content = (note.content || "").split("\n").filter(l => l.trim().length > 0).join("\n")
-        const titleLines = Math.min(2, Math.max(1, Math.ceil(title.length / 30)))
-        const previewLines = Math.min(6, Math.max(1, Math.ceil(content.length / 48)))
-        return 40 + titleLines * 22 + 10 + previewLines * 18
+        if (!note) return 120;
+        const title = note.title || "";
+        const content = (note.content || "").split("\n").filter((l) => {
+            return l.trim().length > 0;
+        }).join("\n");
+        const titleLines = Math.min(3, Math.max(1, Math.ceil(title.length / 24)));
+        const previewLines = Math.min(10, Math.max(1, Math.ceil(content.length / 36)));
+        return 56 + titleLines * 24 + 12 + previewLines * 20;
     }
 
-    // Split visible notes across the columns by shortest-column.
-    function columnNotes(column) {
-        const list = root.visibleNotes()
-        const heights = []
-        const cols = []
-        for (let i = 0; i < root.columnCount; i++) {
-            heights.push(0)
-            cols.push([])
+    property var measuredCardHeights: ({})
+    property real totalContainerHeight: 0
+    property real othersHeaderY: 0
+
+    function reportCardHeight(noteId, height) {
+        if (!noteId || height < 60) return;
+        const current = root.measuredCardHeights[noteId] || 0;
+        if (Math.abs(current - height) > 2) {
+            const copy = Object.assign({}, root.measuredCardHeights);
+            copy[noteId] = height;
+            root.measuredCardHeights = copy;
+            root.updateModels();
         }
-        for (const n of list) {
-            let c = 0
-            for (let i = 1; i < root.columnCount; i++) {
-                if (heights[i] < heights[c]) c = i
+    }
+
+    ListModel { id: allNotesModel }
+
+    function updateModels() {
+        const sorted = root.visibleNotes();
+        const pinnedList = sorted.filter(n => n.pinned);
+        const unpinnedList = sorted.filter(n => !n.pinned);
+
+        const spacing = 16;
+        const w = gridScroll.width > 100 ? gridScroll.width : Math.max(300, root.width - 64);
+        const colWidth = (w - spacing * (root.columnCount - 1)) / root.columnCount;
+        const positions = {};
+
+        // 1. Position Pinned Notes (starting below PINNED header at y = 36)
+        let pinnedMaxY = 0;
+        if (pinnedList.length > 0) {
+            const colHeights = [36, 36, 36];
+            for (const note of pinnedList) {
+                let minCol = 0;
+                for (let c = 1; c < root.columnCount; c++) {
+                    if (colHeights[c] < colHeights[minCol]) minCol = c;
+                }
+                const posX = minCol * (colWidth + spacing);
+                const posY = colHeights[minCol];
+                const h = root.measuredCardHeights[note.id] || root.predictedNoteHeight(note);
+                colHeights[minCol] += h + spacing;
+                positions[note.id] = { x: posX, y: posY, width: colWidth };
             }
-            cols[c].push(n)
-            heights[c] += root.predictedNoteHeight(n)
+            pinnedMaxY = Math.max(...colHeights, 36);
         }
-        return cols[column]
+
+        // 2. Position Others (Unpinned) Notes
+        let othersHeaderY = pinnedList.length > 0 ? pinnedMaxY + 20 : 0;
+        let othersMaxY = othersHeaderY;
+
+        if (unpinnedList.length > 0) {
+            const startY = pinnedList.length > 0 ? othersHeaderY + 36 : 0;
+            const colHeights = [startY, startY, startY];
+            for (const note of unpinnedList) {
+                let minCol = 0;
+                for (let c = 1; c < root.columnCount; c++) {
+                    if (colHeights[c] < colHeights[minCol]) minCol = c;
+                }
+                const posX = minCol * (colWidth + spacing);
+                const posY = colHeights[minCol];
+                const h = root.measuredCardHeights[note.id] || root.predictedNoteHeight(note);
+                colHeights[minCol] += h + spacing;
+                positions[note.id] = { x: posX, y: posY, width: colWidth };
+            }
+            othersMaxY = Math.max(...colHeights, startY);
+        }
+
+        root.totalContainerHeight = othersMaxY + 40;
+        root.othersHeaderY = othersHeaderY;
+
+        root.syncListModel(allNotesModel, sorted, positions);
+    }
+
+    function syncListModel(targetModel, list, positions) {
+        if (!targetModel) return;
+
+        // Remove deleted items
+        for (let i = targetModel.count - 1; i >= 0; i--) {
+            const id = targetModel.get(i).id;
+            if (!list.some(n => n.id === id)) {
+                targetModel.remove(i);
+            }
+        }
+
+        // Insert or update items and target coordinates incrementally
+        for (let i = 0; i < list.length; i++) {
+            const note = list[i];
+            const pos = positions[note.id] || { x: 0, y: 0, width: 200 };
+            const dataObj = {
+                "id": note.id || "",
+                "title": note.title || "",
+                "content": note.content || "",
+                "modified": note.modified || 0,
+                "created": note.created || 0,
+                "color": note.color || "default",
+                "pinned": !!note.pinned,
+                "posX": pos.x,
+                "posY": pos.y,
+                "cardWidth": pos.width
+            };
+
+            if (i < targetModel.count) {
+                const current = targetModel.get(i);
+                if (current.id === note.id) {
+                    targetModel.setProperty(i, "posX", dataObj.posX);
+                    targetModel.setProperty(i, "posY", dataObj.posY);
+                    targetModel.setProperty(i, "cardWidth", dataObj.cardWidth);
+                    targetModel.setProperty(i, "title", dataObj.title);
+                    targetModel.setProperty(i, "content", dataObj.content);
+                    targetModel.setProperty(i, "color", dataObj.color);
+                    targetModel.setProperty(i, "pinned", dataObj.pinned);
+                } else {
+                    let existingIndex = -1;
+                    for (let j = i + 1; j < targetModel.count; j++) {
+                        if (targetModel.get(j).id === note.id) {
+                            existingIndex = j;
+                            break;
+                        }
+                    }
+                    if (existingIndex !== -1) {
+                        targetModel.move(existingIndex, i, 1);
+                        targetModel.setProperty(i, "posX", dataObj.posX);
+                        targetModel.setProperty(i, "posY", dataObj.posY);
+                        targetModel.setProperty(i, "cardWidth", dataObj.cardWidth);
+                        targetModel.setProperty(i, "title", dataObj.title);
+                        targetModel.setProperty(i, "content", dataObj.content);
+                        targetModel.setProperty(i, "color", dataObj.color);
+                        targetModel.setProperty(i, "pinned", dataObj.pinned);
+                    } else {
+                        targetModel.insert(i, dataObj);
+                    }
+                }
+            } else {
+                targetModel.append(dataObj);
+            }
+        }
+    }
+
+    Component.onCompleted: updateModels()
+
+    Connections {
+        target: NotesService
+        function onNotesChanged() {
+            root.updateModels();
+        }
+    }
+
+    onSearchQueryChanged: updateModels()
+
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_Escape && root.cardMenuOpen) {
+            root.cardMenuOpen = false;
+            event.accepted = true;
+        }
     }
 
     ColumnLayout {
@@ -68,47 +268,96 @@ Item {
         anchors.margins: 32
         spacing: 20
 
-        // ── Header ──────────────────────────────────────────────────────────
-        RowLayout {
+        // ── Top app bar (MD3 medium: title row + docked search bar) ─────────
+        ColumnLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: 18
 
-            // Title + count
-            ColumnLayout {
-                spacing: 2
+            // Title row — Title Large typography
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
 
-                StyledText {
-                    text: "Notes"
-                    font.pixelSize: Appearance.font.pixelSize.huge * 1.8
-                    font.family: Appearance.font.family.title
-                    font.weight: Font.Bold
-                    color: Appearance.colors.colOnLayer0
-                }
+                ColumnLayout {
+                    spacing: 2
 
-                StyledText {
-                    text: {
-                        const total = NotesService.notes.length
-                        const shown = root.visibleNotes().length
-                        if (root.searchQuery.length > 0)
-                            return shown + " of " + total + (total === 1 ? " note" : " notes")
-                        return total + (total === 1 ? " note" : " notes")
+                    StyledText {
+                        text: "Notes"
+                        font.pixelSize: Appearance.font.pixelSize.huge
+                        font.family: Appearance.font.family.title
+                        font.weight: Font.DemiBold
+                        color: Appearance.colors.colOnLayer0
                     }
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colSubtext
+
+                    StyledText {
+                        text: {
+                            const total = NotesService.notes.length;
+                            const shown = root.visibleNotes().length;
+                            if (root.searchQuery.length > 0)
+                                return shown + " of " + total + (total === 1 ? " note" : " notes");
+
+                            return total + (total === 1 ? " note" : " notes");
+                        }
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                    }
+
                 }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
             }
 
-            Item { Layout.fillWidth: true }
+            // Docked search bar — full pill on surface_container_highest
+            // (colLayer3Base) with a leading search icon.
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 48
+                radius: Appearance.rounding.full
+                color: Appearance.colors.colLayer3Base
 
-            ToolbarTextField {
-                id: searchInput
-                Layout.preferredWidth: 250
-                Layout.preferredHeight: 40
-                Layout.fillHeight: false
-                placeholderText: "Search notes..."
-                onTextChanged: root.searchQuery = text
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 18
+                    anchors.rightMargin: 12
+                    spacing: 12
+
+                    MaterialSymbol {
+                        text: "search"
+                        iconSize: 20
+                        color: Appearance.colors.colSubtext
+                    }
+
+                    TextField {
+                        id: searchInput
+
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        verticalAlignment: Text.AlignVCenter
+                        background: null
+                        padding: 0
+                        placeholderText: "Search notes..."
+                        placeholderTextColor: Appearance.colors.colSubtext
+                        color: Appearance.colors.colOnLayer0
+                        selectedTextColor: Appearance.colors.colOnSecondaryContainer
+                        selectionColor: Appearance.colors.colSecondaryContainer
+                        renderType: Text.NativeRendering
+                        onTextChanged: root.searchQuery = text
+
+                        font {
+                            family: Appearance.font.family.main
+                            pixelSize: Appearance.font.pixelSize.small
+                            hintingPreference: Font.PreferFullHinting
+                            variableAxes: Appearance.font.variableAxes.main
+                        }
+
+                    }
+
+                }
+
             }
-
 
         }
 
@@ -119,57 +368,84 @@ Item {
 
             StyledFlickable {
                 id: gridScroll
+
                 anchors.fill: parent
                 clip: true
                 contentWidth: width
-                contentHeight: masonryRow.implicitHeight + 100 // Extra room above FAB
-                // topMargin gives the first row's rounded corners room to breathe
-                // so they aren't cut off by the flickable's clip boundary
+                contentHeight: mainContainer.implicitHeight + 100 // Extra room above FAB
                 topMargin: Appearance.rounding.verylarge
                 flickableDirection: Flickable.VerticalFlick
                 boundsBehavior: Flickable.StopAtBounds
 
-                // Google Keep-style masonry: cards keep their content-derived
-                // heights and are distributed into fixed columns by
-                // shortest-column, so cards don't align to a uniform row height.
-                Row {
-                    id: masonryRow
+                onWidthChanged: {
+                    if (width > 0) root.updateModels();
+                }
+
+                Item {
+                    id: mainContainer
                     width: gridScroll.width
-                    spacing: 16
+                    implicitHeight: root.totalContainerHeight
+
+                    StyledText {
+                        text: "PINNED"
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.family: Appearance.font.family.title
+                        font.weight: Font.Bold
+                        color: Appearance.colors.colSubtext
+                        opacity: 0.8
+                        visible: root.pinnedNotes().length > 0
+                        y: 0
+                    }
+
+                    StyledText {
+                        text: "OTHERS"
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.family: Appearance.font.family.title
+                        font.weight: Font.Bold
+                        color: Appearance.colors.colSubtext
+                        opacity: 0.8
+                        visible: root.pinnedNotes().length > 0 && root.unpinnedNotes().length > 0
+                        y: root.othersHeaderY
+
+                        Behavior on y {
+                            NumberAnimation {
+                                duration: 350
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
 
                     Repeater {
-                        model: root.columnCount
+                        model: allNotesModel
 
-                        // Column (positioner), not ColumnLayout — QtQuick
-                        // positioners lay out Repeater delegates as their own
-                        // children (the Layouts family does not).
-                        delegate: Column {
-                            id: noteColumn
-                            required property int modelData // column index
-                            width: (masonryRow.width - masonryRow.spacing * (root.columnCount - 1)) / root.columnCount
-                            spacing: 16
+                        delegate: NoteCard {
+                            id: noteCard
+                            required property string id
+                            required property string title
+                            required property string content
+                            required property int modified
+                            required property string color
+                            required property bool pinned
+                            required property real posX
+                            required property real posY
+                            required property real cardWidth
+                            required property int index
 
-                            Repeater {
-                                model: root.columnNotes(modelData)
+                            targetX: posX
+                            targetY: posY
+                            width: cardWidth
 
-                                delegate: NoteCard {
-                                    // `parent` inside a Repeater delegate is
-                                    // the Repeater (0x0), not the positioner,
-                                    // so bind to the column delegate by id.
-                                    width: noteColumn.width
-
-                                    noteId: modelData.id
-                                    noteTitle: modelData.title
-                                    noteContent: modelData.content
-                                    noteModified: modelData.modified
-                                    noteColor: modelData.color
-                                    notePinned: modelData.pinned
-                                    cardIndex: index
-
-                                    onClicked: root.noteClicked(modelData.id)
-                                    onDeleteRequested: NotesService.deleteNote(modelData.id)
-                                }
-                            }
+                            noteId: id
+                            noteTitle: title
+                            noteContent: content
+                            noteModified: modified
+                            noteColor: color
+                            notePinned: pinned
+                            cardIndex: index
+                            onClicked: root.noteClicked(id)
+                            onMoreClicked: root.openCardMenu(id, noteCard)
+                            onDeleteRequested: NotesService.deleteNote(id)
+                            onHeightReported: (id, h) => root.reportCardHeight(id, h)
                         }
                     }
                 }
@@ -178,24 +454,208 @@ Item {
                 PagePlaceholder {
                     shown: root.visibleNotes().length === 0
                     icon: "note_stack"
-                    title: root.searchQuery.length > 0
-                        ? "No notes match your search."
-                        : "No notes yet. Tap + to create one!"
+                    title: root.searchQuery.length > 0 ? "No notes match your search." : "No notes yet. Tap + to create one!"
                 }
+
             }
+
         }
+
     }
 
     // ── Floating Action Button ───────────────────────────────────────────────
-    // Use the shared FloatingActionButton component (qs.modules.common.widgets)
-    FloatingActionButton {
+    // Shared FloatingActionButton (qs.modules.common.widgets) with an MD3
+    // level-3 elevation shadow behind it that separates the button from the
+    // grid content.
+    Item {
+        implicitWidth: fabWidget.implicitWidth
+        implicitHeight: fabWidget.implicitHeight
+
         anchors {
             right: parent.right
             bottom: parent.bottom
             margins: 32
         }
-        iconText: "add"
-        onClicked: root.addClicked()
-        StyledToolTip { text: "New note" }
+
+        // Elevation shadow (level-3) lifting FAB high above scrolling container
+        RectangularShadow {
+            anchors.fill: fabWidget
+            radius: fabWidget.buttonRadius
+            blur: fabWidget.hovered ? 18 : 12
+            offset: Qt.vector2d(0, 3)
+            spread: 1
+            color: ColorUtils.transparentize(Appearance.colors.colShadow, 0.3)
+            cached: true
+
+            Behavior on blur {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                }
+
+            }
+
+        }
+
+        FloatingActionButton {
+            id: fabWidget
+
+            iconText: "add"
+            onClicked: root.addClicked()
+
+            StyledToolTip {
+                text: "New note"
+            }
+
+        }
+
     }
+
+    // ── Card overflow menu popup ─────────────────────────────────────────────
+    // Positioned via measured coordinates (same as NotesEditorView's overflow
+    // menu): placed just below the card's more_vert button, right-aligned to
+    // it, clamped to stay on-screen. Visuals + reveal animation match the
+    // shell's context menus (fade + scale + slide with elementMoveFast easing,
+    // shadow fading in with it). Surface follows COLOR_RULES.md (elevated
+    // floater -> colLayer2Base).
+    MouseArea {
+        anchors.fill: parent
+        visible: root.cardMenuOpen
+        z: 10
+        acceptedButtons: Qt.AllButtons
+        hoverEnabled: true
+        onPressed: root.cardMenuOpen = false
+    }
+
+    Item {
+        id: cardMenuOverlay
+
+        visible: root.cardMenuOpen || cardMenu.opacity > 0
+        z: 11
+        anchors.fill: parent
+
+        Rectangle {
+            id: cardMenu
+
+            property real revealProgress: root.cardMenuOpen ? 1 : 0
+
+            x: root.cardMenuPos.x
+            y: root.cardMenuPos.y
+            width: root.cardMenuWidth
+            implicitHeight: cardMenuColumn.implicitHeight + 16
+            radius: Appearance.rounding.normal
+            // Highest surface (colLayer3Base) so the menu clearly contrasts the
+            // cards beneath it — including pinned cards sitting on colLayer2.
+            color: Appearance.colors.colLayer3Base
+            border.width: 1
+            border.color: Appearance.colors.colLayer0Border
+            opacity: cardMenu.revealProgress
+            scale: 0.96 + cardMenu.revealProgress * 0.04
+            transformOrigin: Item.TopRight
+            visible: opacity > 0
+
+            StyledRectangularShadow {
+                target: cardMenu
+                opacity: cardMenu.revealProgress
+                visible: opacity > 0
+            }
+
+            ColumnLayout {
+                id: cardMenuColumn
+
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 4
+
+                Repeater {
+                    model: root.cardMenuItems
+
+                    // Shared MenuButton (extended with optional iconText)
+                    MenuButton {
+                        required property var modelData
+
+                        Layout.fillWidth: true
+                        implicitHeight: 44 // Standard MD3 menu item height
+                        buttonRadius: Appearance.rounding.small
+                        iconText: modelData.icon
+                        buttonText: root.cardMenuLabel(modelData)
+                        colBackgroundHover: Appearance.colors.colLayer1Hover
+                        onClicked: {
+                            root.cardMenuOpen = false;
+                            modelData.action();
+                        }
+                    }
+
+                }
+
+                // ── Note color section ──────────────────────────────────────
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 1
+                    Layout.topMargin: 6
+                    color: Appearance.colors.colOutlineVariant
+                    opacity: 0.3
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    text: "Color"
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 6
+                    spacing: 8
+
+                    Repeater {
+                        model: NotesService.noteColors
+
+                        delegate: RippleButton {
+                            required property var modelData
+
+                            implicitWidth: 26
+                            implicitHeight: 26
+                            buttonRadius: Appearance.rounding.full
+                            colBackground: modelData.color
+                            colBackgroundHover: modelData.color
+                            colRipple: ColorUtils.transparentize(modelData.color, 0.5)
+                            onClicked: {
+                                NotesService.setNoteColor(root.cardMenuNoteId, modelData.id);
+                            }
+
+                            contentItem: MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "check"
+                                iconSize: 14
+                                fill: 1
+                                // Contrast-aware check: light check on dark swatches (e.g. "default"),
+                                // dark check on the pastel accent swatches
+                                color: root.cardMenuActiveColor() === modelData.id ? (ColorUtils.isDark(modelData.color) ? Qt.lighter(modelData.color, 2.5) : Qt.darker(modelData.color, 3)) : "transparent"
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+            Behavior on revealProgress {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                }
+
+            }
+
+        }
+
+    }
+
 }

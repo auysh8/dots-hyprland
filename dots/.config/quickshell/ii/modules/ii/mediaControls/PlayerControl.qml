@@ -28,6 +28,19 @@ Item { // Player instance
     property bool downloaded: mediaContext.downloaded
     property string displayedArtFilePath: mediaContext.displayedArtFilePath
 
+    Timer {
+        id: playerArtReloadTimer
+        interval: 200
+        repeat: false
+        onTriggered: {
+            var src = root.displayedArtFilePath
+            blurredArt.source = ""
+            mediaArt.source = ""
+            blurredArt.source = src
+            mediaArt.source = src
+        }
+    }
+
     property QtObject blendedColors: mediaContext.blendedColors
     
     // Maintain backwards compatibility for this specific property used here
@@ -103,6 +116,12 @@ Item { // Player instance
             cache: false
             antialiasing: true
             asynchronous: true
+
+            onStatusChanged: {
+                if (status === Image.Error && root.displayedArtFilePath !== "") {
+                    playerArtReloadTimer.start()
+                }
+            }
 
             layer.enabled: true
             layer.effect: StyledBlurEffect {
