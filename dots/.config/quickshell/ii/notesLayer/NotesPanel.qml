@@ -36,13 +36,30 @@ FocusScope {
 
 
 
-    StackLayout {
+    Item {
         anchors.fill: parent
-        currentIndex: root.viewMode === "grid" ? 0 : 1
+        clip: true
 
         NotesGridView {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            width: parent.width
+            height: parent.height
+            x: root.viewMode === "editor" ? -parent.width * 0.3 : 0
+            opacity: root.viewMode === "editor" ? 0 : 1
+            visible: opacity > 0
+
+            Behavior on x {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             onAddClicked: {
                 root.localSelectedNoteId = NotesService.createNote()
@@ -53,8 +70,25 @@ FocusScope {
         }
 
         NotesEditorView {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            width: parent.width
+            height: parent.height
+            x: root.viewMode === "editor" ? 0 : parent.width
+            opacity: root.viewMode === "editor" ? 1 : 0
+            visible: opacity > 0
+
+            Behavior on x {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             noteId: root.currentNote ? root.currentNote.id : ""
             initialTitle: root.currentNote ? root.currentNote.title : ""

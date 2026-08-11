@@ -104,15 +104,64 @@ Item {
         root.menuPosition = Qt.point(pos.x, pos.y);
     }
 
+    function formatStats() {
+        const text = ((titleInput ? titleInput.text : "") + " " + (contentInput ? contentInput.text : "")).trim();
+        if (!text) return "0 words • 0 chars";
+        const words = text.split(/\s+/).filter(w => w.length > 0).length;
+        const chars = text.length;
+        return words + (words === 1 ? " word" : " words") + " • " + chars + " chars";
+    }
+
+    function insertMarkdown(prefix, suffix) {
+        const start = contentInput.selectionStart;
+        const end = contentInput.selectionEnd;
+        const text = contentInput.text;
+        if (start !== end) {
+            const sel = text.substring(start, end);
+            contentInput.remove(start, end);
+            contentInput.insert(start, prefix + sel + suffix);
+        } else {
+            const pos = contentInput.cursorPosition;
+            contentInput.insert(pos, prefix + suffix);
+            contentInput.cursorPosition = pos + prefix.length;
+        }
+        contentInput.forceActiveFocus();
+    }
+
     onInitialPinnedChanged: root.pinned = root.initialPinned
     onInitialColorChanged: root.activeColor = root.initialColor
     onInitialTitleChanged: titleInput.text = initialTitle
     onInitialContentChanged: contentInput.text = initialContent
     onInitialModifiedChanged: editedLabel = formatEdited()
+
     Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Escape) {
-            root.menuOpen = false;
+        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_S) {
+            root.saveClicked(titleInput.text, contentInput.text);
             event.accepted = true;
+        } else if ((event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+            root.saveClicked(titleInput.text, contentInput.text);
+            root.cancelClicked();
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Escape) {
+            if (root.menuOpen) {
+                root.menuOpen = false;
+            } else if (root.showDeleteDialog) {
+                root.showDeleteDialog = false;
+            } else {
+                root.cancelClicked();
+            }
+            event.accepted = true;
+        }
+    }
+
+    Timer {
+        id: autoSaveTimer
+        interval: 1000
+        repeat: false
+        onTriggered: {
+            if (root.noteId.length > 0) {
+                NotesService.updateNote(root.noteId, titleInput.text, contentInput.text);
+            }
         }
     }
 
@@ -257,6 +306,7 @@ Item {
                 color: Appearance.colors.colOnLayer0
                 selectByMouse: true
                 clip: true
+                onTextChanged: autoSaveTimer.restart()
 
                 StyledText {
                     anchors.fill: parent
@@ -300,6 +350,7 @@ Item {
                     padding: 0
                     font.family: Appearance.font.family.reading
                     font.pixelSize: Appearance.font.pixelSize.large
+                    onTextChanged: autoSaveTimer.restart()
                 }
 
                 ScrollBar.vertical: StyledScrollBar {
@@ -515,16 +566,140 @@ Item {
 
     }
 
-    // ── Last-edited indicator ─────────────────────────────────────────────────
-    StyledText {
+    // ── Markdown Formatting Toolbar & Footer Stats ─────────────────────────
+    RowLayout {
         anchors.left: parent.left
+        anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.leftMargin: 40
-        anchors.bottomMargin: 38
-        text: root.editedLabel
-        font.pixelSize: Appearance.font.pixelSize.small
-        color: Appearance.colors.colSubtext
-        opacity: 0.6
+        anchors.leftMargin: 36
+        anchors.rightMargin: 36
+        anchors.bottomMargin: 28
+        spacing: 16
+
+        // Timestamp & Word Count
+        RowLayout {
+            spacing: 8
+
+            StyledText {
+                text: root.editedLabel
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colSubtext
+                opacity: 0.7
+            }
+
+            StyledText {
+                text: "•"
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colSubtext
+                opacity: 0.4
+                visible: root.editedLabel.length > 0
+            }
+
+            StyledText {
+                text: root.formatStats()
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colSubtext
+                opacity: 0.7
+            }
+        }
+
+        Item { Layout.fillWidth: true }
+
+        // Floating Markdown Toolbar Pill
+        Rectangle {
+            implicitHeight: 36
+            implicitWidth: markdownRow.implicitWidth + 16
+            radius: Appearance.rounding.full
+            color: Appearance.colors.colLayer2Base
+            border.width: 1
+            border.color: Appearance.colors.colLayer0Border
+
+            RowLayout {
+                id: markdownRow
+                anchors.centerIn: parent
+                spacing: 4
+
+                RippleButton {
+                    implicitWidth: 30
+                    implicitHeight: 30
+                    buttonRadius: Appearance.rounding.full
+                    colBackground: "transparent"
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    onClicked: root.insertMarkdown("**", "**")
+                    StyledToolTip { text: "Bold (**text**)" }
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "format_bold"
+                        iconSize: 18
+                        color: Appearance.colors.colOnLayer0
+                    }
+                }
+
+                RippleButton {
+                    implicitWidth: 30
+                    implicitHeight: 30
+                    buttonRadius: Appearance.rounding.full
+                    colBackground: "transparent"
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    onClicked: root.insertMarkdown("*", "*")
+                    StyledToolTip { text: "Italic (*text*)" }
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "format_italic"
+                        iconSize: 18
+                        color: Appearance.colors.colOnLayer0
+                    }
+                }
+
+                RippleButton {
+                    implicitWidth: 30
+                    implicitHeight: 30
+                    buttonRadius: Appearance.rounding.full
+                    colBackground: "transparent"
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    onClicked: root.insertMarkdown("\n- ", "")
+                    StyledToolTip { text: "Bullet list (- item)" }
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "format_list_bulleted"
+                        iconSize: 18
+                        color: Appearance.colors.colOnLayer0
+                    }
+                }
+
+                RippleButton {
+                    implicitWidth: 30
+                    implicitHeight: 30
+                    buttonRadius: Appearance.rounding.full
+                    colBackground: "transparent"
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    onClicked: root.insertMarkdown("\n- [ ] ", "")
+                    StyledToolTip { text: "Todo checkbox (- [ ] task)" }
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "check_box"
+                        iconSize: 18
+                        color: Appearance.colors.colOnLayer0
+                    }
+                }
+
+                RippleButton {
+                    implicitWidth: 30
+                    implicitHeight: 30
+                    buttonRadius: Appearance.rounding.full
+                    colBackground: "transparent"
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    onClicked: root.insertMarkdown("`", "`")
+                    StyledToolTip { text: "Code (`code`)" }
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "code"
+                        iconSize: 18
+                        color: Appearance.colors.colOnLayer0
+                    }
+                }
+            }
+        }
     }
 
 }

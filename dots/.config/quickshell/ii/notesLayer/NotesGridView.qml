@@ -609,38 +609,55 @@ Item {
                 Flow {
                     Layout.fillWidth: true
                     Layout.topMargin: 6
-                    spacing: 8
+                    spacing: 6
 
                     Repeater {
                         model: NotesService.noteColors
 
-                        delegate: RippleButton {
+                        delegate: Item {
                             required property var modelData
+                            readonly property bool isSelected: root.cardMenuActiveColor() === modelData.id
 
-                            implicitWidth: 26
-                            implicitHeight: 26
-                            buttonRadius: Appearance.rounding.full
-                            colBackground: modelData.color
-                            colBackgroundHover: modelData.color
-                            colRipple: ColorUtils.transparentize(modelData.color, 0.5)
-                            onClicked: {
-                                NotesService.setNoteColor(root.cardMenuNoteId, modelData.id);
+                            implicitWidth: 30
+                            implicitHeight: 30
+
+                            // Outer Selection Ring
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Appearance.rounding.full
+                                color: "transparent"
+                                border.width: 2
+                                border.color: parent.isSelected ? Appearance.colors.colPrimary : "transparent"
+
+                                Behavior on border.color {
+                                    ColorAnimation { duration: 150 }
+                                }
                             }
 
-                            contentItem: MaterialSymbol {
+                            // Color Swatch Circle with Scale Transition
+                            RippleButton {
+                                id: swatchBtn
                                 anchors.centerIn: parent
-                                text: "check"
-                                iconSize: 14
-                                fill: 1
-                                // Contrast-aware check: light check on dark swatches (e.g. "default"),
-                                // dark check on the pastel accent swatches
-                                color: root.cardMenuActiveColor() === modelData.id ? (ColorUtils.isDark(modelData.color) ? Qt.lighter(modelData.color, 2.5) : Qt.darker(modelData.color, 3)) : "transparent"
+                                implicitWidth: 22
+                                implicitHeight: 22
+                                scale: parent.isSelected ? 1.15 : 1.0
+                                buttonRadius: Appearance.rounding.full
+                                colBackground: modelData.color
+                                colBackgroundHover: modelData.color
+                                colRipple: ColorUtils.transparentize(modelData.color, 0.5)
+                                onClicked: {
+                                    NotesService.setNoteColor(root.cardMenuNoteId, modelData.id);
+                                }
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 150
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
                             }
-
                         }
-
                     }
-
                 }
 
             }
