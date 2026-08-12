@@ -40,14 +40,52 @@ if hl.plugin and hl.plugin.hyprglass then
         dark = { brightness = 0.82 },
         light = { adaptive_boost = 0.5 },
 
-        layers = { enabled = 0 },
+        layers = { enabled = 1 },
     })
 
-    -- Layer surfaces: each call whitelists the namespace and configures it
-    -- hg.layer("waybar", { preset = "subtle", mask_threshold = 0.05 })
-    -- hg.layer("swaync")
-    -- hg.layer("quickshell:bezel", { preset = "ui", mask_threshold = 0.3 })
-    -- hg.layer("debug-panel", { exclude = true })
+    -- ── Layer surfaces ────────────────────────────────────────────────
+    -- Each hg.layer() call whitelists that namespace.
+    -- Comment out a line to remove glass from that layer.
+    --preset = "glass", mask_threshold (0.0–1.0): higher = glass only on more opaque pixels.
+
+    -- ── Core UI ───────────────────────────────────────────────────────
+    -- hg.layer("quickshell",               {preset = "glass", mask_threshold = 0.3 })  -- root surface
+    hg.layer("quickshell:bar",           {preset = "glass", mask_threshold = 0.3 })  -- top bar
+    hg.layer("quickshell:dynamicIsland", {preset = "glass", mask_threshold = 0.3 })  -- dynamic island
+    hg.layer("quickshell:verticalBar",   {preset = "glass", mask_threshold = 0.3 })  -- left icon bar
+    -- hg.layer("quickshell:dock",          {preset = "glass", mask_threshold = 0.3 })  -- bottom dock
+        -- hg.layer("quickshell:screenCorners", {preset = "glass", mask_threshold = 0.5 })  -- corner overlays
+
+    -- ── Sidebars ──────────────────────────────────────────────────────
+    hg.layer("quickshell:sidebarRight",  { preset = "glass", mask_threshold = 0.3 })  -- right sidebar
+    hg.layer("quickshell:sidebarLeft",   {preset = "glass", mask_threshold = 0.3 })  -- left sidebar
+
+    -- ── Popups & Overlays ─────────────────────────────────────────────
+    -- hg.layer("quickshell:popup",              { preset = "glass", mask_threshold = 0.3 })  -- styled popups
+    hg.layer("quickshell:notificationPopup",  {preset = "glass", mask_threshold = 0.3 })  -- notifications
+    hg.layer("quickshell:onScreenDisplay",    {preset = "glass", mask_threshold = 0.3 })  -- OSD (vol/bright)
+    hg.layer("quickshell:mediaControls",      {preset = "glass", mask_threshold = 0.3 })  -- media controls
+    hg.layer("quickshell:overlay",            {preset = "glass", mask_threshold = 0.3 })  -- general overlay
+    -- hg.layer("quickshell:reloadPopup",        {preset = "glass", mask_threshold = 0.3 })  -- reload popup
+    hg.layer("quickshell:cheatsheet",         {preset = "glass", mask_threshold = 0.3 })  -- keybind sheet
+
+    -- ── Fullscreen / Special ──────────────────────────────────────────
+    hg.layer("quickshell:overview",           {preset = "glass", mask_threshold = 0.3 })  -- window overview
+    -- hg.layer("quickshell:session",            {preset = "glass", mask_threshold = 0.3 })  -- session/logout
+    hg.layer("quickshell:polkit",             {preset = "glass", mask_threshold = 0.3 })  -- auth dialog
+    hg.layer("quickshell:wallpaperSelector",  {preset = "glass", mask_threshold = 0.3 })  -- wallpaper picker
+    -- hg.layer("quickshell:regionSelector",     {preset = "glass", mask_threshold = 0.5 })  -- screen snip
+    hg.layer("quickshell:osk",               {preset = "glass", mask_threshold = 0.3 })  -- on-screen keyboard
+
+    -- ── Non-quickshell layers ─────────────────────────────────────────
+    -- hg.layer("system-monitor",                     {preset = "glass", mask_threshold = 0.3 })  -- sys monitor
+    hg.layer("app-drawer",                         {preset = "glass", mask_threshold = 0.3 })  -- app drawer
+    hg.layer("kde-connect-drawer",                 {preset = "glass", mask_threshold = 0.3 })  -- KDE Connect
+    -- hg.layer("kde-connect-drawer-drag-trigger",    {preset = "glass", mask_threshold = 0.5 })  -- KDE drag zone
+
+    -- ── Always skip ───────────────────────────────────────────────────
+    hg.layer("quickshell:background", { exclude = true })  -- wallpaper, never glass
+
 
     -- Presets
     hg.preset("clear", {
