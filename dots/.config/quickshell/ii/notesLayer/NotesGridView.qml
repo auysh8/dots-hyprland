@@ -7,22 +7,28 @@ import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.services
 
+/**
+ * M3 Expressive Notes Dashboard Grid View.
+ *
+ * Surface hierarchy: Uses deep tonal background from parent window.
+ * Typography: headlineLarge for main title, headlineMedium for section headers,
+ *   titleMedium for card titles.
+ * Search bar: Fully pill-shaped surfaceContainerHigh container.
+ * FAB: Prominent M3 Expressive squircle shape in primary accent.
+ */
 Item {
     id: root
 
     property string searchQuery: ""
-    // Google Keep-style masonry settings
-    property int columnCount: 3
-    // ── Card overflow menu (MD3 note card action: more_vert) ───────────────
-    // Hosted here (a sibling of the flickable) so the menu can never be
-    // clipped by the grid's scroll clip. Same pattern as NotesEditorView's
-    // overflow menu: fade + scale reveal, colLayer2Base surface, shadow.
+    property bool filterMenuOpen: false
+    property string sortOrder: "recent"
+    readonly property int columnCount: 3
+
+    // ── Card overflow menu ───────────────────────────────────────────────
     property string cardMenuNoteId: ""
     property bool cardMenuOpen: false
     property point cardMenuPos: Qt.point(0, 0)
     readonly property int cardMenuWidth: 200
-    // Config-driven action list (same style as NotesEditorView.menuItems).
-    // Items with id "pin" have a dynamic label handled in the delegate.
     property var cardMenuItems: [{
         "id": "pin",
         "label": "Pin note",
@@ -44,46 +50,35 @@ Item {
     signal addClicked()
     signal noteClicked(string noteId)
 
-    // A pin action also needs to update the menu row's label
     function cardMenuLabel(item) {
         const note = NotesService.getNote(root.cardMenuNoteId);
         if (item.id === "pin")
             return note && note.pinned ? "Unpin note" : "Pin note";
-
         return item.label;
     }
 
-    // Active accent color of the note the card menu is open for
-    function cardMenuActiveColor() {
-        const note = NotesService.getNote(root.cardMenuNoteId);
-        return note ? note.color : "default";
-    }
-
-    // Position the menu just below the card's more_vert button (top-right of
-    // the card), clamped to stay on-screen. `card` is the NoteCard delegate.
     function openCardMenu(noteId, card) {
         root.cardMenuNoteId = noteId;
-        // Map top-right of card (card.width, 36) to root item coordinates
         const mapped = card.mapToItem(root, card.width, 36);
         let menuX = mapped.x - root.cardMenuWidth;
         let menuY = mapped.y;
-
-        // Clamp cleanly inside window boundaries
         menuX = Math.max(16, Math.min(menuX, root.width - root.cardMenuWidth - 16));
         menuY = Math.max(16, Math.min(menuY, root.height - 250));
-
         root.cardMenuPos = Qt.point(menuX, menuY);
         root.cardMenuOpen = true;
     }
 
-    // Notes visible in the current view (sorted, then filtered by search).
     function visibleNotes() {
-        const sorted = NotesService.getSortedNotes();
+        let sorted = NotesService.getSortedNotes();
         if (root.searchQuery.length > 0) {
             const q = root.searchQuery.toLowerCase();
-            return sorted.filter((n) => {
+            sorted = sorted.filter((n) => {
                 return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
             });
+        }
+        if (root.sortOrder === "title") {
+            sorted = sorted.slice().sort((a, b) =>
+                (a.title || "").localeCompare(b.title || ""));
         }
         return sorted;
     }
@@ -96,7 +91,6 @@ Item {
         return root.visibleNotes().filter(n => !n.pinned);
     }
 
-    // Content-derived height estimate for masonry layout column balancing fallback
     function predictedNoteHeight(note) {
         if (!note) return 120;
         const title = note.title || "";
@@ -126,6 +120,14 @@ Item {
     ListModel { id: allNotesModel }
 
     function updateModels() {
+        const currentIds = new Set(root.visibleNotes().map(n => n.id));
+        const heightKeys = Object.keys(root.measuredCardHeights);
+        for (const key of heightKeys) {
+            if (!currentIds.has(key)) {
+                delete root.measuredCardHeights[key];
+            }
+        }
+
         const sorted = root.visibleNotes();
         const pinnedList = sorted.filter(n => n.pinned);
         const unpinnedList = sorted.filter(n => !n.pinned);
@@ -135,10 +137,10 @@ Item {
         const colWidth = (w - spacing * (root.columnCount - 1)) / root.columnCount;
         const positions = {};
 
-        // 1. Position Pinned Notes (starting below PINNED header at y = 36)
+        // Pinned notes start below PINNED header at y = 48 (M3 headlineMedium space)
         let pinnedMaxY = 0;
         if (pinnedList.length > 0) {
-            const colHeights = [36, 36, 36];
+            const colHeights = Array(root.columnCount).fill(48);
             for (const note of pinnedList) {
                 let minCol = 0;
                 for (let c = 1; c < root.columnCount; c++) {
@@ -150,16 +152,15 @@ Item {
                 colHeights[minCol] += h + spacing;
                 positions[note.id] = { x: posX, y: posY, width: colWidth };
             }
-            pinnedMaxY = Math.max(...colHeights, 36);
+            pinnedMaxY = Math.max(...colHeights, 48);
         }
 
-        // 2. Position Others (Unpinned) Notes
-        let othersHeaderY = pinnedList.length > 0 ? pinnedMaxY + 20 : 0;
+        let othersHeaderY = pinnedList.length > 0 ? pinnedMaxY + 24 : 0;
         let othersMaxY = othersHeaderY;
 
         if (unpinnedList.length > 0) {
-            const startY = pinnedList.length > 0 ? othersHeaderY + 36 : 0;
-            const colHeights = [startY, startY, startY];
+            const startY = pinnedList.length > 0 ? othersHeaderY + 48 : 0;
+            const colHeights = Array(root.columnCount).fill(startY);
             for (const note of unpinnedList) {
                 let minCol = 0;
                 for (let c = 1; c < root.columnCount; c++) {
@@ -183,64 +184,75 @@ Item {
     function syncListModel(targetModel, list, positions) {
         if (!targetModel) return;
 
-        // Remove deleted items
+        const newIdSet = new Set(list.map(n => n.id));
+
         for (let i = targetModel.count - 1; i >= 0; i--) {
-            const id = targetModel.get(i).id;
-            if (!list.some(n => n.id === id)) {
+            if (!newIdSet.has(targetModel.get(i).id)) {
                 targetModel.remove(i);
             }
         }
 
-        // Insert or update items and target coordinates incrementally
         for (let i = 0; i < list.length; i++) {
             const note = list[i];
             const pos = positions[note.id] || { x: 0, y: 0, width: 200 };
-            const dataObj = {
-                "id": note.id || "",
-                "title": note.title || "",
-                "content": note.content || "",
-                "modified": note.modified || 0,
-                "created": note.created || 0,
-                "color": note.color || "default",
-                "pinned": !!note.pinned,
-                "posX": pos.x,
-                "posY": pos.y,
-                "cardWidth": pos.width
-            };
 
             if (i < targetModel.count) {
                 const current = targetModel.get(i);
                 if (current.id === note.id) {
-                    targetModel.setProperty(i, "posX", dataObj.posX);
-                    targetModel.setProperty(i, "posY", dataObj.posY);
-                    targetModel.setProperty(i, "cardWidth", dataObj.cardWidth);
-                    targetModel.setProperty(i, "title", dataObj.title);
-                    targetModel.setProperty(i, "content", dataObj.content);
-                    targetModel.setProperty(i, "color", dataObj.color);
-                    targetModel.setProperty(i, "pinned", dataObj.pinned);
+                    targetModel.setProperty(i, "posX", pos.x);
+                    targetModel.setProperty(i, "posY", pos.y);
+                    targetModel.setProperty(i, "cardWidth", pos.width);
+                    targetModel.setProperty(i, "title", note.title || "");
+                    targetModel.setProperty(i, "content", note.content || "");
+                    targetModel.setProperty(i, "color", note.color || "default");
+                    targetModel.setProperty(i, "pinned", !!note.pinned);
+                    targetModel.setProperty(i, "modified", note.modified || 0);
                 } else {
-                    let existingIndex = -1;
+                    let found = -1;
                     for (let j = i + 1; j < targetModel.count; j++) {
                         if (targetModel.get(j).id === note.id) {
-                            existingIndex = j;
+                            found = j;
                             break;
                         }
                     }
-                    if (existingIndex !== -1) {
-                        targetModel.move(existingIndex, i, 1);
-                        targetModel.setProperty(i, "posX", dataObj.posX);
-                        targetModel.setProperty(i, "posY", dataObj.posY);
-                        targetModel.setProperty(i, "cardWidth", dataObj.cardWidth);
-                        targetModel.setProperty(i, "title", dataObj.title);
-                        targetModel.setProperty(i, "content", dataObj.content);
-                        targetModel.setProperty(i, "color", dataObj.color);
-                        targetModel.setProperty(i, "pinned", dataObj.pinned);
+                    if (found !== -1) {
+                        targetModel.move(found, i, 1);
+                        targetModel.setProperty(i, "posX", pos.x);
+                        targetModel.setProperty(i, "posY", pos.y);
+                        targetModel.setProperty(i, "cardWidth", pos.width);
+                        targetModel.setProperty(i, "title", note.title || "");
+                        targetModel.setProperty(i, "content", note.content || "");
+                        targetModel.setProperty(i, "color", note.color || "default");
+                        targetModel.setProperty(i, "pinned", !!note.pinned);
+                        targetModel.setProperty(i, "modified", note.modified || 0);
                     } else {
-                        targetModel.insert(i, dataObj);
+                        targetModel.insert(i, {
+                            "id": note.id || "",
+                            "title": note.title || "",
+                            "content": note.content || "",
+                            "modified": note.modified || 0,
+                            "created": note.created || 0,
+                            "color": note.color || "default",
+                            "pinned": !!note.pinned,
+                            "posX": pos.x,
+                            "posY": pos.y,
+                            "cardWidth": pos.width
+                        });
                     }
                 }
             } else {
-                targetModel.append(dataObj);
+                targetModel.append({
+                    "id": note.id || "",
+                    "title": note.title || "",
+                    "content": note.content || "",
+                    "modified": note.modified || 0,
+                    "created": note.created || 0,
+                    "color": note.color || "default",
+                    "pinned": !!note.pinned,
+                    "posX": pos.x,
+                    "posY": pos.y,
+                    "cardWidth": pos.width
+                });
             }
         }
     }
@@ -255,10 +267,12 @@ Item {
     }
 
     onSearchQueryChanged: updateModels()
+    onSortOrderChanged: updateModels()
 
     Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Escape && root.cardMenuOpen) {
+        if (event.key === Qt.Key_Escape && (root.cardMenuOpen || root.filterMenuOpen)) {
             root.cardMenuOpen = false;
+            root.filterMenuOpen = false;
             event.accepted = true;
         }
     }
@@ -268,25 +282,25 @@ Item {
         anchors.margins: 32
         spacing: 20
 
-        // ── Top app bar (MD3 medium: title row + docked search bar) ─────────
+        // ── Top app bar (M3 Expressive: headlineLarge title + pill search) ──
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 18
+            spacing: 16
 
-            // Title row — Title Large typography
+            // Title row — M3 headlineLarge typography
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
 
                 ColumnLayout {
-                    spacing: 2
+                    spacing: 4
 
                     StyledText {
                         text: "Notes"
-                        font.pixelSize: Appearance.font.pixelSize.huge
+                        font.pixelSize: Appearance.font.pixelSize.hugeass // ~23px ≈ headlineLarge
                         font.family: Appearance.font.family.title
-                        font.weight: Font.DemiBold
-                        color: Appearance.colors.colOnLayer0
+                        font.weight: Font.Bold
+                        color: Appearance.colors.colOnSurface
                     }
 
                     StyledText {
@@ -295,52 +309,45 @@ Item {
                             const shown = root.visibleNotes().length;
                             if (root.searchQuery.length > 0)
                                 return shown + " of " + total + (total === 1 ? " note" : " notes");
-
                             return total + (total === 1 ? " note" : " notes");
                         }
                         font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colSubtext
+                        color: Appearance.colors.colOnSurfaceVariant
                     }
-
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
-
+                Item { Layout.fillWidth: true }
             }
 
-            // Docked search bar — full pill on surface_container_highest
-            // (colLayer3Base) with a leading search icon.
+            // M3 Expressive: Fully pill-shaped search bar on surfaceContainerHigh
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 48
-                radius: Appearance.rounding.full
-                color: Appearance.colors.colLayer3Base
+                implicitHeight: 56
+                radius: Appearance.rounding.full // Full pill shape
+                color: Appearance.colors.colSurfaceContainerHigh
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 18
+                    anchors.leftMargin: 20
                     anchors.rightMargin: 12
-                    spacing: 12
+                    spacing: 14
 
                     MaterialSymbol {
                         text: "search"
-                        iconSize: 20
-                        color: Appearance.colors.colSubtext
+                        iconSize: 22
+                        color: Appearance.colors.colOnSurfaceVariant
                     }
 
                     TextField {
                         id: searchInput
-
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         verticalAlignment: Text.AlignVCenter
                         background: null
                         padding: 0
                         placeholderText: "Search notes..."
-                        placeholderTextColor: Appearance.colors.colSubtext
-                        color: Appearance.colors.colOnLayer0
+                        placeholderTextColor: Appearance.colors.colOnSurfaceVariant
+                        color: Appearance.colors.colOnSurface
                         selectedTextColor: Appearance.colors.colOnSecondaryContainer
                         selectionColor: Appearance.colors.colSecondaryContainer
                         renderType: Text.NativeRendering
@@ -348,17 +355,36 @@ Item {
 
                         font {
                             family: Appearance.font.family.main
-                            pixelSize: Appearance.font.pixelSize.small
+                            pixelSize: Appearance.font.pixelSize.normal // ~16px ≈ bodyLarge
                             hintingPreference: Font.PreferFullHinting
                             variableAxes: Appearance.font.variableAxes.main
                         }
-
                     }
 
+                    RippleButton {
+                        id: filterButton
+                        implicitWidth: 40
+                        implicitHeight: 40
+                        Layout.alignment: Qt.AlignVCenter
+                        buttonRadius: Appearance.rounding.full
+                        colBackground: Appearance.colors.colSecondaryContainer
+                        colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                        colRipple: Appearance.colors.colOnSecondaryContainer
+                        onClicked: root.filterMenuOpen = !root.filterMenuOpen
+
+                        StyledToolTip { text: "Sort notes" }
+
+                        contentItem: MaterialSymbol {
+                            anchors.fill: parent
+                            text: "filter_list"
+                            iconSize: 20
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            color: Appearance.colors.colOnSecondaryContainer
+                        }
+                    }
                 }
-
             }
-
         }
 
         // ── Notes Grid ───────────────────────────────────────────────────────
@@ -368,11 +394,10 @@ Item {
 
             StyledFlickable {
                 id: gridScroll
-
                 anchors.fill: parent
                 clip: true
                 contentWidth: width
-                contentHeight: mainContainer.implicitHeight + 100 // Extra room above FAB
+                contentHeight: mainContainer.implicitHeight + 100
                 topMargin: Appearance.rounding.verylarge
                 flickableDirection: Flickable.VerticalFlick
                 boundsBehavior: Flickable.StopAtBounds
@@ -386,24 +411,23 @@ Item {
                     width: gridScroll.width
                     implicitHeight: root.totalContainerHeight
 
+                    // M3 Expressive: headlineMedium section headers
                     StyledText {
                         text: "PINNED"
-                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.pixelSize: Appearance.font.pixelSize.larger // ~19px ≈ headlineMedium
                         font.family: Appearance.font.family.title
                         font.weight: Font.Bold
-                        color: Appearance.colors.colSubtext
-                        opacity: 0.8
+                        color: Appearance.colors.colPrimary
                         visible: root.pinnedNotes().length > 0
                         y: 0
                     }
 
                     StyledText {
                         text: "OTHERS"
-                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.pixelSize: Appearance.font.pixelSize.larger // ~19px ≈ headlineMedium
                         font.family: Appearance.font.family.title
                         font.weight: Font.Bold
-                        color: Appearance.colors.colSubtext
-                        opacity: 0.8
+                        color: Appearance.colors.colOnSurfaceVariant
                         visible: root.pinnedNotes().length > 0 && root.unpinnedNotes().length > 0
                         y: root.othersHeaderY
 
@@ -456,17 +480,12 @@ Item {
                     icon: "note_stack"
                     title: root.searchQuery.length > 0 ? "No notes match your search." : "No notes yet. Tap + to create one!"
                 }
-
             }
-
         }
-
     }
 
-    // ── Floating Action Button ───────────────────────────────────────────────
-    // Shared FloatingActionButton (qs.modules.common.widgets) with an MD3
-    // level-3 elevation shadow behind it that separates the button from the
-    // grid content.
+    // ── M3 Expressive Floating Action Button ────────────────────────────────
+    // Prominent primary-colored squircle FAB with level-3 elevation shadow.
     Item {
         implicitWidth: fabWidget.implicitWidth
         implicitHeight: fabWidget.implicitHeight
@@ -477,7 +496,7 @@ Item {
             margins: 32
         }
 
-        // Elevation shadow (level-3) lifting FAB high above scrolling container
+        // Elevation shadow (level-3)
         RectangularShadow {
             anchors.fill: fabWidget
             radius: fabWidget.buttonRadius
@@ -493,32 +512,102 @@ Item {
                     easing.type: Appearance.animation.elementMoveFast.type
                     easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                 }
-
             }
-
         }
 
         FloatingActionButton {
             id: fabWidget
-
             iconText: "add"
+            buttonText: "New note"
+            expanded: true
+            baseSize: 56
+            buttonRadius: Appearance.rounding.large
+            colBackground: Appearance.colors.colPrimary
+            colBackgroundHover: Appearance.colors.colPrimaryHover
+            colRipple: Appearance.colors.colOnPrimary
+            colOnBackground: Appearance.colors.colOnPrimary
             onClicked: root.addClicked()
 
             StyledToolTip {
                 text: "New note"
             }
+        }
+    }
 
+    // ── Search sort/filter menu ────────────────────────────────────────────
+    Rectangle {
+        id: filterMenu
+        z: 12
+        visible: root.filterMenuOpen
+        width: 196
+        implicitHeight: filterMenuContent.implicitHeight + 16
+        x: Math.max(16, Math.min(filterButton.mapToItem(root, 0, filterButton.height).x + filterButton.width - width, root.width - width - 16))
+        y: Math.max(16, filterButton.mapToItem(root, 0, filterButton.height).y + 8)
+        radius: Appearance.rounding.normal
+        color: Appearance.m3colors.m3surfaceContainerHighest
+        border.width: 1
+        border.color: Appearance.colors.colOutlineVariant
+
+        StyledRectangularShadow {
+            target: filterMenu
         }
 
+        ColumnLayout {
+            id: filterMenuContent
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 4
+
+            MenuButton {
+                Layout.fillWidth: true
+                implicitHeight: 40
+                buttonRadius: Appearance.rounding.small
+                iconText: "schedule"
+                buttonText: "Sort by recent"
+                colBackgroundHover: Appearance.colors.colSurfaceContainerHigh
+                onClicked: {
+                    root.sortOrder = "recent";
+                    root.filterMenuOpen = false;
+                }
+
+                MaterialSymbol {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "check"
+                    iconSize: 18
+                    visible: root.sortOrder === "recent"
+                    color: Appearance.colors.colOnSurfaceVariant
+                }
+            }
+
+            MenuButton {
+                Layout.fillWidth: true
+                implicitHeight: 40
+                buttonRadius: Appearance.rounding.small
+                iconText: "sort_by_alpha"
+                buttonText: "Sort A–Z"
+                colBackgroundHover: Appearance.colors.colSurfaceContainerHigh
+                onClicked: {
+                    root.sortOrder = "title";
+                    root.filterMenuOpen = false;
+                }
+
+                MaterialSymbol {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "check"
+                    iconSize: 18
+                    visible: root.sortOrder === "title"
+                    color: Appearance.colors.colOnSurfaceVariant
+                }
+            }
+
+        }
     }
 
     // ── Card overflow menu popup ─────────────────────────────────────────────
-    // Positioned via measured coordinates (same as NotesEditorView's overflow
-    // menu): placed just below the card's more_vert button, right-aligned to
-    // it, clamped to stay on-screen. Visuals + reveal animation match the
-    // shell's context menus (fade + scale + slide with elementMoveFast easing,
-    // shadow fading in with it). Surface follows COLOR_RULES.md (elevated
-    // floater -> colLayer2Base).
     MouseArea {
         anchors.fill: parent
         visible: root.cardMenuOpen
@@ -530,14 +619,12 @@ Item {
 
     Item {
         id: cardMenuOverlay
-
         visible: root.cardMenuOpen || cardMenu.opacity > 0
         z: 11
         anchors.fill: parent
 
         Rectangle {
             id: cardMenu
-
             property real revealProgress: root.cardMenuOpen ? 1 : 0
 
             x: root.cardMenuPos.x
@@ -545,11 +632,11 @@ Item {
             width: root.cardMenuWidth
             implicitHeight: cardMenuColumn.implicitHeight + 16
             radius: Appearance.rounding.normal
-            // Highest surface (colLayer3Base) so the menu clearly contrasts the
-            // cards beneath it — including pinned cards sitting on colLayer2.
-            color: Appearance.colors.colLayer3Base
+            // Use the opaque M3 source token: derived surface colors may
+            // inherit the shell's content-transparency setting.
+            color: Appearance.m3colors.m3surfaceContainerHighest
             border.width: 1
-            border.color: Appearance.colors.colLayer0Border
+            border.color: Appearance.colors.colOutlineVariant
             opacity: cardMenu.revealProgress
             scale: 0.96 + cardMenu.revealProgress * 0.04
             transformOrigin: Item.TopRight
@@ -563,7 +650,6 @@ Item {
 
             ColumnLayout {
                 id: cardMenuColumn
-
                 anchors.fill: parent
                 anchors.margins: 8
                 spacing: 4
@@ -571,94 +657,21 @@ Item {
                 Repeater {
                     model: root.cardMenuItems
 
-                    // Shared MenuButton (extended with optional iconText)
                     MenuButton {
                         required property var modelData
-
                         Layout.fillWidth: true
-                        implicitHeight: 44 // Standard MD3 menu item height
+                        implicitHeight: 44
                         buttonRadius: Appearance.rounding.small
                         iconText: modelData.icon
                         buttonText: root.cardMenuLabel(modelData)
-                        colBackgroundHover: Appearance.colors.colLayer1Hover
+                        colBackgroundHover: Appearance.colors.colSurfaceContainerHigh
                         onClicked: {
                             root.cardMenuOpen = false;
                             modelData.action();
                         }
                     }
-
                 }
 
-                // ── Note color section ──────────────────────────────────────
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 1
-                    Layout.topMargin: 6
-                    color: Appearance.colors.colOutlineVariant
-                    opacity: 0.3
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 4
-                    text: "Color"
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colSubtext
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 6
-                    spacing: 6
-
-                    Repeater {
-                        model: NotesService.noteColors
-
-                        delegate: Item {
-                            required property var modelData
-                            readonly property bool isSelected: root.cardMenuActiveColor() === modelData.id
-
-                            implicitWidth: 30
-                            implicitHeight: 30
-
-                            // Outer Selection Ring
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: Appearance.rounding.full
-                                color: "transparent"
-                                border.width: 2
-                                border.color: parent.isSelected ? Appearance.colors.colPrimary : "transparent"
-
-                                Behavior on border.color {
-                                    ColorAnimation { duration: 150 }
-                                }
-                            }
-
-                            // Color Swatch Circle with Scale Transition
-                            RippleButton {
-                                id: swatchBtn
-                                anchors.centerIn: parent
-                                implicitWidth: 22
-                                implicitHeight: 22
-                                scale: parent.isSelected ? 1.15 : 1.0
-                                buttonRadius: Appearance.rounding.full
-                                colBackground: modelData.color
-                                colBackgroundHover: modelData.color
-                                colRipple: ColorUtils.transparentize(modelData.color, 0.5)
-                                onClicked: {
-                                    NotesService.setNoteColor(root.cardMenuNoteId, modelData.id);
-                                }
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: 150
-                                        easing.type: Easing.OutCubic
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
 
             }
 
@@ -668,11 +681,7 @@ Item {
                     easing.type: Appearance.animation.elementMoveFast.type
                     easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                 }
-
             }
-
         }
-
     }
-
 }

@@ -33,7 +33,7 @@ Scope {
 
     Timer {
         id: hideTimer
-        interval: 300 // Match WindowDialog closeDuration + padding
+        interval: 300
         repeat: false
         onTriggered: root.closing = false
     }
@@ -73,46 +73,47 @@ Scope {
             
             onCloseRequested: root.closeWindow()
 
-                Rectangle {
-                    id: notesDialog
-                    width: Math.min(window.width * 0.85, 1100)
-                    height: Math.min(window.height * 0.85, 750)
-                    anchors.centerIn: parent
-                    color: Appearance.colors.colLayer0Base
-                    radius: Appearance.rounding.large
-                    clip: true
-                    
-                    opacity: root.showNotes ? 1 : 0
-                    scale: root.showNotes ? 1 : 0.95
-                    transformOrigin: Item.Center
-                    
-                    Behavior on opacity {
-                        NumberAnimation { 
-                            duration: 250
-                            easing.type: root.showNotes ? Easing.OutCubic : Easing.InCubic
-                        }
-                    }
-                    
-                    Behavior on scale {
-                        NumberAnimation { 
-                            duration: 350
-                            easing.type: root.showNotes ? Easing.OutBack : Easing.InCubic
-                            easing.overshoot: root.showNotes ? 0.8 : 0
-                        }
-                    }
-
-                    // Prevent clicks on the panel from closing the window
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.AllButtons
-                        hoverEnabled: true
-                    }
-
-                    NotesPanel {
-                        anchors.fill: parent
-                        onCloseRequested: root.closeWindow()
+            // M3 Expressive: Deep tonal background (surfaceContainerLowest)
+            Rectangle {
+                id: notesDialog
+                width: Math.min(window.width * 0.85, 1100)
+                height: Math.min(window.height * 0.85, 750)
+                anchors.centerIn: parent
+                color: Appearance.colors.colLayer0Base // M3 surfaceContainerLowest
+                radius: Appearance.rounding.verylarge // 30px expressive shape
+                clip: true
+                
+                opacity: root.showNotes ? 1 : 0
+                scale: root.showNotes ? 1 : 0.95
+                transformOrigin: Item.Center
+                
+                Behavior on opacity {
+                    NumberAnimation { 
+                        duration: 250
+                        easing.type: root.showNotes ? Easing.OutCubic : Easing.InCubic
                     }
                 }
+                
+                Behavior on scale {
+                    NumberAnimation { 
+                        duration: 350
+                        easing.type: root.showNotes ? Easing.OutBack : Easing.InCubic
+                        easing.overshoot: root.showNotes ? 0.8 : 0
+                    }
+                }
+
+                // Prevent clicks on the panel from closing the window
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.AllButtons
+                    hoverEnabled: true
+                }
+
+                NotesPanel {
+                    anchors.fill: parent
+                    onCloseRequested: root.closeWindow()
+                }
+            }
         }
     }
 }

@@ -7,10 +7,16 @@ import qs.modules.common.widgets
 import qs.services
 
 /**
- * A note card for the grid view (MD3 note card).
- * Uses themed card colors with luminance-aware foreground.
- * Card accent colors are a documented visual exception (COLOR_RULES §9) —
- * they are fixed design accent hues that remain independent of wallpaper theming.
+ * M3 Expressive note card for the grid view.
+ *
+ * Surface hierarchy:
+ *   - Pinned cards: primaryContainer or tertiaryContainer tonal fill
+ *     (alternating by index for visual variety)
+ *   - Standard cards: surfaceContainerHigh with subtle border
+ *
+ * Shape: Extra-large rounded corners (28px) for organic M3 Expressive feel.
+ * Typography: titleMedium for card titles, bodySmall for preview.
+ * Pinned indicator: Soft pill badge with filled pin icon instead of accent bar.
  */
 RippleButton {
     id: root
@@ -22,10 +28,30 @@ RippleButton {
     property int cardIndex: 0
     property string noteColor: "default"
     property bool notePinned: false
-    // Accent stripe color follows the card's accent hue (fixed design hues,
-    // COLOR_RULES §9 exception). Default-colored notes use the subtext tone so
-    // the accent stays subtle.
-    readonly property color accentColor: root.noteColor === "default" ? Appearance.colors.colSubtext : NotesService.noteColorFor(root.noteColor).color
+
+    // M3 Expressive: pinned cards use alternating container fills
+    readonly property color pinnedFill: (root.cardIndex % 2 === 0)
+        ? Appearance.colors.colPrimaryContainer
+        : Appearance.colors.colTertiaryContainer
+    readonly property color pinnedOnFill: (root.cardIndex % 2 === 0)
+        ? Appearance.colors.colOnPrimaryContainer
+        : Appearance.colors.colOnTertiaryContainer
+
+    // Cross-tonal mapping: each pinned variant uses the opposite card tone
+    // for foreground content and action containers.
+    readonly property bool usesPrimaryCardTone: root.cardIndex % 2 === 0
+    readonly property color pinnedContentColor: root.usesPrimaryCardTone
+        ? Appearance.colors.colTertiaryContainer
+        : Appearance.colors.colPrimaryContainer
+    readonly property color actionContainerColor: root.notePinned
+        ? (root.usesPrimaryCardTone ? Appearance.colors.colTertiaryContainer : Appearance.colors.colPrimaryContainer)
+        : Appearance.colors.colSurfaceContainerHighest
+    readonly property color actionContainerHoverColor: root.notePinned
+        ? root.actionContainerColor
+        : Appearance.colors.colSurfaceContainerHighestHover
+    readonly property color actionIconColor: root.notePinned
+        ? (root.usesPrimaryCardTone ? Appearance.colors.colPrimaryContainer : Appearance.colors.colTertiaryContainer)
+        : Appearance.colors.colOnSurface
 
     signal moreClicked()
     signal deleteRequested()
@@ -35,23 +61,38 @@ RippleButton {
     property real targetY: 0
     property bool isInitialized: false
 
-    x: root.targetX
-    y: root.targetY
-
-    Behavior on x {
-        enabled: root.isInitialized
-        NumberAnimation {
-            duration: 300
-            easing.type: Easing.OutCubic
+    onTargetXChanged: {
+        if (root.isInitialized) {
+            posAnimX.to = root.targetX;
+            posAnimX.restart();
+        } else {
+            root.x = root.targetX;
         }
     }
 
-    Behavior on y {
-        enabled: root.isInitialized
-        NumberAnimation {
-            duration: 300
-            easing.type: Easing.OutCubic
+    onTargetYChanged: {
+        if (root.isInitialized) {
+            posAnimY.to = root.targetY;
+            posAnimY.restart();
+        } else {
+            root.y = root.targetY;
         }
+    }
+
+    NumberAnimation {
+        id: posAnimX
+        target: root
+        property: "x"
+        duration: 300
+        easing.type: Easing.OutCubic
+    }
+
+    NumberAnimation {
+        id: posAnimY
+        target: root
+        property: "y"
+        duration: 300
+        easing.type: Easing.OutCubic
     }
 
     onImplicitHeightChanged: {
@@ -69,16 +110,25 @@ RippleButton {
         onTriggered: root.isInitialized = true
     }
 
-    // Google Keep-style dynamic sizing: the card height derives from its
-    // content (title + preview), so short notes stay small and long notes grow.
-    // The +48 accounts for the cardLayout's 24px top and bottom margins.
+    // Dynamic sizing: card height derives from content
     implicitHeight: cardLayout.implicitHeight + 48
-    buttonRadius: Appearance.rounding.large // MD3 card shape: large shape scale
-    colBackground: root.notePinned ? Appearance.colors.colLayer2 : Appearance.colors.colLayer1
-    colBackgroundHover: root.notePinned ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer1Hover
-    colRipple: root.notePinned ? Appearance.colors.colLayer3 : Appearance.colors.colLayer2
+    // M3 Expressive: extra-large rounded corners (28px)
+    buttonRadius: 28
 
-    // Right-click to delete (fast path alongside the more_vert menu)
+    // M3 Expressive surface hierarchy
+    colBackground: root.notePinned
+        ? root.pinnedFill
+        : Appearance.colors.colSurfaceContainerHigh
+    colBackgroundHover: root.notePinned
+        ? ((root.cardIndex % 2 === 0)
+            ? Appearance.colors.colPrimaryContainerHover
+            : Appearance.colors.colTertiaryContainerHover)
+        : Appearance.colors.colSurfaceContainerHighestHover
+    colRipple: root.notePinned
+        ? root.pinnedOnFill
+        : Appearance.colors.colOnSurface
+
+    // Right-click to delete
     altAction: function(event) {
         root.deleteRequested();
     }
@@ -86,38 +136,17 @@ RippleButton {
     contentItem: Item {
         anchors.fill: parent
 
-        // Accent stripe on the left edge when the note has a color.
-        // Pinned notes replace the stripe with the elevated container + pin
-        // icon (per the notes design directive: replace_left_accent_bar), so
-        // the stripe is suppressed for them.
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.leftMargin: 10
-            anchors.topMargin: 14
-            anchors.bottomMargin: 14
-            width: 4
-            radius: 2
-            visible: root.noteColor !== "default"
-            color: root.accentColor
-        }
-
         ColumnLayout {
             id: cardLayout
 
-            // Top/left/right anchored with margins; the height follows the
-            // content so the card grows to fit. The right margin keeps the
-            // title/preview clear of the more_vert button in the top-right corner.
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.margins: 24
-            anchors.leftMargin: root.noteColor !== "default" ? 30 : 24
-            anchors.rightMargin: root.notePinned ? 80 : 44
+            anchors.margins: 20
+            anchors.rightMargin: 84
             spacing: 10
 
-            // Title row
+            // Title row with M3 titleMedium typography
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 8
@@ -125,29 +154,22 @@ RippleButton {
                 StyledText {
                     Layout.fillWidth: true
                     text: root.noteTitle || "Untitled"
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    font.weight: Font.DemiBold
+                    font.pixelSize: Appearance.font.pixelSize.large // ~17px ≈ titleMedium
+                    font.weight: Font.Bold
                     font.family: Appearance.font.family.title
-                    color: Appearance.colors.colOnLayer0
+                    color: root.notePinned ? root.pinnedContentColor : Appearance.colors.colOnSurface
                     elide: Text.ElideRight
                     maximumLineCount: 2
                     wrapMode: Text.Wrap
                 }
-
             }
 
-            // Content preview — rendered as clean plain text so body text is never bolded.
+            // Content preview — plain text, M3 bodySmall
             Text {
                 Layout.fillWidth: true
                 text: {
                     const content = root.noteContent || "";
-                    // Strip markdown formatting headers (#), bold (**), and code blocks for clean preview
-                    const cleanText = content
-                        .replace(/^#+\s+/gm, "")
-                        .replace(/\*\*(.*?)\*\*/g, "$1")
-                        .replace(/__(.*?)__/g, "$1")
-                        .replace(/`(.*?)`/g, "$1");
-                    const lines = cleanText.split("\n").filter((l) => {
+                    const lines = content.split("\n").filter((l) => {
                         return l.trim().length > 0;
                     });
                     return lines.slice(0, 6).join("\n") || "Empty note...";
@@ -155,47 +177,59 @@ RippleButton {
                 textFormat: Text.PlainText
                 renderType: Text.NativeRendering
                 font.family: Appearance.font.family.reading
-                font.pixelSize: Appearance.font.pixelSize.small
+                font.pixelSize: Appearance.font.pixelSize.small // ~15px ≈ bodySmall
                 font.weight: Font.Normal
-                color: Appearance.colors.colSubtext // on-surface-variant (secondary muted text)
+                color: root.notePinned ? root.pinnedContentColor : Appearance.colors.colOnSurfaceVariant
                 wrapMode: Text.Wrap
                 verticalAlignment: Text.AlignTop
                 maximumLineCount: 6
                 elide: Text.ElideRight
             }
-
         }
 
-        // Top-Right Header Action Cluster (Pushpin Icon + 3-Dot Menu)
+        // Top-Right Action Cluster: Circular icon button containers
+        // Both buttons use 32px circular M3 tonal containers for clear touch targets
+        // and visual contrast against the card surface.
         Row {
             anchors.top: parent.top
             anchors.right: parent.right
             anchors.margins: 12
-            spacing: 4
+            spacing: 6
 
-            // Pushpin badge aligned directly next to 3-dot menu
-            Item {
-                width: 32
-                height: 32
-                visible: root.notePinned
-                anchors.verticalCenter: parent.verticalCenter
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "push_pin"
-                    iconSize: 18
-                    fill: 1
-                    color: Appearance.colors.colPrimary
-                }
-            }
-
-            // Overflow menu button (MD3 note card action: more_vert)
+            // Pin action button — circular tonal container with pin icon.
             RippleButton {
                 implicitWidth: 32
                 implicitHeight: 32
                 buttonRadius: Appearance.rounding.full
-                colBackground: "transparent"
-                colBackgroundHover: Appearance.colors.colLayer2Hover
+                visible: true
+                colBackground: root.actionContainerColor
+                colBackgroundHover: root.actionContainerHoverColor
+                colRipple: root.actionIconColor
+                onClicked: NotesService.setPinned(root.noteId, !root.notePinned)
+
+                StyledToolTip {
+                    text: root.notePinned ? "Unpin note" : "Pin note"
+                }
+
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: "push_pin"
+                    iconSize: 16
+                    fill: root.notePinned ? 1 : 0
+                    color: root.actionIconColor
+                }
+            }
+
+            // Overflow menu button — circular tonal container
+            RippleButton {
+                implicitWidth: 32
+                implicitHeight: 32
+                buttonRadius: Appearance.rounding.full
+                colBackground: root.actionContainerColor
+                colBackgroundHover: root.actionContainerHoverColor
+                colRipple: root.actionIconColor
                 onClicked: root.moreClicked()
 
                 StyledToolTip {
@@ -208,11 +242,10 @@ RippleButton {
                     verticalAlignment: Text.AlignVCenter
                     text: "more_vert"
                     iconSize: 18
-                    color: Appearance.colors.colSubtext
+                    color: root.actionIconColor
                 }
             }
         }
 
     }
-
 }
