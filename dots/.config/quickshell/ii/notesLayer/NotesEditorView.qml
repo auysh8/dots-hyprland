@@ -37,21 +37,16 @@ Item {
         "id": "pin",
         "label": "Pin note",
         "icon": "push_pin",
+        "isDestructive": false,
         "action": function() {
             root.pinned = !root.pinned;
             NotesService.setPinned(root.noteId, root.pinned);
         }
     }, {
-        "id": "delete",
-        "label": "Delete note",
-        "icon": "delete",
-        "action": function() {
-            root.showDeleteDialog = true;
-        }
-    }, {
         "id": "duplicate",
         "label": "Duplicate note",
         "icon": "file_copy",
+        "isDestructive": false,
         "action": function() {
             const newId = NotesService.createNote(titleInput.text, contentInput.text, root.pinned);
             NotesService.setNoteColor(newId, root.activeColor);
@@ -60,8 +55,23 @@ Item {
         "id": "copy",
         "label": "Copy to clipboard",
         "icon": "content_copy",
+        "isDestructive": false,
         "action": function() {
             Quickshell.clipboardText = contentInput.text;
+        }
+    }, {
+        "id": "divider",
+        "label": "",
+        "icon": "",
+        "isDestructive": false,
+        "action": function() {}
+    }, {
+        "id": "delete",
+        "label": "Delete note",
+        "icon": "delete",
+        "isDestructive": true,
+        "action": function() {
+            root.showDeleteDialog = true;
         }
     }]
 
@@ -316,19 +326,18 @@ Item {
 
             x: Math.max(8, Math.min(root.menuPosition.x + moreButton.width - width, parent.width - width - 8))
             y: Math.max(8, Math.min(root.menuPosition.y + moreButton.height + 8 + (1 - overflowMenu.revealProgress) * 10, parent.height - height - 8))
-            width: 200
+            width: 220
             implicitHeight: overflowMenuColumn.implicitHeight + 16
-            radius: Appearance.rounding.normal
-            // Use the opaque M3 source token: derived surface colors may
-            // inherit the shell's content-transparency setting.
+            radius: 18 // M3 Expressive large rounded corners (16-20px)
+            // Elevated surface container background for natural visual separation
             color: Appearance.m3colors.m3surfaceContainerHighest
-            border.width: 1
-            border.color: Appearance.colors.colOutlineVariant
+            border.width: 0 // Remove hard boundary stroke - use elevation instead
             opacity: overflowMenu.revealProgress
             scale: 0.96 + overflowMenu.revealProgress * 0.04
             transformOrigin: Item.TopRight
             visible: opacity > 0
 
+            // M3 elevation shadow for surface depth
             StyledRectangularShadow {
                 target: overflowMenu
                 opacity: overflowMenu.revealProgress
@@ -338,23 +347,92 @@ Item {
             ColumnLayout {
                 id: overflowMenuColumn
                 anchors.fill: parent
-                anchors.margins: 8
-                spacing: 4
+                anchors.topMargin: 8
+                anchors.bottomMargin: 8
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 0
 
                 Repeater {
                     model: root.menuItems
 
-                    MenuButton {
+                    Item {
                         required property var modelData
                         Layout.fillWidth: true
-                        implicitHeight: 44
-                        buttonRadius: Appearance.rounding.small
-                        iconText: modelData.icon
-                        buttonText: root.menuLabel(modelData)
-                        colBackgroundHover: Appearance.colors.colSurfaceContainerHigh
-                        onClicked: {
-                            root.menuOpen = false;
-                            modelData.action();
+                        Layout.preferredHeight: modelData.id === "divider" ? 11 : 44
+
+                        // Section divider - 1px hairline separator
+                        Rectangle {
+                            visible: modelData.id === "divider"
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            implicitHeight: 1
+                            height: 1
+                            color: Appearance.colors.colOutlineVariant
+                            opacity: 0.4 // More subtle divider
+                        }
+
+                        // Menu item
+                        RippleButton {
+                            visible: modelData.id !== "divider"
+                            anchors.fill: parent
+                            buttonRadius: 8 // Rounded corners for individual menu items
+                            implicitHeight: 44
+                            
+                            // Destructive action styling
+                            property bool isDestructive: modelData.isDestructive || false
+                            // Subtle low-opacity error container background for destructive actions
+                            colBackgroundHover: isDestructive ? 
+                                Appearance.colors.colErrorContainer :
+                                Appearance.colors.colSurfaceContainerHigh
+                            
+                            contentItem: Item {
+                                anchors.fill: parent
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+
+                                // Icon slot
+                                Item {
+                                    id: iconSlot
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 20
+                                    height: 20
+                                    visible: modelData.icon !== ""
+                                    clip: true
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        width: 20
+                                        height: 20
+                                        text: modelData.icon
+                                        iconSize: 20
+                                        color: parent.parent.isDestructive ? 
+                                            Appearance.colors.colError : 
+                                            Appearance.colors.colOnSurface
+                                    }
+                                }
+
+                                // Text label
+                                StyledText {
+                                    anchors.left: iconSlot.right
+                                    anchors.leftMargin: modelData.icon !== "" ? 12 : 0
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: root.menuLabel(modelData)
+                                    horizontalAlignment: Text.AlignLeft
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    color: parent.parent.isDestructive ? 
+                                        Appearance.colors.colError : 
+                                        Appearance.colors.colOnSurface
+                                }
+                            }
+
+                            onClicked: {
+                                root.menuOpen = false;
+                                modelData.action();
+                            }
                         }
                     }
                 }

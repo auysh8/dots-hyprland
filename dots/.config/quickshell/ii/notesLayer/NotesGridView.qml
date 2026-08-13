@@ -33,15 +33,23 @@ Item {
         "id": "pin",
         "label": "Pin note",
         "icon": "push_pin",
+        "isDestructive": false,
         "action": function() {
             const note = NotesService.getNote(root.cardMenuNoteId);
             if (note)
                 NotesService.setPinned(note.id, !note.pinned);
         }
     }, {
+        "id": "divider",
+        "label": "",
+        "icon": "",
+        "isDestructive": false,
+        "action": function() {}
+    }, {
         "id": "delete",
         "label": "Delete note",
         "icon": "delete",
+        "isDestructive": true,
         "action": function() {
             NotesService.deleteNote(root.cardMenuNoteId);
         }
@@ -51,6 +59,8 @@ Item {
     signal noteClicked(string noteId)
 
     function cardMenuLabel(item) {
+        if (item.id === "divider")
+            return "";
         const note = NotesService.getNote(root.cardMenuNoteId);
         if (item.id === "pin")
             return note && note.pinned ? "Unpin note" : "Pin note";
@@ -543,10 +553,9 @@ Item {
         implicitHeight: filterMenuContent.implicitHeight + 16
         x: Math.max(16, Math.min(filterButton.mapToItem(root, 0, filterButton.height).x + filterButton.width - width, root.width - width - 16))
         y: Math.max(16, filterButton.mapToItem(root, 0, filterButton.height).y + 8)
-        radius: Appearance.rounding.normal
+        radius: 18 // M3 Expressive large rounded corners (16-20px)
         color: Appearance.m3colors.m3surfaceContainerHighest
-        border.width: 1
-        border.color: Appearance.colors.colOutlineVariant
+        border.width: 0 // Remove hard boundary stroke - use elevation instead
 
         StyledRectangularShadow {
             target: filterMenu
@@ -555,13 +564,16 @@ Item {
         ColumnLayout {
             id: filterMenuContent
             anchors.fill: parent
-            anchors.margins: 8
-            spacing: 4
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            spacing: 0
 
             MenuButton {
                 Layout.fillWidth: true
-                implicitHeight: 40
-                buttonRadius: Appearance.rounding.small
+                implicitHeight: 44
+                buttonRadius: 8 // Rounded corners for individual menu items
                 iconText: "schedule"
                 buttonText: "Sort by recent"
                 colBackgroundHover: Appearance.colors.colSurfaceContainerHigh
@@ -583,8 +595,8 @@ Item {
 
             MenuButton {
                 Layout.fillWidth: true
-                implicitHeight: 40
-                buttonRadius: Appearance.rounding.small
+                implicitHeight: 44
+                buttonRadius: 8 // Rounded corners for individual menu items
                 iconText: "sort_by_alpha"
                 buttonText: "Sort A–Z"
                 colBackgroundHover: Appearance.colors.colSurfaceContainerHigh
@@ -631,17 +643,16 @@ Item {
             y: root.cardMenuPos.y
             width: root.cardMenuWidth
             implicitHeight: cardMenuColumn.implicitHeight + 16
-            radius: Appearance.rounding.normal
-            // Use the opaque M3 source token: derived surface colors may
-            // inherit the shell's content-transparency setting.
+            radius: 18 // M3 Expressive large rounded corners (16-20px)
+            // Elevated surface container background for natural visual separation
             color: Appearance.m3colors.m3surfaceContainerHighest
-            border.width: 1
-            border.color: Appearance.colors.colOutlineVariant
+            border.width: 0 // Remove hard boundary stroke - use elevation instead
             opacity: cardMenu.revealProgress
             scale: 0.96 + cardMenu.revealProgress * 0.04
             transformOrigin: Item.TopRight
             visible: opacity > 0
 
+            // M3 elevation shadow for surface depth
             StyledRectangularShadow {
                 target: cardMenu
                 opacity: cardMenu.revealProgress
@@ -651,23 +662,92 @@ Item {
             ColumnLayout {
                 id: cardMenuColumn
                 anchors.fill: parent
-                anchors.margins: 8
-                spacing: 4
+                anchors.topMargin: 8
+                anchors.bottomMargin: 8
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 0
 
                 Repeater {
                     model: root.cardMenuItems
 
-                    MenuButton {
+                    Item {
                         required property var modelData
                         Layout.fillWidth: true
-                        implicitHeight: 44
-                        buttonRadius: Appearance.rounding.small
-                        iconText: modelData.icon
-                        buttonText: root.cardMenuLabel(modelData)
-                        colBackgroundHover: Appearance.colors.colSurfaceContainerHigh
-                        onClicked: {
-                            root.cardMenuOpen = false;
-                            modelData.action();
+                        Layout.preferredHeight: modelData.id === "divider" ? 11 : 44
+
+                        // Section divider - 1px hairline separator
+                        Rectangle {
+                            visible: modelData.id === "divider"
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            implicitHeight: 1
+                            height: 1
+                            color: Appearance.colors.colOutlineVariant
+                            opacity: 0.4 // More subtle divider
+                        }
+
+                        // Menu item
+                        RippleButton {
+                            visible: modelData.id !== "divider"
+                            anchors.fill: parent
+                            buttonRadius: 8 // Rounded corners for individual menu items
+                            implicitHeight: 44
+
+                            // Destructive action styling
+                            property bool isDestructive: modelData.isDestructive || false
+                            // Subtle low-opacity error container background for destructive actions
+                            colBackgroundHover: isDestructive ?
+                                Appearance.colors.colErrorContainer :
+                                Appearance.colors.colSurfaceContainerHigh
+
+                            contentItem: Item {
+                                anchors.fill: parent
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+
+                                // Icon slot
+                                Item {
+                                    id: iconSlot
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 20
+                                    height: 20
+                                    visible: modelData.icon !== ""
+                                    clip: true
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        width: 20
+                                        height: 20
+                                        text: modelData.icon
+                                        iconSize: 20
+                                        color: parent.parent.isDestructive ?
+                                            Appearance.colors.colError :
+                                            Appearance.colors.colOnSurface
+                                    }
+                                }
+
+                                // Text label
+                                StyledText {
+                                    anchors.left: iconSlot.right
+                                    anchors.leftMargin: modelData.icon !== "" ? 12 : 0
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: root.cardMenuLabel(modelData)
+                                    horizontalAlignment: Text.AlignLeft
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    color: parent.parent.isDestructive ?
+                                        Appearance.colors.colError :
+                                        Appearance.colors.colOnSurface
+                                }
+                            }
+
+                            onClicked: {
+                                root.cardMenuOpen = false;
+                                modelData.action();
+                            }
                         }
                     }
                 }
