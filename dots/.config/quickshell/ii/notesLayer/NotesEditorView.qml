@@ -164,19 +164,19 @@ Item {
         anchors.margins: 32
         spacing: 20
 
-        // ── Header (M3 Expressive: unified tonal icon buttons) ─────────────
+        // ── Header (M3 Expressive: primary save action, subtle secondary buttons) ─────────────
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
 
-            // Back button — secondary container tonal style
+            // Back button — subtle tonal container
             RippleButton {
                 implicitWidth: 44
                 implicitHeight: 44
                 Layout.alignment: Qt.AlignVCenter
                 buttonRadius: Appearance.rounding.full
-                colBackground: Appearance.colors.colSecondaryContainer
-                colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                colBackground: Appearance.colors.colSurfaceContainerHigh
+                colBackgroundHover: Appearance.colors.colSurfaceContainerHighestHover
                 onClicked: root.cancelClicked()
 
                 StyledToolTip { text: "Discard changes and return" }
@@ -187,21 +187,21 @@ Item {
                     iconSize: 22
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    color: Appearance.colors.colOnSecondaryContainer
+                    color: Appearance.colors.colOnSurface
                 }
             }
 
             Item { Layout.fillWidth: true }
 
-            // More options — secondary container tonal style
+            // More options — subtle tonal container
             RippleButton {
                 id: moreButton
                 implicitWidth: 44
                 implicitHeight: 44
                 Layout.alignment: Qt.AlignVCenter
                 buttonRadius: Appearance.rounding.full
-                colBackground: Appearance.colors.colSecondaryContainer
-                colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                colBackground: Appearance.colors.colSurfaceContainerHigh
+                colBackgroundHover: Appearance.colors.colSurfaceContainerHighestHover
                 onClicked: {
                     root.menuOpen = !root.menuOpen;
                     if (root.menuOpen) root.updateMenuPosition();
@@ -215,11 +215,11 @@ Item {
                     iconSize: 22
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    color: Appearance.colors.colOnSecondaryContainer
+                    color: Appearance.colors.colOnSurface
                 }
             }
 
-            // Save button — primary action with primary container
+            // Save button — prominent primary action with accent container
             RippleButton {
                 implicitWidth: 44
                 implicitHeight: 44
