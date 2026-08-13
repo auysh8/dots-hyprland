@@ -11,8 +11,9 @@ import qs.services
  * M3 Expressive Notes Editor View.
  *
  * Surface: Inherits deep tonal background from parent window.
- * Typography: headlineLarge for title input, bodyLarge for content.
- * Header actions: Matching primary-container tonal icon buttons.
+ * Typography: Display scale (32px DemiBold) for title input, bodyLarge for content.
+ * Header actions: Secondary container for Back/Options, Primary container for Save.
+ * Footer metadata: Tonal pill chips with subtle leading icons.
  */
 Item {
     id: root
@@ -161,21 +162,21 @@ Item {
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 32
-        spacing: 24
+        spacing: 20
 
-        // ── Header (M3 Expressive: tonal icon buttons) ──────────────────────
+        // ── Header (M3 Expressive: unified tonal icon buttons) ─────────────
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
 
-            // Back button — centered with the header action group
+            // Back button — secondary container tonal style
             RippleButton {
                 implicitWidth: 44
                 implicitHeight: 44
                 Layout.alignment: Qt.AlignVCenter
                 buttonRadius: Appearance.rounding.full
-                colBackground: Appearance.colors.colSurfaceContainerHigh
-                colBackgroundHover: Appearance.colors.colSurfaceContainerHighestHover
+                colBackground: Appearance.colors.colSecondaryContainer
+                colBackgroundHover: Appearance.colors.colSecondaryContainerHover
                 onClicked: root.cancelClicked()
 
                 StyledToolTip { text: "Discard changes and return" }
@@ -186,22 +187,21 @@ Item {
                     iconSize: 22
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    color: Appearance.colors.colOnSurface
+                    color: Appearance.colors.colOnSecondaryContainer
                 }
             }
 
             Item { Layout.fillWidth: true }
 
-            // More options — matching primary-container icon button
+            // More options — secondary container tonal style
             RippleButton {
                 id: moreButton
                 implicitWidth: 44
                 implicitHeight: 44
                 Layout.alignment: Qt.AlignVCenter
                 buttonRadius: Appearance.rounding.full
-                colBackground: Appearance.colors.colPrimaryContainer
-                colBackgroundHover: Appearance.colors.colPrimaryContainerHover
-                colRipple: Appearance.colors.colOnPrimaryContainer
+                colBackground: Appearance.colors.colSecondaryContainer
+                colBackgroundHover: Appearance.colors.colSecondaryContainerHover
                 onClicked: {
                     root.menuOpen = !root.menuOpen;
                     if (root.menuOpen) root.updateMenuPosition();
@@ -215,11 +215,11 @@ Item {
                     iconSize: 22
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    color: Appearance.colors.colOnPrimaryContainer
+                    color: Appearance.colors.colOnSecondaryContainer
                 }
             }
 
-            // Save button — matches the overflow action's tonal treatment
+            // Save button — primary action with primary container
             RippleButton {
                 implicitWidth: 44
                 implicitHeight: 44
@@ -250,14 +250,14 @@ Item {
             Layout.fillHeight: true
             spacing: 16
 
-            // Title — M3 headlineLarge expressive typography
+            // Title — M3 Expressive display scale typography
             StyledTextInput {
                 id: titleInput
                 Layout.fillWidth: true
                 text: root.initialTitle
-                font.pixelSize: Appearance.font.pixelSize.hugeass // ~23px ≈ headlineLarge
+                font.pixelSize: 32
                 font.family: Appearance.font.family.title
-                font.weight: Font.Bold
+                font.weight: Font.DemiBold
                 color: Appearance.colors.colOnSurface
                 selectByMouse: true
                 clip: true
@@ -274,19 +274,11 @@ Item {
                 }
             }
 
-            // Divider — subtle outline variant
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 1
-                color: Appearance.colors.colOutlineVariant
-                opacity: 0.3
-            }
-
             // Content — M3 bodyLarge plain text
             ScrollView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.bottomMargin: 48
+                Layout.bottomMargin: 64
                 clip: true
 
                 StyledTextArea {
@@ -429,39 +421,76 @@ Item {
         }
     }
 
-    // ── Footer Stats ──────────────────────────────────────────────────────
+    // ── Footer Stats (M3 tonal pill chips) ───────────────────────────────────
     RowLayout {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.leftMargin: 36
         anchors.rightMargin: 36
-        anchors.bottomMargin: 28
-        spacing: 16
+        anchors.bottomMargin: 16
+        spacing: 12
 
-        RowLayout {
-            spacing: 8
+        // Timestamp chip
+        Rectangle {
+            implicitHeight: 28
+            implicitWidth: timestampRow.implicitWidth + 24
+            Layout.alignment: Qt.AlignVCenter
+            radius: Appearance.rounding.full
+            color: Appearance.colors.colSurfaceContainerHigh
+            visible: root.editedLabel.length > 0
 
-            StyledText {
-                text: root.editedLabel
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colOnSurfaceVariant
-                opacity: 0.7
+            Row {
+                id: timestampRow
+                anchors.centerIn: parent
+                spacing: 6
+
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "schedule"
+                    iconSize: 14
+                    color: Appearance.colors.colOnSurfaceVariant
+                    opacity: 0.7
+                }
+
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.editedLabel
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnSurfaceVariant
+                    opacity: 0.8
+                }
             }
+        }
 
-            StyledText {
-                text: "•"
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colOnSurfaceVariant
-                opacity: 0.4
-                visible: root.editedLabel.length > 0
-            }
+        // Word/character count chip
+        Rectangle {
+            implicitHeight: 28
+            implicitWidth: statsRow.implicitWidth + 24
+            Layout.alignment: Qt.AlignVCenter
+            radius: Appearance.rounding.full
+            color: Appearance.colors.colSurfaceContainerHigh
 
-            StyledText {
-                text: root.formatStats()
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colOnSurfaceVariant
-                opacity: 0.7
+            Row {
+                id: statsRow
+                anchors.centerIn: parent
+                spacing: 6
+
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "short_text"
+                    iconSize: 14
+                    color: Appearance.colors.colOnSurfaceVariant
+                    opacity: 0.7
+                }
+
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.formatStats()
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colOnSurfaceVariant
+                    opacity: 0.8
+                }
             }
         }
     }

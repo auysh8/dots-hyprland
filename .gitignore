@@ -16,3 +16,6 @@ __pycache__/
 # Emacs auto backup file
 *~
 .aider*
+
+# Devin skills
+.devin/skills/
