@@ -29,28 +29,29 @@ RippleButton {
     property string noteColor: "default"
     property bool notePinned: false
 
-    // M3 Expressive: pinned cards use alternating container fills
-    readonly property color pinnedFill: (root.cardIndex % 2 === 0)
-        ? Appearance.colors.colPrimaryContainer
+    // Pinned cards alternate secondaryContainer / tertiaryContainer by index
+    readonly property bool usesSecondaryTone: root.cardIndex % 2 === 0
+    readonly property color pinnedFill: root.usesSecondaryTone
+        ? Appearance.colors.colSecondaryContainer
         : Appearance.colors.colTertiaryContainer
-    readonly property color pinnedOnFill: (root.cardIndex % 2 === 0)
-        ? Appearance.colors.colOnPrimaryContainer
+    readonly property color pinnedOnFill: root.usesSecondaryTone
+        ? Appearance.colors.colOnSecondaryContainer
         : Appearance.colors.colOnTertiaryContainer
 
-    // Cross-tonal mapping: each pinned variant uses the opposite card tone
-    // for foreground content and action containers.
-    readonly property bool usesPrimaryCardTone: root.cardIndex % 2 === 0
-    readonly property color pinnedContentColor: root.usesPrimaryCardTone
-        ? Appearance.colors.colTertiaryContainer
-        : Appearance.colors.colPrimaryContainer
+    // Icon color matches the card's own background fill
+    readonly property color pinnedIconColor: root.pinnedFill
+
+    // Content text keeps matched on-color; icons use cross-tone
+    readonly property color pinnedContentColor: root.pinnedOnFill
+    // Button container: even uses colOnSecondaryContainer, odd uses colOnTertiaryContainer
     readonly property color actionContainerColor: root.notePinned
-        ? (root.usesPrimaryCardTone ? Appearance.colors.colTertiaryContainer : Appearance.colors.colPrimaryContainer)
+        ? (root.usesSecondaryTone ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnTertiaryContainer)
         : Appearance.colors.colSurfaceContainerHighest
     readonly property color actionContainerHoverColor: root.notePinned
-        ? root.actionContainerColor
+        ? (root.usesSecondaryTone ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnTertiaryContainer)
         : Appearance.colors.colSurfaceContainerHighestHover
     readonly property color actionIconColor: root.notePinned
-        ? (root.usesPrimaryCardTone ? Appearance.colors.colPrimaryContainer : Appearance.colors.colTertiaryContainer)
+        ? root.pinnedIconColor
         : Appearance.colors.colOnSurface
 
     signal moreClicked()
@@ -120,8 +121,8 @@ RippleButton {
         ? root.pinnedFill
         : Appearance.colors.colSurfaceContainerHigh
     colBackgroundHover: root.notePinned
-        ? ((root.cardIndex % 2 === 0)
-            ? Appearance.colors.colPrimaryContainerHover
+        ? (root.usesSecondaryTone
+            ? Appearance.colors.colSecondaryContainerHover
             : Appearance.colors.colTertiaryContainerHover)
         : Appearance.colors.colSurfaceContainerHighestHover
     colRipple: root.notePinned

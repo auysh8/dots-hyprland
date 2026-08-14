@@ -20,13 +20,13 @@ require("hyprland.keybinds")
 
 -- Custom configurations --
 if is_file_exists(HOME .. "/.config/hypr/custom/execs.lua") then
-    require("custom.execs")
+    package.loaded["custom.execs"] = nil; require("custom.execs")
 end
 if is_file_exists(HOME .. "/.config/hypr/custom/general.lua") then
-    require("custom.general")
+    package.loaded["custom.general"] = nil; require("custom.general")
 end
 if is_file_exists(HOME .. "/.config/hypr/custom/rules.lua") then
-    require("custom.rules")
+    package.loaded["custom.rules"] = nil; require("custom.rules")
 end
 if is_file_exists(HOME .. "/.config/hypr/custom/keybinds.lua") then
     package.loaded["custom.keybinds"] = nil; require("custom.keybinds")

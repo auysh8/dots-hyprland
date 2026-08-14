@@ -36,7 +36,7 @@ if hl.plugin and hl.plugin.hyprglass then
         default_preset = "glass",
         tint_color = 0x8899aa22,
 
-        brightness = 1,
+        brightness = 0.5,
         dark = { brightness = 0.82 },
         light = { adaptive_boost = 0.5 },
 
