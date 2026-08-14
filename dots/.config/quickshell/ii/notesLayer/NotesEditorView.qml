@@ -450,51 +450,193 @@ Item {
     }
 
     // ── Delete confirmation modal ─────────────────────────────────────────────
-    WindowDialog {
+    Rectangle {
         id: deleteConfirmDialog
         anchors.fill: parent
         z: 20
-        show: root.showDeleteDialog
-        animationsEnabled: true
-        backgroundWidth: 360
-        backgroundHeight: 240
-        onDismiss: root.showDeleteDialog = false
-
-        Connections {
-            function onShowChanged() {
-                if (deleteConfirmDialog.show)
-                    deleteConfirmDialog.forceActiveFocus();
+        visible: root.showDeleteDialog
+        radius: Appearance.rounding.screenRounding // Match screen/window rounding
+        
+        // Smooth opacity fade for backdrop
+        color: Appearance.colors.colScrim
+        opacity: root.showDeleteDialog ? 1 : 0
+        
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 250
+                easing.type: Appearance.animation.elementMoveFast.type
+                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
             }
-            target: deleteConfirmDialog
         }
-
-        WindowDialogTitle {
-            Layout.alignment: Qt.AlignHCenter
-            text: Translation.tr("Delete note?")
+        
+        // Click outside to dismiss
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            hoverEnabled: true
+            onPressed: root.showDeleteDialog = false
         }
-
-        WindowDialogParagraph {
-            Layout.alignment: Qt.AlignHCenter
-            text: Translation.tr("This will permanently delete this note. This action cannot be undone.")
-        }
-
-        WindowDialogButtonRow {
-            Layout.alignment: Qt.AlignRight
-
-            DialogButton {
-                buttonText: Translation.tr("Cancel")
-                onClicked: root.showDeleteDialog = false
+        
+        // Dialog container
+        Rectangle {
+            id: dialogContainer
+            anchors.centerIn: parent
+            width: Math.max(320, Math.min(parent.width * 0.9, 400))
+            height: dialogColumn.implicitHeight + 48 // 24px padding top + bottom
+            radius: Appearance.rounding.verylarge // 28-30px - M3 Expressive
+            color: Appearance.colors.colLayer3
+            clip: true
+            
+            // M3 elevation shadow
+            StyledRectangularShadow {
+                target: dialogContainer
             }
-
-            DialogButton {
-                buttonText: Translation.tr("Delete")
-                colBackground: Appearance.colors.colError
-                colBackgroundHover: Appearance.colors.colErrorHover
-                colText: Appearance.colors.colOnError
-                onClicked: {
-                    root.showDeleteDialog = false;
-                    NotesService.deleteNote(root.noteId);
+            
+            // Entry/Exit animation using expressive curves
+            property real animProgress: root.showDeleteDialog ? 1 : 0
+            opacity: animProgress
+            scale: 0.95 + animProgress * 0.05
+            transformOrigin: Item.Center
+            
+            Behavior on animProgress {
+                NumberAnimation {
+                    duration: 280
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                 }
+            }
+            
+            // Prevent clicks on dialog from dismissing
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+                hoverEnabled: true
+                onPressed: {} // Consume clicks
+            }
+            
+            // Content column with 24px padding
+            ColumnLayout {
+                id: dialogColumn
+                anchors.fill: parent
+                anchors.margins: 24
+                spacing: 0
+                
+                // Dialog title - M3 Expressive typography
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignLeft
+                    Layout.bottomMargin: 16
+                    text: Translation.tr("Delete note?")
+                    color: Appearance.colors.colOnSurface
+                    wrapMode: Text.Wrap
+                    font {
+                        family: Appearance.font.family.title
+                        pixelSize: Appearance.font.pixelSize.hugeass
+                        weight: Font.DemiBold
+                    }
+                }
+                
+                // Body text - readable with explicit word wrapping
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignLeft
+                    Layout.bottomMargin: 24
+                    text: Translation.tr("This will permanently delete this note. This action cannot be undone.")
+                    color: Appearance.colors.colOnSurfaceVariant
+                    wrapMode: Text.WordWrap
+                    font {
+                        family: Appearance.font.family.main
+                        pixelSize: Appearance.font.pixelSize.small
+                    }
+                    lineHeight: 1.5
+                }
+                
+                // Spacer to push buttons to bottom
+                Item {
+                    Layout.fillHeight: true
+                    Layout.preferredHeight: 24
+                }
+                
+                // Actions row - M3 Expressive pill buttons
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    
+                    // Spacer to push buttons to the right
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                    
+                    // Cancel button - transparent with hover state
+                    RippleButton {
+                        Layout.preferredHeight: 40
+                        Layout.preferredWidth: cancelText.implicitWidth + 32 // 16px padding each side
+                        buttonRadius: Appearance.rounding.full // Pill shape
+                        colBackground: "transparent"
+                        colBackgroundHover: Appearance.colors.colLayer1Hover
+                        
+                        contentItem: StyledText {
+                            id: cancelText
+                            anchors.fill: parent
+                            text: Translation.tr("Cancel")
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font {
+                                family: Appearance.font.family.main
+                                pixelSize: Appearance.font.pixelSize.normal
+                                weight: Font.Medium
+                            }
+                            color: Appearance.colors.colPrimary
+                        }
+                        
+                        onClicked: root.showDeleteDialog = false
+                    }
+                    
+                    // Delete button - destructive with error background
+                    RippleButton {
+                        Layout.preferredHeight: 40
+                        Layout.preferredWidth: deleteText.implicitWidth + 32 // 16px padding each side
+                        buttonRadius: Appearance.rounding.full // Pill shape
+                        colBackground: Appearance.colors.colError
+                        colBackgroundHover: Appearance.colors.colErrorHover
+                        
+                        contentItem: StyledText {
+                            id: deleteText
+                            anchors.fill: parent
+                            text: Translation.tr("Delete")
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font {
+                                family: Appearance.font.family.main
+                                pixelSize: Appearance.font.pixelSize.normal
+                                weight: Font.Medium
+                            }
+                            color: Appearance.colors.colOnError
+                        }
+                        
+                        onClicked: {
+                            root.showDeleteDialog = false;
+                            NotesService.deleteNote(root.noteId);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Handle keyboard focus
+        Connections {
+            target: deleteConfirmDialog
+            function onVisibleChanged() {
+                if (deleteConfirmDialog.visible) {
+                    deleteConfirmDialog.forceActiveFocus();
+                }
+            }
+        }
+        
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                root.showDeleteDialog = false;
+                event.accepted = true;
             }
         }
     }

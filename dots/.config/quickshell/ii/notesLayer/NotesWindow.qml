@@ -89,16 +89,17 @@ Scope {
                 
                 Behavior on opacity {
                     NumberAnimation { 
-                        duration: 250
-                        easing.type: root.showNotes ? Easing.OutCubic : Easing.InCubic
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.type
+                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                     }
                 }
                 
                 Behavior on scale {
                     NumberAnimation { 
-                        duration: 350
-                        easing.type: root.showNotes ? Easing.OutBack : Easing.InCubic
-                        easing.overshoot: root.showNotes ? 0.8 : 0
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.type
+                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                     }
                 }
 
