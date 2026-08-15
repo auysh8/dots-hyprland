@@ -169,6 +169,19 @@ Scope {
     property color accentColor: Appearance.colors.colPrimary
     property color successColor: Appearance.m3colors.m3success
     property color warningColor: Appearance.m3colors.m3tertiary  // Warm/alert action
+    
+    // Material 3 Expressive colors
+    property color m3PrimaryContainer: Appearance.m3colors.m3primaryContainer
+    property color m3OnPrimaryContainer: Appearance.m3colors.m3onPrimaryContainer
+    property color m3SecondaryContainer: Appearance.m3colors.m3secondaryContainer
+    property color m3SurfaceContainerHigh: Appearance.m3colors.m3surfaceContainerHigh
+    property color m3SurfaceContainerHighest: Appearance.m3colors.m3surfaceContainerHighest
+    property color m3SurfaceContainer: Appearance.m3colors.m3surfaceContainer
+    property color m3SurfaceVariant: Appearance.m3colors.m3surfaceVariant
+    property color m3OnSurfaceVariant: Appearance.m3colors.m3onSurfaceVariant
+    property color m3Outline: Appearance.m3colors.m3outline
+    property color m3SuccessContainer: Appearance.m3colors.m3successContainer
+    property color m3OnSuccessContainer: Appearance.m3colors.m3onSuccessContainer
 
     /* --- CLOSE TIMER (shared) --- */
     Timer {
@@ -319,7 +332,6 @@ Scope {
         }
     }
 
-    Process { id: actionProcess }
 
     Timer {
         id: delayedTransferTimer
@@ -511,6 +523,7 @@ Scope {
                         text: "smartphone"
                         color: accentColor
                         iconSize: 24
+                        fill: 1  // Filled variant
                         opacity: (isOpen || !isPillVisible) ? 0 : 1 // Hide if open OR autohidden
                         scale: (isOpen || !isPillVisible) ? 0.5 : 1
                         Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -530,61 +543,86 @@ Scope {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 32
-                        spacing: 28
+                        anchors.margins: 20
+                        spacing: 16
                         opacity: isOpen ? 1 : 0 // Fade content out when closing
                         visible: opacity > 0
                         Behavior on opacity { NumberAnimation { duration: 200 } }
 
-                        // Header - Refined with phone icon and status
+                        // Header - Redesigned with squircle icon and unified connection badge
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 12
+                            spacing: 16
 
-                            // Phone icon with online indicator
-                            MaterialShapeWrappedMaterialSymbol {
-                                shape: MaterialShape.Shape.Square
-                                padding: 9
-                                colSymbol: accentColor
-                                color: ColorUtils.applyAlpha(colSymbol, 0.15)
-                                text: "smartphone"
-                                iconSize: 22
+                            // Device icon - squircle with soft lavender/purple container
+                            Rectangle {
+                                implicitWidth: 48
+                                implicitHeight: 48
+                                radius: 12
+                                color: m3PrimaryContainer
 
-                                // Online dot
-                                MaterialShape {
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
-                                    anchors.margins: -2
-                                    implicitSize: 12
-                                    shape: MaterialShape.Shape.Circle
-                                    color: deviceOnline ? successColor : Appearance.colors.colError
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "smartphone"
+                                    color: m3OnPrimaryContainer
+                                    iconSize: 24
+                                    fill: 1  // Filled variant
+                                }
+                            }
 
-                                    // Pulse animation when online
-                                    SequentialAnimation on scale {
-                                        loops: Animation.Infinite
-                                        running: deviceOnline
-                                        NumberAnimation { to: 1.2; duration: 800; easing.type: Easing.InOutQuad }
-                                        NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutQuad }
+                            // Device details column
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+
+                                // Device title
+                                StyledText {
+                                    text: deviceName
+                                    color: textColor
+                                    font.pixelSize: 18
+                                    font.weight: Font.Bold
+                                    Layout.fillWidth: true
+                                }
+
+                                // Connection badge - unified pill
+                                Rectangle {
+                                    implicitWidth: connectedRow.implicitWidth + 20
+                                    implicitHeight: 24
+                                    radius: 12
+                                    color: m3SuccessContainer
+                                    visible: deviceOnline
+
+                                    RowLayout {
+                                        id: connectedRow
+                                        anchors.centerIn: parent
+                                        spacing: 6
+
+                                        // Vibrant emerald green dot
+                                        Rectangle {
+                                            implicitWidth: 8
+                                            implicitHeight: 8
+                                            radius: 4
+                                            color: successColor
+                                        }
+
+                                        // "Connected" text
+                                        StyledText {
+                                            text: "Connected"
+                                            color: m3OnSuccessContainer
+                                            font.pixelSize: 11
+                                            font.weight: Font.DemiBold
+                                        }
                                     }
                                 }
                             }
 
-                            // Device name
-                            StyledText {
-                                text: deviceName
-                                color: textColor
-                                font.pixelSize: 20
-                                font.weight: Font.Bold
-                                Layout.fillWidth: true
-                            }
-
-                            // Minimize button
+                            // Expand button - circular with chevron
                             RippleButton {
-                                implicitWidth: 32
-                                implicitHeight: 32
-                                buttonRadius: 16
+                                implicitWidth: 36
+                                implicitHeight: 36
+                                buttonRadius: 18
                                 colBackground: "transparent"
-                                colBackgroundHover: ColorUtils.applyAlpha(textColor, 0.1)
+                                colBackgroundHover: ColorUtils.applyAlpha(textColor, 0.08)
 
                                 onClicked: {
                                     requestCloseDrawer()
@@ -593,52 +631,10 @@ Scope {
                                 contentItem: Item {
                                     MaterialSymbol {
                                         anchors.centerIn: parent
-                                        text: "keyboard_arrow_down"
+                                        text: "expand_more"
                                         color: textSecondary
-                                        iconSize: 24
-                                    }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 44
-                            radius: 14
-                            color: cardColor
-                            visible: availableDevices.length > 1
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 14
-                                anchors.rightMargin: 14
-                                spacing: 10
-
-                                StyledText {
-                                    text: "Device"
-                                    color: textSecondary
-                                    font.pixelSize: 13
-                                    font.weight: Font.Medium
-                                }
-
-                                StyledComboBox {
-                                    id: deviceSelector
-                                    Layout.fillWidth: true
-                                    enabled: !isTransferring
-                                    model: availableDevices.map(dev => dev.reachable ? dev.name : `${dev.name} (offline)`)
-                                    currentIndex: selectedDeviceIndex()
-                                    
-                                    // Make it blend with the card nicely
-                                    colBackground: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.1)
-                                    colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.2)
-                                    colBackgroundActive: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.3)
-                                    
-                                    onActivated: index => {
-                                        if (index < 0 || index >= availableDevices.length) return
-                                        activeDeviceId = availableDevices[index].id
-                                        deviceName = availableDevices[index].name
-                                        batteryPercent = availableDevices[index].battery ?? -1
-                                        batteryCharging = Boolean(availableDevices[index].charging)
+                                        iconSize: 20
+                                        fill: 1  // Filled variant
                                     }
                                 }
                             }
@@ -654,236 +650,229 @@ Scope {
                             wrapMode: Text.WordWrap
                         }
 
-                        // Battery Card - Compact horizontal design
+                        // Battery Card - Material 3 Expressive design
                         Rectangle {
                             Layout.fillWidth: true
-                            height: 70
-                            radius: 20
-                            color: cardColor
+                            height: 60
+                            radius: 28
+                            color: m3SurfaceContainerHigh
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: 16
-                                spacing: 14
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 16
+                                anchors.topMargin: 8
+                                anchors.bottomMargin: 8
+                                spacing: 0
 
-                                                                // Battery icon with circle background
-                                                                MaterialShapeWrappedMaterialSymbol {
-                                                                    shape: MaterialShape.Shape.Square
-                                                                    padding: 8
-                                                                    colSymbol: batteryCharging
-                                                                        ? successColor
-                                                                        : (batteryPercent != -1 && batteryPercent < 20 ? Appearance.colors.colError : accentColor)
-                                                                    color: batteryCharging
-                                                                        ? ColorUtils.applyAlpha(successColor, 0.2)
-                                                                        : (batteryPercent != -1 && batteryPercent < 20
-                                                                            ? ColorUtils.applyAlpha(Appearance.colors.colError, 0.2)
-                                                                            : ColorUtils.applyAlpha(accentColor, 0.15))
-                                                                    iconSize: 22
-                                                                    text: batteryCharging
-                                                                        ? "battery_charging_full"
-                                                                        : batteryPercent == -1
-                                                                            ? "battery_unknown"
-                                                                            : batteryPercent >= 90
-                                                                                ? "battery_full"
-                                                                                : batteryPercent >= 50
-                                                                                    ? "battery_4_bar"
-                                                                                    : "battery_2_bar"
-                                                                }
-                                // Percentage
+                                // Leading icon badge - 40dp squircle with secondary-container for depth
+                                Rectangle {
+                                    implicitWidth: 40
+                                    implicitHeight: 40
+                                    radius: 14
+                                    color: m3SecondaryContainer
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: batteryCharging
+                                            ? "battery_charging_full"
+                                            : batteryPercent == -1
+                                                ? "battery_unknown"
+                                                : batteryPercent >= 90
+                                                    ? "battery_full"
+                                                    : batteryPercent >= 50
+                                                        ? "battery_4_bar"
+                                                        : "battery_2_bar"
+                                        color: m3OnSurfaceVariant
+                                        iconSize: 24
+                                        fill: 1  // Filled variant
+                                    }
+                                }
+
+                                // Percentage label - headline-small with weight 700
                                 StyledText {
                                     text: batteryPercent >= 0 ? batteryPercent + "%" : "--%"
                                     font.pixelSize: 24
-                                    font.weight: Font.Bold
+                                    font.weight: Font.Bold // Weight 700 for prominent numbers
                                     color: textColor
+                                    Layout.leftMargin: 12
+                                    Layout.rightMargin: 16
                                 }
 
-                                // Progress bar - takes remaining space
+                                // Expressive progress bar - 12dp segmented pill with mint accent
                                 StyledProgressBar {
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
-                                    valueBarHeight: 6
+                                    valueBarHeight: 12
                                     value: Math.max(batteryPercent, 0) / 100
-                                    highlightColor: batteryCharging ? successColor : accentColor
-                                    trackColor: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.08)
-                                    // Remove gap for a solid bar look
+                                    highlightColor: accentColor
+                                    trackColor: m3SurfaceVariant
+                                    // Remove gap to eliminate right-side dot artifact
                                     valueBarGap: 0
                                 }
 
-                                // Charging indicator text
+                                // Trailing status icon - bold bolt in mint accent
                                 MaterialSymbol {
                                     visible: batteryCharging
                                     text: "bolt"
                                     iconSize: 20
-                                    color: successColor
+                                    color: accentColor
+                                    fill: 1  // Filled variant
+                                    Layout.leftMargin: 12
                                 }
                             }
                         }
 
-                        // Actions Row - Icon-only with tooltips
-                        RowLayout {
+                        // Quick Actions - Material 3 ButtonGroup with GroupButtons
+                        ButtonGroup {
                              Layout.fillWidth: true
                              spacing: 12
+                             padding: 0
                              visible: deviceOnline
 
                              // Ring - Warning/Orange (alert action)
-                             RippleButton {
+                             GroupButton {
                                  id: ringBtn
                                  Layout.fillWidth: true
-                                 Layout.preferredWidth: down ? 110 : 100 
-                                 implicitHeight: 48
-                                 buttonRadius: down ? 12 : 16
+                                 baseWidth: Math.floor((parent.width - 24) / 3)
+                                 baseHeight: 56
+                                 clickedWidth: baseWidth + 16
+                                 buttonRadius: 18
+                                 buttonRadiusPressed: 14
+                                 bounce: true
 
-                                 colBackground: cardColor
-                                 colBackgroundHover: accentColor
-                                 colBackgroundToggled: accentColor
-                                 colRipple: Appearance.colors.colOnPrimary
-                                 
-                                 Behavior on Layout.preferredWidth { 
-                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
-                                 }
+                                 colBackground: m3SecondaryContainer
+                                 colBackgroundHover: ColorUtils.applyAlpha(m3SecondaryContainer, 0.8)
+                                 colBackgroundActive: ColorUtils.applyAlpha(m3SecondaryContainer, 0.6)
 
                                  onClicked: {
-                                     if(!activeDeviceId) return
-                                     actionProcess.command = ["kdeconnect-cli", "--ring", "--device", activeDeviceId]
-                                     actionProcess.running = true
+                                     if (!activeDeviceId) return
+                                     Quickshell.execDetached(["kdeconnect-cli", "--ring", "--device", activeDeviceId])
                                  }
 
-                                 contentItem: Item {
-                                     MaterialSymbol {
-                                         anchors.centerIn: parent
-                                         text: "ring_volume"
-                                         color: ringBtn.hovered ? Appearance.colors.colOnPrimary : textColor
-                                         iconSize: 24
-                                         Behavior on color { ColorAnimation { duration: 150 } }
-                                     }
+                                 contentItem: MaterialSymbol {
+                                     horizontalAlignment: Text.AlignHCenter
+                                     verticalAlignment: Text.AlignVCenter
+                                     text: "notifications_active"  // Ring icon
+                                     color: textColor
+                                     iconSize: 28
+                                     fill: 1  // Filled variant
                                  }
 
                                  StyledToolTip {
-                                     text: "Ring Phone"
+                                     text: "Ring phone"
                                  }
                              }
 
                              // Ping - Success/Green (confirmation)
-                             RippleButton {
+                             GroupButton {
                                  id: pingBtn
                                  Layout.fillWidth: true
-                                 Layout.preferredWidth: down ? 110 : 100 
-                                 implicitHeight: 48
-                                 buttonRadius: down ? 12 : 16
+                                 baseWidth: Math.floor((parent.width - 24) / 3)
+                                 baseHeight: 56
+                                 clickedWidth: baseWidth + 16
+                                 buttonRadius: 18
+                                 buttonRadiusPressed: 14
+                                 bounce: true
 
-                                 colBackground: cardColor
-                                 colBackgroundHover: accentColor
-                                 colBackgroundToggled: accentColor
-                                 colRipple: Appearance.colors.colOnPrimary
-                                 
-                                 Behavior on Layout.preferredWidth { 
-                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
-                                 }
+                                 colBackground: m3SecondaryContainer
+                                 colBackgroundHover: ColorUtils.applyAlpha(m3SecondaryContainer, 0.8)
+                                 colBackgroundActive: ColorUtils.applyAlpha(m3SecondaryContainer, 0.6)
 
                                  onClicked: {
-                                     if(!activeDeviceId) return
-                                     actionProcess.command = ["kdeconnect-cli", "--ping", "--device", activeDeviceId]
-                                     actionProcess.running = true
+                                     if (!activeDeviceId) return
+                                     Quickshell.execDetached(["kdeconnect-cli", "--ping", "--device", activeDeviceId])
                                  }
 
-                                 contentItem: Item {
-                                     MaterialSymbol {
-                                         anchors.centerIn: parent
-                                         text: "touch_app"
-                                         color: pingBtn.hovered ? Appearance.colors.colOnPrimary : textColor
-                                         iconSize: 24
-                                         Behavior on color { ColorAnimation { duration: 150 } }
-                                     }
+                                 contentItem: MaterialSymbol {
+                                     horizontalAlignment: Text.AlignHCenter
+                                     verticalAlignment: Text.AlignVCenter
+                                     text: "pan_tool"  // Ping icon
+                                     color: textColor
+                                     iconSize: 28
+                                     fill: 1  // Filled variant
                                  }
 
                                  StyledToolTip {
-                                     text: "Ping"
+                                     text: "Ping phone"
                                  }
                              }
 
                              // Mirror - Primary/Accent (main feature)
-                             RippleButton {
+                             GroupButton {
                                  id: mirrorBtn
                                  Layout.fillWidth: true
-                                 Layout.preferredWidth: down ? 110 : 100 
-                                 implicitHeight: 48
-                                 buttonRadius: down ? 12 : 16
+                                 baseWidth: Math.floor((parent.width - 24) / 3)
+                                 baseHeight: 56
+                                 clickedWidth: baseWidth + 16
+                                 buttonRadius: 18
+                                 buttonRadiusPressed: 14
+                                 bounce: true
 
-                                 colBackground: cardColor
-                                 colBackgroundHover: accentColor
-                                 colBackgroundToggled: accentColor
-                                 colRipple: Appearance.colors.colOnPrimary
-                                 
-                                 Behavior on Layout.preferredWidth { 
-                                     NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 2 }
-                                 }
+                                 colBackground: m3SecondaryContainer
+                                 colBackgroundHover: ColorUtils.applyAlpha(m3SecondaryContainer, 0.8)
+                                 colBackgroundActive: ColorUtils.applyAlpha(m3SecondaryContainer, 0.6)
 
                                  onClicked: {
-                                     actionProcess.command = ["bash", Qt.resolvedUrl("mirror_phone.sh").toString().replace("file://", "")]
-                                     actionProcess.running = true
+                                     Quickshell.execDetached(["bash", Qt.resolvedUrl("mirror_phone.sh").toString().replace("file://", "")])
                                  }
 
-                                 contentItem: Item {
-                                     MaterialSymbol {
-                                         anchors.centerIn: parent
-                                         text: "screen_share"
-                                         color: mirrorBtn.hovered ? Appearance.colors.colOnPrimary : textColor
-                                         iconSize: 24
-                                         Behavior on color { ColorAnimation { duration: 150 } }
-                                     }
+                                 contentItem: MaterialSymbol {
+                                     horizontalAlignment: Text.AlignHCenter
+                                     verticalAlignment: Text.AlignVCenter
+                                     text: "screen_share"  // Mirror icon
+                                     color: textColor
+                                     iconSize: 28
+                                     fill: 1  // Filled variant
                                  }
 
                                  StyledToolTip {
-                                     text: "Mirror Screen"
+                                     text: "Mirror screen (scrcpy)"
                                  }
                              }
                         }
 
-                        // Drop Zone
-                        Item {
+                        // Drop Zone - Material 3 styling
+                        Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            radius: 24
+                            color: m3SurfaceContainer
+                            border.width: 1.5
+                            border.color: fileDropArea.containsDrag ? accentColor : m3Outline
 
-                            Canvas {
-                                anchors.fill: parent
-                                onPaint: {
-                                    const ctx = getContext("2d")
-                                    ctx.reset()
-                                    // Highlight border on drag
-                                    ctx.strokeStyle = fileDropArea.containsDrag ? accentColor : ColorUtils.applyAlpha(textColor, 0.2)
-                                    ctx.lineWidth = 2
-                                    ctx.setLineDash([12, 12]) // Larger dashes
-                                    ctx.beginPath()
-                                    // Inset slightly to avoid clipping
-                                    ctx.roundedRect(2, 2, width-4, height-4, 26, 26)
-                                    ctx.stroke()
-                                }
-                            }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                             // Visual Content (Icon + Text)
                             ColumnLayout {
                                 anchors.centerIn: parent
-                                spacing: 20
+                                spacing: 16
                                 visible: !isTransferring // Hide when sharing starts
 
-                                MaterialShapeWrappedMaterialSymbol {
+                                // Center badge - rounded squircle action badge
+                                Rectangle {
                                     Layout.alignment: Qt.AlignHCenter
-                                    shape: MaterialShape.Shape.Circle
-                                    padding: 16
-                                    colSymbol: fileDropArea.containsDrag ? Appearance.m3colors.m3onPrimary : Appearance.colors.colOnSurface
-                                    color: fileDropArea.containsDrag ? accentColor : ColorUtils.applyAlpha(cardColor, 0.5)
+                                    implicitWidth: 56
+                                    implicitHeight: 56
+                                    radius: 16
+                                    color: m3PrimaryContainer
 
                                     Behavior on color { ColorAnimation { duration: 150 } }
 
-                                    text: "upload_file"
-                                    iconSize: 32
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "upload_file"
+                                        color: m3OnPrimaryContainer
+                                        iconSize: 32
+                                        fill: 1  // Filled variant
+                                    }
                                 }
 
                                 StyledText {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: fileDropArea.containsDrag ? "Drop to share!" : "Drop files to send"
                                     color: textSecondary
-                                    font.pixelSize: 16
+                                    font.pixelSize: 14
                                     font.weight: Font.Medium
                                 }
                             }
@@ -891,8 +880,8 @@ Scope {
                             // Loading overlay during file transfer
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 28
-                                color: ColorUtils.applyAlpha(cardColor, 0.95)
+                                radius: 24
+                                color: ColorUtils.applyAlpha(m3SurfaceContainer, 0.95)
                                 z: 100
 
                                 // Animate visibility
@@ -903,16 +892,12 @@ Scope {
                                 scale: isTransferring ? 1 : 0.9
                                 Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
 
-                                Item {
-                                    anchors.fill: parent
-
-                                    StyledText {
-                                        anchors.centerIn: parent
-                                        text: `Sending ${transferSuccessCount + transferFailureCount + (transferProcess.running ? 1 : 0)}/${transferPendingCount}`
-                                        color: textColor
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
-                                    }
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: `Sending ${transferSuccessCount + transferFailureCount + (transferProcess.running ? 1 : 0)}/${transferPendingCount}`
+                                    color: textColor
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
                                 }
                             }
 
@@ -921,7 +906,6 @@ Scope {
                                 anchors.fill: parent
                                 enabled: deviceOnline
                                 onEntered: (drag) => {
-                                    parent.children[0].requestPaint()
                                     // Keep drawer open when dragging inside
                                     kdeRoot.isDragging = true
                                     isOpen = true
@@ -929,7 +913,6 @@ Scope {
                                     closeTimer.stop()
                                 }
                                 onExited: {
-                                    parent.children[0].requestPaint()
                                     // Allow close if dragging out
                                     kdeRoot.isDragging = false
                                     userActive = false
@@ -938,44 +921,9 @@ Scope {
 
                                 onDropped: (drop) => {
                                     kdeRoot.isDragging = false
-                                    parent.children[0].requestPaint() // Reset canvas
                                     if (!drop.hasUrls || !activeDeviceId) return
 
                                     startTransfers(urlsToPaths(drop.urls))
-                                }
-                            }
-                        }
-
-                        // Status Pill - Floating style
-                        Item {
-                            Layout.alignment: Qt.AlignHCenter
-                            width: statusRow.width + 20
-                            height: 28
-
-                            RowLayout {
-                                id: statusRow
-                                anchors.centerIn: parent
-                                spacing: 8
-
-                                MaterialShape {
-                                    implicitSize: 8
-                                    shape: MaterialShape.Shape.Circle
-                                    color: deviceOnline ? successColor : Appearance.colors.colError
-
-                                    // Pulse animation when online
-                                    SequentialAnimation on opacity {
-                                        loops: Animation.Infinite
-                                        running: deviceOnline
-                                        NumberAnimation { to: 0.4; duration: 1000 }
-                                        NumberAnimation { to: 1.0; duration: 1000 }
-                                    }
-                                }
-
-                                StyledText {
-                                    text: transferStatusText !== "" ? transferStatusText : (deviceOnline ? "Connected" : "Offline")
-                                    color: transferStatusText !== "" ? (transferFailureCount > 0 ? warningColor : successColor) : textSecondary
-                                    font.pixelSize: 11
-                                    font.weight: Font.Medium
                                 }
                             }
                         }

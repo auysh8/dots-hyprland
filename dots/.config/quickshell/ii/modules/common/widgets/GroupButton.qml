@@ -14,7 +14,7 @@ Button {
     property bool toggled
     property string buttonText
     property real buttonRadius: Appearance?.rounding?.small ?? 8
-    property real buttonRadiusPressed: Appearance?.rounding?.small ?? 6
+    property real buttonRadiusPressed: buttonRadius > 0 ? Math.max(buttonRadius - 4, 4) : (Appearance?.rounding?.small ?? 6)
     property var downAction // When left clicking (down)
     property var releaseAction // When left clicking (release)
     property var altAction // When right clicking
@@ -31,8 +31,8 @@ Button {
     property int clickIndex: parentGroup?.clickIndex ?? -1
     property bool isAtSide: indexInParent === 0 || indexInParent === (parentGroup?.childrenCount - 1)
 
-    Layout.fillWidth: (clickIndex - 1 <= indexInParent && indexInParent <= clickIndex + 1)
-    Layout.fillHeight: (clickIndex - 1 <= indexInParent && indexInParent <= clickIndex + 1)
+    Layout.fillWidth: clickIndex >= 0 && (clickIndex - 1 <= indexInParent && indexInParent <= clickIndex + 1)
+    Layout.fillHeight: clickIndex >= 0 && (clickIndex - 1 <= indexInParent && indexInParent <= clickIndex + 1)
     implicitWidth: (root.down && bounce) ? clickedWidth : baseWidth
     implicitHeight: (root.down && bounce) ? clickedHeight : baseHeight
 
@@ -58,6 +58,10 @@ Button {
         if (root.down) {
             if (root.parent.clickIndex !== undefined) {
                 root.parent.clickIndex = parent.children.indexOf(root)
+            }
+        } else {
+            if (root.parent.clickIndex !== undefined) {
+                root.parent.clickIndex = -1
             }
         }
     }
@@ -124,7 +128,7 @@ Button {
         topRightRadius: root.rightRadius
         bottomLeftRadius: root.leftRadius
         bottomRightRadius: root.rightRadius
-        implicitHeight: 50
+        implicitHeight: root.baseHeight
 
         color: root.color
         Behavior on color {
