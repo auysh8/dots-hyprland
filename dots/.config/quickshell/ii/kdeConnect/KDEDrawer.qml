@@ -174,6 +174,7 @@ Scope {
     property color m3PrimaryContainer: Appearance.m3colors.m3primaryContainer
     property color m3OnPrimaryContainer: Appearance.m3colors.m3onPrimaryContainer
     property color m3SecondaryContainer: Appearance.m3colors.m3secondaryContainer
+    property color m3SurfaceContainerLow: Appearance.m3colors.m3surfaceContainerLow
     property color m3SurfaceContainerHigh: Appearance.m3colors.m3surfaceContainerHigh
     property color m3SurfaceContainerHighest: Appearance.m3colors.m3surfaceContainerHighest
     property color m3SurfaceContainer: Appearance.m3colors.m3surfaceContainer
@@ -352,6 +353,8 @@ Scope {
             delayedTransferTimer.start();
         }
     }
+
+
 
     /* --- WINDOW --- */
     Variants {
@@ -837,43 +840,43 @@ Scope {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             radius: 24
-                            color: m3SurfaceContainer
-                            border.width: 1.5
-                            border.color: fileDropArea.containsDrag ? accentColor : m3Outline
+                            color: fileDropArea.containsDrag ? m3SurfaceContainerHighest : m3SurfaceContainerHigh
+                            border.width: 0.5
+                            border.color: ColorUtils.applyAlpha(m3Outline, 0.3)
 
+                            Behavior on color { ColorAnimation { duration: 150 } }
                             Behavior on border.color { ColorAnimation { duration: 150 } }
 
                             // Visual Content (Icon + Text)
                             ColumnLayout {
                                 anchors.centerIn: parent
-                                spacing: 16
+                                spacing: 12
                                 visible: !isTransferring // Hide when sharing starts
 
-                                // Center badge - rounded squircle action badge
+                                // Center badge - enlarged rounded squircle action badge with high contrast
                                 Rectangle {
                                     Layout.alignment: Qt.AlignHCenter
-                                    implicitWidth: 56
-                                    implicitHeight: 56
-                                    radius: 16
-                                    color: m3PrimaryContainer
-
-                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    implicitWidth: 64
+                                    implicitHeight: 64
+                                    radius: 20
+                                    color: m3SecondaryContainer
 
                                     MaterialSymbol {
                                         anchors.centerIn: parent
                                         text: "upload_file"
-                                        color: m3OnPrimaryContainer
+                                        color: Appearance.colors.colOnSurface
                                         iconSize: 32
-                                        fill: 1  // Filled variant
+                                        fill: 0  // Outlined variant (weight 600 equivalent)
                                     }
                                 }
 
                                 StyledText {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: fileDropArea.containsDrag ? "Drop to share!" : "Drop files to send"
-                                    color: textSecondary
-                                    font.pixelSize: 14
-                                    font.weight: Font.Medium
+                                    Layout.topMargin: 12
+                                    text: "Drop files here"
+                                    color: Appearance.colors.colOnSurface
+                                    font.pixelSize: 16
+                                    font.weight: Font.DemiBold
                                 }
                             }
 
