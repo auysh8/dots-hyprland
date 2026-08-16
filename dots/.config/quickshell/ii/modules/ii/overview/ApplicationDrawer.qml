@@ -6,6 +6,7 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Widgets
 import Quickshell.Io
@@ -20,15 +21,15 @@ FocusScope {
     property string currentCategory: "All"
     
     // --- UI Configuration ---
-    property real iconSize: 64
+    property real iconSize: 80
     property real spacing: 20
     
-    property color backgroundColor: Appearance.colors.colLayer0
+    property color backgroundColor: Appearance.colors.colLayer0Base
     property color surfaceTint: Appearance.m3colors.m3primary
     
     // Hidden item to hold focus when in Grid mode
     Item { id: gridFocusHolder }
-    property real cornerRadius: Appearance.rounding.large 
+    property real cornerRadius: Appearance.rounding.verylarge 
 
     property real collapsedHeight: 400
     property real availableHeight: 0
@@ -277,7 +278,6 @@ FocusScope {
         }
 
         let apps = Array.from(root.allApps);
-        console.log("Total apps from DesktopEntries:", apps.length);
 
         // Filter by Search
         if (root.searchText.length > 0) {
@@ -328,13 +328,11 @@ FocusScope {
         anchors.fill: parent
         radius: root.cornerRadius
         color: root.backgroundColor
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
 
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 16
-            spacing: 16
+            spacing: 24
 
             // --- Top Header ---
             Item {
@@ -381,7 +379,7 @@ FocusScope {
             // --- Sidebar ---
             Item {
                 Layout.fillHeight: true
-                Layout.preferredWidth: 200
+                Layout.preferredWidth: 260
                 
                 ColumnLayout {
                     anchors.fill: parent
@@ -405,9 +403,9 @@ FocusScope {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.top: parent.top
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-                            spacing: 0
+                            anchors.leftMargin: 4
+                            anchors.rightMargin: 4
+                            spacing: 4
                             expanded: true
 
                             NavigationRailTabArray {
@@ -423,10 +421,15 @@ FocusScope {
                                         required property string modelData
 
                                         toggled: modelData === root.currentCategory
-                                        showToggledHighlight: false
+                                        showToggledHighlight: true
                                         expanded: true
-                                        baseSize: 44
-                                        baseHighlightHeight: 44
+                                        baseSize: 48
+                                        baseHighlightHeight: 48
+                                        useOverrideColors: true
+                                        overrideActiveColor: Appearance.colors.colSecondaryContainer
+                                        overrideActiveHoverColor: Appearance.colors.colSecondaryContainer
+                                        overrideIconColor: Appearance.colors.colOnSecondaryContainer
+                                        overrideTextColor: Appearance.colors.colOnSecondaryContainer
 
                                         buttonIcon: {
                                             switch (modelData) {
@@ -444,9 +447,9 @@ FocusScope {
                                                 default: return "category";
                                             }
                                         }
-                                        buttonText: modelData + " (" + root.getCategoryAppCount(modelData) + ")"
+                                        buttonText: modelData + " • " + root.getCategoryAppCount(modelData)
 
-                                        onPressed: {
+                                        onClicked: {
                                             root.currentCategory = modelData;
                                             root.searchText = "";
                                             searchField.text = "";
@@ -474,7 +477,7 @@ FocusScope {
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 16
-                    spacing: 16
+                    spacing: 20
 
                     // Header & Search
                 RowLayout {
@@ -500,8 +503,12 @@ FocusScope {
                         Layout.preferredWidth: 300
                         Layout.preferredHeight: 44
                         Layout.alignment: Qt.AlignVCenter
-                        radius: 22
+                        radius: Appearance.rounding.full
                         color: searchField.activeFocus ? Appearance.colors.colLayer3 : Appearance.colors.colLayer2
+
+                        Behavior on color {
+                            animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                        }
 
                         MouseArea {
                             anchors.fill: parent
@@ -519,7 +526,7 @@ FocusScope {
                                 Layout.alignment: Qt.AlignVCenter
                                 text: "search"
                                 iconSize: 20
-                                color: Appearance.colors.colOnLayer0
+                                color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.6)
                             }
 
                             StyledTextInput {
@@ -538,7 +545,7 @@ FocusScope {
 
                                 StyledText {
                                     anchors.fill: parent
-                                    text: "Search apps..."
+                                    text: "Search applications..."
                                     color: Appearance.colors.colSubtext
                                     font.pixelSize: 15
                                     visible: !searchField.text && !searchField.activeFocus
@@ -603,15 +610,16 @@ FocusScope {
                     StyledFlickable {
                         id: appGrid
                         anchors.fill: parent
-                        anchors.margins: 12
+                        anchors.margins: 24
                         clip: true
-                        
+
                         ScrollBar.vertical: StyledScrollBar {}
-                        
+
+                        contentHeight: gridContent.implicitHeight + 24
+
                         property real cellWidth: width / root.columns
-                    property real cellHeight: cellWidth * 1.3
+                    property real cellHeight: cellWidth * 1.5
                     contentWidth: width
-                    contentHeight: gridContent.implicitHeight
                     property var model: appGridModel
 
                     function positionViewAtIndex(index, mode) {
@@ -657,13 +665,22 @@ FocusScope {
                                     anchors.centerIn: parent
                                     width: appGrid.cellWidth - 10
                                     height: appGrid.cellHeight - 10
-                                    buttonRadius: 12
-                                    colBackground: "transparent"
-                                    colBackgroundHover: Appearance.colors.colSecondaryContainer
+                                    buttonRadius: 20
+                                    colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
+                                    colBackgroundHover: Appearance.colors.colLayer2
+                                    colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                                    colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colOnSecondaryContainer, 0.08)
+                                    colRippleToggled: ColorUtils.applyAlpha(Appearance.colors.colOnSecondaryContainer, 0.88)
                                     toggled: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && root.selectedGridIndex === index
-                                    colBackgroundToggled: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.18)
-                                    colBackgroundToggledHover: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.24)
-                                    colRippleToggled: ColorUtils.applyAlpha(Appearance.colors.colOnPrimary, 0.88)
+
+                                    scale: hovered ? 1.05 : 1.0
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: 200
+                                            easing.type: Easing.OutBack
+                                        }
+                                    }
 
                                     onClicked: {
                                         GlobalStates.appDrawerOpen = false;
@@ -683,12 +700,26 @@ FocusScope {
                                     ColumnLayout {
                                         anchors.centerIn: parent
                                         width: parent.width - 16
-                                        spacing: 8
+                                        spacing: 12
 
-                                        IconImage {
+                                        Item {
                                             Layout.alignment: Qt.AlignHCenter
-                                            source: Quickshell.iconPath(modelData.icon, "application-x-executable")
-                                            implicitSize: root.iconSize
+                                            Layout.preferredWidth: root.iconSize
+                                            Layout.preferredHeight: root.iconSize
+
+                                            // Icon mask for pebble shape
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                radius: Appearance.rounding.large
+                                                color: "transparent"
+                                                clip: true
+
+                                                IconImage {
+                                                    anchors.centerIn: parent
+                                                    source: Quickshell.iconPath(modelData.icon, "application-x-executable")
+                                                    implicitSize: root.iconSize
+                                                }
+                                            }
                                         }
 
                                         StyledText {
@@ -696,8 +727,8 @@ FocusScope {
                                             text: modelData.name
                                             horizontalAlignment: Text.AlignHCenter
                                             color: Appearance.colors.colOnLayer0
-                                            font.pixelSize: 13
-                                            font.weight: appButton.isPinned ? Font.DemiBold : Font.Normal
+                                            font.pixelSize: 14
+                                            font.weight: Font.DemiBold
                                             elide: Text.ElideRight
                                             wrapMode: Text.WordWrap
                                             maximumLineCount: 2
@@ -715,7 +746,7 @@ FocusScope {
         }
     }
 
-        // Context Menu Overlay (positioned outside layout to not affect grid)
+    // Context Menu Overlay (positioned outside layout to not affect grid)
     Item {
         id: contextMenuOverlay
         visible: root.contextMenuVisible || contextMenu.opacity > 0
@@ -859,11 +890,11 @@ FocusScope {
                                 verticalAlignment: Text.AlignVCenter
                                 text: Translation.tr("Uninstall")
                                 color: Appearance.colors.colOnLayer1
-}
-}
-}
-}
-}
-}
-}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
