@@ -1,92 +1,129 @@
+import qs
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.functions
+
 import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import qs
+import Quickshell.Hyprland
 
 Scope {
     id: root
+    property bool showDrawer: GlobalStates.appDrawerOpen
     property bool closing: false
-    
+
+    onShowDrawerChanged: {
+        if (!showDrawer) {
+            closing = true;
+            hideTimer.restart();
+        } else {
+            closing = false;
+            hideTimer.stop();
+        }
+    }
+
     function closeWindow() {
         if (GlobalStates.appDrawerOpen) {
-            root.closing = true;
+            closing = true;
             GlobalStates.appDrawerOpen = false;
+            hideTimer.restart();
         }
+    }
+
+    function toggleWindow() {
+        if (GlobalStates.appDrawerOpen) {
+            closeWindow();
+        } else {
+            GlobalStates.appDrawerOpen = true;
+        }
+    }
+
+    Timer {
+        id: hideTimer
+        interval: 300
+        repeat: false
+        onTriggered: root.closing = false
     }
 
     IpcHandler {
         target: "app-drawer"
-        function toggle() { 
-            if (GlobalStates.appDrawerOpen) root.closeWindow();
-            else GlobalStates.appDrawerOpen = true;
-        }
+        function toggle() { root.toggleWindow() }
         function open() { GlobalStates.appDrawerOpen = true }
         function close() { root.closeWindow() }
     }
 
+    GlobalShortcut {
+        name: "appDrawerToggle"
+        description: "Toggle App Drawer layer"
+
+        onPressed: root.toggleWindow()
+    }
+
     Variants {
         model: Quickshell.screens
-        PanelWindow {
+
+        LayerManagedPanelWindow {
             id: window
-            property var modelData
+            required property var modelData
             screen: modelData
-            anchors { top: true; bottom: true; left: true; right: true }
-            visible: GlobalStates.appDrawerOpen || root.closing
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.namespace: "app-drawer"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            exclusionMode: ExclusionMode.Ignore
-            color: "transparent"
             
-            MouseArea {
-                id: backgroundClickArea
-                anchors.fill: parent
-                onClicked: (mouse) => {
-                    const drawerBounds = drawer.mapToItem(backgroundClickArea, 0, 0, drawer.width, drawer.height);
-                    const clickInDrawer = mouse.x >= drawerBounds.x && mouse.x <= drawerBounds.x + drawerBounds.width &&
-                                         mouse.y >= drawerBounds.y && mouse.y <= drawerBounds.y + drawerBounds.height;
-                    if (!clickInDrawer) root.closeWindow();
-                }
-            }
+            shown: root.showDrawer
+            closing: root.closing
+            layerNamespace: "app-drawer"
+            keyboardFocusMode: WlrKeyboardFocus.OnDemand
+            
+            onCloseRequested: root.closeWindow()
 
-            ApplicationDrawer {
-                id: drawer
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: (parent.height - height) / 2
-                
-                width: parent.width * 0.7
-                height: parent.height * 0.8
-                expanded: true
-                availableWidth: window.width
-                availableHeight: window.height
+            Item {
+                id: drawerContainer
+                anchors.centerIn: parent
+                width: Math.min(window.width * 0.85, 1250)
+                height: Math.min(window.height * 0.85, 850)
 
-                opacity: GlobalStates.appDrawerOpen ? 1 : 0
-                scale: GlobalStates.appDrawerOpen ? 1 : 0.9
+                opacity: root.showDrawer ? 1 : 0
+                scale: root.showDrawer ? 1 : 0.95
+                transformOrigin: Item.Center
 
                 Behavior on opacity {
-                    NumberAnimation {
-                        duration: 200
-                        easing.type: Easing.OutQuad
-                        onRunningChanged: if (!running && !GlobalStates.appDrawerOpen) root.closing = false
+                    NumberAnimation { 
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.type
+                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                     }
                 }
 
                 Behavior on scale {
-                    NumberAnimation {
-                        duration: 200
-                        easing.type: Easing.OutQuad
+                    NumberAnimation { 
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Appearance.animation.elementMoveFast.type
+                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                     }
                 }
-                
-                onActiveFocusChanged: {
-                    if (!activeFocus && GlobalStates.appDrawerOpen) {
-                        root.closeWindow();
-                    }
+
+                // Prevent clicks on the panel from bubbling to the backdrop MouseArea
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.AllButtons
+                    hoverEnabled: true
+                }
+
+                ApplicationDrawer {
+                    id: drawer
+                    anchors.fill: parent
+                    expanded: true
+                    availableWidth: drawerContainer.width
+                    availableHeight: drawerContainer.height
+                    onCloseRequested: root.closeWindow()
                 }
             }
-            
-            onVisibleChanged: { if (visible) drawer.focusSearchField(); }
+
+            onShownChanged: {
+                if (shown) {
+                    drawer.focusSearchField();
+                }
+            }
         }
     }
 }

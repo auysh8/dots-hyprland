@@ -15,14 +15,15 @@ FocusScope {
     id: root
     focus: true
     activeFocusOnTab: true
+    signal closeRequested()
     property bool expanded: false
     property string searchText: ""
     property string sortMode: "name" // "name", "recent"
     property string currentCategory: "All"
     
     // --- UI Configuration ---
-    property real iconSize: 80
-    property real spacing: 20
+    property real iconSize: 56
+    property real spacing: 16
     
     property color backgroundColor: Appearance.colors.colLayer0Base
     property color surfaceTint: Appearance.m3colors.m3primary
@@ -40,15 +41,17 @@ FocusScope {
         return 600;
     }
     
-    // Calculate columns
+    // Calculate columns (stable regardless of sidebar expanded/collapsed state)
     property int columns: {
-        const minCellWidth = 100;
-        const gridWidth = (availableWidth * 0.7) - 200; 
-        if (gridWidth > 0) {
-            const cols = Math.floor(gridWidth / minCellWidth);
-            return Math.min(8, Math.max(4, cols));
+        const totalWidth = root.width > 0 ? root.width : (availableWidth > 0 ? availableWidth : 1000);
+        // Base width for the grid assuming expanded sidebar (220px) + margins/paddings (~80px)
+        const baseGridWidth = totalWidth - 220 - 80;
+        const targetCellWidth = 110;
+        if (baseGridWidth > 0) {
+            const cols = Math.floor(baseGridWidth / targetCellWidth);
+            return Math.max(6, Math.min(10, cols));
         }
-        return 5;
+        return 7;
     }
 
     property var contextMenuApp: null
@@ -366,7 +369,8 @@ FocusScope {
                     }
 
                     onClicked: {
-                        Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "app-drawer", "close"])
+                        root.closeRequested();
+                        GlobalStates.appDrawerOpen = false;
                     }
                 }
             }
@@ -378,82 +382,280 @@ FocusScope {
 
             // --- Sidebar ---
             Item {
+                id: navRailWrapper
                 Layout.fillHeight: true
-                Layout.preferredWidth: 260
-                
-                ColumnLayout {
+                implicitWidth: categoryNavRail.expanded ? 220 : 80
+
+                Behavior on implicitWidth {
+                    NumberAnimation {
+                        duration: Appearance.animation.elementResize.duration
+                        easing.type: Appearance.animation.elementResize.type
+                        easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
+                    }
+                }
+
+                NavigationRail {
+                    id: categoryNavRail
                     anchors.fill: parent
-                    
-                    StyledText {
-                        text: Translation.tr("Categories")
-                        font.pixelSize: 18
-                        font.weight: Font.Bold
-                        color: Appearance.colors.colOnLayer0
-                        Layout.bottomMargin: 10
-                        Layout.leftMargin: 20
+                    expanded: true
+                    spacing: 8
+
+                    NavigationRailExpandButton {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 10
                     }
 
-                    Item {
-                        id: categoryListContainer
+                    StyledText {
+                        text: Translation.tr("Categories")
+                        font.pixelSize: 16
+                        font.weight: Font.Bold
+                        color: Appearance.colors.colOnLayer0
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 14
+                        Layout.bottomMargin: categoryNavRail.expanded ? 8 : 0
+                        opacity: categoryNavRail.expanded ? 1 : 0
+                        Layout.preferredHeight: categoryNavRail.expanded ? implicitHeight : 0
+
+                        Behavior on opacity { 
+                            NumberAnimation { 
+                                duration: Appearance.animation.elementMoveFast.duration
+                                easing.type: Appearance.animation.elementMoveFast.type
+                                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                            } 
+                        }
+                        Behavior on Layout.preferredHeight { 
+                            NumberAnimation { 
+                                duration: Appearance.animation.elementResize.duration
+                                easing.type: Appearance.animation.elementResize.type
+                                easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
+                            } 
+                        }
+                        Behavior on Layout.bottomMargin { 
+                            NumberAnimation { 
+                                duration: Appearance.animation.elementResize.duration
+                                easing.type: Appearance.animation.elementResize.type
+                                easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
+                            } 
+                        }
+                    }
+
+                    ScrollView {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
+                        contentWidth: availableWidth
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                        NavigationRail {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.leftMargin: 4
-                            anchors.rightMargin: 4
+                        ColumnLayout {
+                            width: parent.width
                             spacing: 4
-                            expanded: true
 
-                            NavigationRailTabArray {
-                                currentIndex: Math.max(0, root.categories.indexOf(root.currentCategory))
-                                expanded: true
-                                Layout.topMargin: 0
+                            Repeater {
+                                model: root.categories
 
-                                Repeater {
-                                    model: root.categories
+                                Item {
+                                    id: categoryItem
+                                    required property int index
+                                    required property string modelData
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 44
 
-                                    NavigationRailButton {
-                                        required property int index
-                                        required property string modelData
+                                    property bool isActive: modelData === root.currentCategory
+                                    property color fgColor: isActive ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
+                                    property int appCount: root.getCategoryAppCount(modelData)
 
-                                        toggled: modelData === root.currentCategory
-                                        showToggledHighlight: true
-                                        expanded: true
-                                        baseSize: 48
-                                        baseHighlightHeight: 48
-                                        useOverrideColors: true
-                                        overrideActiveColor: Appearance.colors.colSecondaryContainer
-                                        overrideActiveHoverColor: Appearance.colors.colSecondaryContainer
-                                        overrideIconColor: Appearance.colors.colOnSecondaryContainer
-                                        overrideTextColor: Appearance.colors.colOnSecondaryContainer
+                                    property string catIcon: {
+                                        switch (modelData) {
+                                            case "All": return "widgets";
+                                            case "Multimedia": return "movie";
+                                            case "Development": return "laptop_mac";
+                                            case "Education": return "school";
+                                            case "Games": return "sports_esports";
+                                            case "Graphics": return "palette";
+                                            case "Internet": return "explore";
+                                            case "Office": return "description";
+                                            case "Settings": return "settings";
+                                            case "System": return "desktop_windows";
+                                            case "Utilities": return "home_repair_service";
+                                            default: return "category";
+                                        }
+                                    }
 
-                                        buttonIcon: {
-                                            switch (modelData) {
-                                                case "All": return "widgets";
-                                                case "Multimedia": return "movie";
-                                                case "Development": return "laptop_mac";
-                                                case "Education": return "school";
-                                                case "Games": return "sports_esports";
-                                                case "Graphics": return "palette";
-                                                case "Internet": return "explore";
-                                                case "Office": return "description";
-                                                case "Settings": return "settings";
-                                                case "System": return "desktop_windows";
-                                                case "Utilities": return "home_repair_service";
-                                                default: return "category";
+                                    Rectangle {
+                                        id: buttonBg
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: 10
+                                        width: categoryNavRail.expanded ? parent.width - 20 : 44
+                                        height: parent.height
+                                        radius: categoryNavRail.expanded ? 12 : 22
+                                        color: categoryItem.isActive ? Appearance.m3colors.m3secondaryContainer : "transparent"
+
+                                        Behavior on width { 
+                                            NumberAnimation { 
+                                                duration: Appearance.animation.elementResize.duration
+                                                easing.type: Appearance.animation.elementResize.type
+                                                easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
+                                            } 
+                                        }
+                                        Behavior on radius { 
+                                            NumberAnimation { 
+                                                duration: Appearance.animation.elementResize.duration
+                                                easing.type: Appearance.animation.elementResize.type
+                                                easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
+                                            } 
+                                        }
+                                        Behavior on color { 
+                                            ColorAnimation { 
+                                                duration: Appearance.animation.elementMoveFast.duration
+                                                easing.type: Appearance.animation.elementMoveFast.type
+                                                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                            } 
+                                        }
+
+                                        transform: Scale {
+                                            id: squishScale
+                                            origin.x: buttonBg.width / 2
+                                            origin.y: buttonBg.height / 2
+                                            yScale: 1.0
+                                            xScale: 1.0
+                                        }
+
+                                        Connections {
+                                            target: categoryItem
+                                            function onIsActiveChanged() {
+                                                if (categoryItem.isActive) {
+                                                    selectAnim.restart();
+                                                }
                                             }
                                         }
-                                        buttonText: modelData + " • " + root.getCategoryAppCount(modelData)
 
-                                        onClicked: {
-                                            root.currentCategory = modelData;
-                                            root.searchText = "";
-                                            searchField.text = "";
-                                            appGrid.model.values = root.getFilteredApps();
+                                        SequentialAnimation {
+                                            id: selectAnim
+                                            ParallelAnimation {
+                                                NumberAnimation { 
+                                                    target: squishScale; 
+                                                    property: "yScale"; 
+                                                    to: 0.75; 
+                                                    duration: Appearance.animation.elementMoveFast.duration
+                                                    easing.type: Appearance.animation.elementMoveFast.type
+                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                                }
+                                                NumberAnimation { 
+                                                    target: squishScale; 
+                                                    property: "xScale"; 
+                                                    to: 1.08; 
+                                                    duration: Appearance.animation.elementMoveFast.duration
+                                                    easing.type: Appearance.animation.elementMoveFast.type
+                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                                }
+                                            }
+                                            ParallelAnimation {
+                                                NumberAnimation { 
+                                                    target: squishScale; 
+                                                    property: "yScale"; 
+                                                    to: 1.0; 
+                                                    duration: Appearance.animation.elementMoveFast.duration
+                                                    easing.type: Appearance.animation.elementMoveFast.type
+                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                                }
+                                                NumberAnimation { 
+                                                    target: squishScale; 
+                                                    property: "xScale"; 
+                                                    to: 1.0; 
+                                                    duration: Appearance.animation.elementMoveFast.duration
+                                                    easing.type: Appearance.animation.elementMoveFast.type
+                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                                }
+                                            }
+                                        }
+
+                                        RippleButton {
+                                            anchors.fill: parent
+                                            buttonRadius: parent.radius
+                                            onClicked: {
+                                                root.currentCategory = modelData;
+                                                root.searchText = "";
+                                                searchField.text = "";
+                                                appGrid.model.values = root.getFilteredApps();
+                                            }
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                spacing: 0
+
+                                                Item {
+                                                    Layout.preferredWidth: 44
+                                                    Layout.fillHeight: true
+
+                                                    MaterialSymbol {
+                                                        anchors.centerIn: parent
+                                                        text: catIcon
+                                                        iconSize: 20
+                                                        fill: categoryItem.isActive ? 1 : 0
+                                                        font.weight: categoryItem.isActive ? Font.DemiBold : Font.Normal
+                                                        color: fgColor
+                                                    }
+                                                }
+
+                                                Item {
+                                                    Layout.fillWidth: true
+                                                    Layout.fillHeight: true
+                                                    clip: true
+                                                    visible: categoryNavRail.expanded
+
+                                                    RowLayout {
+                                                        anchors.fill: parent
+                                                        spacing: 10
+                                                        anchors.leftMargin: 8
+                                                        anchors.rightMargin: 8
+
+                                                        StyledText {
+                                                            text: modelData
+                                                            font.pixelSize: 14
+                                                            font.weight: categoryItem.isActive ? Font.DemiBold : Font.Normal
+                                                            color: fgColor
+                                                            Layout.fillWidth: true
+                                                            elide: Text.ElideRight
+                                                            opacity: categoryNavRail.expanded ? 1.0 : 0.0
+                                                            Behavior on opacity { 
+                                                                NumberAnimation { 
+                                                                    duration: Appearance.animation.elementMoveFast.duration
+                                                                    easing.type: Appearance.animation.elementMoveFast.type
+                                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                                                } 
+                                                            }
+                                                        }
+
+                                                        Rectangle {
+                                                            Layout.alignment: Qt.AlignVCenter
+                                                            Layout.preferredWidth: countText.implicitWidth + 14
+                                                            Layout.preferredHeight: 22
+                                                            radius: 11
+                                                            color: categoryItem.isActive
+                                                                ? ColorUtils.applyAlpha(Appearance.colors.colOnSecondaryContainer, 0.18)
+                                                                : ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.10)
+                                                            opacity: categoryNavRail.expanded ? 1.0 : 0.0
+                                                            Behavior on opacity { 
+                                                                NumberAnimation { 
+                                                                    duration: Appearance.animation.elementMoveFast.duration
+                                                                    easing.type: Appearance.animation.elementMoveFast.type
+                                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                                                                } 
+                                                            }
+
+                                                            StyledText {
+                                                                id: countText
+                                                                anchors.centerIn: parent
+                                                                text: appCount
+                                                                font.pixelSize: 11
+                                                                font.weight: Font.DemiBold
+                                                                color: fgColor
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -461,16 +663,13 @@ FocusScope {
                         }
                     }
                 }
-                
-                // Vertical Divider
-
             }
 
             // --- Main Content ---
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.leftMargin: 20
+                Layout.leftMargin: 8
                 color: Appearance.colors.colLayer1
                 radius: Appearance.rounding.large
 
@@ -615,12 +814,12 @@ FocusScope {
 
                         ScrollBar.vertical: StyledScrollBar {}
 
-                        contentHeight: gridContent.implicitHeight + 24
+                        contentHeight: gridContent.implicitHeight + 32
 
                         property real cellWidth: width / root.columns
-                    property real cellHeight: cellWidth * 1.5
-                    contentWidth: width
-                    property var model: appGridModel
+                        property real cellHeight: cellWidth * 1.18
+                        contentWidth: width
+                        property var model: appGridModel
 
                     function positionViewAtIndex(index, mode) {
                         if (index < 0) return;
@@ -661,24 +860,35 @@ FocusScope {
                                 RippleButton {
                                     id: appButton
                                     property bool isPinned: TaskbarApps.isPinned(root.getAppId(modelData))
+                                    property bool isKeyboardSelected: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && root.selectedGridIndex === index
 
                                     anchors.centerIn: parent
-                                    width: appGrid.cellWidth - 10
-                                    height: appGrid.cellHeight - 10
-                                    buttonRadius: 20
-                                    colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
+                                    width: appGrid.cellWidth - 12
+                                    height: appGrid.cellHeight - 12
+                                    buttonRadius: Appearance.rounding.verylarge
+                                    colBackground: Appearance.colors.colLayer1
                                     colBackgroundHover: Appearance.colors.colLayer2
                                     colBackgroundToggled: Appearance.colors.colSecondaryContainer
                                     colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colOnSecondaryContainer, 0.08)
                                     colRippleToggled: ColorUtils.applyAlpha(Appearance.colors.colOnSecondaryContainer, 0.88)
-                                    toggled: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && root.selectedGridIndex === index
+                                    toggled: isKeyboardSelected
 
-                                    scale: hovered ? 1.05 : 1.0
+                                    scale: hovered ? 1.06 : 1.0
+                                    y: hovered ? -3 : 0
 
                                     Behavior on scale {
-                                        NumberAnimation {
-                                            duration: 200
-                                            easing.type: Easing.OutBack
+                                        SpringAnimation {
+                                            spring: 3
+                                            damping: 0.7
+                                            mass: 1.0
+                                        }
+                                    }
+
+                                    Behavior on y {
+                                        SpringAnimation {
+                                            spring: 3
+                                            damping: 0.7
+                                            mass: 1.0
                                         }
                                     }
 
@@ -699,15 +909,14 @@ FocusScope {
 
                                     ColumnLayout {
                                         anchors.centerIn: parent
-                                        width: parent.width - 16
-                                        spacing: 12
+                                        width: parent.width - 20
+                                        spacing: 10
 
                                         Item {
                                             Layout.alignment: Qt.AlignHCenter
                                             Layout.preferredWidth: root.iconSize
                                             Layout.preferredHeight: root.iconSize
 
-                                            // Icon mask for pebble shape
                                             Rectangle {
                                                 anchors.fill: parent
                                                 radius: Appearance.rounding.large
@@ -726,12 +935,14 @@ FocusScope {
                                             Layout.fillWidth: true
                                             text: modelData.name
                                             horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
                                             color: Appearance.colors.colOnLayer0
-                                            font.pixelSize: 14
+                                            font.pixelSize: 13
                                             font.weight: Font.DemiBold
-                                            elide: Text.ElideRight
-                                            wrapMode: Text.WordWrap
+                                            wrapMode: Text.Wrap
                                             maximumLineCount: 2
+                                            lineHeight: 1.15
+                                            elide: Text.ElideNone
                                         }
                                     }
                                 }
