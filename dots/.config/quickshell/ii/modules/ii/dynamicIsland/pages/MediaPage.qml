@@ -132,9 +132,16 @@ Item {
     Rectangle {
         id: cardBg
         anchors.fill: parent
-        radius: Appearance.rounding.normal
+        radius: 20
         color: ColorUtils.mix(Appearance.colors.colLayer0, root.backgroundColor, 0.25)
-        clip: true
+        layer.enabled: true
+        layer.effect: OpacityMask {
+            maskSource: Rectangle {
+                width: cardBg.width
+                height: cardBg.height
+                radius: cardBg.radius
+            }
+        }
 
         // Subtle Blurred Artwork Backdrop
         Image {
@@ -150,7 +157,7 @@ Item {
         // Tonal Gradient Overlay
         Rectangle {
             anchors.fill: parent
-            radius: Appearance.rounding.normal
+            radius: 20
             gradient: Gradient {
                 GradientStop { position: 0.0; color: ColorUtils.applyAlpha(root.backgroundColor, 0.35) }
                 GradientStop { position: 1.0; color: ColorUtils.applyAlpha(Appearance.colors.colLayer0, 0.85) }
@@ -161,7 +168,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             color: "transparent"
-            radius: Appearance.rounding.normal
+            radius: 20
             border.width: 1
             border.color: ColorUtils.applyAlpha(root.contentColor, 0.12)
         }
@@ -191,7 +198,14 @@ Item {
                     anchors.fill: parent
                     radius: 14
                     color: Appearance.colors.colLayer2
-                    clip: true
+                    layer.enabled: true
+                    layer.effect: OpacityMask {
+                        maskSource: Rectangle {
+                            width: albumArtContainer.width
+                            height: albumArtContainer.height
+                            radius: albumArtContainer.radius
+                        }
+                    }
 
                     Image {
                         id: coverArtImage
@@ -238,7 +252,7 @@ Item {
                             const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
                             return meta.title || "No Media"
                         }
-                        font.pixelSize: 15
+                        font.pixelSize: 17
                         font.weight: Font.Bold
                         color: root.contentColor
                         elide: Text.ElideRight
@@ -248,9 +262,9 @@ Item {
                     RippleButton {
                         id: playerBadge
                         Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-                        implicitHeight: 24
-                        implicitWidth: playerRow.implicitWidth + 18
-                        buttonRadius: 12
+                        implicitHeight: 26
+                        implicitWidth: playerRow.implicitWidth + 20
+                        buttonRadius: 13
                         pointingHandCursor: root.availablePlayers.length > 1
 
                         colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
@@ -267,7 +281,7 @@ Item {
 
                         contentItem: Row {
                             id: playerRow
-                            spacing: 4
+                            spacing: 5
 
                             MaterialSymbol {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -278,7 +292,7 @@ Item {
                                     if (name.includes("vlc") || name.includes("mpv")) return "movie";
                                     return "headphones";
                                 }
-                                iconSize: 12
+                                iconSize: 14
                                 color: root.secondaryContentColor
                             }
 
@@ -286,7 +300,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: activePlayer?.identity || "No Player"
                                 color: root.secondaryContentColor
-                                font.pixelSize: 10
+                                font.pixelSize: 12
                                 font.weight: Font.Medium
                                 elide: Text.ElideRight
                                 maximumLineCount: 1
@@ -295,7 +309,7 @@ Item {
                             MaterialSymbol {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: playerPickerPopup.opened ? "expand_less" : "expand_more"
-                                iconSize: 11
+                                iconSize: 13
                                 color: root.secondaryContentColor
                                 visible: root.availablePlayers.length > 1
                             }
@@ -393,7 +407,8 @@ Item {
                         const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
                         return meta.artist || "Unknown Artist"
                     }
-                    font.pixelSize: 12
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
                     color: root.secondaryContentColor
                     elide: Text.ElideRight
                 }
@@ -404,7 +419,7 @@ Item {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.topMargin: 6
-            spacing: 0
+            spacing: 2
 
             StyledSlider {
                 id: mediaSlider
@@ -435,7 +450,7 @@ Item {
 
                 StyledText {
                     text: root.formatTime(root.currentPosition)
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                     font.weight: Font.Medium
                     color: root.secondaryContentColor
                 }
@@ -444,57 +459,32 @@ Item {
 
                 StyledText {
                     text: root.formatTime(activePlayer?.length || 0)
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                     font.weight: Font.Medium
                     color: root.secondaryContentColor
                 }
             }
         }
 
-        // Material 3 ButtonGroup Controls
+        // Material 3 ButtonGroup Controls (Previous, Play/Pause, Next)
         ButtonGroup {
+            id: mediaControlsGroup
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 4
             Layout.bottomMargin: 0
-            spacing: 8
-
-            // Shuffle Button
-            GroupButton {
-                id: shuffleBtn
-                baseWidth: 36
-                baseHeight: 36
-                buttonRadius: 18
-                buttonRadiusPressed: 14
-                bounce: true
-                toggled: (activePlayer && activePlayer.shuffle) ? true : false
-
-                colBackground: toggled ? ColorUtils.applyAlpha(root.pillColor, 0.35) : "transparent"
-                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.15)
-                colBackgroundActive: ColorUtils.applyAlpha(root.contentColor, 0.25)
-                colBackgroundToggled: ColorUtils.applyAlpha(root.pillColor, 0.4)
-
-                onClicked: {
-                    if (activePlayer && activePlayer.shuffle !== undefined) {
-                        activePlayer.shuffle = !activePlayer.shuffle;
-                    }
-                }
-
-                contentItem: MaterialSymbol {
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    text: "shuffle"
-                    iconSize: 18
-                    color: shuffleBtn.toggled ? root.pillContentColor : root.secondaryContentColor
-                }
-            }
+            implicitWidth: 206
+            width: implicitWidth
+            spacing: 10
 
             // Previous Track Button
             GroupButton {
                 id: prevBtn
-                baseWidth: 44
+                Layout.fillWidth: true
+                baseWidth: 54
                 baseHeight: 44
+                clickedWidth: baseWidth + 16
                 buttonRadius: 22
-                buttonRadiusPressed: 16
+                buttonRadiusPressed: 14
                 bounce: true
 
                 colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
@@ -507,18 +497,20 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     text: "skip_previous"
-                    iconSize: 22
+                    iconSize: 24
                     color: root.contentColor
                 }
             }
 
-            // Play / Pause Button (Large M3 Squircle with High-Contrast Primary Color)
+            // Play / Pause Button (Large Primary Squircle)
             GroupButton {
                 id: playBtn
-                baseWidth: 64
+                Layout.fillWidth: true
+                baseWidth: 78
                 baseHeight: 44
+                clickedWidth: baseWidth + 18
                 buttonRadius: 22
-                buttonRadiusPressed: 16
+                buttonRadiusPressed: 14
                 bounce: true
 
                 colBackground: root.pillColor
@@ -531,7 +523,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     text: (activePlayer && activePlayer.isPlaying) ? "pause" : "play_arrow"
-                    iconSize: 26
+                    iconSize: 28
                     color: root.pillContentColor
                 }
             }
@@ -539,10 +531,12 @@ Item {
             // Next Track Button
             GroupButton {
                 id: nextBtn
-                baseWidth: 44
+                Layout.fillWidth: true
+                baseWidth: 54
                 baseHeight: 44
+                clickedWidth: baseWidth + 16
                 buttonRadius: 22
-                buttonRadiusPressed: 16
+                buttonRadiusPressed: 14
                 bounce: true
 
                 colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
@@ -555,34 +549,8 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     text: "skip_next"
-                    iconSize: 22
+                    iconSize: 24
                     color: root.contentColor
-                }
-            }
-
-            // Loop / Repeat Button
-            GroupButton {
-                id: loopBtn
-                baseWidth: 36
-                baseHeight: 36
-                buttonRadius: 18
-                buttonRadiusPressed: 14
-                bounce: true
-                toggled: (activePlayer && activePlayer.loopStatus !== undefined && activePlayer.loopStatus !== MprisLoopStatus.None) ? true : false
-
-                colBackground: toggled ? ColorUtils.applyAlpha(root.pillColor, 0.35) : "transparent"
-                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.15)
-                colBackgroundActive: ColorUtils.applyAlpha(root.contentColor, 0.25)
-                colBackgroundToggled: ColorUtils.applyAlpha(root.pillColor, 0.4)
-
-                onClicked: root.cycleLoopStatus()
-
-                contentItem: MaterialSymbol {
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    text: (activePlayer && activePlayer.loopStatus === MprisLoopStatus.Track) ? "repeat_one" : "repeat"
-                    iconSize: 18
-                    color: loopBtn.toggled ? root.pillContentColor : root.secondaryContentColor
                 }
             }
         }

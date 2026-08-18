@@ -11,6 +11,7 @@ import qs.services
 
 Item {
     id: root
+    anchors.fill: parent
 
     // Properties
     readonly property bool isRunning: TimerService.stopwatchRunning
@@ -58,11 +59,10 @@ Item {
                     anchors.centerIn: parent
                     text: root.isRunning ? "pause" : "play_arrow"
                     iconSize: 32
+                    fill: 1
                     color: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
                 }
-
             }
-
         }
 
         // Left Side: Time & Info
@@ -73,7 +73,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: buttonsRow.left
             anchors.rightMargin: 16
-            spacing: 8
+            spacing: 6
 
             // Time Display Group
             ColumnLayout {
@@ -104,71 +104,106 @@ Item {
                         color: root.accentColor
                         opacity: 0.6
                     }
-
                 }
 
-                StyledText {
-                    text: "Lap " + (TimerService.stopwatchLaps ? (TimerService.stopwatchLaps.length + 1) : 1)
-                    Layout.leftMargin: 3
+                // Lap Capsule Pill
+                Rectangle {
+                    id: lapPill
                     visible: root.isRunning || TimerService.stopwatchTime > 0
-                    font.pixelSize: 13
-                    font.weight: Font.Medium
-                    font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 2
-                    color: Appearance.colors.colSubtext
+                    radius: 12
+                    implicitHeight: 24
+                    implicitWidth: lapContent.width + 16
+                    color: ColorUtils.applyAlpha(root.accentColor, 0.20)
+                    Layout.topMargin: 4
+
+                    Row {
+                        id: lapContent
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        MaterialSymbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "flag"
+                            iconSize: 13
+                            fill: 1
+                            color: root.accentColor
+                        }
+
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.verticalCenterOffset: 1
+                            text: "Lap " + (TimerService.stopwatchLaps ? (TimerService.stopwatchLaps.length + 1) : 1)
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                            color: root.accentColor
+                        }
+                    }
                 }
-
             }
-
         }
 
-        // Secondary Buttons Row (Reset & Lap)
-        Row {
+        // Secondary Buttons Row (Reset & Lap with Animated Reveal/Slide)
+        RowLayout {
             id: buttonsRow
 
             anchors.verticalCenter: playContainer.verticalCenter
             anchors.right: playContainer.left
             anchors.rightMargin: 12
-            spacing: 12
+            spacing: (resetRevealer.reveal && lapRevealer.reveal) ? 8 : 0
 
-            // Reset Button
-            RippleButton {
-                visible: TimerService.stopwatchTime > 0
-                implicitWidth: 36
-                implicitHeight: 36
-                buttonRadius: 18
-                colBackground: Appearance.colors.colSecondaryContainer
-                colRipple: Appearance.colors.colOnSecondaryContainer
-                onClicked: TimerService.stopwatchReset()
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "restart_alt"
-                    iconSize: 18
-                    color: Appearance.colors.colOnSecondaryContainer
-                }
-
+            Behavior on spacing {
+                animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
             }
 
-            // Lap Button
-            RippleButton {
-                visible: root.isRunning
-                implicitWidth: 36
-                implicitHeight: 36
-                buttonRadius: 18
-                colBackground: Appearance.colors.colSecondaryContainer
-                colRipple: Appearance.colors.colOnSecondaryContainer
-                onClicked: TimerService.stopwatchRecordLap()
+            // Reset Button (Reveals when time > 0, smoothly slides to play button when lap hides)
+            Revealer {
+                id: resetRevealer
+                reveal: TimerService.stopwatchTime > 0
+                Layout.alignment: Qt.AlignVCenter
 
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "flag"
-                    iconSize: 18
-                    color: Appearance.colors.colOnSecondaryContainer
+                RippleButton {
+                    id: resetButton
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    buttonRadius: 20
+                    colBackground: Appearance.colors.colSecondaryContainer
+                    colRipple: Appearance.colors.colOnSecondaryContainer
+                    onClicked: TimerService.stopwatchReset()
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "restart_alt"
+                        iconSize: 18
+                        fill: 1
+                        color: Appearance.colors.colOnSecondaryContainer
+                    }
                 }
-
             }
 
+            // Lap Button (Reveals while running)
+            Revealer {
+                id: lapRevealer
+                reveal: root.isRunning
+                Layout.alignment: Qt.AlignVCenter
+
+                RippleButton {
+                    id: lapButton
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    buttonRadius: 20
+                    colBackground: Appearance.colors.colSecondaryContainer
+                    colRipple: Appearance.colors.colOnSecondaryContainer
+                    onClicked: TimerService.stopwatchRecordLap()
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "flag"
+                        iconSize: 18
+                        fill: 1
+                        color: Appearance.colors.colOnSecondaryContainer
+                    }
+                }
+            }
         }
 
     }

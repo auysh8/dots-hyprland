@@ -11,6 +11,7 @@ import qs.services
 
 Item {
     id: root
+    anchors.fill: parent
 
     // Color Logic
     readonly property bool isBreak: TimerService.pomodoroBreak
@@ -49,26 +50,23 @@ Item {
         id: mainLayout
 
         anchors.fill: parent
-        anchors.margins: 16
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
         implicitHeight: Math.max(infoLayout.implicitHeight, playContainer.height)
 
-        // Left Side: Info & Secondary Controls
+        // Left Side: Info & Status
         ColumnLayout {
-            // Secondary Controls - Removed and moved
-
             id: infoLayout
 
             anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
+            anchors.verticalCenter: parent.verticalCenter
             anchors.right: resetButton.left
             anchors.rightMargin: 16
-            spacing: 8
+            spacing: 6
 
             // Timer + Status Group
             ColumnLayout {
                 id: timerGroup
-
                 spacing: 0
 
                 StyledText {
@@ -97,17 +95,17 @@ Item {
                         return "Focus Session";
                     }
                     font.pixelSize: 13
-                    font.weight: Font.Medium
+                    font.weight: Font.Bold
                     font.capitalization: Font.AllUppercase
                     font.letterSpacing: 2
-                    color: Appearance.colors.colSubtext
+                    color: Appearance.colors.colOnLayer0
+                    opacity: 0.85
                 }
-
             }
 
-            // Cycle Dots
+            // Cycle Dashes (Stadium Pills)
             Row {
-                spacing: 6
+                spacing: 5
 
                 Repeater {
                     model: 4
@@ -116,41 +114,32 @@ Item {
                         readonly property bool completed: TimerService.pomodoroCycle > index
                         readonly property bool current: TimerService.pomodoroCycle == index
 
-                        width: 6
-                        height: 6
-                        radius: 3
-                        color: completed ? root.accentColor : current ? root.accentColor : ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.15)
-                        opacity: current ? 1 : (completed ? 0.6 : 1)
+                        width: 16
+                        height: 4
+                        radius: 2
+                        color: (completed || current) ? root.accentColor : ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.18)
+                        opacity: current ? 1.0 : (completed ? 0.9 : 0.6)
 
-                        // Current dot glow/scale
-                        SequentialAnimation on scale {
+                        // Current dash pulse animation when running
+                        SequentialAnimation on opacity {
                             running: current && root.isRunning
                             loops: Animation.Infinite
 
                             NumberAnimation {
-                                to: 1.3
-                                duration: 1000
+                                to: 0.45
+                                duration: 800
                                 easing.type: Easing.InOutQuad
                             }
 
                             NumberAnimation {
-                                to: 1
-                                duration: 1000
+                                to: 1.0
+                                duration: 800
                                 easing.type: Easing.InOutQuad
                             }
-
                         }
-
                     }
-
                 }
-
             }
-
-            Item {
-                Layout.fillHeight: true
-            }
-
         }
 
         // Secondary Button (Reset)
@@ -160,9 +149,9 @@ Item {
             anchors.verticalCenter: playContainer.verticalCenter
             anchors.right: playContainer.left
             anchors.rightMargin: 12
-            implicitWidth: 36
-            implicitHeight: 36
-            buttonRadius: 18
+            implicitWidth: 42
+            implicitHeight: 42
+            buttonRadius: 21
             colBackground: Appearance.colors.colSecondaryContainer
             colRipple: Appearance.colors.colOnSecondaryContainer
             onClicked: TimerService.resetPomodoro()
@@ -170,10 +159,10 @@ Item {
             MaterialSymbol {
                 anchors.centerIn: parent
                 text: "restart_alt"
-                iconSize: 18
+                iconSize: 20
+                fill: 1
                 color: Appearance.colors.colOnSecondaryContainer
             }
-
         }
 
         // Right Side: Circular Progress + Play Button
@@ -210,11 +199,10 @@ Item {
                     anchors.centerIn: parent
                     text: root.isRunning ? "pause" : "play_arrow"
                     iconSize: 32
+                    fill: 1
                     color: root.accentColor
                 }
-
             }
-
         }
 
     }

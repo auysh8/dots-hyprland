@@ -14,6 +14,7 @@ import "pages"
 import qs
 import qs.modules.common
 import qs.modules.common.functions
+import qs.modules.common.models
 import qs.modules.common.widgets
 import qs.services
 
@@ -430,7 +431,7 @@ Scope {
                             pageCount++;
 
                         if (pageCount > 0)
-                            return pageCount > 1 ? 244 : 226;
+                            return pageCount > 1 ? 265 : 235;
 
                         return 60;
                     }
@@ -562,8 +563,22 @@ Scope {
                     Item {
                         id: islandBackground
 
-                        property color bgColor: Appearance.colors.colLayer0
-                        property real bottomRadius: 16
+                        readonly property bool isBadPopup: islandContainer.hasPopup && (islandPill.renderMode === 3 || islandContainer.mode === 3) && (
+                            islandContainer.popupType === "bad" ||
+                            (islandContainer.popupCategory === "battery" && islandContainer.popupAction === "low") ||
+                            (islandContainer.popupCategory === "microphone" && islandContainer.popupAction === "muted") ||
+                            (islandContainer.popupCategory === "volume" && islandContainer.popupAction === "muted") ||
+                            (islandContainer.popupCategory === "wifi" && islandContainer.popupAction === "disconnected") ||
+                            (islandContainer.popupCategory === "bluetooth" && islandContainer.popupAction === "disconnected") ||
+                            (islandContainer.popupCategory === "storage" && islandContainer.popupAction === "low")
+                        )
+
+                        property color bgColor: isBadPopup ? ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colError, 0.85) : Appearance.colors.colLayer0
+                        property real bottomRadius: islandContainer.expanded ? 24 : 16
+
+                        Behavior on bottomRadius {
+                            animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+                        }
 
                         anchors.fill: parent
 
@@ -572,7 +587,7 @@ Scope {
 
                             ShapePath {
                                 strokeWidth: 1
-                                strokeColor: Appearance.colors.colLayer0Border
+                                strokeColor: islandBackground.isBadPopup ? ColorUtils.applyAlpha(Appearance.colors.colError, 0.25) : Appearance.colors.colLayer0Border
                                 fillColor: islandBackground.bgColor
                                 // Start at top-left corner
                                 startX: 0
@@ -715,13 +730,15 @@ Scope {
                                     }
                                 }
 
-                                // Separator
+                                // Dot Separator (Material 3 Expressive)
                                 Rectangle {
                                     Layout.alignment: Qt.AlignVCenter
-                                    Layout.leftMargin: 7 // Compensate for the 7px internal padding of the media icon
-                                    width: 1
-                                    height: 16
-                                    color: Appearance.colors.colOutlineVariant
+                                    Layout.leftMargin: 2
+                                    Layout.rightMargin: 2
+                                    implicitWidth: 4
+                                    implicitHeight: 4
+                                    radius: 2
+                                    color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.4)
                                     visible: islandContainer.hasMedia || islandPill.downloadActive
                                 }
 
@@ -937,7 +954,7 @@ Scope {
 
                                     StyledText {
                                         text: islandContainer.popupTitle
-                                        color: Appearance.colors.colOnLayer0
+                                        color: islandBackground.isBadPopup ? (Appearance.m3colors.m3onErrorContainer || Appearance.colors.colOnLayer0) : Appearance.colors.colOnLayer0
                                         font.pixelSize: Appearance.font.pixelSize.normal
                                         font.weight: Font.Bold
                                         elide: Text.ElideRight
@@ -946,9 +963,9 @@ Scope {
 
                                     StyledText {
                                         text: islandContainer.popupMessage
-                                        color: Appearance.colors.colOnLayer0
+                                        color: islandBackground.isBadPopup ? Appearance.colors.colError : Appearance.colors.colOnLayer0
                                         font.pixelSize: Appearance.font.pixelSize.small
-                                        opacity: 0.7
+                                        opacity: islandBackground.isBadPopup ? 1.0 : 0.7
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
                                     }
@@ -1035,29 +1052,93 @@ Scope {
                             spacing: 8
                             onActivePagesChanged: Qt.callLater(syncSwipeToSavedPage)
 
-                            // Top row - Time and Date
+                            // Top row - Time and Date (Material 3 Expressive Pills)
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 12
+                                spacing: 10
 
-                                StyledText {
-                                    text: islandContainer.currentTimeWithSeconds
-                                    font.pixelSize: Appearance.font.pixelSize.larger
-                                    font.weight: Font.Bold
-                                    color: Appearance.colors.colOnLayer0
+                                // Time Pill
+                                Rectangle {
+                                    id: timePill
+                                    radius: 16
+                                    color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.10)
+                                    border.width: 1
+                                    border.color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.12)
+                                    Layout.preferredHeight: 32
+                                    Layout.preferredWidth: timeContent.width + 20
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    Row {
+                                        id: timeContent
+                                        anchors.centerIn: parent
+                                        spacing: 6
+
+                                        // Mint Circular Clock Badge
+                                        Rectangle {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 20
+                                            height: 20
+                                            radius: 10
+                                            color: Appearance.colors.colPrimary
+
+                                            MaterialSymbol {
+                                                anchors.centerIn: parent
+                                                text: "schedule"
+                                                iconSize: 13
+                                                fill: 1
+                                                color: Appearance.colors.colOnPrimary
+                                            }
+                                        }
+
+                                        StyledText {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            anchors.verticalCenterOffset: 2
+                                            text: islandContainer.currentTime
+                                            font.pixelSize: Appearance.font.pixelSize.normal
+                                            font.weight: Font.Bold
+                                            color: Appearance.colors.colOnLayer0
+                                        }
+                                    }
                                 }
 
                                 Item {
                                     Layout.fillWidth: true
                                 }
 
-                                StyledText {
-                                    text: islandContainer.currentDate
-                                    font.pixelSize: Appearance.font.pixelSize.normal
-                                    font.weight: Font.Medium
-                                    color: Appearance.colors.colOnLayer0
-                                }
+                                // Date Pill
+                                Rectangle {
+                                    id: datePill
+                                    radius: 16
+                                    color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.10)
+                                    border.width: 1
+                                    border.color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.12)
+                                    Layout.preferredHeight: 32
+                                    Layout.preferredWidth: dateContent.width + 20
+                                    Layout.alignment: Qt.AlignVCenter
 
+                                    Row {
+                                        id: dateContent
+                                        anchors.centerIn: parent
+                                        spacing: 6
+
+                                        MaterialSymbol {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "calendar_month"
+                                            iconSize: 18
+                                            fill: 1
+                                            color: Appearance.colors.colPrimary
+                                        }
+
+                                        StyledText {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            anchors.verticalCenterOffset: 2
+                                            text: islandContainer.currentDate
+                                            font.pixelSize: Appearance.font.pixelSize.normal
+                                            font.weight: Font.Bold
+                                            color: Appearance.colors.colOnLayer0
+                                        }
+                                    }
+                                }
                             }
 
                             // Page Components
@@ -1129,32 +1210,140 @@ Scope {
 
                             }
 
-                            // Page Indicator
-                            PageIndicator {
+                            // Page Indicator (Workspace Switcher Style: Minimal Dots when idle -> Rich Icon Capsule Pill on Hover)
+                            Item {
+                                id: islandPageIndicatorContainer
                                 Layout.alignment: Qt.AlignHCenter
-                                Layout.bottomMargin: 4
-                                count: contentSwipe.count
-                                currentIndex: contentSwipe.currentIndex
-                                interactive: true
+                                Layout.preferredHeight: 30
+                                implicitHeight: 30
+                                Layout.fillWidth: true
                                 visible: expandedContent.activePages.length > 1
 
-                                delegate: Rectangle {
-                                    implicitWidth: 6
-                                    implicitHeight: 6
-                                    radius: 3
-                                    color: Appearance.colors.colOnLayer0
-                                    opacity: index === contentSwipe.currentIndex ? 1 : 0.3
-                                    scale: index === contentSwipe.currentIndex ? 1.2 : 1
+                                HoverHandler {
+                                    id: trackHoverHandler
+                                }
 
-                                    Behavior on opacity {
-                                        NumberAnimation {
-                                            duration: 200
-                                        }
+                                readonly property bool hovered: trackHoverHandler.hovered || trackHoverArea.containsMouse
+                                readonly property int count: expandedContent.activePages.length
+
+                                function getPageIcon(key) {
+                                    if (key === "media") return "music_note";
+                                    if (key === "pomodoro") return "timer";
+                                    if (key === "stopwatch") return "schedule";
+                                    if (key === "download") return "download";
+                                    return "circle";
+                                }
+
+                                MouseArea {
+                                    id: trackHoverArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    propagateComposedEvents: true
+                                    onClicked: (mouse) => mouse.accepted = false
+                                }
+
+                                Rectangle {
+                                    id: islandPageIndicator
+                                    anchors.centerIn: parent
+                                    height: islandPageIndicatorContainer.hovered ? 26 : 6
+                                    width: islandPageIndicatorContainer.hovered ? (dotsRow.implicitWidth + 8) : (islandPageIndicatorContainer.count * 6 + (islandPageIndicatorContainer.count - 1) * 6 + 10)
+                                    radius: height / 2
+                                    color: islandPageIndicatorContainer.hovered ? ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.12) : "transparent"
+                                    border.width: islandPageIndicatorContainer.hovered ? 1 : 0
+                                    border.color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.14)
+
+                                    Behavior on height {
+                                        NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+                                    }
+                                    Behavior on width {
+                                        NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation { duration: 200 }
                                     }
 
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: 200
+                                    // Inactive/Occupied Dots & Chips Row
+                                    Row {
+                                        id: dotsRow
+                                        anchors.centerIn: parent
+                                        spacing: islandPageIndicatorContainer.hovered ? 4 : 6
+
+                                        Behavior on spacing {
+                                            NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
+                                        }
+
+                                        Repeater {
+                                            model: expandedContent.activePages
+
+                                            Item {
+                                                id: dotItem
+                                                readonly property string pageKey: modelData.key || ""
+                                                readonly property bool isActive: islandContainer.expandedPageKey === pageKey
+
+                                                implicitWidth: islandPageIndicatorContainer.hovered ? 20 : (isActive ? 16 : 6)
+                                                implicitHeight: islandPageIndicatorContainer.hovered ? 20 : 6
+
+                                                Behavior on implicitWidth {
+                                                    NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+                                                }
+                                                Behavior on implicitHeight {
+                                                    NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+                                                }
+
+                                                // Visual Representation
+                                                Rectangle {
+                                                    id: chipVisual
+                                                    anchors.centerIn: parent
+                                                    width: parent.width
+                                                    height: parent.height
+                                                    radius: height / 2
+
+                                                    color: dotItem.isActive
+                                                        ? Appearance.colors.colPrimary
+                                                        : (islandPageIndicatorContainer.hovered
+                                                            ? (dotClickArea.containsMouse ? ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.20) : ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.08))
+                                                            : Appearance.colors.colOnLayer0)
+
+                                                    opacity: dotItem.isActive ? 1.0 : (islandPageIndicatorContainer.hovered ? 1.0 : 0.35)
+
+                                                    Behavior on color {
+                                                        ColorAnimation { duration: 180 }
+                                                    }
+                                                    Behavior on opacity {
+                                                        NumberAnimation { duration: 180 }
+                                                    }
+
+                                                    // Icon visible when hovered
+                                                    MaterialSymbol {
+                                                        anchors.centerIn: parent
+                                                        visible: islandPageIndicatorContainer.hovered
+                                                        opacity: visible ? 1 : 0
+                                                        text: islandPageIndicatorContainer.getPageIcon(dotItem.pageKey)
+                                                        iconSize: 12
+                                                        fill: 1
+                                                        color: dotItem.isActive ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer0
+
+                                                        Behavior on opacity {
+                                                            NumberAnimation { duration: 150 }
+                                                        }
+                                                    }
+                                                }
+
+                                                MouseArea {
+                                                    id: dotClickArea
+                                                    anchors.fill: parent
+                                                    anchors.margins: -4
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        if (index >= 0 && index < expandedContent.activePages.length) {
+                                                            var targetKey = expandedContent.activePages[index].key;
+                                                            islandContainer.expandedPageKey = targetKey;
+                                                            contentSwipe.currentIndex = index;
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
