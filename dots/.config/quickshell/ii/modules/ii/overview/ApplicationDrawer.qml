@@ -60,6 +60,10 @@ FocusScope {
 
     // --- Data ---
     property var allApps: DesktopEntries.applications.values
+    property var allAppsList: root.allApps ? Array.from(root.allApps).sort((a, b) => (a.name || "").localeCompare(b.name || "")) : []
+    property var filteredAppsList: []
+    property var appPositions: ({})
+    property real totalGridContentHeight: 0
     property var categories: ["All"]
     property bool appsLoaded: true
     
@@ -75,14 +79,45 @@ FocusScope {
     enum FocusArea { Sidebar, Search, Grid }
     property int currentFocusArea: ApplicationDrawer.FocusArea.Search
 
+    onSearchTextChanged: updateFilteredApps()
+    onCurrentCategoryChanged: updateFilteredApps()
+    onSortModeChanged: updateFilteredApps()
+    onColumnsChanged: recomputeAppPositions()
+
     Component.onCompleted: {
         extractCategories();
-        appGrid.model.values = root.getFilteredApps();
+        updateFilteredApps();
     }
     
     onAllAppsChanged: {
         extractCategories();
-        appGrid.model.values = root.getFilteredApps();
+        updateFilteredApps();
+    }
+
+    function updateFilteredApps() {
+        root.filteredAppsList = root.getFilteredApps();
+        root.recomputeAppPositions();
+    }
+
+    function recomputeAppPositions() {
+        if (!appGrid || appGrid.width <= 0) return;
+        const filtered = root.filteredAppsList;
+        const cols = root.columns;
+        const cellW = appGrid.width / cols;
+        const cellH = cellW * 1.18;
+        const newPos = {};
+        for (let i = 0; i < filtered.length; i++) {
+            const app = filtered[i];
+            const key = root.getAppId(app);
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = col * cellW;
+            const y = row * cellH;
+            newPos[key] = { x: x, y: y, width: cellW, height: cellH, index: i };
+        }
+        const totalRows = Math.ceil(filtered.length / cols);
+        root.totalGridContentHeight = totalRows * cellH + 32;
+        root.appPositions = newPos;
     }
     
     // Helper: Get app count for a category
@@ -94,9 +129,10 @@ FocusScope {
     
     // Helper: Get app ID from app object
     function getAppId(app) {
-        // Try to extract app ID from the desktop entry
-        if (app && app.id) return app.id.toString();
-        if (app && app.name) return app.name.toLowerCase().replace(/\s+/g, '-');
+        if (!app) return "";
+        if (app.fileName) return app.fileName;
+        if (app.id) return app.id.toString();
+        if (app.name) return app.name.toLowerCase().replace(/\s+/g, '-');
         return "";
     }
     
@@ -145,10 +181,10 @@ FocusScope {
     
     Keys.onRightPressed: event => {
         if (currentFocusArea === ApplicationDrawer.FocusArea.Grid) {
-            const totalApps = appGrid.model.values.length;
+            const totalApps = root.filteredAppsList.length;
             if (selectedGridIndex < totalApps - 1) {
                 selectedGridIndex++;
-                appGrid.positionViewAtIndex(selectedGridIndex, GridView.Contain);
+                appGrid.positionViewAtIndex(selectedGridIndex);
             }
             event.accepted = true;
         }
@@ -158,7 +194,7 @@ FocusScope {
         if (currentFocusArea === ApplicationDrawer.FocusArea.Grid) {
             if (selectedGridIndex > 0) {
                 selectedGridIndex--;
-                appGrid.positionViewAtIndex(selectedGridIndex, GridView.Contain);
+                appGrid.positionViewAtIndex(selectedGridIndex);
             }
             event.accepted = true;
         }
@@ -170,7 +206,7 @@ FocusScope {
             focusGrid();
             event.accepted = true;
         } else if (currentFocusArea === ApplicationDrawer.FocusArea.Grid) {
-            const totalApps = appGrid.model.values.length;
+            const totalApps = root.filteredAppsList.length;
             if (totalApps === 0) return;
             
             // Calculate next row index
@@ -180,11 +216,11 @@ FocusScope {
             
             if (nextRowIndex < totalApps) {
                 selectedGridIndex = nextRowIndex;
-                appGrid.positionViewAtIndex(selectedGridIndex, GridView.Contain);
+                appGrid.positionViewAtIndex(selectedGridIndex);
             } else if (currentRow * root.columns + currentCol < totalApps - 1) {
                 // Go to last app if we can't go to exact position
                 selectedGridIndex = totalApps - 1;
-                appGrid.positionViewAtIndex(selectedGridIndex, GridView.Contain);
+                appGrid.positionViewAtIndex(selectedGridIndex);
             }
             event.accepted = true;
         }
@@ -205,16 +241,16 @@ FocusScope {
             const currentCol = selectedGridIndex % root.columns;
             const prevRowIndex = (currentRow - 1) * root.columns + currentCol;
             selectedGridIndex = prevRowIndex;
-            appGrid.positionViewAtIndex(selectedGridIndex, GridView.Contain);
+            appGrid.positionViewAtIndex(selectedGridIndex);
             event.accepted = true;
         }
     }
     
     Keys.onReturnPressed: event => {
         if (currentFocusArea === ApplicationDrawer.FocusArea.Grid) {
-            const totalApps = appGrid.model.values.length;
+            const totalApps = root.filteredAppsList.length;
             if (selectedGridIndex >= 0 && selectedGridIndex < totalApps) {
-                const app = appGrid.model.values[selectedGridIndex];
+                const app = root.filteredAppsList[selectedGridIndex];
                 GlobalStates.appDrawerOpen = false;
                 GlobalStates.overviewOpen = false;
                 root.trackRecentApp(app);
@@ -303,16 +339,7 @@ FocusScope {
             apps.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         }
 
-        // Map to JS objects for ScriptModel
-        return apps.map(app => {
-            return {
-                name: app.name,
-                icon: app.icon,
-                execute: app.execute,
-                category: app.categories ? app.categories[0] : "", // For basic checking
-                categories: app.categories || []
-            };
-        });
+        return apps;
     }
     
     function executeApp(app) {
@@ -814,148 +841,210 @@ FocusScope {
 
                         ScrollBar.vertical: StyledScrollBar {}
 
-                        contentHeight: gridContent.implicitHeight + 32
-
-                        property real cellWidth: width / root.columns
-                        property real cellHeight: cellWidth * 1.18
+                        contentHeight: root.totalGridContentHeight
                         contentWidth: width
-                        property var model: appGridModel
 
-                    function positionViewAtIndex(index, mode) {
-                        if (index < 0) return;
-                        const row = Math.floor(index / root.columns);
-                        const rowTop = row * cellHeight;
-                        const rowBottom = rowTop + cellHeight;
-                        const viewportTop = contentY;
-                        const viewportBottom = contentY + height;
-                        let targetY = contentY;
+                        onWidthChanged: {
+                            if (width > 0) root.recomputeAppPositions();
+                        }
 
-                        if (rowTop < viewportTop) targetY = rowTop;
-                        else if (rowBottom > viewportBottom) targetY = rowBottom - height;
+                        function positionViewAtIndex(index) {
+                            if (index < 0) return;
+                            const cellH = (appGrid.width / root.columns) * 1.18;
+                            const row = Math.floor(index / root.columns);
+                            const rowTop = row * cellH;
+                            const rowBottom = rowTop + cellH;
+                            const viewportTop = contentY;
+                            const viewportBottom = contentY + height;
+                            let targetY = contentY;
 
-                        const maxY = Math.max(0, contentHeight - height);
-                        contentY = Math.max(0, Math.min(targetY, maxY));
-                    }
+                            if (rowTop < viewportTop) targetY = rowTop;
+                            else if (rowBottom > viewportBottom) targetY = rowBottom - height;
 
-                    ScriptModel {
-                        id: appGridModel
-                        values: []
-                    }
+                            const maxY = Math.max(0, contentHeight - height);
+                            contentY = Math.max(0, Math.min(targetY, maxY));
+                        }
 
-                    Grid {
-                        id: gridContent
-                        width: appGrid.width
-                        columns: root.columns
-                        // No spacing needed as the cells are fixed sizes
+                        Item {
+                            id: gridContent
+                            width: appGrid.width
+                            implicitHeight: root.totalGridContentHeight
 
-                        Repeater {
-                            model: appGrid.model.values
+                            Repeater {
+                                model: root.allAppsList
 
-                            delegate: Item {
-                                required property int index
-                                required property var modelData
-                                width: appGrid.cellWidth
-                                height: appGrid.cellHeight
+                                delegate: Item {
+                                    id: appItem
+                                    required property int index
+                                    required property var modelData
 
-                                RippleButton {
-                                    id: appButton
-                                    property bool isPinned: TaskbarApps.isPinned(root.getAppId(modelData))
-                                    property bool isKeyboardSelected: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && root.selectedGridIndex === index
+                                    readonly property string appKey: root.getAppId(modelData)
+                                    readonly property var pos: root.appPositions[appKey] || null
+                                    readonly property bool isMatched: pos !== null
 
-                                    anchors.centerIn: parent
-                                    width: appGrid.cellWidth - 12
-                                    height: appGrid.cellHeight - 12
-                                    buttonRadius: Appearance.rounding.verylarge
-                                    colBackground: Appearance.colors.colLayer1
-                                    colBackgroundHover: Appearance.colors.colLayer2
-                                    colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                                    colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colOnSecondaryContainer, 0.08)
-                                    colRippleToggled: ColorUtils.applyAlpha(Appearance.colors.colOnSecondaryContainer, 0.88)
-                                    toggled: isKeyboardSelected
+                                    property real targetX: pos ? pos.x : targetX
+                                    property real targetY: pos ? pos.y : targetY
+                                    property real targetWidth: pos ? pos.width : targetWidth
+                                    property real targetHeight: pos ? pos.height : targetHeight
 
-                                    scale: hovered ? 1.06 : 1.0
-                                    y: hovered ? -3 : 0
+                                    x: targetX
+                                    y: targetY
+                                    width: targetWidth
+                                    height: targetHeight
 
-                                    Behavior on scale {
-                                        SpringAnimation {
-                                            spring: 3
-                                            damping: 0.7
-                                            mass: 1.0
+                                    visible: opacity > 0
+                                    opacity: isMatched ? 1 : 0
+                                    scale: isMatched ? 1 : 0.85
+
+                                    Behavior on x {
+                                        enabled: appItem.opacity > 0.05
+                                        NumberAnimation {
+                                            duration: 300
+                                            easing.type: Easing.OutCubic
                                         }
                                     }
 
                                     Behavior on y {
-                                        SpringAnimation {
-                                            spring: 3
-                                            damping: 0.7
-                                            mass: 1.0
+                                        enabled: appItem.opacity > 0.05
+                                        NumberAnimation {
+                                            duration: 300
+                                            easing.type: Easing.OutCubic
                                         }
                                     }
 
-                                    onClicked: {
-                                        GlobalStates.appDrawerOpen = false;
-                                        GlobalStates.overviewOpen = false;
-                                        root.trackRecentApp(modelData);
-                                        root.executeApp(modelData);
+                                    Behavior on width {
+                                        NumberAnimation {
+                                            duration: 200
+                                            easing.type: Easing.OutCubic
+                                        }
                                     }
 
-                                    // Right-click context menu
-                                    altAction: () => {
-                                        root.contextMenuApp = modelData;
-                                        root.contextMenuVisible = true;
-                                        let globalPos = appButton.mapToItem(drawerBackground, appButton.width / 2, appButton.height / 2);
-                                        root.contextMenuPosition = Qt.point(globalPos.x, globalPos.y);
+                                    Behavior on height {
+                                        NumberAnimation {
+                                            duration: 200
+                                            easing.type: Easing.OutCubic
+                                        }
                                     }
 
-                                    ColumnLayout {
+                                    Behavior on opacity {
+                                        NumberAnimation {
+                                            duration: 200
+                                            easing.type: Easing.OutCubic
+                                        }
+                                    }
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: 200
+                                            easing.type: Easing.OutCubic
+                                        }
+                                    }
+
+                                    RippleButton {
+                                        id: appButton
+                                        property bool isPinned: TaskbarApps.isPinned(root.getAppId(modelData))
+                                        property bool isKeyboardSelected: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && pos && root.selectedGridIndex === pos.index
+
                                         anchors.centerIn: parent
-                                        width: parent.width - 20
-                                        spacing: 10
+                                        width: parent.width - 12
+                                        height: parent.height - 12
+                                        buttonRadius: Appearance.rounding.verylarge
+                                        colBackground: Appearance.colors.colLayer1
+                                        colBackgroundHover: Appearance.colors.colLayer2
+                                        colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                                        colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colOnSecondaryContainer, 0.08)
+                                        colRippleToggled: ColorUtils.applyAlpha(Appearance.colors.colOnSecondaryContainer, 0.88)
+                                        toggled: isKeyboardSelected
 
-                                        Item {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            Layout.preferredWidth: root.iconSize
-                                            Layout.preferredHeight: root.iconSize
+                                        scale: hovered ? 1.06 : 1.0
+                                        y: hovered ? -3 : 0
 
-                                            Rectangle {
-                                                anchors.fill: parent
-                                                radius: Appearance.rounding.large
-                                                color: "transparent"
-                                                clip: true
-
-                                                IconImage {
-                                                    anchors.centerIn: parent
-                                                    source: Quickshell.iconPath(modelData.icon, "application-x-executable")
-                                                    implicitSize: root.iconSize
-                                                }
+                                        Behavior on scale {
+                                            SpringAnimation {
+                                                spring: 3
+                                                damping: 0.7
+                                                mass: 1.0
                                             }
                                         }
 
-                                        StyledText {
-                                            Layout.fillWidth: true
-                                            text: modelData.name
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
-                                            color: Appearance.colors.colOnLayer0
-                                            font.pixelSize: 13
-                                            font.weight: Font.DemiBold
-                                            wrapMode: Text.Wrap
-                                            maximumLineCount: 2
-                                            lineHeight: 1.15
-                                            elide: Text.ElideNone
+                                        Behavior on y {
+                                            SpringAnimation {
+                                                spring: 3
+                                                damping: 0.7
+                                                mass: 1.0
+                                            }
+                                        }
+
+                                        onClicked: {
+                                            GlobalStates.appDrawerOpen = false;
+                                            GlobalStates.overviewOpen = false;
+                                            root.trackRecentApp(modelData);
+                                            root.executeApp(modelData);
+                                        }
+
+                                        // Right-click context menu
+                                        altAction: () => {
+                                            root.contextMenuApp = modelData;
+                                            root.contextMenuVisible = true;
+                                            let globalPos = appButton.mapToItem(drawerBackground, appButton.width / 2, appButton.height / 2);
+                                            root.contextMenuPosition = Qt.point(globalPos.x, globalPos.y);
+                                        }
+
+                                        ColumnLayout {
+                                            anchors.centerIn: parent
+                                            width: parent.width - 20
+                                            spacing: 10
+
+                                            Item {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                Layout.preferredWidth: root.iconSize
+                                                Layout.preferredHeight: root.iconSize
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    radius: Appearance.rounding.large
+                                                    color: "transparent"
+                                                    clip: true
+
+                                                    IconImage {
+                                                        anchors.centerIn: parent
+                                                        source: Quickshell.iconPath(modelData.icon, "application-x-executable")
+                                                        implicitSize: root.iconSize
+                                                    }
+                                                }
+                                            }
+
+                                            StyledText {
+                                                Layout.fillWidth: true
+                                                text: modelData.name || ""
+                                                horizontalAlignment: Text.AlignHCenter
+                                                verticalAlignment: Text.AlignVCenter
+                                                color: Appearance.colors.colOnLayer0
+                                                font.pixelSize: 13
+                                                font.weight: Font.DemiBold
+                                                wrapMode: Text.Wrap
+                                                maximumLineCount: 2
+                                                lineHeight: 1.15
+                                                elide: Text.ElideNone
+                                            }
                                         }
                                     }
                                 }
                             }
+                        }
+
+                        // Empty State Placeholder
+                        PagePlaceholder {
+                            shown: root.filteredAppsList.length === 0
+                            icon: "search_off"
+                            title: root.searchText.length > 0 ? Translation.tr("No applications match your search.") : Translation.tr("No applications found.")
                         }
                     }
                 }
             }
         }
     }
-            }
-        }
-    }
+}
 
     // Context Menu Overlay (positioned outside layout to not affect grid)
     Item {
@@ -1108,4 +1197,5 @@ FocusScope {
             }
         }
     }
+}
 }

@@ -159,7 +159,7 @@ Scope {
                 anchors.top: parent.top
                 // Height is just island height (since no gap now)
                 // Fixed max surface size to prevent Wayland resize jitter
-                implicitHeight: 200
+                implicitHeight: 320
                 implicitWidth: 500
                 opacity: initialized ? 1 : 0
 
@@ -430,7 +430,7 @@ Scope {
                             pageCount++;
 
                         if (pageCount > 0)
-                            return pageCount > 1 ? 216 : 196;
+                            return pageCount > 1 ? 244 : 226;
 
                         return 60;
                     }

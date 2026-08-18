@@ -14,11 +14,10 @@ import qs.modules.common.models
 
 import "media_color_cache.js" as MediaColorCache
 
-
 Item {
     id: root
     clip: false
-    implicitHeight: mainLayout.implicitHeight + 24 // Add margins to height
+    implicitHeight: mainLayout.implicitHeight + 10
 
     // Player switching
     readonly property var availablePlayers: MprisController.players
@@ -43,7 +42,6 @@ Item {
                     let t1 = (primary.trackTitle || "").toLowerCase();
                     let t2 = (p.trackTitle || "").toLowerCase();
                     if (t1.length > 0 && (t1.includes(t2) || t2.includes(t1) || p.isPlaying)) {
-                        console.log("[MediaPage] Preferring player with art:", p.identity, "(" + p.dbusName + ")");
                         return p;
                     }
                 }
@@ -52,9 +50,6 @@ Item {
         return primary ? primary : spotifyPlayer
     }
     property bool showPlayerPicker: false
-
-    onActivePlayerChanged: console.log("[MediaPage] activePlayer is now:", activePlayer ? (activePlayer.identity + " | dbus: " + activePlayer.dbusName + " | artUrl: " + activePlayer.trackArtUrl) : "null")
-    onDisplayedArtFilePathChanged: console.log("[MediaPage] displayedArtFilePath is now:", displayedArtFilePath)
 
     function splitTrackMeta(rawTitle, rawArtist) {
         const title = rawTitle || ""
@@ -71,6 +66,24 @@ Item {
 
         return { title: title, artist: "" }
     }
+
+    function formatTime(seconds) {
+        if (!seconds || isNaN(seconds) || seconds < 0) return "0:00";
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return mins + ":" + (secs < 10 ? "0" : "") + secs;
+    }
+
+    function cycleLoopStatus() {
+        if (!activePlayer || activePlayer.loopStatus === undefined) return;
+        if (activePlayer.loopStatus === MprisLoopStatus.None) {
+            activePlayer.loopStatus = MprisLoopStatus.Playlist;
+        } else if (activePlayer.loopStatus === MprisLoopStatus.Playlist) {
+            activePlayer.loopStatus = MprisLoopStatus.Track;
+        } else {
+            activePlayer.loopStatus = MprisLoopStatus.None;
+        }
+    }
     
     // Shared Media Color Context
     MediaArtColorContext {
@@ -79,12 +92,6 @@ Item {
     }
 
     // Art Handling mapped to mediaContext
-    property string artUrl: mediaContext.artUrl
-    property bool isLocalArt: mediaContext.isLocalArt
-    property string artDownloadLocation: mediaContext.artDownloadLocation
-    property string artFileName: mediaContext.artFileName
-    property string artFilePath: mediaContext.artFilePath
-    property bool downloaded: mediaContext.downloaded
     property string displayedArtFilePath: mediaContext.displayedArtFilePath
 
     // Color extraction from mediaContext
@@ -121,86 +128,42 @@ Item {
         }
     }
 
-    // Background Art
-    Item {
+    // Background Card Surface
+    Rectangle {
+        id: cardBg
         anchors.fill: parent
-        
+        radius: Appearance.rounding.normal
+        color: ColorUtils.mix(Appearance.colors.colLayer0, root.backgroundColor, 0.25)
+        clip: true
+
+        // Subtle Blurred Artwork Backdrop
         Image {
             id: bgArt
             anchors.fill: parent
             source: root.displayedArtFilePath
             fillMode: Image.PreserveAspectCrop
-            visible: false
+            opacity: 0.18
+            visible: root.displayedArtFilePath !== "" && status === Image.Ready
             asynchronous: true
-
-            onStatusChanged: {
-                if (status === Image.Error && root.displayedArtFilePath !== "") {
-                    artReloadTimer.start()
-                }
-            }
         }
 
-        Timer {
-            id: artReloadTimer
-            interval: 200
-            repeat: false
-            onTriggered: {
-                var src = bgArt.source
-                bgArt.source = ""
-                bgArt.source = src
-            }
-        }
-
-        // Apply rounding natively via layer.effect instead of manual masks
-        Rectangle {
-            id: roundedBg
-            anchors.fill: parent
-            radius: Appearance.rounding.normal
-            color: "transparent"
-            clip: true
-
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: Rectangle {
-                    width: bgArt.width
-                    height: bgArt.height
-                    radius: Appearance.rounding.normal
-                }
-            }
-
-            Image {
-                anchors.fill: parent
-                source: bgArt.source
-                fillMode: Image.PreserveAspectCrop
-                visible: true
-            }
-        }
-        
-        // Dark Overlay for readability
+        // Tonal Gradient Overlay
         Rectangle {
             anchors.fill: parent
-            color: "black"
-            opacity: 0.68
             radius: Appearance.rounding.normal
-        }
-        
-        // Placeholder if no art
-        Rectangle {
-            anchors.fill: parent
-            color: Appearance.colors.colLayer1
-            radius: Appearance.rounding.normal
-            visible: bgArt.status !== Image.Ready || bgArt.source == ""
-            z: -1
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: ColorUtils.applyAlpha(root.backgroundColor, 0.35) }
+                GradientStop { position: 1.0; color: ColorUtils.applyAlpha(Appearance.colors.colLayer0, 0.85) }
+            }
         }
 
-        // Slight border
+        // Card Border
         Rectangle {
             anchors.fill: parent
             color: "transparent"
             radius: Appearance.rounding.normal
-            border.width: 2
-            border.color: Appearance.colors.colLayer0Border
-            opacity: 0.8
+            border.width: 1
+            border.color: ColorUtils.applyAlpha(root.contentColor, 0.12)
         }
     }
 
@@ -210,336 +173,418 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: 10
-        spacing: 2
+        spacing: 4
 
-        // Top Row (Title + Player Badge)
+        // Top Row: Album Art Card + Metadata & Player Chip
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: 10
 
-            // Title + Artist (left)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 0
+            // Dedicated Album Art Card (Squircle with Shadow)
+            Item {
+                Layout.preferredWidth: 58
+                Layout.preferredHeight: 58
+                Layout.alignment: Qt.AlignVCenter
 
-                StyledText {
-                    Layout.fillWidth: true
-                    text: {
-                        const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
-                        return meta.title || "No Media"
+                Rectangle {
+                    id: albumArtContainer
+                    anchors.fill: parent
+                    radius: 14
+                    color: Appearance.colors.colLayer2
+                    clip: true
+
+                    Image {
+                        id: coverArtImage
+                        anchors.fill: parent
+                        source: root.displayedArtFilePath
+                        fillMode: Image.PreserveAspectCrop
+                        visible: root.displayedArtFilePath !== "" && status === Image.Ready
+                        asynchronous: true
                     }
-                    font.pixelSize: 16
-                    font.weight: Font.Bold
-                    color: root.contentColor
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignLeft
+
+                    // Fallback Icon
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "music_note"
+                        iconSize: 26
+                        color: root.secondaryContentColor
+                        visible: !coverArtImage.visible
+                    }
                 }
 
+                Rectangle {
+                    anchors.fill: albumArtContainer
+                    radius: 14
+                    color: "transparent"
+                    border.width: 1
+                    border.color: ColorUtils.applyAlpha(root.contentColor, 0.15)
+                }
+            }
+
+            // Title + Artist + Source Badge
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 2
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    // Title
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: {
+                            const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
+                            return meta.title || "No Media"
+                        }
+                        font.pixelSize: 15
+                        font.weight: Font.Bold
+                        color: root.contentColor
+                        elide: Text.ElideRight
+                    }
+
+                    // Player Badge (Top Right)
+                    RippleButton {
+                        id: playerBadge
+                        Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+                        implicitHeight: 24
+                        implicitWidth: playerRow.implicitWidth + 18
+                        buttonRadius: 12
+                        pointingHandCursor: root.availablePlayers.length > 1
+
+                        colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
+                        colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.22)
+                        colRipple: root.contentColor
+                        visible: root.availablePlayers.length > 0
+
+                        onClicked: {
+                            if (root.availablePlayers.length > 1) {
+                                if (playerPickerPopup.opened) playerPickerPopup.close()
+                                else playerPickerPopup.open()
+                            }
+                        }
+
+                        contentItem: Row {
+                            id: playerRow
+                            spacing: 4
+
+                            MaterialSymbol {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: {
+                                    let name = (activePlayer?.identity || "").toLowerCase();
+                                    if (name.includes("spotify")) return "music_note";
+                                    if (name.includes("firefox") || name.includes("chrome")) return "language";
+                                    if (name.includes("vlc") || name.includes("mpv")) return "movie";
+                                    return "headphones";
+                                }
+                                iconSize: 12
+                                color: root.secondaryContentColor
+                            }
+
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: activePlayer?.identity || "No Player"
+                                color: root.secondaryContentColor
+                                font.pixelSize: 10
+                                font.weight: Font.Medium
+                                elide: Text.ElideRight
+                                maximumLineCount: 1
+                            }
+
+                            MaterialSymbol {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: playerPickerPopup.opened ? "expand_less" : "expand_more"
+                                iconSize: 11
+                                color: root.secondaryContentColor
+                                visible: root.availablePlayers.length > 1
+                            }
+                        }
+
+                        Popup {
+                            id: playerPickerPopup
+                            y: playerBadge.height + 4
+                            x: playerBadge.width - width
+                            width: 180
+                            padding: 6
+
+                            enter: Transition {
+                                NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.5 }
+                            }
+                            exit: Transition {
+                                NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 150; easing.type: Easing.InCubic }
+                                NumberAnimation { property: "scale"; from: 1.0; to: 0.92; duration: 150; easing.type: Easing.InCubic }
+                            }
+                            
+                            transformOrigin: Item.TopRight
+
+                            background: Rectangle {
+                                radius: 12
+                                color: ColorUtils.mix(root.backgroundColor, "#1A1A1A", 0.8)
+                                border.color: ColorUtils.applyAlpha(root.contentColor, 0.25)
+                                border.width: 1
+                            }
+
+                            contentItem: Column {
+                                spacing: 2
+                                Repeater {
+                                    model: root.availablePlayers
+
+                                    RippleButton {
+                                        width: parent.width
+                                        implicitHeight: 32
+                                        buttonRadius: 8
+                                        toggled: root.activePlayer === modelData
+
+                                        colBackground: "transparent"
+                                        colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.12)
+                                        colBackgroundToggled: ColorUtils.applyAlpha(root.contentColor, 0.08)
+                                        colRipple: root.contentColor
+
+                                        onClicked: {
+                                            root.selectedPlayer = modelData
+                                            playerPickerPopup.close()
+                                        }
+
+                                        contentItem: Item {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 8
+                                            anchors.rightMargin: 8
+
+                                            StyledText {
+                                                anchors.left: parent.left
+                                                anchors.right: pIcon.left
+                                                anchors.rightMargin: 6
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: modelData.identity || "Unknown Player"
+                                                color: root.contentColor
+                                                font.pixelSize: 11
+                                                font.weight: root.activePlayer === modelData ? Font.DemiBold : Font.Normal
+                                                elide: Text.ElideRight
+                                            }
+
+                                            MaterialSymbol {
+                                                id: pIcon
+                                                anchors.right: parent.right
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: {
+                                                    let id = (modelData.identity || "").toLowerCase();
+                                                    if (id.includes("spotify")) return "music_note";
+                                                    if (id.includes("firefox") || id.includes("chrome")) return "language";
+                                                    if (id.includes("vlc") || id.includes("mpv")) return "movie";
+                                                    return "headphones";
+                                                }
+                                                iconSize: 14
+                                                color: root.activePlayer === modelData ? root.contentColor : ColorUtils.applyAlpha(root.contentColor, 0.7)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Artist
                 StyledText {
                     Layout.fillWidth: true
                     text: {
                         const meta = root.splitTrackMeta(activePlayer?.trackTitle || "", activePlayer?.trackArtist || "")
                         return meta.artist || "Unknown Artist"
                     }
-                    font.pixelSize: 13
+                    font.pixelSize: 12
                     color: root.secondaryContentColor
                     elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignLeft
-                }
-            }
-
-            // Player Badge (right)
-            RippleButton {
-                id: playerBadge
-
-                Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                implicitHeight: 28
-                implicitWidth: playerRow.implicitWidth + 24
-                buttonRadius: 14
-                pointingHandCursor: root.availablePlayers.length > 1
-
-                colBackground: ColorUtils.applyAlpha(root.contentColor, 0.15)
-                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.3)
-                colRipple: root.contentColor
-
-                visible: root.availablePlayers.length > 0
-
-                onClicked: {
-                    if (root.availablePlayers.length > 1) {
-                        if (playerPickerPopup.opened) playerPickerPopup.close()
-                        else playerPickerPopup.open()
-                    }
-                }
-
-                contentItem: Row {
-                    id: playerRow
-                    spacing: 6
-
-                    MaterialSymbol {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: {
-                            let name = (activePlayer?.identity || "").toLowerCase();
-                            if (name.includes("spotify"))
-                                return "music_note";
-
-                            if (name.includes("firefox") || name.includes("chrome"))
-                                return "language";
-
-                            if (name.includes("vlc") || name.includes("mpv"))
-                                return "movie";
-
-                            return "headphones";
-                        }
-                        iconSize: 14
-                        color: root.secondaryContentColor
-                    }
-
-                    StyledText {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: activePlayer?.identity || "No Player"
-                        color: root.secondaryContentColor
-                        font.pixelSize: 11
-                        font.weight: Font.Medium
-                    }
-
-                    MaterialSymbol {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: playerPickerPopup.opened ? "expand_less" : "expand_more"
-                        iconSize: 12
-                        color: root.secondaryContentColor
-                        visible: root.availablePlayers.length > 1
-                    }
-
-                }
-
-                Popup {
-                    id: playerPickerPopup
-                    y: playerBadge.height + 4
-                    x: playerBadge.width - width
-                    width: 200
-                    padding: 6
-
-                    enter: Transition {
-                        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
-                        NumberAnimation { property: "scale"; from: 0.92; to: 1.0; duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.5 }
-                    }
-                    exit: Transition {
-                        NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 150; easing.type: Easing.InCubic }
-                        NumberAnimation { property: "scale"; from: 1.0; to: 0.92; duration: 150; easing.type: Easing.InCubic }
-                    }
-                    
-                    transformOrigin: Item.TopRight
-
-                    background: Item {
-                        Rectangle {
-                            id: popupBg
-                            anchors.fill: parent
-                            radius: 12
-                            color: ColorUtils.mix(root.backgroundColor, "#000000", 0.4)
-                            opacity: 0.95
-                            layer.enabled: true
-                            layer.effect: StyledDropShadow { target: popupBg }
-                        }
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 12
-                            color: "transparent"
-                            border.color: ColorUtils.applyAlpha(root.contentColor, 0.25)
-                            border.width: 1
-                        }
-                    }
-
-                    contentItem: Column {
-                        spacing: 0
-                        Repeater {
-                            model: root.availablePlayers
-
-                            RippleButton {
-                                id: playerItem
-                                width: parent.width
-                                implicitHeight: 36
-                                buttonRadius: 8
-                                toggled: root.activePlayer === modelData
-
-                                colBackground: "transparent"
-                                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.12)
-                                colBackgroundToggled: ColorUtils.applyAlpha(root.contentColor, 0.08)
-                                colRipple: root.contentColor
-
-                                onClicked: {
-                                    root.selectedPlayer = modelData
-                                    playerPickerPopup.close()
-                                }
-
-                                contentItem: Item {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
-
-                                    StyledText {
-                                        anchors.left: parent.left
-                                        anchors.right: playerIcon.left
-                                        anchors.rightMargin: 8
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: modelData.identity || "Unknown Player"
-                                        color: root.contentColor
-                                        font.pixelSize: 12
-                                        font.weight: root.activePlayer === modelData ? Font.DemiBold : Font.Normal
-                                        elide: Text.ElideRight
-                                    }
-
-                                    MaterialSymbol {
-                                        id: playerIcon
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: {
-                                            let id = (modelData.identity || "").toLowerCase();
-                                            if (id.includes("spotify")) return "music_note";
-                                            if (id.includes("firefox") || id.includes("chrome")) return "language";
-                                            if (id.includes("vlc") || id.includes("mpv")) return "movie";
-                                            return "headphones";
-                                        }
-                                        iconSize: 16
-                                        color: root.activePlayer === modelData ? root.contentColor : ColorUtils.applyAlpha(root.contentColor, 0.7)
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: 4
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 2
-                                    height: 16
-                                    radius: 1
-                                    color: root.pillContentColor
-                                    visible: root.activePlayer === modelData
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
 
-
-
-        // Spacer to push slider and controls down
-        Item {
+        // Progress Waveform Slider + Timestamps
+        ColumnLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: 10
-        }
+            Layout.topMargin: 6
+            spacing: 0
 
-        // Squiggly Slider
-        StyledSlider {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 24
-            
-            configuration: (activePlayer && activePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
-            highlightColor: root.contentColor
-            trackColor: ColorUtils.applyAlpha(root.contentColor, 0.5)
-            handleColor: root.contentColor
-            value: {
-                return (activePlayer && activePlayer.length > 0) ? root.currentPosition / activePlayer.length : 0;
+            StyledSlider {
+                id: mediaSlider
+                Layout.fillWidth: true
+                Layout.preferredHeight: 16
+                
+                configuration: (activePlayer && activePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
+                highlightColor: root.pillColor
+                trackColor: ColorUtils.applyAlpha(root.contentColor, 0.25)
+                handleColor: root.pillColor
+                value: {
+                    return (activePlayer && activePlayer.length > 0) ? root.currentPosition / activePlayer.length : 0;
+                }
+                
+                onMoved: {
+                    if (activePlayer && activePlayer.length > 0) {
+                        activePlayer.position = value * activePlayer.length;
+                        root.currentPosition = activePlayer.position;
+                    }
+                }
             }
-            
-            onMoved: {
-                if (activePlayer) {
-                    activePlayer.position = value * activePlayer.length;
-                    root.currentPosition = activePlayer.position;
+
+            // Timestamps (Elapsed & Total)
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 4
+                Layout.rightMargin: 4
+
+                StyledText {
+                    text: root.formatTime(root.currentPosition)
+                    font.pixelSize: 10
+                    font.weight: Font.Medium
+                    color: root.secondaryContentColor
+                }
+
+                Item { Layout.fillWidth: true }
+
+                StyledText {
+                    text: root.formatTime(activePlayer?.length || 0)
+                    font.pixelSize: 10
+                    font.weight: Font.Medium
+                    color: root.secondaryContentColor
                 }
             }
         }
 
-        // Controls
-        RowLayout {
-            Layout.fillWidth: true
+        // Material 3 ButtonGroup Controls
+        ButtonGroup {
             Layout.alignment: Qt.AlignHCenter
-            Layout.bottomMargin: 8
+            Layout.topMargin: 4
+            Layout.bottomMargin: 0
             spacing: 8
 
-            Item { Layout.fillWidth: true }
+            // Shuffle Button
+            GroupButton {
+                id: shuffleBtn
+                baseWidth: 36
+                baseHeight: 36
+                buttonRadius: 18
+                buttonRadiusPressed: 14
+                bounce: true
+                toggled: (activePlayer && activePlayer.shuffle) ? true : false
 
-            // Previous Button (Oval/Pill with bounce)
-            RippleButton {
+                colBackground: toggled ? ColorUtils.applyAlpha(root.pillColor, 0.35) : "transparent"
+                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.15)
+                colBackgroundActive: ColorUtils.applyAlpha(root.contentColor, 0.25)
+                colBackgroundToggled: ColorUtils.applyAlpha(root.pillColor, 0.4)
+
+                onClicked: {
+                    if (activePlayer && activePlayer.shuffle !== undefined) {
+                        activePlayer.shuffle = !activePlayer.shuffle;
+                    }
+                }
+
+                contentItem: MaterialSymbol {
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: "shuffle"
+                    iconSize: 18
+                    color: shuffleBtn.toggled ? root.pillContentColor : root.secondaryContentColor
+                }
+            }
+
+            // Previous Track Button
+            GroupButton {
                 id: prevBtn
-
-                implicitWidth: 40 + (down ? 8 : (playBtn.down ? -6 : 0))
-                implicitHeight: 40
-                buttonRadius: height / 2
+                baseWidth: 44
+                baseHeight: 44
+                buttonRadius: 22
+                buttonRadiusPressed: 16
+                bounce: true
 
                 colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
-                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.18)
-                colRipple: root.contentColor
+                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.22)
+                colBackgroundActive: ColorUtils.applyAlpha(root.contentColor, 0.32)
 
                 onClicked: activePlayer?.previous()
 
-                Behavior on implicitWidth {
-                    animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
-                }
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
+                contentItem: MaterialSymbol {
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: "skip_previous"
-                    iconSize: 24
+                    iconSize: 22
                     color: root.contentColor
                 }
             }
 
-            // Play/Pause Button (Squircle with bounce)
-            RippleButton {
+            // Play / Pause Button (Large M3 Squircle with High-Contrast Primary Color)
+            GroupButton {
                 id: playBtn
-
-                implicitWidth: 60 + (down ? 12 : (prevBtn.down || nextBtn.down ? -8 : 0))
-                implicitHeight: 40
-                buttonRadius: height / 2
+                baseWidth: 64
+                baseHeight: 44
+                buttonRadius: 22
+                buttonRadiusPressed: 16
+                bounce: true
 
                 colBackground: root.pillColor
-                colRipple: root.pillContentColor
+                colBackgroundHover: ColorUtils.mix(root.pillColor, root.pillContentColor, 0.12)
+                colBackgroundActive: ColorUtils.mix(root.pillColor, root.pillContentColor, 0.24)
 
                 onClicked: activePlayer?.togglePlaying()
 
-                Behavior on implicitWidth {
-                    animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
-                }
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
+                contentItem: MaterialSymbol {
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: (activePlayer && activePlayer.isPlaying) ? "pause" : "play_arrow"
-                    iconSize: 28
+                    iconSize: 26
                     color: root.pillContentColor
                 }
             }
 
-            // Next Button (Oval/Pill with bounce)
-            RippleButton {
+            // Next Track Button
+            GroupButton {
                 id: nextBtn
-
-                implicitWidth: 40 + (down ? 8 : (playBtn.down ? -6 : 0))
-                implicitHeight: 40
-                buttonRadius: height / 2
+                baseWidth: 44
+                baseHeight: 44
+                buttonRadius: 22
+                buttonRadiusPressed: 16
+                bounce: true
 
                 colBackground: ColorUtils.applyAlpha(root.contentColor, 0.12)
-                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.18)
-                colRipple: root.contentColor
+                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.22)
+                colBackgroundActive: ColorUtils.applyAlpha(root.contentColor, 0.32)
 
                 onClicked: activePlayer?.next()
 
-                Behavior on implicitWidth {
-                    animation: Appearance.animation.clickBounce.numberAnimation.createObject(this)
-                }
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
+                contentItem: MaterialSymbol {
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: "skip_next"
-                    iconSize: 24
+                    iconSize: 22
                     color: root.contentColor
                 }
             }
 
-            Item { Layout.fillWidth: true }
-            
-             // Empty space
-             Item { width: 28 }
+            // Loop / Repeat Button
+            GroupButton {
+                id: loopBtn
+                baseWidth: 36
+                baseHeight: 36
+                buttonRadius: 18
+                buttonRadiusPressed: 14
+                bounce: true
+                toggled: (activePlayer && activePlayer.loopStatus !== undefined && activePlayer.loopStatus !== MprisLoopStatus.None) ? true : false
+
+                colBackground: toggled ? ColorUtils.applyAlpha(root.pillColor, 0.35) : "transparent"
+                colBackgroundHover: ColorUtils.applyAlpha(root.contentColor, 0.15)
+                colBackgroundActive: ColorUtils.applyAlpha(root.contentColor, 0.25)
+                colBackgroundToggled: ColorUtils.applyAlpha(root.pillColor, 0.4)
+
+                onClicked: root.cycleLoopStatus()
+
+                contentItem: MaterialSymbol {
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: (activePlayer && activePlayer.loopStatus === MprisLoopStatus.Track) ? "repeat_one" : "repeat"
+                    iconSize: 18
+                    color: loopBtn.toggled ? root.pillContentColor : root.secondaryContentColor
+                }
+            }
         }
     }
 }

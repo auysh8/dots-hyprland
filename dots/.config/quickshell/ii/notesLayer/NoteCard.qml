@@ -60,59 +60,45 @@ RippleButton {
 
     property real targetX: 0
     property real targetY: 0
-    property bool isInitialized: false
+    property real cardWidth: 200
+    property bool animateMovement: true
 
-    onTargetXChanged: {
-        if (root.isInitialized) {
-            posAnimX.to = root.targetX;
-            posAnimX.restart();
-        } else {
-            root.x = root.targetX;
+    x: targetX
+    y: targetY
+    width: cardWidth
+
+    Behavior on x {
+        enabled: root.animateMovement && root.opacity > 0.05
+        NumberAnimation {
+            duration: 300
+            easing.type: Easing.OutCubic
         }
     }
 
-    onTargetYChanged: {
-        if (root.isInitialized) {
-            posAnimY.to = root.targetY;
-            posAnimY.restart();
-        } else {
-            root.y = root.targetY;
+    Behavior on y {
+        enabled: root.animateMovement && root.opacity > 0.05
+        NumberAnimation {
+            duration: 300
+            easing.type: Easing.OutCubic
         }
     }
 
-    NumberAnimation {
-        id: posAnimX
-        target: root
-        property: "x"
-        duration: 300
-        easing.type: Easing.OutCubic
-    }
-
-    NumberAnimation {
-        id: posAnimY
-        target: root
-        property: "y"
-        duration: 300
-        easing.type: Easing.OutCubic
+    Behavior on width {
+        NumberAnimation {
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
     }
 
     onImplicitHeightChanged: {
-        if (implicitHeight > 60 && cardLayout.implicitHeight > 0 && noteId.length > 0) {
-            heightReported(noteId, implicitHeight);
+        if (implicitHeight > 50 && noteId.length > 0) {
+            root.heightReported(noteId, implicitHeight);
         }
-    }
-
-    Component.onCompleted: initTimer.start()
-
-    Timer {
-        id: initTimer
-        interval: 50
-        repeat: false
-        onTriggered: root.isInitialized = true
     }
 
     // Dynamic sizing: card height derives from content
     implicitHeight: cardLayout.implicitHeight + 48
+
     // M3 Expressive: extra-large rounded corners (28px)
     buttonRadius: 28
 

@@ -5,7 +5,7 @@ hl.layer_rule({ match = { namespace = ".*" }, xray = false })
 hl.window_rule({ match = { class = "^(dev.zed.Zed|zed)$" }, opacity = 0.88 })
 hl.window_rule({ match = { class = "^(org.telegram.desktop)$" }, opacity = 0.90 })
 hl.window_rule({ match = { class = "^(discord|vesktop)$" }, opacity = 0.86 })
-hl.window_rule({ match = { class = "^(google-chrome|brave-browser|com.brave.Origin.nightly)$" }, opacity = 0.92 })
+-- hl.window_rule({ match = { class = "^(google-chrome|brave-browser|com.brave.Origin.nightly)$" }, opacity = 0.92 })
 hl.window_rule({ match = { class = "^(org.kde.gwenview|org.kde.okular|org.kde.kdenlive|pavucontrol-qt)$" }, opacity = 0.90 })
 
 

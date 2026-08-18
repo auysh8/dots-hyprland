@@ -24,6 +24,144 @@ Item {
     property string sortOrder: "recent"
     readonly property int columnCount: 3
 
+    // Declarative note lists for filtering
+    property var visibleNotesList: []
+    property var pinnedNotesList: []
+    property var unpinnedNotesList: []
+
+    // 2D Masonry position & height tracking
+    property var cachedHeights: ({})
+    property var positions: ({})
+    property real totalContainerHeight: 0
+    property real othersHeaderY: 0
+    property bool isTyping: false
+
+    Timer {
+        id: typingTimer
+        interval: 180
+        repeat: false
+        onTriggered: root.isTyping = false
+    }
+
+    Timer {
+        id: relayoutTimer
+        interval: 16
+        repeat: false
+        onTriggered: root.recomputePositions()
+    }
+
+    // Update filtered lists when dependencies change
+    onSearchQueryChanged: {
+        root.isTyping = true;
+        typingTimer.restart();
+        updateFilteredLists();
+    }
+    onSortOrderChanged: updateFilteredLists()
+    
+    Connections {
+        target: NotesService
+        function onNotesChanged() {
+            updateFilteredLists();
+        }
+    }
+
+    function getEstimatedHeight(note) {
+        if (!note) return 120;
+        if (root.cachedHeights[note.id] && root.cachedHeights[note.id] > 50) {
+            return root.cachedHeights[note.id];
+        }
+        const title = note.title || "";
+        const content = (note.content || "").trim();
+        const titleLines = Math.min(3, Math.max(1, Math.ceil(title.length / 22)));
+        const contentLines = Math.min(8, Math.max(1, Math.ceil(content.length / 32)));
+        return 56 + titleLines * 22 + 10 + contentLines * 18;
+    }
+
+    function reportCardHeight(noteId, h) {
+        if (!noteId || h < 50) return;
+        const current = root.cachedHeights[noteId] || 0;
+        if (Math.abs(current - h) > 3) {
+            root.cachedHeights[noteId] = h;
+            relayoutTimer.restart();
+        }
+    }
+
+    function recomputePositions() {
+        const sorted = root.visibleNotesList;
+        const pinnedList = sorted.filter(n => n.pinned);
+        const unpinnedList = sorted.filter(n => !n.pinned);
+
+        const spacing = 16;
+        const w = gridScroll.width > 100 ? gridScroll.width : (root.width > 100 ? root.width - 64 : 800);
+        const colWidth = Math.max(150, (w - spacing * (root.columnCount - 1)) / root.columnCount);
+        const newPos = {};
+
+        // Pinned section
+        let pinnedMaxY = 0;
+        if (pinnedList.length > 0) {
+            const colHeights = Array(root.columnCount).fill(48); // below PINNED header at y=0
+            for (let i = 0; i < pinnedList.length; i++) {
+                const note = pinnedList[i];
+                let minCol = 0;
+                for (let c = 1; c < root.columnCount; c++) {
+                    if (colHeights[c] < colHeights[minCol]) minCol = c;
+                }
+                const posX = minCol * (colWidth + spacing);
+                const posY = colHeights[minCol];
+                const h = root.getEstimatedHeight(note);
+                colHeights[minCol] += h + spacing;
+                newPos[note.id] = { x: posX, y: posY, width: colWidth, index: i, pinned: true };
+            }
+            pinnedMaxY = Math.max(...colHeights);
+        }
+
+        // Others section
+        let othersHeaderY = pinnedList.length > 0 ? pinnedMaxY + 24 : 0;
+        let othersStartY = pinnedList.length > 0 ? othersHeaderY + 48 : 0;
+        let othersMaxY = othersStartY;
+
+        if (unpinnedList.length > 0) {
+            const colHeights = Array(root.columnCount).fill(othersStartY);
+            for (let i = 0; i < unpinnedList.length; i++) {
+                const note = unpinnedList[i];
+                let minCol = 0;
+                for (let c = 1; c < root.columnCount; c++) {
+                    if (colHeights[c] < colHeights[minCol]) minCol = c;
+                }
+                const posX = minCol * (colWidth + spacing);
+                const posY = colHeights[minCol];
+                const h = root.getEstimatedHeight(note);
+                colHeights[minCol] += h + spacing;
+                newPos[note.id] = { x: posX, y: posY, width: colWidth, index: pinnedList.length + i, pinned: false };
+            }
+            othersMaxY = Math.max(...colHeights);
+        }
+
+        root.totalContainerHeight = (unpinnedList.length > 0 ? othersMaxY : (pinnedList.length > 0 ? pinnedMaxY : 0)) + 60;
+        root.othersHeaderY = othersHeaderY;
+        root.positions = newPos;
+    }
+
+    function updateFilteredLists() {
+        let sorted = NotesService.getSortedNotes();
+        if (root.searchQuery.length > 0) {
+            const q = root.searchQuery.toLowerCase();
+            sorted = sorted.filter((n) => {
+                return (n.title && n.title.toLowerCase().includes(q)) || (n.content && n.content.toLowerCase().includes(q));
+            });
+        }
+        if (root.sortOrder === "title") {
+            sorted = sorted.slice().sort((a, b) =>
+                (a.title || "").localeCompare(b.title || ""));
+        }
+        root.visibleNotesList = sorted;
+        root.pinnedNotesList = sorted.filter(n => n.pinned);
+        root.unpinnedNotesList = sorted.filter(n => !n.pinned);
+        root.recomputePositions();
+    }
+
+    Component.onCompleted: updateFilteredLists()
+
     // ── Card overflow menu ───────────────────────────────────────────────
     property string cardMenuNoteId: ""
     property bool cardMenuOpen: false
@@ -78,207 +216,6 @@ Item {
         root.cardMenuOpen = true;
     }
 
-    function visibleNotes() {
-        let sorted = NotesService.getSortedNotes();
-        if (root.searchQuery.length > 0) {
-            const q = root.searchQuery.toLowerCase();
-            sorted = sorted.filter((n) => {
-                return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
-            });
-        }
-        if (root.sortOrder === "title") {
-            sorted = sorted.slice().sort((a, b) =>
-                (a.title || "").localeCompare(b.title || ""));
-        }
-        return sorted;
-    }
-
-    function pinnedNotes() {
-        return root.visibleNotes().filter(n => n.pinned);
-    }
-
-    function unpinnedNotes() {
-        return root.visibleNotes().filter(n => !n.pinned);
-    }
-
-    function predictedNoteHeight(note) {
-        if (!note) return 120;
-        const title = note.title || "";
-        const content = (note.content || "").split("\n").filter((l) => {
-            return l.trim().length > 0;
-        }).join("\n");
-        const titleLines = Math.min(3, Math.max(1, Math.ceil(title.length / 24)));
-        const previewLines = Math.min(10, Math.max(1, Math.ceil(content.length / 36)));
-        return 56 + titleLines * 24 + 12 + previewLines * 20;
-    }
-
-    property var measuredCardHeights: ({})
-    property real totalContainerHeight: 0
-    property real othersHeaderY: 0
-
-    function reportCardHeight(noteId, height) {
-        if (!noteId || height < 60) return;
-        const current = root.measuredCardHeights[noteId] || 0;
-        if (Math.abs(current - height) > 2) {
-            const copy = Object.assign({}, root.measuredCardHeights);
-            copy[noteId] = height;
-            root.measuredCardHeights = copy;
-            root.updateModels();
-        }
-    }
-
-    ListModel { id: allNotesModel }
-
-    function updateModels() {
-        const currentIds = new Set(root.visibleNotes().map(n => n.id));
-        const heightKeys = Object.keys(root.measuredCardHeights);
-        for (const key of heightKeys) {
-            if (!currentIds.has(key)) {
-                delete root.measuredCardHeights[key];
-            }
-        }
-
-        const sorted = root.visibleNotes();
-        const pinnedList = sorted.filter(n => n.pinned);
-        const unpinnedList = sorted.filter(n => !n.pinned);
-
-        const spacing = 16;
-        const w = gridScroll.width > 100 ? gridScroll.width : Math.max(300, root.width - 64);
-        const colWidth = (w - spacing * (root.columnCount - 1)) / root.columnCount;
-        const positions = {};
-
-        // Pinned notes start below PINNED header at y = 48 (M3 headlineMedium space)
-        let pinnedMaxY = 0;
-        if (pinnedList.length > 0) {
-            const colHeights = Array(root.columnCount).fill(48);
-            for (const note of pinnedList) {
-                let minCol = 0;
-                for (let c = 1; c < root.columnCount; c++) {
-                    if (colHeights[c] < colHeights[minCol]) minCol = c;
-                }
-                const posX = minCol * (colWidth + spacing);
-                const posY = colHeights[minCol];
-                const h = root.measuredCardHeights[note.id] || root.predictedNoteHeight(note);
-                colHeights[minCol] += h + spacing;
-                positions[note.id] = { x: posX, y: posY, width: colWidth };
-            }
-            pinnedMaxY = Math.max(...colHeights, 48);
-        }
-
-        let othersHeaderY = pinnedList.length > 0 ? pinnedMaxY + 24 : 0;
-        let othersMaxY = othersHeaderY;
-
-        if (unpinnedList.length > 0) {
-            const startY = pinnedList.length > 0 ? othersHeaderY + 48 : 0;
-            const colHeights = Array(root.columnCount).fill(startY);
-            for (const note of unpinnedList) {
-                let minCol = 0;
-                for (let c = 1; c < root.columnCount; c++) {
-                    if (colHeights[c] < colHeights[minCol]) minCol = c;
-                }
-                const posX = minCol * (colWidth + spacing);
-                const posY = colHeights[minCol];
-                const h = root.measuredCardHeights[note.id] || root.predictedNoteHeight(note);
-                colHeights[minCol] += h + spacing;
-                positions[note.id] = { x: posX, y: posY, width: colWidth };
-            }
-            othersMaxY = Math.max(...colHeights, startY);
-        }
-
-        root.totalContainerHeight = othersMaxY + 40;
-        root.othersHeaderY = othersHeaderY;
-
-        root.syncListModel(allNotesModel, sorted, positions);
-    }
-
-    function syncListModel(targetModel, list, positions) {
-        if (!targetModel) return;
-
-        const newIdSet = new Set(list.map(n => n.id));
-
-        for (let i = targetModel.count - 1; i >= 0; i--) {
-            if (!newIdSet.has(targetModel.get(i).id)) {
-                targetModel.remove(i);
-            }
-        }
-
-        for (let i = 0; i < list.length; i++) {
-            const note = list[i];
-            const pos = positions[note.id] || { x: 0, y: 0, width: 200 };
-
-            if (i < targetModel.count) {
-                const current = targetModel.get(i);
-                if (current.id === note.id) {
-                    targetModel.setProperty(i, "posX", pos.x);
-                    targetModel.setProperty(i, "posY", pos.y);
-                    targetModel.setProperty(i, "cardWidth", pos.width);
-                    targetModel.setProperty(i, "title", note.title || "");
-                    targetModel.setProperty(i, "content", note.content || "");
-                    targetModel.setProperty(i, "color", note.color || "default");
-                    targetModel.setProperty(i, "pinned", !!note.pinned);
-                    targetModel.setProperty(i, "modified", note.modified || 0);
-                } else {
-                    let found = -1;
-                    for (let j = i + 1; j < targetModel.count; j++) {
-                        if (targetModel.get(j).id === note.id) {
-                            found = j;
-                            break;
-                        }
-                    }
-                    if (found !== -1) {
-                        targetModel.move(found, i, 1);
-                        targetModel.setProperty(i, "posX", pos.x);
-                        targetModel.setProperty(i, "posY", pos.y);
-                        targetModel.setProperty(i, "cardWidth", pos.width);
-                        targetModel.setProperty(i, "title", note.title || "");
-                        targetModel.setProperty(i, "content", note.content || "");
-                        targetModel.setProperty(i, "color", note.color || "default");
-                        targetModel.setProperty(i, "pinned", !!note.pinned);
-                        targetModel.setProperty(i, "modified", note.modified || 0);
-                    } else {
-                        targetModel.insert(i, {
-                            "id": note.id || "",
-                            "title": note.title || "",
-                            "content": note.content || "",
-                            "modified": note.modified || 0,
-                            "created": note.created || 0,
-                            "color": note.color || "default",
-                            "pinned": !!note.pinned,
-                            "posX": pos.x,
-                            "posY": pos.y,
-                            "cardWidth": pos.width
-                        });
-                    }
-                }
-            } else {
-                targetModel.append({
-                    "id": note.id || "",
-                    "title": note.title || "",
-                    "content": note.content || "",
-                    "modified": note.modified || 0,
-                    "created": note.created || 0,
-                    "color": note.color || "default",
-                    "pinned": !!note.pinned,
-                    "posX": pos.x,
-                    "posY": pos.y,
-                    "cardWidth": pos.width
-                });
-            }
-        }
-    }
-
-    Component.onCompleted: updateModels()
-
-    Connections {
-        target: NotesService
-        function onNotesChanged() {
-            root.updateModels();
-        }
-    }
-
-    onSearchQueryChanged: updateModels()
-    onSortOrderChanged: updateModels()
-
     Keys.onPressed: (event) => {
         if (event.key === Qt.Key_Escape && (root.cardMenuOpen || root.filterMenuOpen)) {
             root.cardMenuOpen = false;
@@ -316,7 +253,7 @@ Item {
                     StyledText {
                         text: {
                             const total = NotesService.notes.length;
-                            const shown = root.visibleNotes().length;
+                            const shown = root.visibleNotesList.length;
                             if (root.searchQuery.length > 0)
                                 return shown + " of " + total + (total === 1 ? " note" : " notes");
                             return total + (total === 1 ? " note" : " notes");
@@ -412,73 +349,87 @@ Item {
                 flickableDirection: Flickable.VerticalFlick
                 boundsBehavior: Flickable.StopAtBounds
 
-                onWidthChanged: {
-                    if (width > 0) root.updateModels();
-                }
+
 
                 Item {
                     id: mainContainer
                     width: gridScroll.width
                     implicitHeight: root.totalContainerHeight
 
-                    // M3 Expressive: headlineMedium section headers
+                    // Pinned Section Header
                     StyledText {
                         text: "PINNED"
                         font.pixelSize: Appearance.font.pixelSize.larger // ~19px ≈ headlineMedium
                         font.family: Appearance.font.family.title
                         font.weight: Font.Bold
                         color: Appearance.colors.colPrimary
-                        visible: root.pinnedNotes().length > 0
+                        visible: root.pinnedNotesList.length > 0
                         y: 0
                     }
 
+                    // Others Section Header
                     StyledText {
                         text: "OTHERS"
                         font.pixelSize: Appearance.font.pixelSize.larger // ~19px ≈ headlineMedium
                         font.family: Appearance.font.family.title
                         font.weight: Font.Bold
                         color: Appearance.colors.colOnSurfaceVariant
-                        visible: root.pinnedNotes().length > 0 && root.unpinnedNotes().length > 0
+                        visible: root.pinnedNotesList.length > 0 && root.unpinnedNotesList.length > 0
                         y: root.othersHeaderY
 
                         Behavior on y {
                             NumberAnimation {
-                                duration: 350
+                                duration: 300
                                 easing.type: Easing.OutCubic
                             }
                         }
                     }
 
                     Repeater {
-                        model: allNotesModel
+                        model: NotesService.notes
 
                         delegate: NoteCard {
                             id: noteCard
-                            required property string id
-                            required property string title
-                            required property string content
-                            required property int modified
-                            required property string color
-                            required property bool pinned
-                            required property real posX
-                            required property real posY
-                            required property real cardWidth
-                            required property int index
+                            required property var modelData
 
-                            targetX: posX
-                            targetY: posY
-                            width: cardWidth
+                            readonly property string noteKey: modelData ? modelData.id : ""
+                            readonly property var pos: root.positions[noteKey] || null
+                            readonly property bool isMatched: pos !== null
 
-                            noteId: id
-                            noteTitle: title
-                            noteContent: content
-                            noteModified: modified
-                            noteColor: color
-                            notePinned: pinned
-                            cardIndex: index
-                            onClicked: root.noteClicked(id)
-                            onMoreClicked: root.openCardMenu(id, noteCard)
-                            onDeleteRequested: NotesService.deleteNote(id)
+                            targetX: pos ? pos.x : targetX
+                            targetY: pos ? pos.y : targetY
+                            cardWidth: pos ? pos.width : cardWidth
+                            animateMovement: isMatched
+
+                            noteId: noteKey
+                            noteTitle: modelData ? modelData.title : ""
+                            noteContent: modelData ? modelData.content : ""
+                            noteModified: modelData ? modelData.modified : 0
+                            noteColor: modelData ? modelData.color : "default"
+                            notePinned: modelData ? modelData.pinned : false
+                            cardIndex: pos ? pos.index : 0
+
+                            visible: opacity > 0
+                            opacity: isMatched ? 1 : 0
+                            scale: isMatched ? 1 : 0.85
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: 200
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 200
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
+
+                            onClicked: root.noteClicked(noteKey)
+                            onMoreClicked: root.openCardMenu(noteKey, noteCard)
+                            onDeleteRequested: NotesService.deleteNote(noteKey)
                             onHeightReported: (id, h) => root.reportCardHeight(id, h)
                         }
                     }
@@ -486,7 +437,7 @@ Item {
 
                 // Empty state
                 PagePlaceholder {
-                    shown: root.visibleNotes().length === 0
+                    shown: root.visibleNotesList.length === 0
                     icon: "note_stack"
                     title: root.searchQuery.length > 0 ? "No notes match your search." : "No notes yet. Tap + to create one!"
                 }
