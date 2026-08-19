@@ -20,6 +20,7 @@ MouseArea { // Notification group area
     property bool popup: false
     property real padding: 10
     implicitHeight: background.implicitHeight
+    height: implicitHeight
 
     property real dragConfirmThreshold: 70 // Drag further to discard notification
     property real dismissOvershoot: 20 // Account for gaps and bouncy animations
@@ -33,7 +34,9 @@ MouseArea { // Notification group area
         dragIndexDiff == 2 ? (parentDragDistance * 0.1) : 0
 
     function destroyWithAnimation(left = false) {
-        root.qmlParent.resetDrag()
+        if (root.qmlParent && typeof root.qmlParent.resetDrag === "function") {
+            root.qmlParent.resetDrag();
+        }
         background.anchors.leftMargin = background.anchors.leftMargin; // Break binding
         destroyAnimation.left = left;
         destroyAnimation.running = true;
@@ -132,9 +135,8 @@ MouseArea { // Notification group area
         }
         
         clip: true
-        implicitHeight: root.expanded ? 
-            row.implicitHeight + padding * 2 :
-            Math.min(80, row.implicitHeight + padding * 2)
+        implicitHeight: row.implicitHeight + padding * 2
+        height: implicitHeight
 
         Behavior on implicitHeight {
             id: implicitHeightAnim
@@ -223,36 +225,29 @@ MouseArea { // Notification group area
                     }
                 }
 
-                StyledListView { // Notification body (expanded)
+                ColumnLayout { // Notification items
                     id: notificationsColumn
-                    // Do not bind implicitHeight to contentHeight while nested in a ColumnLayout: it
-                    // forms a Layout<->contentHeight polish() feedback loop that pegs a CPU core on
-                    // Qt 6.11 (same class as upstream #3388). Drive the Layout height off contentHeight
-                    // and recycle delegates.
-                    Layout.preferredHeight: contentHeight
-                    implicitHeight: contentHeight
-                    reuseItems: true
                     Layout.fillWidth: true
-                    spacing: expanded ? 5 : 3
-                    // clip: true
-                    interactive: false
+                    spacing: root.expanded ? 5 : 3
+
                     Behavior on spacing {
                         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                     }
-                    model: ScriptModel {
-                        values: root.expanded ? root.notifications.slice().reverse() : 
+
+                    Repeater {
+                        model: root.expanded ? root.notifications.slice().reverse() : 
                             root.notifications.slice().reverse().slice(0, 2)
-                    }
-                    delegate: NotificationItem {
-                        required property int index
-                        required property var modelData
-                        notificationObject: modelData
-                        expanded: root.expanded
-                        onlyNotification: (root.notificationCount === 1)
-                        opacity: (!root.expanded && index == 1 && root.notificationCount > 2) ? 0.5 : 1
-                        visible: root.expanded || (index < 2)
-                        anchors.left: parent?.left
-                        anchors.right: parent?.right
+
+                        delegate: NotificationItem {
+                            required property int index
+                            required property var modelData
+                            notificationObject: modelData
+                            expanded: root.expanded
+                            onlyNotification: (root.notificationCount === 1)
+                            opacity: (!root.expanded && index == 1 && root.notificationCount > 2) ? 0.5 : 1
+                            visible: root.expanded || (index < 2)
+                            Layout.fillWidth: true
+                        }
                     }
                 }
 

@@ -16,7 +16,7 @@ Singleton {
     property var list: []
     
     function addItem(item) {
-        list.push(item)
+        list.unshift(item)
         // Reassign to trigger onListChanged
         root.list = list.slice(0)
         todoFileView.setText(JSON.stringify(root.list))
@@ -26,6 +26,7 @@ Singleton {
         const item = {
             "content": desc,
             "done": false,
+            "createdAt": Date.now()
         }
         addItem(item)
     }

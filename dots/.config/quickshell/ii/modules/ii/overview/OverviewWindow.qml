@@ -44,26 +44,39 @@ Item { // Window
     property bool hovered: false
     property bool pressed: false
 
-    property bool centerIcons: Config.options.overview.centerIcons
-    property real iconGapRatio: 0.06
-    property real iconToWindowRatio: centerIcons ? 0.35 : 0.15
-    property real xwaylandIndicatorToIconRatio: 0.35
-    property real iconToWindowRatioCompact: 0.6
+    property string windowClass: (windowData?.class ?? "").toLowerCase()
+    property bool isCode: windowClass.includes("code") || windowClass.includes("cursor") || windowClass.includes("nvim") || windowClass.includes("zed") || windowClass.includes("dev")
+    property bool isBrowser: windowClass.includes("zen") || windowClass.includes("firefox") || windowClass.includes("chrome") || windowClass.includes("brave") || windowClass.includes("chromium")
+    property bool isTerminal: windowClass.includes("kitty") || windowClass.includes("foot") || windowClass.includes("terminal") || windowClass.includes("alacritty") || windowClass.includes("ghostty") || windowClass.includes("wezterm")
+
+    property color badgeColor: isCode ? Appearance.colors.colSecondaryContainer : 
+        isBrowser ? Appearance.colors.colTertiaryContainer : 
+        isTerminal ? Appearance.colors.colPrimaryContainer : 
+        Appearance.colors.colLayer3
+
+    property color badgeGlyphColor: isCode ? Appearance.colors.colOnSecondaryContainer : 
+        isBrowser ? Appearance.colors.colOnTertiaryContainer : 
+        isTerminal ? Appearance.colors.colOnPrimaryContainer : 
+        Appearance.colors.colOnLayer3
+
+    property string badgeSymbol: isCode ? "code" : 
+        isBrowser ? "public" : 
+        isTerminal ? "terminal" : ""
+
     property string iconPath: Quickshell.iconPath(AppSearch.guessIcon(windowData?.class), "image-missing")
-    property bool compactMode: Appearance.font.pixelSize.smaller * 4 > targetWindowHeight || Appearance.font.pixelSize.smaller * 4 > targetWindowWidth
 
-    property bool indicateXWayland: windowData?.xwayland ?? false
+    property real windowPadding: 3
 
-    x: initX
-    y: initY
-    width: targetWindowWidth
-    height: targetWindowHeight
+    x: initX + windowPadding
+    y: initY + windowPadding
+    width: Math.max(1, targetWindowWidth - windowPadding * 2)
+    height: Math.max(1, targetWindowHeight - windowPadding * 2)
     opacity: windowData.monitor == widgetMonitorId ? 1 : 0.4
 
-    property real topLeftRadius
-    property real topRightRadius
-    property real bottomLeftRadius
-    property real bottomRightRadius
+    property real topLeftRadius: 12
+    property real topRightRadius: 12
+    property real bottomLeftRadius: 12
+    property real bottomRightRadius: 12
 
     layer.enabled: true
     layer.effect: OpacityMask {
@@ -90,54 +103,57 @@ Item { // Window
         animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
     }
 
-    ScreencopyView {
-        id: windowPreview
+    Rectangle {
+        id: windowCard
         anchors.fill: parent
-        captureSource: GlobalStates.overviewOpen ? root.toplevel : null
-        live: true
+        topLeftRadius: root.topLeftRadius
+        topRightRadius: root.topRightRadius
+        bottomRightRadius: root.bottomRightRadius
+        bottomLeftRadius: root.bottomLeftRadius
+        color: Appearance.colors.colLayer2
+        clip: true
 
-        // Color overlay for interactions
-        Rectangle {
+        border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.85)
+        border.width: 1
+
+        // Live Window Preview Capture
+        ScreencopyView {
+            id: windowPreview
             anchors.fill: parent
-            topLeftRadius: root.topLeftRadius
-            topRightRadius: root.topRightRadius
-            bottomRightRadius: root.bottomRightRadius
-            bottomLeftRadius: root.bottomLeftRadius
-            color: pressed ? ColorUtils.transparentize(Appearance.colors.colLayer2Active, 0.5) : 
-                hovered ? ColorUtils.transparentize(Appearance.colors.colLayer2Hover, 0.7) : 
-                ColorUtils.transparentize(Appearance.colors.colLayer2)
-            border.color : ColorUtils.transparentize(Appearance.m3colors.m3outline, 0.88)
-            border.width : 1
+            captureSource: GlobalStates.overviewOpen ? root.toplevel : null
+            live: true
+
+            // Interaction and dimming tint overlay
+            Rectangle {
+                anchors.fill: parent
+                color: root.pressed ? ColorUtils.transparentize(Appearance.colors.colLayer2Active, 0.4) : 
+                    root.hovered ? ColorUtils.transparentize(Appearance.colors.colLayer2Hover, 0.6) : 
+                    ColorUtils.transparentize(Appearance.colors.colLayer2, 0.75)
+
+                Behavior on color {
+                    animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                }
+            }
         }
 
-        StyledImage {
-            id: windowIcon
-            property real baseSize: Math.min(root.targetWindowWidth, root.targetWindowHeight)
-            anchors {
-                top: root.centerIcons ? undefined : parent.top
-                left: root.centerIcons ? undefined : parent.left
-                centerIn: root.centerIcons ? parent : undefined
-                margins: baseSize * root.iconGapRatio
-            }
-            property var iconSize: {
-                // console.log("-=-=-", root.toplevel.title, "-=-=-")
-                // console.log("Target window size:", targetWindowWidth, targetWindowHeight)
-                // console.log("Icon ratio:", root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio)
-                // console.log("Scale:", root.monitorData.scale)
-                // console.log("Final:", Math.min(targetWindowWidth, targetWindowHeight) * (root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio) / root.monitorData.scale)
-                return baseSize * (root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio);
-            }
-            mipmap: true
-            Layout.alignment: Qt.AlignHCenter
-            source: root.iconPath
-            width: iconSize
-            height: iconSize
+        // Centered App Squircle Badge with Original App Icon
+        Rectangle {
+            id: appBadge
+            anchors.centerIn: parent
+            property real badgeSize: Math.max(38, Math.min(68, Math.min(root.width * 0.44, root.height * 0.44)))
+            width: badgeSize
+            height: badgeSize
+            radius: badgeSize * 0.28
+            color: Appearance.m3colors.m3surfaceContainerHigh
+            border.width: 1
+            border.color: ColorUtils.transparentize(Appearance.m3colors.m3outlineVariant, 0.7)
 
-            Behavior on width {
-                animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-            }
-            Behavior on height {
-                animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+            StyledImage {
+                anchors.centerIn: parent
+                width: appBadge.badgeSize * 0.72
+                height: appBadge.badgeSize * 0.72
+                source: root.iconPath
+                mipmap: true
             }
         }
     }

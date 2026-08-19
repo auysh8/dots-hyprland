@@ -20,56 +20,83 @@ DialogListItem {
         colText: Appearance.colors.colOnPrimary
     }
 
-    buttonRadius: 20
+    buttonRadius: 18
+    horizontalPadding: 14
+    verticalPadding: root.expanded ? 14 : 10
 
-    colBackground: expanded ? Appearance.colors.colPrimaryContainer : "transparent"
-    colBackgroundHover: expanded ? Appearance.colors.colPrimaryContainer : Appearance.colors.colLayer3Hover
+    colBackground: (root.device?.connected ?? false) 
+        ? Appearance.colors.colPrimaryContainer 
+        : Appearance.colors.colLayer1
+    colBackgroundHover: (root.device?.connected ?? false) 
+        ? Appearance.colors.colPrimaryContainerHover 
+        : Appearance.colors.colLayer1Hover
+    colRipple: (root.device?.connected ?? false) 
+        ? Appearance.colors.colPrimaryContainerActive 
+        : Appearance.colors.colLayer1Active
+
     contentItem: ColumnLayout {
         anchors {
             fill: parent
             topMargin: root.verticalPadding
-            leftMargin: 12
-            rightMargin: 12
+            bottomMargin: root.verticalPadding
+            leftMargin: root.horizontalPadding
+            rightMargin: root.horizontalPadding
         }
         spacing: 0
-        RowLayout {
-            spacing: 16
 
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 14
+
+            // Left Icon Badge Container
             Rectangle {
-                width: 28
-                height: 28
-                radius: 14
-                color: root.device?.icon.includes('input') ? Appearance.colors.colPrimary
-                    : root.device?.icon.includes('audio') ? Appearance.colors.colTertiary
-                    : Appearance.colors.colSecondary
+                Layout.alignment: Qt.AlignVCenter
+                width: 36
+                height: 36
+                radius: 12
+                color: (root.device?.connected ?? false) 
+                    ? Appearance.colors.colPrimary 
+                    : Appearance.colors.colLayer2
 
                 MaterialSymbol {
                     anchors.centerIn: parent
-                    iconSize: Appearance.font.pixelSize.larger
+                    iconSize: 20
+                    fill: 1
                     text: Icons.getBluetoothDeviceMaterialSymbol(root.device?.icon || "")
-                    color: root.device?.icon.includes('input') ? Appearance.colors.colOnPrimary
-                        : root.device?.icon.includes('audio') ? Appearance.colors.colOnTertiary
-                        : Appearance.colors.colOnSecondary
+                    color: (root.device?.connected ?? false) 
+                        ? Appearance.colors.colOnPrimary 
+                        : Appearance.colors.colOnSurface
                 }
             }
 
+            // Middle Name & Status Subtitle
             ColumnLayout {
-                spacing: 2
                 Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 2
+
                 StyledText {
                     Layout.fillWidth: true
-                    color: Appearance.colors.colOnSurface
+                    color: (root.device?.connected ?? false) 
+                        ? Appearance.colors.colOnPrimaryContainer 
+                        : Appearance.colors.colOnSurface
                     elide: Text.ElideRight
-                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    renderType: Text.QtRendering
+                    font.pixelSize: 14
+                    font.weight: (root.device?.connected ?? false) ? Font.Bold : Font.Medium
                     text: root.device?.name || Translation.tr("Unknown device")
                     textFormat: Text.PlainText
                 }
+
                 StyledText {
                     visible: (root.device?.connected || root.device?.paired) ?? false
                     Layout.fillWidth: true
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colOnSurface
+                    font.pixelSize: 12
+                    color: (root.device?.connected ?? false) 
+                        ? Appearance.colors.colOnPrimaryContainer 
+                        : Appearance.colors.colSubtext
                     elide: Text.ElideRight
+                    renderType: Text.QtRendering
                     text: {
                         if (!root.device?.paired) return "";
                         let statusText = root.device?.connected ? Translation.tr("Connected") : Translation.tr("Paired");
@@ -77,14 +104,20 @@ DialogListItem {
                         statusText += ` • ${Math.round(root.device?.battery * 100)}%`;
                         return statusText;
                     }
+                    textFormat: Text.PlainText
                 }
             }
 
+            // Right Dropdown Expand Arrow
             MaterialSymbol {
+                Layout.alignment: Qt.AlignVCenter
                 text: "keyboard_arrow_down"
-                iconSize: Appearance.font.pixelSize.larger
-                color: Appearance.colors.colOnLayer3
+                iconSize: 20
+                color: (root.device?.connected ?? false) 
+                    ? Appearance.colors.colOnPrimaryContainer 
+                    : Appearance.colors.colSubtext
                 rotation: root.expanded ? 180 : 0
+
                 Behavior on rotation {
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                 }

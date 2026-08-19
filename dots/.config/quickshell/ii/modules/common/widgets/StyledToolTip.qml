@@ -9,7 +9,13 @@ ToolTip {
     property bool extraVisibleCondition: true
     property bool alternativeVisibleCondition: false
 
-    readonly property bool internalVisibleCondition: (extraVisibleCondition && (parent.hovered === undefined || parent?.hovered)) || alternativeVisibleCondition
+    readonly property bool isParentHovered: {
+        if (!parent) return false;
+        if (parent.hovered !== undefined) return parent.hovered;
+        if (parent.containsMouse !== undefined) return parent.containsMouse;
+        return false;
+    }
+    readonly property bool internalVisibleCondition: (extraVisibleCondition && isParentHovered) || alternativeVisibleCondition
     verticalPadding: 5
     horizontalPadding: 10
     background: null

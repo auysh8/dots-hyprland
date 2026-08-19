@@ -13,10 +13,28 @@ WindowDialog {
     property bool isSink: true
     backgroundHeight: 600
 
-    WindowDialogTitle {
-        text: root.isSink ? Translation.tr("Audio output") : Translation.tr("Audio input")
-        anchors.horizontalCenter: parent.horizontalCenter
-        Layout.bottomMargin: 12
+    ColumnLayout {
+        Layout.fillWidth: true
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        Layout.bottomMargin: 4
+        spacing: 4
+
+        StyledText {
+            text: root.isSink ? Translation.tr("Audio output") : Translation.tr("Audio input")
+            color: Appearance.colors.colOnSurface
+            font {
+                family: Appearance.font.family.title
+                pixelSize: 22
+                weight: Font.Bold
+            }
+        }
+
+        StyledText {
+            text: root.isSink ? Translation.tr("Control application volume levels") : Translation.tr("Control application microphone levels")
+            font.pixelSize: 13
+            color: Appearance.colors.colOnSurfaceVariant
+        }
     }
 
     VolumeDialogContent {

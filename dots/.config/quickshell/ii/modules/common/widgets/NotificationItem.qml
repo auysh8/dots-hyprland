@@ -30,9 +30,12 @@ Item { // Notification item area
         dragIndexDiff == 2 ? (parentDragDistance * 0.1) : 0
 
     implicitHeight: background.implicitHeight
+    height: implicitHeight
 
     function destroyWithAnimation(left = false) {
-        root.qmlParent.resetDrag()
+        if (root.qmlParent && typeof root.qmlParent.resetDrag === "function") {
+            root.qmlParent.resetDrag();
+        }
         background.anchors.leftMargin = background.anchors.leftMargin; // Break binding
         destroyAnimation.left = left;
         destroyAnimation.running = true;
@@ -41,7 +44,7 @@ Item { // Notification item area
     TextMetrics {
         id: summaryTextMetrics
         font.pixelSize: root.fontSize
-        text: root.notificationObject.summary || ""
+        text: root.notificationObject?.summary || ""
     }
 
     SequentialAnimation { // Drag finish animation
@@ -58,7 +61,9 @@ Item { // Notification item area
             easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
         }
         onFinished: () => {
-            Notifications.discardNotification(notificationObject.notificationId);
+            if (notificationObject?.notificationId !== undefined) {
+                Notifications.discardNotification(notificationObject.notificationId);
+            }
         }
     }
 
@@ -132,6 +137,7 @@ Item { // Notification item area
             ColorUtils.transparentize(Appearance.colors.colLayer3)
 
         implicitHeight: expanded ? (contentColumn.implicitHeight + padding * 2) : summaryRow.implicitHeight
+        height: implicitHeight
         Behavior on implicitHeight {
             animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
         }

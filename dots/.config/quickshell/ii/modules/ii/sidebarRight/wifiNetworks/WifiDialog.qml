@@ -12,72 +12,56 @@ WindowDialog {
     backgroundHeight: 600
     readonly property bool showWifiList: Network.wifiStatus !== "disabled"
 
-    WindowDialogTitle {
-        text: Translation.tr("Connect to Wi-Fi")
-        anchors.horizontalCenter: parent.horizontalCenter
-    }
-    Item {
-        id: headerArea
+    ColumnLayout {
         Layout.fillWidth: true
-        Layout.preferredHeight: headerContent.implicitHeight + 2
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        spacing: 4
 
-        ColumnLayout {
-            id: headerContent
-            anchors {
-                top: parent.top
-                horizontalCenter: parent.horizontalCenter
+        StyledText {
+            text: Translation.tr("Connect to Wi-Fi")
+            color: Appearance.colors.colOnSurface
+            font {
+                family: Appearance.font.family.title
+                pixelSize: 22
+                weight: Font.Bold
             }
-            width: parent.width
-            spacing: 10
+        }
+
+        StyledText {
+            text: Translation.tr("Tap a network to connect")
+            font.pixelSize: 13
+            color: Appearance.colors.colOnSurfaceVariant
+        }
+    }
+
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        implicitHeight: 52
+        radius: 18
+        color: Appearance.colors.colLayer1
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 12
 
             StyledText {
-                Layout.alignment: Qt.AlignHCenter
-                text: Translation.tr("Tap a network to connect")
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                color: Appearance.colors.colOnSurfaceVariant
-            }
-
-            Item {
-                Layout.alignment: Qt.AlignHCenter
-                width: 160
-                height: 4
-
-                WindowDialogSeparator {
-                    anchors.centerIn: parent
-                    width: parent.width
-                    height: 2
-                    visible: !Network.wifiScanning
-                }
-
-                StyledIndeterminateProgressBar {
-                    // Only show scanning if content is initialized to prevent early visual updates
-                    visible: root.contentReady && Network.wifiScanning
-                    anchors.centerIn: parent
-                    width: parent.width
-                }
-            }
-
-            RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: 6
-                spacing: 0
-                Layout.leftMargin: 18
-                Layout.rightMargin: 18
+                text: Translation.tr("Wi-Fi")
+                color: Appearance.colors.colOnSurface
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.Medium
+            }
 
-                StyledText {
-                    Layout.fillWidth: true
-                    text: Translation.tr("Wi-Fi")
-                    color: Appearance.colors.colOnSurface
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                }
+            StyledSwitch {
+                id: wifiToggle
+                checked: Network.wifiStatus !== "disabled"
+                scale: 0.9
 
-                StyledSwitch {
-                    id: wifiToggle
-                    checked: Network.wifiStatus !== "disabled"
-                    scale: 0.9
-
-                    onClicked: Network.enableWifi(checked)
-                }
+                onClicked: Network.enableWifi(checked)
             }
         }
     }
@@ -85,10 +69,10 @@ WindowDialog {
         id: listLoader
         Layout.fillHeight: true
         Layout.fillWidth: true
-        Layout.topMargin: -6
-        Layout.bottomMargin: -8
-        Layout.leftMargin: 2
-        Layout.rightMargin: 2
+        Layout.topMargin: 2
+        Layout.bottomMargin: 0
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
         
         active: root.contentReady && root.showWifiList
         
@@ -96,8 +80,8 @@ WindowDialog {
             clip: true
             spacing: 8
             animateAppearance: false
-            topMargin: 6
-            bottomMargin: 6
+            topMargin: 4
+            bottomMargin: 4
 
             model: ScriptModel {
                 values: Network.friendlyWifiNetworks

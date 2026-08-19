@@ -7,96 +7,114 @@ import Quickshell
 import Quickshell.Services.Pipewire
 import Qt5Compat.GraphicalEffects
 
-Item {
+Rectangle {
     id: root
     required property PwNode node
     PwObjectTracker {
         objects: [root.node]
     }
 
-    implicitHeight: rowLayout.implicitHeight
+    implicitHeight: mainLayout.implicitHeight + 24
+    radius: 18
+    color: Appearance.colors.colLayer1
 
     RowLayout {
-        id: rowLayout
-        anchors.fill: parent
-        spacing: 6
+        id: mainLayout
+        anchors {
+            fill: parent
+            leftMargin: 14
+            rightMargin: 14
+            topMargin: 12
+            bottomMargin: 12
+        }
+        spacing: 12
 
-        MouseArea {
-            property real size: 36
-            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-            Layout.preferredWidth: size
-            Layout.preferredHeight: size
+        // App Icon Badge & Mute Click Area
+        Rectangle {
+            id: iconContainer
+            Layout.alignment: Qt.AlignVCenter
+            width: 40
+            height: 40
+            radius: 12
+            color: root.node?.audio.muted ? Appearance.colors.colLayer3 : Appearance.colors.colLayer2
 
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.node.audio.muted = !root.node.audio.muted
-
-            hoverEnabled: true
-            property bool hovered: containsMouse
-            StyledToolTip {
-                text: root.node?.audio.muted ? Translation.tr("Click to unmute") : Translation.tr("Click to mute")
-            }
-
-            StyledImage {
-                id: iconImg
+            MouseArea {
                 anchors.fill: parent
-                visible: false
-                source: {
-                    let icon;
-                    icon = AppSearch.guessIcon(root.node?.properties["application.icon-name"] ?? "");
-                    if (AppSearch.iconExists(icon))
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.node.audio.muted = !root.node.audio.muted
+                hoverEnabled: true
+
+                StyledToolTip {
+                    text: root.node?.audio.muted ? Translation.tr("Click to unmute") : Translation.tr("Click to mute")
+                }
+
+                StyledImage {
+                    id: iconImg
+                    anchors.centerIn: parent
+                    width: 24
+                    height: 24
+                    visible: false
+                    source: {
+                        let icon = AppSearch.guessIcon(root.node?.properties["application.icon-name"] ?? "");
+                        if (AppSearch.iconExists(icon))
+                            return Quickshell.iconPath(icon, "image-missing");
+                        icon = AppSearch.guessIcon(root.node?.properties["node.name"] ?? "");
                         return Quickshell.iconPath(icon, "image-missing");
-                    icon = AppSearch.guessIcon(root.node?.properties["node.name"] ?? "");
-                    return Quickshell.iconPath(icon, "image-missing");
-                }
-            }
-
-            Desaturate {
-                anchors.fill: iconImg
-                source: iconImg
-                desaturation: root.node?.audio.muted ? 1.0 : 0.0
-                visible: iconImg.source !== ""
-                opacity: root.node?.audio.muted ? 0.4 : 1.0
-
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 150
                     }
                 }
-                Behavior on desaturation {
-                    NumberAnimation {
-                        duration: 150
-                    }
-                }
-            }
 
-            MaterialSymbol {
-                anchors.centerIn: parent
-                visible: root.node?.audio.muted ?? false
-                text: root.node?.isSink ? "volume_off" : "mic_off"
-                iconSize: 22
-                color: Appearance.colors.colOnLayer1
+                Desaturate {
+                    anchors.fill: iconImg
+                    source: iconImg
+                    desaturation: root.node?.audio.muted ? 1.0 : 0.0
+                    visible: iconImg.source !== "" && !(root.node?.audio.muted ?? false)
+                    opacity: root.node?.audio.muted ? 0.3 : 1.0
+                }
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    visible: (root.node?.audio.muted ?? false) || iconImg.source === ""
+                    text: root.node?.audio.muted ? (root.node?.isSink ? "volume_off" : "mic_off") : (root.node?.isSink ? "volume_up" : "mic")
+                    iconSize: 20
+                    color: root.node?.audio.muted ? Appearance.colors.colSubtext : Appearance.colors.colOnSurface
+                }
             }
         }
 
+        // App Name & Slider Column
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: -4
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 4
 
-            StyledText {
+            RowLayout {
                 Layout.fillWidth: true
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colSubtext
-                elide: Text.ElideRight
-                text: {
-                    // application.name -> description -> name
-                    const app = Audio.appNodeDisplayName(root.node);
-                    const media = root.node.properties["media.name"];
-                    return media != undefined ? `${app} • ${media}` : app;
+                spacing: 8
+
+                StyledText {
+                    Layout.fillWidth: true
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                    color: root.node?.audio.muted ? Appearance.colors.colSubtext : Appearance.colors.colOnSurface
+                    elide: Text.ElideRight
+                    text: {
+                        const app = Audio.appNodeDisplayName(root.node);
+                        const media = root.node.properties["media.name"];
+                        return media != undefined ? `${app} • ${media}` : app;
+                    }
+                }
+
+                StyledText {
+                    font.pixelSize: 12
+                    font.weight: Font.Bold
+                    color: root.node?.audio.muted ? Appearance.colors.colSubtext : Appearance.colors.colPrimary
+                    text: `${Math.round((root.node?.audio.volume ?? 0) * 100)}%`
                 }
             }
 
             StyledSlider {
                 id: slider
+                Layout.fillWidth: true
                 value: root.node?.audio.volume ?? 0
                 onMoved: root.node.audio.volume = value
                 configuration: StyledSlider.Configuration.S

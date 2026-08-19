@@ -17,18 +17,19 @@ ColumnLayout {
 
     DialogSectionListView {
         Layout.fillHeight: true
-        topMargin: 14
+        Layout.fillWidth: true
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        Layout.topMargin: 2
+        Layout.bottomMargin: 0
 
         model: ScriptModel {
             values: root.appPwNodes
         }
         delegate: VolumeMixerEntry {
-            anchors {
-                left: parent?.left
-                right: parent?.right
-            }
             required property var modelData
             node: modelData
+            width: ListView.view.width
         }
         PagePlaceholder {
             icon: "widgets"
@@ -42,7 +43,9 @@ ColumnLayout {
         id: deviceSelector
         Layout.fillHeight: false
         Layout.fillWidth: true
-        Layout.bottomMargin: 6
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        Layout.bottomMargin: 4
         model: root.devices.map(node => Audio.friendlyDeviceName(node))
         currentIndex: root.devices.findIndex(item => {
             if (root.isSink) {
@@ -63,19 +66,11 @@ ColumnLayout {
     }
 
     component DialogSectionListView: StyledListView {
-        Layout.fillWidth: true
-        Layout.topMargin: -22
-        Layout.bottomMargin: -16
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
-        topMargin: 12
-        bottomMargin: 12
-        leftMargin: 20
-        rightMargin: 20
-
         clip: true
-        spacing: 4
+        spacing: 8
         animateAppearance: false
+        topMargin: 4
+        bottomMargin: 4
     }
 
     Component {

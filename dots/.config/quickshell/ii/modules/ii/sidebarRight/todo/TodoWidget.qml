@@ -203,8 +203,6 @@ Item {
                     implicitHeight: 44
                     radius: 12
                     color: Appearance.m3colors.m3surfaceContainer
-                    border.width: todoInput.activeFocus ? 2 : 1
-                    border.color: todoInput.activeFocus ? Appearance.colors.colPrimary : Appearance.m3colors.m3outlineVariant
 
                     StyledTextInput {
                         id: todoInput

@@ -25,18 +25,18 @@ DialogListItem {
     opacity: (!root.actionEnabled && !root.isHighlighted) ? 0.4 : 1
 
     active: root.isHighlighted
-    buttonRadius: root.isHighlighted ? 24 : 20
-    horizontalPadding: root.isHighlighted ? 18 : 16
-    verticalPadding: root.isHighlighted ? 16 : 14
-    colBackground: root.isHighlighted
+    buttonRadius: 18
+    horizontalPadding: 14
+    verticalPadding: root.isConnected ? 14 : 10
+    colBackground: root.isConnected
         ? Appearance.colors.colPrimaryContainer
-        : "transparent"
-    colBackgroundHover: root.isHighlighted
+        : Appearance.colors.colLayer1
+    colBackgroundHover: root.isConnected
         ? Appearance.colors.colPrimaryContainerHover
-        : Appearance.colors.colLayer3Hover
-    colRipple: root.isHighlighted
+        : Appearance.colors.colLayer1Hover
+    colRipple: root.isConnected
         ? Appearance.colors.colPrimaryContainerActive
-        : Appearance.colors.colLayer3Active
+        : Appearance.colors.colLayer1Active
     onClicked: {
         Network.connectToWifiNetwork(wifiNetwork);
     }
@@ -52,27 +52,40 @@ DialogListItem {
         spacing: 0
 
         RowLayout {
-            spacing: root.isConnected ? 14 : 12
+            Layout.fillWidth: true
+            spacing: 14
 
-            MaterialSymbol {
-                Layout.alignment: Qt.AlignTop
-                Layout.topMargin: root.showsSecondaryText ? 2 : 4
-                property int strength: root.wifiNetwork?.strength ?? 0
-                iconSize: Appearance.font.pixelSize.larger
-                text: strength > 80 ? "signal_wifi_4_bar" : strength > 60 ? "network_wifi_3_bar" : strength > 40 ? "network_wifi_2_bar" : strength > 20 ? "network_wifi_1_bar" : "signal_wifi_0_bar"
-                color: root.isHighlighted ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSurfaceVariant
+            // Left Icon Badge Container
+            Rectangle {
+                Layout.alignment: Qt.AlignVCenter
+                width: 36
+                height: 36
+                radius: 12
+                color: root.isConnected ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
+
+                MaterialSymbol {
+                    property int strength: root.wifiNetwork?.strength ?? 0
+                    anchors.centerIn: parent
+                    iconSize: 20
+                    fill: 1
+                    text: strength > 80 ? "signal_wifi_4_bar" : strength > 60 ? "network_wifi_3_bar" : strength > 40 ? "network_wifi_2_bar" : strength > 20 ? "network_wifi_1_bar" : "signal_wifi_0_bar"
+                    color: root.isConnected ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSurface
+                }
             }
 
+            // Middle SSID & Subtitle
             ColumnLayout {
                 Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
                 spacing: 2
 
                 StyledText {
                     Layout.fillWidth: true
-                    color: root.isHighlighted ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSurface
+                    color: root.isConnected ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSurface
                     elide: Text.ElideRight
                     renderType: Text.QtRendering
-                    font.pixelSize: Appearance.font.pixelSize.normal
+                    font.pixelSize: 14
+                    font.weight: root.isConnected ? Font.Bold : Font.Medium
                     text: root.wifiNetwork?.ssid ?? Translation.tr("Unknown")
                     textFormat: Text.PlainText
                 }
@@ -80,21 +93,32 @@ DialogListItem {
                 StyledText {
                     visible: root.showsSecondaryText
                     Layout.fillWidth: true
-                    color: root.isHighlighted ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSurfaceVariant
+                    color: root.isConnected ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colSubtext
                     elide: Text.ElideRight
                     renderType: Text.QtRendering
-                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.pixelSize: 12
                     text: root.secondaryText
                     textFormat: Text.PlainText
                 }
+            }
+
+            // Right Status Icon (Checkmark for connected, Lock for secure)
+            MaterialSymbol {
+                Layout.alignment: Qt.AlignVCenter
+                visible: root.isConnected
+                text: "check"
+                iconSize: 20
+                fill: 1
+                color: Appearance.colors.colOnPrimaryContainer
             }
 
             MaterialSymbol {
                 Layout.alignment: Qt.AlignVCenter
                 visible: (root.wifiNetwork?.isSecure ?? false) && !root.isConnected
                 text: "lock"
-                iconSize: Appearance.font.pixelSize.larger
-                color: root.isBusyConnecting ? Appearance.colors.colOnSurface : Appearance.colors.colOnSurfaceVariant
+                iconSize: 18
+                fill: 1
+                color: Appearance.colors.colSubtext
             }
         }
 

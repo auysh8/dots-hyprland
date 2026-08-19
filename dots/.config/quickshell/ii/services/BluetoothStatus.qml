@@ -15,6 +15,25 @@ Singleton {
     readonly property int activeDeviceCount: Bluetooth.defaultAdapter?.devices.values.filter(device => device.connected).length ?? 0
     readonly property bool connected: Bluetooth.devices.values.some(d => d.connected)
 
+    function toggleBluetooth(enable) {
+        if (enable === undefined) {
+            enable = !root.enabled;
+        }
+        if (enable) {
+            Quickshell.execDetached(["bash", "-c", "rfkill unblock bluetooth; sleep 0.1; bluetoothctl power on"]);
+            if (Bluetooth.defaultAdapter) {
+                Bluetooth.defaultAdapter.enabled = true;
+                Bluetooth.defaultAdapter.discovering = true;
+            }
+        } else {
+            if (Bluetooth.defaultAdapter) {
+                Bluetooth.defaultAdapter.discovering = false;
+                Bluetooth.defaultAdapter.enabled = false;
+            }
+            Quickshell.execDetached(["bash", "-c", "bluetoothctl power off; rfkill block bluetooth"]);
+        }
+    }
+
     function sortFunction(a, b) {
         // Ones with meaningful names before MAC addresses
         const macRegex = /^([0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$/;

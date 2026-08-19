@@ -116,7 +116,7 @@ TabButton {
                 rotation: root.buttonIconRotation
                 anchors.centerIn: parent
                 iconSize: 24
-                fill: 1
+                fill: root.toggled ? 1 : 0
                 font.weight: (toggled || root.hovered) ? Font.DemiBold : Font.Normal
                 text: buttonIcon
                 color: toggled 

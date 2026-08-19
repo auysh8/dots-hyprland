@@ -17,74 +17,57 @@ WindowDialog {
     id: root
     backgroundHeight: 600
 
-    WindowDialogTitle {
-        text: Translation.tr("Bluetooth devices")
-        anchors.horizontalCenter: parent.horizontalCenter
-    }
-    Item {
-        id: headerArea
+    ColumnLayout {
         Layout.fillWidth: true
-        Layout.preferredHeight: headerContent.implicitHeight + 2
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        spacing: 4
 
-        ColumnLayout {
-            id: headerContent
-            anchors {
-                top: parent.top
-                horizontalCenter: parent.horizontalCenter
+        StyledText {
+            text: Translation.tr("Bluetooth devices")
+            color: Appearance.colors.colOnSurface
+            font {
+                family: Appearance.font.family.title
+                pixelSize: 22
+                weight: Font.Bold
             }
-            width: parent.width
-            spacing: 10
+        }
+
+        StyledText {
+            text: Translation.tr("Tap to connect or disconnect a device")
+            font.pixelSize: 13
+            color: Appearance.colors.colOnSurfaceVariant
+        }
+    }
+
+    Rectangle {
+        Layout.fillWidth: true
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        implicitHeight: 52
+        radius: 18
+        color: Appearance.colors.colLayer1
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 12
 
             StyledText {
-                Layout.alignment: Qt.AlignHCenter
-                text: Translation.tr("Tap to connect or disconnect a device")
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                color: Appearance.colors.colOnSurface
-            }
-
-            Item {
-                Layout.alignment: Qt.AlignHCenter
-                width: 160
-                height: 4
-
-                WindowDialogSeparator {
-                    anchors.centerIn: parent
-                    width: parent.width
-                    height: 2
-                    visible: !(Bluetooth.defaultAdapter?.discovering ?? false)
-                }
-
-                StyledIndeterminateProgressBar {
-                    visible: Bluetooth.defaultAdapter?.discovering ?? false
-                    anchors.centerIn: parent
-                    width: parent.width
-                }
-            }
-
-            RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: 6
-                spacing: 0
-                Layout.leftMargin: 18
-                Layout.rightMargin: 18
+                text: Translation.tr("Bluetooth")
+                color: Appearance.colors.colOnSurface
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.Medium
+            }
 
-                StyledText {
-                    Layout.fillWidth: true
-                    text: Translation.tr("Bluetooth")
-                    color: Appearance.colors.colOnSurface
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                }
+            StyledSwitch {
+                id: bluetoothToggle
+                checked: BluetoothStatus.enabled
+                scale: 0.9
 
-                StyledSwitch {
-                    id: bluetoothToggle
-                    checked: Bluetooth.defaultAdapter?.enabled ?? false
-                    scale: 0.9
-
-                    onClicked: {
-                        if (!Bluetooth.defaultAdapter) return;
-                        Bluetooth.defaultAdapter.enabled = checked;
-                        Bluetooth.defaultAdapter.discovering = checked;
-                    }
+                onClicked: {
+                    BluetoothStatus.toggleBluetooth(checked);
                 }
             }
         }
@@ -93,7 +76,10 @@ WindowDialog {
         id: listLoader
         Layout.fillHeight: true
         Layout.fillWidth: true
-        Layout.topMargin: -6
+        Layout.topMargin: 2
+        Layout.bottomMargin: 0
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
 
         active: root.contentReady
 
@@ -101,6 +87,8 @@ WindowDialog {
             clip: true
             spacing: 8
             animateAppearance: false
+            topMargin: 4
+            bottomMargin: 4
 
             model: ScriptModel {
                 values: BluetoothStatus.friendlyDeviceList
@@ -108,10 +96,7 @@ WindowDialog {
             delegate: BluetoothDeviceItem {
                 required property BluetoothDevice modelData
                 device: modelData
-                anchors {
-                    left: parent?.left
-                    right: parent?.right
-                }
+                width: ListView.view.width
             }
         }
     }

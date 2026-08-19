@@ -103,36 +103,40 @@ Item {
                             required property int index
                             property int colIndex: index
                             property int workspaceValue: root.workspaceGroup * root.workspacesShown + getWsInCell(row.index, colIndex)
-                            property color defaultWorkspaceColor: Appearance.colors.colSurfaceContainerLow
-                            property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
+                            property bool isFocused: (workspace.workspaceValue === root.effectiveActiveWorkspaceId)
+                            property color defaultWorkspaceColor: Appearance.colors.colLayer1
+                            property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.2)
                             property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                             property bool hoveredWhileDragging: false
 
                             implicitWidth: root.workspaceImplicitWidth
                             implicitHeight: root.workspaceImplicitHeight
                             color: hoveredWhileDragging ? hoveredWorkspaceColor : defaultWorkspaceColor
-                            property bool workspaceAtLeft: colIndex === 0
-                            property bool workspaceAtRight: colIndex === Config.options.overview.columns - 1
-                            property bool workspaceAtTop: row.index === 0
-                            property bool workspaceAtBottom: row.index === Config.options.overview.rows - 1
-                            topLeftRadius: (workspaceAtLeft && workspaceAtTop) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                            topRightRadius: (workspaceAtRight && workspaceAtTop) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                            bottomLeftRadius: (workspaceAtLeft && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                            bottomRightRadius: (workspaceAtRight && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                            border.width: 2
-                            border.color: hoveredWhileDragging ? hoveredBorderColor : "transparent"
+                            radius: 20
+                            border.width: 1
+                            border.color: hoveredWhileDragging ? hoveredBorderColor : 
+                                ColorUtils.transparentize(Appearance.colors.colOutline, 0.85)
 
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: workspace.workspaceValue
-                                font {
-                                    pixelSize: root.workspaceNumberSize * root.scale
-                                    weight: Font.DemiBold
-                                    family: Appearance.font.family.expressive
+                            // Top-left numbered workspace badge
+                            Rectangle {
+                                id: workspaceBadge
+                                anchors {
+                                    top: parent.top
+                                    left: parent.left
+                                    margins: 10
                                 }
-                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.8)
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
+                                width: 22
+                                height: 22
+                                radius: 11
+                                color: workspace.isFocused ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: workspace.workspaceValue
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                    color: workspace.isFocused ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
+                                }
                             }
 
                             MouseArea {
@@ -235,8 +239,8 @@ Item {
                         repeat: false
                         running: false
                         onTriggered: {
-                            window.x = Math.round(xWithinWorkspaceWidget + xOffset)
-                            window.y = Math.round(yWithinWorkspaceWidget + yOffset)
+                            window.x = Math.round(xWithinWorkspaceWidget + xOffset + window.windowPadding)
+                            window.y = Math.round(yWithinWorkspaceWidget + yOffset + window.windowPadding)
                         }
                     }
 
@@ -311,33 +315,15 @@ Item {
                 width: root.workspaceImplicitWidth
                 height: root.workspaceImplicitHeight
                 color: "transparent"
-                property bool workspaceAtLeft: colIndex === 0
-                property bool workspaceAtRight: colIndex === Config.options.overview.columns - 1
-                property bool workspaceAtTop: rowIndex === 0
-                property bool workspaceAtBottom: rowIndex === Config.options.overview.rows - 1
-                topLeftRadius: (workspaceAtLeft && workspaceAtTop) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                topRightRadius: (workspaceAtRight && workspaceAtTop) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                bottomLeftRadius: (workspaceAtLeft && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                bottomRightRadius: (workspaceAtRight && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
+                radius: 20
                 border.width: 2
-                border.color: root.activeBorderColor
+                border.color: Appearance.colors.colPrimary
+
                 Behavior on x {
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                 }
                 Behavior on y {
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
-                Behavior on topLeftRadius {
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-                }
-                Behavior on topRightRadius {
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-                }
-                Behavior on bottomLeftRadius {
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-                }
-                Behavior on bottomRightRadius {
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
                 }
             }
         }
