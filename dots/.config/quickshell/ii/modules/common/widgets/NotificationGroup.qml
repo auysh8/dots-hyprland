@@ -33,6 +33,14 @@ MouseArea { // Notification group area
         dragIndexDiff == 1 ? (parentDragDistance * 0.3) :
         dragIndexDiff == 2 ? (parentDragDistance * 0.1) : 0
 
+    property int dragIndex: -1
+    property real dragDistance: 0
+
+    function resetDrag() {
+        dragIndex = -1;
+        dragDistance = 0;
+    }
+
     function destroyWithAnimation(left = false) {
         if (root.qmlParent && typeof root.qmlParent.resetDrag === "function") {
             root.qmlParent.resetDrag();
@@ -135,12 +143,14 @@ MouseArea { // Notification group area
         }
         
         clip: true
-        implicitHeight: row.implicitHeight + padding * 2
+        implicitHeight: root.expanded ? 
+            row.implicitHeight + padding * 2 :
+            Math.min(80, row.implicitHeight + padding * 2)
         height: implicitHeight
 
         Behavior on implicitHeight {
             id: implicitHeightAnim
-            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
         }
 
         RowLayout { // Left column for icon, right column for content
@@ -247,10 +257,10 @@ MouseArea { // Notification group area
                             opacity: (!root.expanded && index == 1 && root.notificationCount > 2) ? 0.5 : 1
                             visible: root.expanded || (index < 2)
                             Layout.fillWidth: true
+                            qmlParent: root
                         }
                     }
                 }
-
             }
         }
     }
