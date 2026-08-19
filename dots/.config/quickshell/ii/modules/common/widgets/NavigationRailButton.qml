@@ -23,9 +23,9 @@ TabButton {
     property color overrideTextColor: "transparent"
     property bool useOverrideColors: false
 
-    property real baseSize: 56
+    property real baseSize: 54
     property real baseHighlightHeight: 32
-    property real highlightCollapsedTopMargin: 8
+    property real highlightCollapsedTopMargin: 2
     padding: 0
 
     // The navigation item’s target area always spans the full width of the
@@ -107,14 +107,16 @@ TabButton {
             implicitHeight: root.baseHighlightHeight
             anchors {
                 left: parent.left
-                verticalCenter: parent.verticalCenter
+                top: root.expanded ? undefined : parent.top
+                topMargin: root.expanded ? 0 : 2
+                verticalCenter: root.expanded ? parent.verticalCenter : undefined
             }
             MaterialSymbol {
                 id: navRailButtonIcon
                 rotation: root.buttonIconRotation
                 anchors.centerIn: parent
                 iconSize: 24
-                fill: toggled ? 1 : 0
+                fill: 1
                 font.weight: (toggled || root.hovered) ? Font.DemiBold : Font.Normal
                 text: buttonIcon
                 color: toggled 
@@ -155,7 +157,8 @@ TabButton {
                 }
             }
             text: buttonText
-            font.pixelSize: 14
+            font.pixelSize: 13
+            font.weight: toggled ? Font.Bold : Font.Medium
             color: root.useOverrideColors ? root.overrideTextColor : Appearance.colors.colOnLayer1
         }
     }

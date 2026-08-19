@@ -240,17 +240,17 @@ Singleton {
         }
         property QtObject variableAxes: QtObject {
             property var main: ({
-                "wght": 450,
+                "wght": 550,
                 "wdth": 100,
             })
             property var numbers: ({
-                "wght": 450,
+                "wght": 550,
             })
             property var expressiveTitle: ({
-                "wght": 400
+                "wght": 650
             })
-            property var title: ({ // Slightly bold weight for title
-                "wght": 550, // Weight (Lowered to compensate for increased grade)
+            property var title: ({ // Bold weight for titles
+                "wght": 700,
             })
         }
         property QtObject pixelSize: QtObject {

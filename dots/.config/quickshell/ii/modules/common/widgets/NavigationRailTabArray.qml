@@ -15,17 +15,17 @@ Item {
     Layout.topMargin: 25
 
     Rectangle {
-        property real itemHeight: tabBarColumn.children[0]?.baseSize ?? 56
-        property real baseHighlightHeight: tabBarColumn.children[0]?.baseHighlightHeight ?? 56
+        property real itemHeight: tabBarColumn.children[0]?.baseSize ?? 54
+        property real baseHighlightHeight: tabBarColumn.children[0]?.baseHighlightHeight ?? 32
         anchors {
             top: tabBarColumn.top
             left: tabBarColumn.left
-            topMargin: itemHeight * root.currentIndex + (root.expanded ? 0 : ((itemHeight - baseHighlightHeight) / 2))
+            topMargin: itemHeight * root.currentIndex + (root.expanded ? 0 : 2)
         }
         radius: Appearance.rounding.full
         color: root.useOverrideColors ? root.overridePillColor : Appearance.colors.colSecondaryContainer
         implicitHeight: root.expanded ? itemHeight : baseHighlightHeight
-        implicitWidth: tabBarColumn?.children[root.currentIndex]?.visualWidth ?? 100
+        implicitWidth: tabBarColumn?.children[root.currentIndex]?.visualWidth ?? 54
 
         Behavior on anchors.topMargin {
             NumberAnimation {

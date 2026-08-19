@@ -221,6 +221,7 @@ Item {
                         anchors.centerIn: parent
                         text: "music_note"
                         iconSize: 26
+                        fill: 1
                         color: root.secondaryContentColor
                         visible: !coverArtImage.visible
                     }
@@ -293,6 +294,7 @@ Item {
                                     return "headphones";
                                 }
                                 iconSize: 14
+                                fill: 1
                                 color: root.secondaryContentColor
                             }
 
@@ -310,6 +312,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: playerPickerPopup.opened ? "expand_less" : "expand_more"
                                 iconSize: 13
+                                fill: 1
                                 color: root.secondaryContentColor
                                 visible: root.availablePlayers.length > 1
                             }
@@ -390,6 +393,7 @@ Item {
                                                     return "headphones";
                                                 }
                                                 iconSize: 14
+                                                fill: 1
                                                 color: root.activePlayer === modelData ? root.contentColor : ColorUtils.applyAlpha(root.contentColor, 0.7)
                                             }
                                         }
@@ -498,6 +502,7 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                     text: "skip_previous"
                     iconSize: 24
+                    fill: 1
                     color: root.contentColor
                 }
             }
@@ -524,6 +529,7 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                     text: (activePlayer && activePlayer.isPlaying) ? "pause" : "play_arrow"
                     iconSize: 28
+                    fill: 1
                     color: root.pillContentColor
                 }
             }
@@ -550,6 +556,7 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                     text: "skip_next"
                     iconSize: 24
+                    fill: 1
                     color: root.contentColor
                 }
             }

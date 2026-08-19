@@ -4,6 +4,7 @@ import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 
 Item {
     id: root
@@ -33,6 +34,7 @@ Item {
     }
 
     ColumnLayout {
+        id: mainContentLayout
         anchors.fill: parent
         spacing: 0
 
@@ -134,15 +136,15 @@ Item {
             }
         }
 
+        // Soft dark translucent scrim overlay with click-outside dismiss
         Rectangle {
             anchors.fill: parent
             radius: Appearance.rounding.small
             color: Appearance.colors.colScrim
+
             MouseArea {
-                hoverEnabled: true
                 anchors.fill: parent
-                preventStealing: true
-                propagateComposedEvents: false
+                onClicked: root.showAddDialog = false
             }
         }
 
@@ -155,7 +157,9 @@ Item {
             implicitHeight: dialogColumnLayout.implicitHeight
 
             color: Appearance.m3colors.m3surfaceContainerHigh
-            radius: Appearance.rounding.normal
+            radius: 20
+            border.width: 1
+            border.color: Appearance.m3colors.m3outlineVariant
 
             function addTask() {
                 if (todoInput.text.length > 0) {
@@ -171,60 +175,81 @@ Item {
                 anchors.fill: parent
                 spacing: 16
 
-                StyledText {
-                    Layout.topMargin: 16
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    Layout.alignment: Qt.AlignLeft
-                    color: Appearance.m3colors.m3onSurface
-                    font.pixelSize: Appearance.font.pixelSize.larger
-                    text: Translation.tr("Add task")
-                }
+                RowLayout {
+                    Layout.topMargin: 18
+                    Layout.leftMargin: 18
+                    Layout.rightMargin: 18
+                    spacing: 8
 
-                TextField {
-                    id: todoInput
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    padding: 10
-                    color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
-                    renderType: Text.NativeRendering
-                    selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
-                    selectionColor: Appearance.colors.colSecondaryContainer
-                    placeholderText: Translation.tr("Task description")
-                    placeholderTextColor: Appearance.m3colors.m3outline
-                    focus: root.showAddDialog
-                    onAccepted: dialog.addTask()
-
-                    background: Rectangle {
-                        anchors.fill: parent
-                        radius: Appearance.rounding.verysmall
-                        border.width: 2
-                        border.color: todoInput.activeFocus ? Appearance.colors.colPrimary : Appearance.m3colors.m3outline
-                        color: "transparent"
+                    MaterialSymbol {
+                        text: "task_alt"
+                        iconSize: 22
+                        fill: 1
+                        color: Appearance.colors.colPrimary
                     }
 
-                    cursorDelegate: Rectangle {
-                        width: 1
-                        color: todoInput.activeFocus ? Appearance.colors.colPrimary : "transparent"
-                        radius: 1
+                    StyledText {
+                        color: Appearance.m3colors.m3onSurface
+                        font.pixelSize: 18
+                        font.weight: Font.Bold
+                        text: Translation.tr("Add task")
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 18
+                    Layout.rightMargin: 18
+                    implicitHeight: 44
+                    radius: 12
+                    color: Appearance.m3colors.m3surfaceContainer
+                    border.width: todoInput.activeFocus ? 2 : 1
+                    border.color: todoInput.activeFocus ? Appearance.colors.colPrimary : Appearance.m3colors.m3outlineVariant
+
+                    StyledTextInput {
+                        id: todoInput
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        verticalAlignment: TextInput.AlignVCenter
+                        font.pixelSize: 14
+                        color: Appearance.m3colors.m3onSurface
+                        clip: true
+                        selectByMouse: true
+                        selectionColor: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.4)
+                        selectedTextColor: Appearance.colors.colOnPrimary
+                        focus: root.showAddDialog
+                        onAccepted: dialog.addTask()
+
+                        StyledText {
+                            anchors.fill: parent
+                            verticalAlignment: Text.AlignVCenter
+                            text: Translation.tr("Task description...")
+                            font.pixelSize: 14
+                            color: Appearance.m3colors.m3outline
+                            visible: !todoInput.text && !todoInput.activeFocus
+                        }
                     }
                 }
 
                 RowLayout {
-                    Layout.bottomMargin: 16
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
+                    Layout.bottomMargin: 18
+                    Layout.leftMargin: 18
+                    Layout.rightMargin: 18
                     Layout.alignment: Qt.AlignRight
-                    spacing: 5
+                    spacing: 8
 
                     DialogButton {
                         buttonText: Translation.tr("Cancel")
+                        colText: Appearance.m3colors.m3outline
                         onClicked: root.showAddDialog = false
                     }
+
                     DialogButton {
                         buttonText: Translation.tr("Add")
                         enabled: todoInput.text.length > 0
+                        colEnabled: Appearance.colors.colPrimary
+                        colDisabled: Appearance.m3colors.m3outline
                         onClicked: dialog.addTask()
                     }
                 }

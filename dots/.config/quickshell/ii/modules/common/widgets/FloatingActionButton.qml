@@ -37,6 +37,7 @@ RippleButton {
             iconSize: 26
             color: root.colOnBackground
             text: root.iconText
+            fill: 1
         }
         Loader {
             anchors.verticalCenter: parent.verticalCenter

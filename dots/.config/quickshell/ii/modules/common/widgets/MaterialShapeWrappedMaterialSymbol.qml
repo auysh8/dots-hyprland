@@ -8,6 +8,7 @@ MaterialShape {
     property alias iconSize: symbol.iconSize
     property alias font: symbol.font
     property alias colSymbol: symbol.color
+    property alias fill: symbol.fill
     property real padding: 6
 
     color: Appearance.colors.colSecondaryContainer
@@ -18,6 +19,7 @@ MaterialShape {
     MaterialSymbol {
         id: symbol
         anchors.centerIn: parent
+        fill: 1
         color: root.colSymbol
     }
 }

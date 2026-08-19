@@ -158,7 +158,7 @@ TabButton {
                     verticalAlignment: Text.AlignVCenter
                     text: buttonIcon
                     iconSize: Appearance.font.pixelSize.huge
-                    fill: root.checked ? 1 : 0
+                    fill: 1
                     color: root.checked ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
                     Behavior on color {
                         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)

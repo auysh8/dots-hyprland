@@ -112,7 +112,13 @@ GroupButton {
     readonly property bool isStartSolid: isConnected
     
     property color colText: (isStartSolid || (toggled && !(altAction && expandedSize) && enabled)) ? Appearance.colors.colOnPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer2, enabled ? 0 : 0.7)
-    property color colIcon: expandedSize ? ((root.toggled) ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer3) : colText
+    property color colIcon: {
+        if (!root.expandedSize) return colText;
+        if (root.toggled) {
+            return root.isStartSolid ? Appearance.colors.colPrimary : Appearance.colors.colOnPrimary;
+        }
+        return Appearance.colors.colOnLayer0;
+    }
 
     onClicked: {
         if (root.expandedSize && root.altAction) root.altAction();
@@ -150,9 +156,11 @@ GroupButton {
                 implicitWidth: height
                 radius: root.buttonRadius - root.verticalPadding
                 color: {
-                    const baseColor = root.toggled ? Appearance.colors.colPrimary : "transparent"
-                    const transparentizeAmount = (root.altAction && root.expandedSize && root.toggled) ? 0 : 1
-                    return ColorUtils.transparentize(baseColor, transparentizeAmount)
+                    if (!root.expandedSize) return "transparent"
+                    if (root.toggled) {
+                        return root.isStartSolid ? Appearance.colors.colPrimaryContainer : Appearance.colors.colPrimary
+                    }
+                    return Appearance.colors.colLayer3
                 }
 
                 Behavior on radius {
@@ -164,7 +172,7 @@ GroupButton {
 
                 MaterialSymbol {
                     anchors.centerIn: parent
-                    fill: root.toggled ? 1 : 0
+                    fill: 1
                     iconSize: root.expandedSize ? 22 : 24
                     color: root.colIcon
                     text: root.buttonIcon
@@ -200,7 +208,9 @@ GroupButton {
                         right: parent.right
                     }
                     font.pixelSize: Appearance.font.pixelSize.smallie
-                    font.weight: 900
+                    font.weight: Font.Bold
+                    font.bold: true
+                    font.variableAxes: ({ "wght": 700, "wdth": 100 })
                     color: root.colText
                     elide: Text.ElideRight
                     text: root.name
@@ -212,10 +222,10 @@ GroupButton {
                         left: parent.left
                         right: parent.right
                     }
-                    font {
-                        pixelSize: Appearance.font.pixelSize.smaller
-                        weight: 600
-                    }
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                    font.bold: true
+                    font.variableAxes: ({ "wght": 600, "wdth": 100 })
                     color: root.colText
                     elide: Text.ElideRight
                     text: root.statusText

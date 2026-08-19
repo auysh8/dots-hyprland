@@ -13,7 +13,8 @@ Rectangle {
     radius: Appearance.rounding.normal
     color: Appearance.colors.colLayer1
     clip: true
-    implicitHeight: collapsed ? collapsedBottomWidgetGroupRow.implicitHeight : 350
+    property real collapsedHeight: 50
+    implicitHeight: collapsed ? root.collapsedHeight : 350
     property int selectedTab: Persistent.states.sidebar.bottomGroup.tab
     property int previousIndex: -1
     property bool collapsed: Persistent.states.sidebar.bottomGroup.collapsed
@@ -27,13 +28,13 @@ Rectangle {
         {
             "type": "todo",
             "name": Translation.tr("To Do"),
-            "icon": "done_outline",
+            "icon": "check_circle",
             "widget": "todo/TodoWidget.qml"
         },
         {
             "type": "timer",
             "name": Translation.tr("Timer"),
-            "icon": "schedule",
+            "icon": "timer",
             "widget": "pomodoro/PomodoroWidget.qml"
         },
     ]
@@ -65,32 +66,64 @@ Rectangle {
         opacity: root.collapsed ? 1 : 0
         scale: root.collapsed ? 1 : 0.85
         visible: opacity > 0
-        spacing: 15
+        anchors.fill: parent
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        spacing: 12
 
         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
 
-        CalendarHeaderButton {
-            Layout.margins: 10
-            Layout.rightMargin: 0
-            forceCircle: true
-            downAction: () => root.setCollapsed(false)
-            contentItem: MaterialSymbol {
-                text: "keyboard_arrow_up"
+        // Left: Calendar Icon + Date
+        RowLayout {
+            spacing: 10
+            Layout.alignment: Qt.AlignVCenter
+
+            MaterialSymbol {
+                text: "calendar_month"
                 iconSize: Appearance.font.pixelSize.larger
-                horizontalAlignment: Text.AlignHCenter
+                fill: 1
+                color: Appearance.colors.colPrimary
+            }
+
+            StyledText {
+                text: DateTime.collapsedCalendarFormat
+                font.pixelSize: Appearance.font.pixelSize.large
+                font.weight: Font.Medium
                 color: Appearance.colors.colOnLayer1
             }
         }
 
-        StyledText {
-            property int remainingTasks: Todo.list.filter(task => !task.done).length
-            Layout.margins: 10
-            Layout.leftMargin: 0
-            text: Translation.tr("%1   •   %2 tasks").arg(DateTime.collapsedCalendarFormat).arg(remainingTasks)
-            font.pixelSize: Appearance.font.pixelSize.large
-            color: Appearance.colors.colOnLayer1
+        Item {
+            Layout.fillWidth: true
         }
+
+        // Right: Tasks Pill
+        Rectangle {
+            property int remainingTasks: Todo.list.filter(task => !task.done).length
+            radius: 17
+            color: Appearance.colors.colLayer3
+            implicitHeight: 34
+            implicitWidth: taskText.implicitWidth + 24
+            Layout.alignment: Qt.AlignVCenter
+
+            StyledText {
+                id: taskText
+                anchors.centerIn: parent
+                text: Translation.tr("%1 tasks due").arg(parent.remainingTasks)
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.Medium
+                color: Appearance.colors.colOnLayer3
+            }
+        }
+    }
+
+    MouseArea {
+        id: collapsedClickArea
+        anchors.fill: parent
+        enabled: root.collapsed
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.setCollapsed(false)
     }
 
     RowLayout {
@@ -109,31 +142,7 @@ Rectangle {
             Layout.fillWidth: false
             Layout.leftMargin: 10
             Layout.topMargin: 10
-            implicitWidth: tabBar.implicitWidth
-
-            NavigationRailTabArray {
-                id: tabBar
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 5
-                currentIndex: root.selectedTab
-                expanded: false
-                Repeater {
-                    model: root.tabs
-                    NavigationRailButton {
-                        required property int index
-                        required property var modelData
-                        showToggledHighlight: false
-                        toggled: root.selectedTab == index
-                        buttonText: modelData.name
-                        buttonIcon: modelData.icon
-                        onPressed: {
-                            root.selectedTab = index;
-                            Persistent.states.sidebar.bottomGroup.tab = index;
-                        }
-                    }
-                }
-            }
+            implicitWidth: navRailContainer.implicitWidth
 
             CalendarHeaderButton {
                 anchors.left: parent.left
@@ -145,6 +154,38 @@ Rectangle {
                     iconSize: Appearance.font.pixelSize.larger
                     horizontalAlignment: Text.AlignHCenter
                     color: Appearance.colors.colOnLayer1
+                }
+            }
+
+            Rectangle {
+                id: navRailContainer
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                implicitWidth: tabBar.implicitWidth + 14
+                implicitHeight: tabBar.implicitHeight + 24
+                radius: implicitWidth / 2
+                color: Appearance.colors.colLayer2
+
+                NavigationRailTabArray {
+                    id: tabBar
+                    anchors.centerIn: parent
+                    currentIndex: root.selectedTab
+                    expanded: false
+                    Repeater {
+                        model: root.tabs
+                        NavigationRailButton {
+                            required property int index
+                            required property var modelData
+                            showToggledHighlight: false
+                            toggled: root.selectedTab == index
+                            buttonText: modelData.name
+                            buttonIcon: modelData.icon
+                            onPressed: {
+                                root.selectedTab = index;
+                                Persistent.states.sidebar.bottomGroup.tab = index;
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -280,37 +280,49 @@ Item {
     }
 
     component SystemButtonRow: Item {
-        implicitHeight: Math.max(uptimeContainer.implicitHeight, systemButtonsRow.implicitHeight)
+        implicitHeight: 40
 
+        // Left: Uptime Pill Capsule (40px height matching buttons)
         Rectangle {
             id: uptimeContainer
             anchors {
-                top: parent.top
-                bottom: parent.bottom
+                verticalCenter: parent.verticalCenter
                 left: parent.left
             }
-            color: "transparent"
+            height: 40
+            color: Appearance.colors.colLayer2
             radius: height / 2
-            implicitWidth: uptimeRow.implicitWidth + 24
-            implicitHeight: uptimeRow.implicitHeight + 8
+            border.width: 1
+            border.color: Appearance.colors.colLayer0Border
+            implicitWidth: uptimeRow.implicitWidth + 20
 
             Row {
                 id: uptimeRow
                 anchors.centerIn: parent
                 spacing: 8
-                CustomIcon {
-                    id: distroIcon
+
+                // Mint/Teal/Primary Circular Icon Badge
+                Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 25
-                    height: 25
-                    source: SystemInfo.distroIcon
-                    colorize: true
-                    color: Appearance.colors.colOnLayer0
+                    width: 26
+                    height: 26
+                    radius: 13
+                    color: Appearance.colors.colPrimaryContainer
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "timer"
+                        iconSize: 16
+                        fill: 1
+                        color: Appearance.colors.colOnPrimaryContainer
+                    }
                 }
+
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colOnLayer0
+                    font.weight: Font.Medium
+                    color: Appearance.colors.colOnLayer2
                     text: Translation.tr("Up %1").arg(DateTime.uptime)
                     textFormat: Text.MarkdownText
                 }
@@ -320,12 +332,15 @@ Item {
         ButtonGroup {
             id: systemButtonsRow
             anchors {
-                top: parent.top
-                bottom: parent.bottom
+                verticalCenter: parent.verticalCenter
                 right: parent.right
             }
+            height: 40
             color: "transparent"
-            padding: 4
+            spacing: 6
+            padding: 0
+            implicitWidth: (Config.options.sidebar.quickToggles.style === "android" ? 4 : 3) * 40 + ((Config.options.sidebar.quickToggles.style === "android" ? 4 : 3) - 1) * 6
+            width: implicitWidth
 
             QuickToggleButton {
                 toggled: root.editMode
@@ -355,8 +370,13 @@ Item {
                 StyledToolTip { text: Translation.tr("Settings") }
             }
             QuickToggleButton {
+                id: shutdownButton
                 toggled: false
                 buttonIcon: "power_settings_new"
+                colBackground: Appearance.colors.colLayer2
+                colBackgroundHover: Appearance.colors.colError
+                colBackgroundActive: Appearance.colors.colErrorContainer
+                colIcon: shutdownButton.hovered ? Appearance.colors.colOnError : Appearance.colors.colOnLayer1
                 onClicked: { GlobalStates.sessionOpen = true; }
                 StyledToolTip { text: Translation.tr("Session") }
             }

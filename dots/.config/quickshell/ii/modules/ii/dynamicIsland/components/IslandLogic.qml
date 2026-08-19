@@ -284,48 +284,29 @@ Connections {
     }
 
     // -------------------------------------------------------------------------
-    // Universal Mic Mute Watcher
+    // Universal Mic Mute Watcher (Pipewire native + Audio service)
     // -------------------------------------------------------------------------
-    property bool micMuted: false
-    property bool micFirstRun: true
+    property bool micMuted: Audio.source?.audio?.muted ?? false
+    property bool micInitialized: false
 
-    Process {
-        id: micCheck
-        command: ["sh", "-c", "LC_ALL=C pactl get-source-mute @DEFAULT_SOURCE@"]
-        running: true // Run once on startup
-        stdout: SplitParser {
-            onRead: (data) => {
-                var newMute = data.includes("yes");
-                if (root.micFirstRun) {
-                    root.micMuted = newMute;
-                    root.micFirstRun = false;
-                } else if (root.micMuted !== newMute) {
-                    root.micMuted = newMute;
-                    // Trigger Popup
-                    // Use 'bad' for suspended/muted states to trigger shake animation
-                    root.popupType = newMute ? "bad" : "good";
-                    root.popupTitle = "Microphone";
-                    root.popupMessage = newMute ? "Muted" : "Unmuted";
-                    root.popupCategory = "microphone"
-                    root.popupAction = newMute ? "muted" : "unmuted"
-                    root.hasPopup = true;
-                    popupTimer.restart();
-                }
-            }
+    Timer {
+        interval: 1500
+        running: true
+        onTriggered: {
+            root.micInitialized = true
         }
     }
 
-    Process {
-        id: micWatcher
-        command: ["sh", "-c", "LC_ALL=C pactl subscribe | grep --line-buffered 'source'"]
-        running: true
-        stdout: SplitParser {
-            onRead: (data) => {
-                // Debounce/Re-check status on any source event
-                micCheck.running = false
-                micCheck.running = true
-            }
-        }
+    onMicMutedChanged: {
+        if (!root.micInitialized) return;
+        var newMute = root.micMuted;
+        root.showPopup(
+            newMute ? "bad" : "good",
+            "Microphone",
+            newMute ? "Muted" : "Unmuted",
+            "microphone",
+            newMute ? "muted" : "unmuted"
+        );
     }
 
     // -------------------------------------------------------------------------

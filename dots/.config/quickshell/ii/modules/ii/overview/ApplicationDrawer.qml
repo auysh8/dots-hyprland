@@ -79,7 +79,10 @@ FocusScope {
     enum FocusArea { Sidebar, Search, Grid }
     property int currentFocusArea: ApplicationDrawer.FocusArea.Search
 
-    onSearchTextChanged: updateFilteredApps()
+    onSearchTextChanged: {
+        updateFilteredApps();
+        if (appGrid) appGrid.contentY = 0;
+    }
     onCurrentCategoryChanged: updateFilteredApps()
     onSortModeChanged: updateFilteredApps()
     onColumnsChanged: recomputeAppPositions()
@@ -1032,13 +1035,13 @@ FocusScope {
                                 }
                             }
                         }
+                    }
 
-                        // Empty State Placeholder
-                        PagePlaceholder {
-                            shown: root.filteredAppsList.length === 0
-                            icon: "search_off"
-                            title: root.searchText.length > 0 ? Translation.tr("No applications match your search.") : Translation.tr("No applications found.")
-                        }
+                    // Empty State Placeholder
+                    PagePlaceholder {
+                        shown: root.filteredAppsList.length === 0
+                        icon: "search_off"
+                        title: root.searchText.length > 0 ? Translation.tr("No applications match your search.") : Translation.tr("No applications found.")
                     }
                 }
             }

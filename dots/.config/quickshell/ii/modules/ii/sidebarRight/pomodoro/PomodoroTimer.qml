@@ -30,42 +30,36 @@ Item {
 
             ColumnLayout {
                 anchors.centerIn: parent
-                spacing: 0
+                spacing: 6
 
                 StyledText {
                     Layout.alignment: Qt.AlignHCenter
+                    font.family: Appearance.font.family.monospace
+                    font.features: { "tnum": 1 }
                     text: {
                         let minutes = Math.floor(TimerService.pomodoroSecondsLeft / 60).toString().padStart(2, '0');
                         let seconds = Math.floor(TimerService.pomodoroSecondsLeft % 60).toString().padStart(2, '0');
                         return `${minutes}:${seconds}`;
                     }
-                    font.pixelSize: 40
+                    font.pixelSize: 42
                     color: Appearance.m3colors.m3onSurface
                 }
-                StyledText {
+
+                Rectangle {
                     Layout.alignment: Qt.AlignHCenter
-                    text: TimerService.pomodoroLongBreak ? Translation.tr("Long break") : TimerService.pomodoroBreak ? Translation.tr("Break") : Translation.tr("Focus")
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colSubtext
-                }
-            }
+                    radius: Appearance.rounding.full
+                    color: Appearance.colors.colLayer2
+                    implicitHeight: 26
+                    implicitWidth: cycleText.implicitWidth + 20
 
-            Rectangle {
-                radius: Appearance.rounding.full
-                color: Appearance.colors.colLayer2
-                
-                anchors {
-                    right: parent.right
-                    bottom: parent.bottom
-                }
-                implicitWidth: 36
-                implicitHeight: implicitWidth
-
-                StyledText {
-                    id: cycleText
-                    anchors.centerIn: parent
-                    color: Appearance.colors.colOnLayer2
-                    text: TimerService.pomodoroCycle + 1
+                    StyledText {
+                        id: cycleText
+                        anchors.centerIn: parent
+                        color: Appearance.colors.colOnLayer2
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.Medium
+                        text: Translation.tr("Session %1/%2").arg(TimerService.pomodoroCycle + 1).arg(TimerService.cyclesBeforeLongBreak)
+                    }
                 }
             }
         }

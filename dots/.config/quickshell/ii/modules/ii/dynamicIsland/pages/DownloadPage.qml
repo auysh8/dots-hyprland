@@ -152,6 +152,7 @@ Item {
                     anchors.centerIn: parent
                     text: "download"
                     iconSize: 32
+                    fill: 1
                     color: root.accentColor
                 }
 

@@ -20,14 +20,13 @@ Item {
             rightMargin: 16
         }
 
-        RowLayout { // Elapsed
+        ColumnLayout { // Elapsed
             id: elapsedIndicator
             
             anchors {
                 top: undefined
                 verticalCenter: parent.verticalCenter
-                left: controlButtons.left
-                leftMargin: 6
+                horizontalCenter: parent.horizontalCenter
             }
 
             states: State {
@@ -37,7 +36,7 @@ Item {
                     target: elapsedIndicator
                     anchors.top: parent.top
                     anchors.verticalCenter: undefined
-                    anchors.left: controlButtons.left
+                    anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
 
@@ -49,24 +48,64 @@ Item {
                 }
             }
 
-            spacing: 0
-            StyledText {
-                // Layout.preferredWidth: elapsedIndicator.width * 0.6 // Prevent shakiness
-                font.pixelSize: 40
-                color: Appearance.m3colors.m3onSurface
-                text: {
-                    let totalSeconds = Math.floor(TimerService.stopwatchTime) / 100
-                    let minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0')
-                    let seconds = Math.floor(totalSeconds % 60).toString().padStart(2, '0')
-                    return `${minutes}:${seconds}`
+            spacing: 8
+
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 0
+
+                StyledText {
+                    font.family: Appearance.font.family.monospace
+                    font.features: { "tnum": 1 }
+                    font.pixelSize: 44
+                    font.weight: Font.Bold
+                    color: Appearance.colors.colPrimary
+                    text: {
+                        let totalSeconds = Math.floor(TimerService.stopwatchTime) / 100
+                        let minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0')
+                        let seconds = Math.floor(totalSeconds % 60).toString().padStart(2, '0')
+                        return `${minutes}:${seconds}`
+                    }
+                }
+
+                StyledText {
+                    font.family: Appearance.font.family.monospace
+                    font.features: { "tnum": 1 }
+                    font.pixelSize: 26
+                    font.weight: Font.Medium
+                    color: Appearance.colors.colSubtext
+                    Layout.alignment: Qt.AlignBaseline
+                    text: {
+                        return `.${(Math.floor(TimerService.stopwatchTime) % 100).toString().padStart(2, '0')}`
+                    }
                 }
             }
-            StyledText {
-                Layout.fillWidth: true
-                font.pixelSize: 40
-                color: Appearance.colors.colSubtext
-                text: {
-                    return `:<sub>${(Math.floor(TimerService.stopwatchTime) % 100).toString().padStart(2, '0')}</sub>`
+
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                implicitHeight: 24
+                implicitWidth: statusRow.implicitWidth + 20
+                radius: 12
+                color: Appearance.colors.colSecondaryContainer
+
+                RowLayout {
+                    id: statusRow
+                    anchors.centerIn: parent
+                    spacing: 6
+
+                    MaterialSymbol {
+                        text: "flag"
+                        iconSize: 14
+                        fill: 1
+                        color: Appearance.colors.colOnSecondaryContainer
+                    }
+
+                    StyledText {
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Medium
+                        color: Appearance.colors.colOnSecondaryContainer
+                        text: TimerService.stopwatchRunning ? Translation.tr("Running") : TimerService.stopwatchTime === 0 ? Translation.tr("Ready") : Translation.tr("Paused")
+                    }
                 }
             }
         }

@@ -27,6 +27,7 @@ FocusScope {
             text: parent.symbol
             iconSize: 18
             color: parent.tint
+            fill: 1
         }
     }
     
@@ -54,10 +55,10 @@ FocusScope {
     readonly property int m3DurationMedium: 300
     readonly property int m3DurationSlow: 500
     
-    // Colors for stats - Using shell accent colors
+    // Colors for stats - Using dynamic shell theme tokens
     property color cpuColor: Appearance.colors.colPrimary
-    property color ramColor: Appearance.colors.colPrimary
-    property color networkColor: Appearance.colors.colPrimary
+    property color ramColor: Appearance.colors.colSecondary
+    property color networkColor: Appearance.colors.colTertiary
     
     // Process data
     property var processes: []
@@ -178,37 +179,54 @@ FocusScope {
                 visible: !root.isAppMode
                 Layout.fillWidth: true
                 Layout.fillHeight: false
-                implicitHeight: Math.max(titleText.implicitHeight, windowControlsRow.implicitHeight)
-                StyledText {
-                    id: titleText
+                implicitHeight: Math.max(titleRow.implicitHeight, windowControlsRow.implicitHeight)
+                
+                RowLayout {
+                    id: titleRow
                     anchors {
-                        left: Config.options?.windows?.centerTitle ? undefined : parent.left
-                        horizontalCenter: Config.options?.windows?.centerTitle ? parent.horizontalCenter : undefined
+                        left: parent.left
                         verticalCenter: parent.verticalCenter
-                        leftMargin: 12
                     }
-                    color: Appearance.colors.colOnLayer0
-                    text: Translation.tr("System Monitor")
-                    font {
-                        family: Appearance.font.family.title
-                        pixelSize: Appearance.font.pixelSize.title
-                        variableAxes: Appearance.font.variableAxes.title
+                    spacing: 10
+
+                    MaterialSymbol {
+                        text: "query_stats"
+                        iconSize: 22
+                        color: root.cpuColor
+                        fill: 1
+                    }
+
+                    StyledText {
+                        id: titleText
+                        color: Appearance.colors.colOnLayer0
+                        text: Translation.tr("System Monitor")
+                        font {
+                            family: Appearance.font.family.title
+                            pixelSize: 18
+                            weight: Font.Bold
+                            variableAxes: Appearance.font.variableAxes.title
+                        }
                     }
                 }
+
                 RowLayout { // Window controls row
                     id: windowControlsRow
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.right: parent.right
                     RippleButton {
                         buttonRadius: Appearance.rounding.full
-                        implicitWidth: 35
-                        implicitHeight: 35
+                        implicitWidth: 32
+                        implicitHeight: 32
+                        colBackground: Appearance.colors.colLayer2
+                        colBackgroundHover: Appearance.colors.colLayer2Hover
                         onClicked: root.closeRequested()
                         contentItem: MaterialSymbol {
                             anchors.centerIn: parent
                             horizontalAlignment: Text.AlignHCenter
                             text: "close"
-                            iconSize: 20
+                            iconSize: 18
+                            color: root.textColor
+                            fill: 1
                         }
                     }
                 }
@@ -219,67 +237,68 @@ FocusScope {
                 Layout.fillWidth: true
                 spacing: 16
                 
-                                                // CPU Card
-                                                RippleButton {
-                                                    id: cpuCard
-                                                    Layout.fillWidth: true
-                                                    Layout.preferredWidth: 1
-                                                    Layout.minimumWidth: 0
-                                                    Layout.preferredHeight: 140
-                                                    buttonRadius: 16
-                                                    colBackground: root.cardColor
-                                                    colBackgroundHover: root.cardColorHover
-                                                    rippleEnabled: false
-                                                    pointingHandCursor: false
-                                
-                                                    contentItem: ColumnLayout {
-                                                        anchors.fill: parent
-                                                        anchors.leftMargin: 20
-                                                        anchors.rightMargin: 20
-                                                        anchors.topMargin: 18
-                                                        anchors.bottomMargin: 24
-                                                        spacing: 12
-                                
-                                                        RowLayout {
-                                                            spacing: 10
-                                
-                                                            StatIconBadge {
-                                                                symbol: "memory"
-                                                                tint: root.cpuColor
-                                                            }
-                                
-                                                            StyledText {
-                                                                text: "CPU"
-                                                                font.pixelSize: 15
-                                                                font.weight: Font.Medium
-                                                                color: root.textColor
-                                                            }
-                                
-                                                            Item { Layout.fillWidth: true }
-                                
-                                                            StyledText {
-                                                                text: Math.round(ResourceUsage.cpuUsage * 100) + "%"
-                                                                font.pixelSize: 28
-                                                                font.weight: Font.Bold
-                                                                color: root.cpuColor
-                                                            }
-                                                        }
-                                
-                                                        // CPU Graph
-                                                        Item {
-                                                            Layout.fillWidth: true
-                                                            Layout.fillHeight: true
-                                
-                                                            Graph {
-                                                                anchors.fill: parent
-                                                                values: ResourceUsage.cpuUsageHistory
-                                                                color: root.cpuColor
-                                                                fillOpacity: 0.3
-                                                                alignment: Graph.Alignment.Right
-                                                            }
-                                                        }
-                                                    }
-                                                }                
+                // CPU Card
+                RippleButton {
+                    id: cpuCard
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    Layout.minimumWidth: 0
+                    Layout.preferredHeight: 140
+                    buttonRadius: 16
+                    colBackground: root.cardColor
+                    colBackgroundHover: root.cardColorHover
+                    rippleEnabled: false
+                    pointingHandCursor: false
+
+                    contentItem: ColumnLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 20
+                        anchors.rightMargin: 20
+                        anchors.topMargin: 18
+                        anchors.bottomMargin: 16
+                        spacing: 8
+
+                        RowLayout {
+                            spacing: 10
+
+                            StatIconBadge {
+                                symbol: "developer_board"
+                                tint: root.cpuColor
+                            }
+
+                            StyledText {
+                                text: "CPU"
+                                font.pixelSize: 15
+                                font.weight: Font.Medium
+                                color: root.textColor
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            StyledText {
+                                text: Math.round(ResourceUsage.cpuUsage * 100) + "%"
+                                font.pixelSize: 28
+                                font.weight: Font.Bold
+                                color: root.cpuColor
+                            }
+                        }
+
+                        // CPU Graph
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            Graph {
+                                anchors.fill: parent
+                                values: ResourceUsage.cpuUsageHistory
+                                color: root.cpuColor
+                                fillOpacity: 0.15
+                                alignment: Graph.Alignment.Right
+                            }
+                        }
+                    }
+                }
+
                 // RAM Card
                 RippleButton {
                     id: ramCard
@@ -298,14 +317,14 @@ FocusScope {
                         anchors.leftMargin: 20
                         anchors.rightMargin: 20
                         anchors.topMargin: 18
-                        anchors.bottomMargin: 24
+                        anchors.bottomMargin: 16
                         spacing: 12
                         
                         RowLayout {
                             spacing: 10
                             
                             StatIconBadge {
-                                symbol: "memory_alt"
+                                symbol: "memory"
                                 tint: root.ramColor
                             }
                             
@@ -328,22 +347,7 @@ FocusScope {
                         
                         Item { Layout.fillHeight: true }
                         
-                        // RAM Info
-                        RowLayout {
-                            spacing: 16
-                            StyledText {
-                                text: (ResourceUsage.memoryUsed / (1024 * 1024)).toFixed(1) + " GB Used"
-                                font.pixelSize: 13
-                                color: root.textSecondary
-                            }
-                            StyledText {
-                                text: (ResourceUsage.memoryTotal / (1024 * 1024)).toFixed(1) + " GB Total"
-                                font.pixelSize: 13
-                                color: root.textSecondary
-                            }
-                        }
-                        
-                        // Progress bar
+                        // Progress bar (above labels matching reference)
                         StyledProgressBar {
                             Layout.fillWidth: true
                             valueBarHeight: 8
@@ -353,6 +357,21 @@ FocusScope {
                             trackColor: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.1)
                         }
 
+                        // RAM Info (below progress bar matching reference)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            StyledText {
+                                text: (ResourceUsage.memoryUsed / (1024 * 1024)).toFixed(1) + " GB Used"
+                                font.pixelSize: 12
+                                color: root.textSecondary
+                            }
+                            Item { Layout.fillWidth: true }
+                            StyledText {
+                                text: (ResourceUsage.memoryTotal / (1024 * 1024)).toFixed(1) + " GB Total"
+                                font.pixelSize: 12
+                                color: root.textSecondary
+                            }
+                        }
                     }
                 }
                 
@@ -374,14 +393,14 @@ FocusScope {
                         anchors.leftMargin: 20
                         anchors.rightMargin: 20
                         anchors.topMargin: 18
-                        anchors.bottomMargin: 24
-                        spacing: 16
+                        anchors.bottomMargin: 16
+                        spacing: 12
                         
                         RowLayout {
                             spacing: 10
                             
                             StatIconBadge {
-                                symbol: "language"
+                                symbol: "public"
                                 tint: root.networkColor
                             }
                             
@@ -395,81 +414,96 @@ FocusScope {
                         
                         Item { Layout.fillHeight: true }
                         
-                        // Network speeds
-                        RowLayout {
-                            spacing: 32
-                            
-                            Column {
-                                spacing: 4
+                        // Network speeds container
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 52
+                            radius: 10
+                            color: Appearance.colors.colLayer3
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 14
+                                spacing: 16
                                 
-                                RowLayout {
-                                    spacing: 6
-                                    MaterialSymbol {
-                                        text: "download"
-                                        iconSize: 14
-                                        color: root.networkColor
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    
+                                    RowLayout {
+                                        spacing: 4
+                                        StyledText {
+                                            text: "↓"
+                                            font.pixelSize: 11
+                                            font.weight: Font.Bold
+                                            color: root.cpuColor
+                                        }
+                                        StyledText {
+                                            text: "DOWN"
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
+                                            color: root.cpuColor
+                                        }
                                     }
-                                    StyledText {
-                                        text: "DOWN"
-                                        font.pixelSize: 11
-                                        color: root.textSecondary
+                                    
+                                    Row {
+                                        spacing: 4
+                                        StyledText {
+                                            text: root.formatSpeed(ResourceUsage.networkDownloadSpeed).value
+                                            font.pixelSize: 15
+                                            font.weight: Font.Bold
+                                            color: root.textColor
+                                        }
+                                        StyledText {
+                                            text: root.formatSpeed(ResourceUsage.networkDownloadSpeed).unit
+                                            font.pixelSize: 12
+                                            color: root.textSecondary
+                                            anchors.bottom: parent.bottom
+                                            anchors.bottomMargin: 1
+                                        }
                                     }
                                 }
                                 
-                                Row {
-                                    spacing: 4
-                                    StyledText {
-                                        text: root.formatSpeed(ResourceUsage.networkDownloadSpeed).value
-                                        font.pixelSize: 22
-                                        font.weight: Font.Bold
-                                        color: root.networkColor
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    
+                                    RowLayout {
+                                        spacing: 4
+                                        StyledText {
+                                            text: "↑"
+                                            font.pixelSize: 11
+                                            font.weight: Font.Bold
+                                            color: root.ramColor
+                                        }
+                                        StyledText {
+                                            text: "UP"
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
+                                            color: root.ramColor
+                                        }
                                     }
-                                    StyledText {
-                                        text: root.formatSpeed(ResourceUsage.networkDownloadSpeed).unit
-                                        font.pixelSize: 12
-                                        color: root.textSecondary
-                                        anchors.bottom: parent.bottom
-                                        anchors.bottomMargin: 3
-                                    }
-                                }
-                            }
-                            
-                            Column {
-                                spacing: 4
-                                
-                                RowLayout {
-                                    spacing: 6
-                                    MaterialSymbol {
-                                        text: "upload"
-                                        iconSize: 14
-                                        color: root.networkColor
-                                    }
-                                    StyledText {
-                                        text: "UP"
-                                        font.pixelSize: 11
-                                        color: root.textSecondary
-                                    }
-                                }
-                                
-                                Row {
-                                    spacing: 4
-                                    StyledText {
-                                        text: root.formatSpeed(ResourceUsage.networkUploadSpeed).value
-                                        font.pixelSize: 22
-                                        font.weight: Font.Bold
-                                        color: root.networkColor
-                                    }
-                                    StyledText {
-                                        text: root.formatSpeed(ResourceUsage.networkUploadSpeed).unit
-                                        font.pixelSize: 12
-                                        color: root.textSecondary
-                                        anchors.bottom: parent.bottom
-                                        anchors.bottomMargin: 3
+                                    
+                                    Row {
+                                        spacing: 4
+                                        StyledText {
+                                            text: root.formatSpeed(ResourceUsage.networkUploadSpeed).value
+                                            font.pixelSize: 15
+                                            font.weight: Font.Bold
+                                            color: root.textColor
+                                        }
+                                        StyledText {
+                                            text: root.formatSpeed(ResourceUsage.networkUploadSpeed).unit
+                                            font.pixelSize: 12
+                                            color: root.textSecondary
+                                            anchors.bottom: parent.bottom
+                                            anchors.bottomMargin: 1
+                                        }
                                     }
                                 }
                             }
                         }
-
                     }
                 }
             }
@@ -502,6 +536,7 @@ FocusScope {
                             text: "search"
                             iconSize: 18
                             color: root.textSecondary
+                            fill: 1
                         }
                         
                         StyledTextInput {
@@ -544,84 +579,88 @@ FocusScope {
                                 text: "close"
                                 iconSize: 16
                                 color: root.textSecondary
+                                fill: 1
                             }
                         }
                     }
                 }
                 
                 Item { Layout.fillWidth: true }
-                
-                                                                                                                                // Sort buttons
-                                                                                                                                ButtonGroup {
-                                                                                                                                    spacing: 2
-                                                                                                                                    
-                                                                                                                                    Repeater {
-                                                                                                                                        model: [
-                                                                                                                                            { key: "cpu", label: "CPU", icon: "memory" },
-                                                                                                                                            { key: "mem", label: "RAM", icon: "memory_alt" },
-                                                                                                                                            { key: "name", label: "Name", icon: "sort_by_alpha" }
-                                                                                                                                        ]
-                                                                                                
-                                                                                                                                        SelectionGroupButton {
-                                                                                                                                            buttonText: modelData.label
-                                                                                                                                            buttonIcon: modelData.icon
-                                                                                                                                            toggled: root.sortBy === modelData.key
-                                                                                                                                            leftmost: index === 0
-                                                                                                                                            rightmost: index === 2
-                                                                                                
-                                                                                                                                            // Matching Settings module exactly
-                                                                                                                                            colBackground: Appearance.colors.colLayer2
-                                                                                                                                            colBackgroundHover: Appearance.colors.colLayer2Hover
-                                                                                                                                            colBackgroundActive: Appearance.colors.colLayer2Active
-                                                                                                                                            colBackgroundToggled: Appearance.colors.colPrimary
-                                                                                                                                            colBackgroundToggledHover: Appearance.colors.colPrimaryHover
-                                                                                                                                            colBackgroundToggledActive: Appearance.colors.colPrimaryActive
-                                                                                                
-                                                                                                                                            onClicked: root.sortBy = modelData.key
-                                                                                                                                        }
-                                                                                                                                    }
-                                                                                                                                }                                // Kill button
-                                RippleButton {
-                                    implicitWidth: 80
-                                    implicitHeight: 32
-                                    buttonRadius: 16
-                                    colBackground: root.selectedPid > 0 ? Appearance.colors.colError : root.cardColor
-                                    colBackgroundHover: root.selectedPid > 0 ? Appearance.colors.colError : root.cardColorHover
-                                    colRipple: root.textColor
-                                    opacity: root.selectedPid > 0 ? 1 : 0.5
-                                    enabled: root.selectedPid > 0
-                
-                                    onClicked: {
-                                        root.killProcess(root.selectedPid);
-                                        root.selectedPid = -1;
-                                    }
-                
-                                                                        contentItem: Item {
-                                                                            implicitWidth: killRow.implicitWidth
-                                                                            implicitHeight: Math.max(14, killText.implicitHeight)
+                // Sort buttons
+                ButtonGroup {
+                    spacing: 2
+                    
+                    Repeater {
+                        model: [
+                            { key: "cpu", label: "CPU", icon: "developer_board" },
+                            { key: "mem", label: "RAM", icon: "memory" },
+                            { key: "name", label: "Name", icon: "sort_by_alpha" }
+                        ]
 
-                                                                            RowLayout {
-                                                                                id: killRow
-                                                                                anchors.centerIn: parent
-                                                                                spacing: 6
+                        SelectionGroupButton {
+                            buttonText: modelData.label
+                            buttonIcon: modelData.icon
+                            toggled: root.sortBy === modelData.key
+                            leftmost: index === 0
+                            rightmost: index === 2
 
-                                                                                MaterialSymbol {
-                                                                                    Layout.alignment: Qt.AlignVCenter
-                                                                                    text: "block"
-                                                                                    iconSize: 14
-                                                                                    color: root.selectedPid > 0 ? Appearance.colors.colOnError : root.textSecondary
-                                                                                }
-                                                                                StyledText {
-                                                                                    id: killText
-                                                                                    Layout.alignment: Qt.AlignVCenter
-                                                                                    verticalAlignment: Text.AlignVCenter
-                                                                                    text: "Kill"
-                                                                                    font.pixelSize: 12
-                                                                                    font.weight: Font.Medium
-                                                                                    color: root.selectedPid > 0 ? Appearance.colors.colOnError : root.textSecondary
-                                                                                }
-                                                                            }
-                                                                        }                                }            }
+                            colBackground: Appearance.colors.colLayer2
+                            colBackgroundHover: Appearance.colors.colLayer2Hover
+                            colBackgroundActive: Appearance.colors.colLayer2Active
+                            colBackgroundToggled: Appearance.colors.colPrimary
+                            colBackgroundToggledHover: Appearance.colors.colPrimaryHover
+                            colBackgroundToggledActive: Appearance.colors.colPrimaryActive
+
+                            onClicked: root.sortBy = modelData.key
+                        }
+                    }
+                }
+
+                // Kill button
+                RippleButton {
+                    implicitWidth: 80
+                    implicitHeight: 32
+                    buttonRadius: 16
+                    colBackground: root.selectedPid > 0 ? Appearance.colors.colError : root.cardColor
+                    colBackgroundHover: root.selectedPid > 0 ? Appearance.colors.colErrorHover : root.cardColorHover
+                    colRipple: root.textColor
+                    opacity: root.selectedPid > 0 ? 1 : 0.5
+                    enabled: root.selectedPid > 0
+
+                    onClicked: {
+                        root.killProcess(root.selectedPid);
+                        root.selectedPid = -1;
+                    }
+
+                    contentItem: Item {
+                        implicitWidth: killRow.implicitWidth
+                        implicitHeight: Math.max(14, killText.implicitHeight)
+
+                        RowLayout {
+                            id: killRow
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            MaterialSymbol {
+                                Layout.alignment: Qt.AlignVCenter
+                                text: "block"
+                                iconSize: 14
+                                color: root.selectedPid > 0 ? Appearance.colors.colOnError : root.textSecondary
+                                fill: 1
+                            }
+                            StyledText {
+                                id: killText
+                                Layout.alignment: Qt.AlignVCenter
+                                verticalAlignment: Text.AlignVCenter
+                                text: "Kill"
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                color: root.selectedPid > 0 ? Appearance.colors.colOnError : root.textSecondary
+                            }
+                        }
+                    }
+                }
+            }
             
             Rectangle {
                 id: processPanel
@@ -663,7 +702,7 @@ FocusScope {
                             Layout.fillWidth: true
                             StyledText {
                                 anchors.fill: parent
-                                anchors.leftMargin: 34
+                                anchors.leftMargin: 38
                                 text: "NAME"
                                 font.pixelSize: 12
                                 font.weight: Font.Medium
@@ -719,7 +758,7 @@ FocusScope {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
-                        spacing: 0
+                        spacing: 2
                         reuseItems: false
                         animateAppearance: false
                         ScrollBar.vertical: StyledScrollBar {}
@@ -734,17 +773,17 @@ FocusScope {
                             required property double res_mb
                             required property string processIcon
 
-                            // Remove local redeclarations, we just use the required properties injected by ListModel directly.
-
                             width: processList.width
-                            implicitHeight: 48
+                            implicitHeight: 46
+                            buttonRadius: 23
                             buttonText: ""
                             colBackground: root.selectedPid === pid
-                                ? ColorUtils.applyAlpha(root.cpuColor, 0.12)
+                                ? Appearance.colors.colPrimaryContainer
                                 : "transparent"
                             colBackgroundHover: root.selectedPid === pid
-                                ? ColorUtils.applyAlpha(root.cpuColor, 0.16)
-                                : "transparent"
+                                ? Appearance.colors.colPrimaryContainerHover
+                                : ColorUtils.applyAlpha(Appearance.colors.colLayer1Hover, 0.5)
+                            colRipple: ColorUtils.applyAlpha(root.cpuColor, 0.2)
                             onClicked: root.selectedPid = (root.selectedPid === pid) ? -1 : pid
 
                             contentItem: RowLayout {
@@ -759,7 +798,9 @@ FocusScope {
                                         anchors.fill: parent
                                         text: pid
                                         font.pixelSize: 13
-                                        color: root.textSecondary
+                                        font.family: Appearance.font.family.monospace
+                                        font.features: { "tnum": 1 }
+                                        color: root.selectedPid === pid ? Appearance.colors.colPrimary : root.textSecondary
                                         horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
                                     }
@@ -771,24 +812,53 @@ FocusScope {
 
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 10
+                                    spacing: 12
 
                                     Rectangle {
-                                        width: 24
-                                        height: 24
-                                        radius: 4
-                                        color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.08)
+                                        width: 28
+                                        height: 28
+                                        radius: 14
+                                        color: {
+                                            if (root.selectedPid === pid) {
+                                                return ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colOnPrimaryContainer, 0.22);
+                                            }
+                                            if (processIcon.includes("browser") || processIcon.includes("firefox") || processIcon.includes("chrome") || command.includes("zen")) return Appearance.colors.colPrimaryContainer;
+                                            if (processIcon.includes("hyprland") || command.toLowerCase().includes("hyprland")) return Appearance.colors.colSecondaryContainer;
+                                            if (processIcon.includes("code") || command === "agy") return Appearance.colors.colPrimaryContainer;
+                                            if (processIcon === "quickshell" || command === "qs") return Appearance.colors.colTertiaryContainer;
+                                            if (processIcon === "terminal" || command === "nmcli" || command === "kitty" || command === "kitten") return ColorUtils.applyAlpha(Appearance.colors.colTertiary, 0.2);
+                                            if (processIcon === "system-run" || command.includes("kworker")) return ColorUtils.applyAlpha(Appearance.colors.colError, 0.2);
+                                            if (command.includes("wl-paste")) return ColorUtils.applyAlpha(Appearance.colors.colSecondary, 0.2);
+                                            return ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.08);
+                                        }
 
                                         MaterialSymbol {
                                             anchors.centerIn: parent
-                                            text: (processIcon === "application-x-python" || processIcon.includes("code")) ? "code" :
-                                                  (processIcon.includes("browser") || processIcon.includes("firefox") || processIcon.includes("chrome")) ? "language" :
-                                                  (processIcon.includes("hyprland")) ? "grid_view" :
-                                                  (processIcon === "system-run") ? "settings" :
-                                                  (processIcon === "quickshell") ? "layers" :
-                                                  "terminal"
-                                            iconSize: 14
-                                            color: root.textSecondary
+                                            text: {
+                                                if (processIcon.includes("browser") || processIcon.includes("firefox") || processIcon.includes("chrome") || command.includes("zen")) return "language";
+                                                if (processIcon.includes("hyprland") || command.toLowerCase().includes("hyprland")) return "grid_view";
+                                                if (processIcon.includes("code") || command === "agy") return "code";
+                                                if (processIcon === "quickshell" || command === "qs") return "diamond";
+                                                if (processIcon === "terminal" || command === "nmcli" || command === "kitty" || command === "kitten") return "terminal";
+                                                if (processIcon === "system-run" || command.includes("kworker")) return "settings";
+                                                if (command.includes("wl-paste")) return "content_paste";
+                                                return "terminal";
+                                            }
+                                            iconSize: 16
+                                            fill: 1
+                                            color: {
+                                                if (root.selectedPid === pid) {
+                                                    return Appearance.colors.colOnPrimary;
+                                                }
+                                                if (processIcon.includes("browser") || processIcon.includes("firefox") || processIcon.includes("chrome") || command.includes("zen")) return Appearance.colors.colOnPrimaryContainer;
+                                                if (processIcon.includes("hyprland") || command.toLowerCase().includes("hyprland")) return Appearance.colors.colOnSecondaryContainer;
+                                                if (processIcon.includes("code") || command === "agy") return Appearance.colors.colOnPrimaryContainer;
+                                                if (processIcon === "quickshell" || command === "qs") return Appearance.colors.colOnTertiaryContainer;
+                                                if (processIcon === "terminal" || command === "nmcli" || command === "kitty" || command === "kitten") return Appearance.colors.colTertiary;
+                                                if (processIcon === "system-run" || command.includes("kworker")) return Appearance.colors.colError;
+                                                if (command.includes("wl-paste")) return Appearance.colors.colSecondary;
+                                                return Appearance.colors.colOnLayer0;
+                                            }
                                         }
                                     }
 
@@ -796,31 +866,51 @@ FocusScope {
                                         Layout.fillWidth: true
                                         text: command
                                         font.pixelSize: 13
-                                        color: root.textColor
+                                        font.weight: root.selectedPid === pid ? Font.Bold : Font.Medium
+                                        color: root.selectedPid === pid ? Appearance.colors.colPrimary : root.textColor
                                         elide: Text.ElideRight
                                     }
                                 }
 
                                 Item {
                                     Layout.preferredWidth: root.metricColumnWidth
-                                    StyledText {
-                                        anchors.fill: parent
-                                        text: cpu.toFixed(1)
-                                        font.pixelSize: 13
-                                        font.weight: cpu > 20 ? Font.Bold : Font.Normal
-                                        color: cpu > 50 ? Appearance.colors.colError : (cpu > 20 ? root.ramColor : root.textColor)
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
+                                    Layout.fillHeight: true
+
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        implicitHeight: 24
+                                        implicitWidth: 64
+                                        radius: 12
+                                        color: root.selectedPid === pid
+                                            ? ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colOnPrimaryContainer, 0.22)
+                                            : (cpu > 20 ? Appearance.colors.colPrimaryContainer : Appearance.colors.colLayer3)
+
+                                        StyledText {
+                                            anchors.centerIn: parent
+                                            text: cpu.toFixed(1) + "%"
+                                            font.pixelSize: 12
+                                            font.weight: Font.Bold
+                                            font.family: Appearance.font.family.monospace
+                                            font.features: { "tnum": 1 }
+                                            color: root.selectedPid === pid
+                                                ? Appearance.colors.colOnPrimary
+                                                : ((cpu > 0 || cpu > 20) ? Appearance.colors.colPrimary : root.textSecondary)
+                                        }
                                     }
                                 }
 
                                 Item {
                                     Layout.preferredWidth: root.metricColumnWidth
+                                    Layout.fillHeight: true
+
                                     StyledText {
                                         anchors.fill: parent
-                                        text: res_mb ? res_mb.toFixed(0) : "0"
+                                        text: res_mb ? Math.round(res_mb) + " MB" : "0 MB"
                                         font.pixelSize: 13
-                                        color: root.textColor
+                                        font.weight: Font.Medium
+                                        font.family: Appearance.font.family.monospace
+                                        font.features: { "tnum": 1 }
+                                        color: root.selectedPid === pid ? Appearance.colors.colPrimary : root.textColor
                                         horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
                                     }
@@ -828,17 +918,19 @@ FocusScope {
 
                                 Item {
                                     Layout.preferredWidth: root.userColumnWidth
+                                    Layout.fillHeight: true
+
                                     StyledText {
                                         anchors.fill: parent
                                         text: user
                                         font.pixelSize: 13
-                                        color: root.textSecondary
+                                        font.weight: Font.Medium
+                                        color: root.selectedPid === pid ? Appearance.colors.colPrimary : root.textSecondary
                                         horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
                                     }
                                 }
                             }
-
                         }
                     }
 
@@ -846,25 +938,38 @@ FocusScope {
                     RowLayout {
                         Layout.fillWidth: true
 
-                        StyledText {
-                            text: "Showing " + root.getFilteredProcesses().length + " processes"
-                            font.pixelSize: 12
-                            color: root.textSecondary
+                        // Left Pill: Showing X processes
+                        Rectangle {
+                            implicitHeight: 26
+                            implicitWidth: processCountText.implicitWidth + 24
+                            radius: 13
+                            color: Appearance.colors.colLayer3
+
+                            StyledText {
+                                id: processCountText
+                                anchors.centerIn: parent
+                                text: "Showing " + root.getFilteredProcesses().length + " processes"
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                color: root.textSecondary
+                            }
                         }
 
                         Item { Layout.fillWidth: true }
 
-                        RowLayout {
-                            spacing: 6
-
-                            Circle {
-                                diameter: 8
-                                color: root.ramColor
-                            }
+                        // Right Pill: Refreshes every 2s
+                        Rectangle {
+                            implicitHeight: 26
+                            implicitWidth: refreshRateText.implicitWidth + 24
+                            radius: 13
+                            color: Appearance.colors.colLayer3
 
                             StyledText {
+                                id: refreshRateText
+                                anchors.centerIn: parent
                                 text: "Refreshes every 2s"
                                 font.pixelSize: 12
+                                font.weight: Font.Medium
                                 color: root.textSecondary
                             }
                         }

@@ -12,8 +12,7 @@ Item {
     required property var taskList
     property string emptyPlaceholderIcon
     property string emptyPlaceholderText
-    property int todoListItemSpacing: 5
-    property int todoListItemPadding: 8
+    property int todoListItemSpacing: 8
     property int listBottomPadding: 80
 
     StyledListView {
@@ -27,13 +26,25 @@ Item {
         delegate: Item {
             id: todoItem
             required property var modelData
-            property bool pendingDoneToggle: false
+            property bool isVisualDone: modelData.done
             property bool pendingDelete: false
             property bool enableHeightAnimation: false
 
             implicitHeight: todoItemRectangle.implicitHeight
             width: ListView.view.width
             clip: true
+
+            Timer {
+                id: toggleDelayTimer
+                interval: 350
+                repeat: false
+                onTriggered: {
+                    if (!todoItem.modelData.done)
+                        Todo.markDone(todoItem.modelData.originalIndex);
+                    else
+                        Todo.markUnfinished(todoItem.modelData.originalIndex);
+                }
+            }
 
             Behavior on implicitHeight {
                 enabled: enableHeightAnimation
@@ -49,58 +60,136 @@ Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                implicitHeight: todoContentRowLayout.implicitHeight
+                implicitHeight: todoCardLayout.implicitHeight + 20
                 color: Appearance.colors.colLayer2
-                radius: Appearance.rounding.small
+                radius: Appearance.rounding.normal
 
-                ColumnLayout {
-                    id: todoContentRowLayout
-                    anchors.left: parent.left
-                    anchors.right: parent.right
+                RowLayout {
+                    id: todoCardLayout
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    anchors.topMargin: 10
+                    anchors.bottomMargin: 10
+                    spacing: 12
 
+                    // Left Checkbox Button
+                    Rectangle {
+                        id: checkContainer
+                        Layout.alignment: Qt.AlignVCenter
+                        width: 32
+                        height: 32
+                        radius: 16
+                        color: checkMouseArea.containsMouse 
+                            ? ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.15) 
+                            : "transparent"
+                        scale: checkMouseArea.containsMouse ? 1.08 : 1.0
+
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+                        Behavior on scale {
+                            NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                        }
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 18
+                            height: 18
+                            radius: 4
+                            scale: checkMouseArea.pressed ? 0.88 : 1.0
+                            color: todoItem.isVisualDone 
+                                ? Appearance.colors.colPrimary 
+                                : "transparent"
+                            border.width: todoItem.isVisualDone ? 0 : 2
+                            border.color: todoItem.isVisualDone 
+                                ? Appearance.colors.colPrimary 
+                                : (checkMouseArea.containsMouse ? Appearance.colors.colPrimary : Appearance.colors.colSubtext)
+
+                            Behavior on color {
+                                ColorAnimation { duration: 150 }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation { duration: 150 }
+                            }
+                            Behavior on scale {
+                                NumberAnimation { duration: 100 }
+                            }
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                visible: todoItem.isVisualDone
+                                text: "check"
+                                iconSize: 14
+                                fill: 1
+                                color: Appearance.colors.colOnPrimary
+                            }
+                        }
+
+                        MouseArea {
+                            id: checkMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (toggleDelayTimer.running) return;
+                                todoItem.isVisualDone = !todoItem.isVisualDone;
+                                toggleDelayTimer.start();
+                            }
+                        }
+                    }
+
+                    // Task Content Text
                     StyledText {
                         id: todoContentText
-                        Layout.fillWidth: true // Needed for wrapping
-                        Layout.leftMargin: 10
-                        Layout.rightMargin: 10
-                        Layout.topMargin: todoListItemPadding
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
                         text: todoItem.modelData.content
                         wrapMode: Text.Wrap
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: Font.Medium
+                        font.strikeout: todoItem.isVisualDone
+                        color: todoItem.isVisualDone 
+                            ? Appearance.colors.colSubtext 
+                            : Appearance.colors.colOnLayer0
+
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
                     }
-                    RowLayout {
-                        Layout.leftMargin: 10
-                        Layout.rightMargin: 10
-                        Layout.bottomMargin: todoListItemPadding
-                        Item {
-                            Layout.fillWidth: true
+
+                    // Right Delete Action
+                    Rectangle {
+                        id: deleteContainer
+                        Layout.alignment: Qt.AlignVCenter
+                        width: 30
+                        height: 30
+                        radius: 15
+                        color: deleteMouseArea.containsMouse 
+                            ? ColorUtils.applyAlpha(Appearance.colors.colError, 0.15) 
+                            : "transparent"
+
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
                         }
-                        TodoItemActionButton {
-                            Layout.fillWidth: false
-                            onClicked: {
-                                if (!todoItem.modelData.done)
-                                    Todo.markDone(todoItem.modelData.originalIndex);
-                                else
-                                    Todo.markUnfinished(todoItem.modelData.originalIndex);
-                            }
-                            contentItem: MaterialSymbol {
-                                anchors.centerIn: parent
-                                horizontalAlignment: Text.AlignHCenter
-                                text: todoItem.modelData.done ? "remove_done" : "check"
-                                iconSize: Appearance.font.pixelSize.larger
-                                color: Appearance.colors.colOnLayer1
-                            }
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "delete"
+                            iconSize: 18
+                            fill: 1
+                            color: deleteMouseArea.containsMouse 
+                                ? Appearance.colors.colError 
+                                : Appearance.colors.colSubtext
                         }
-                        TodoItemActionButton {
-                            Layout.fillWidth: false
+
+                        MouseArea {
+                            id: deleteMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 Todo.deleteItem(todoItem.modelData.originalIndex);
-                            }
-                            contentItem: MaterialSymbol {
-                                anchors.centerIn: parent
-                                horizontalAlignment: Text.AlignHCenter
-                                text: "delete_forever"
-                                iconSize: Appearance.font.pixelSize.larger
-                                color: Appearance.colors.colOnLayer1
                             }
                         }
                     }
@@ -121,18 +210,29 @@ Item {
 
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: 5
+            spacing: 12
 
-            MaterialSymbol {
+            Rectangle {
                 Layout.alignment: Qt.AlignHCenter
-                iconSize: 55
-                color: Appearance.m3colors.m3outline
-                text: emptyPlaceholderIcon
+                width: 64
+                height: 64
+                radius: 32
+                color: Appearance.colors.colPrimaryContainer
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    iconSize: 30
+                    fill: 1
+                    color: Appearance.colors.colOnPrimaryContainer
+                    text: emptyPlaceholderIcon
+                }
             }
+
             StyledText {
                 Layout.alignment: Qt.AlignHCenter
                 font.pixelSize: Appearance.font.pixelSize.normal
-                color: Appearance.m3colors.m3outline
+                font.weight: Font.Medium
+                color: Appearance.colors.colOnLayer0
                 horizontalAlignment: Text.AlignHCenter
                 text: emptyPlaceholderText
             }

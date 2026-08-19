@@ -694,6 +694,7 @@ Scope {
                                         visible: TimerService.stopwatchRunning && !(TimerService.pomodoroRunning || (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration && TimerService.pomodoroSecondsLeft > 0))
                                         text: "timer"
                                         iconSize: 18
+                                        fill: 1
                                         color: Appearance.colors.colPrimary
                                     }
 
@@ -753,6 +754,7 @@ Scope {
                                     MaterialSymbol {
                                         text: "download"
                                         iconSize: 16
+                                        fill: 1
                                         color: Appearance.colors.colPrimary
                                     }
 
@@ -784,6 +786,7 @@ Scope {
                                             visible: !MprisController.isPlaying
                                             text: "music_note"
                                             iconSize: 18
+                                            fill: 1
                                             color: Appearance.colors.colOnLayer0
                                             opacity: 0.6
                                         }

@@ -32,6 +32,7 @@ GroupButton {
                 visible: buttonIcon !== ""
                 text: buttonIcon
                 iconSize: Appearance.font.pixelSize.huge
+                fill: 1
                 color: button.colText
             }
             StyledText {
