@@ -104,6 +104,7 @@ Item { // Bar content region
             id: middleCenterGroup
             vertical: true
             padding: 6
+            glowing: workspacesWidget.dragOver
 
             Bar.Workspaces {
                 id: workspacesWidget

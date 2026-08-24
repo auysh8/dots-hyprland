@@ -29,6 +29,26 @@ ShellRoot {
     NotesWindow {}
     KDEDrawer {}
 
+    // Shake-to-locate cursor helper: runs only while enabled, and resets the
+    // cursor zoom if it's killed mid-magnify.
+    Process {
+        id: cursorShakeProc
+        property bool wanted: Config.ready && Config.options.cursor && Config.options.cursor.shakeMode !== "off"
+        command: [
+            Quickshell.env("HOME") + "/.config/quickshell/ii/scripts/cursor/shake-zoom",
+            Config.options.cursor ? Config.options.cursor.shakeMode : "off",
+            String(Config.options.cursor ? Config.options.cursor.shakeZoomFactor : 2.0),
+            String(Config.options.cursor ? Config.options.cursor.shakeGrowFactor : 2.5)
+        ]
+
+        onWantedChanged: if (wanted !== running) running = wanted
+        Component.onCompleted: running = wanted
+        onCommandChanged: if (running) {
+            running = false
+            Qt.callLater(() => running = wanted)
+        }
+    }
+
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
         Hyprsunset.load()

@@ -46,6 +46,19 @@ Item {
 
     property int draggingFromWorkspace: -1
     property int draggingTargetWorkspace: -1
+    property int appDragHoverWorkspace: -1
+
+    // Returns the 1-indexed workspace number at the given scene coordinates, or -1 if none.
+    function workspaceAtScenePoint(sceneX, sceneY) {
+        const lp = workspaceColumnLayout.mapFromItem(null, sceneX, sceneY);
+        const cellW = root.workspaceImplicitWidth + workspaceSpacing;
+        const cellH = root.workspaceImplicitHeight + workspaceSpacing;
+        const col = Math.floor(lp.x / cellW);
+        const row = Math.floor(lp.y / cellH);
+        if (col < 0 || col >= Config.options.overview.columns) return -1;
+        if (row < 0 || row >= Config.options.overview.rows) return -1;
+        return root.workspaceGroup * root.workspacesShown + getWsInCell(row, col);
+    }
 
     implicitWidth: overviewBackground.implicitWidth + Appearance.sizes.elevationMargin * 2
     implicitHeight: overviewBackground.implicitHeight + Appearance.sizes.elevationMargin * 2
@@ -107,7 +120,7 @@ Item {
                             property color defaultWorkspaceColor: Appearance.colors.colLayer1
                             property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.2)
                             property color hoveredBorderColor: Appearance.colors.colLayer2Hover
-                            property bool hoveredWhileDragging: false
+                            property bool hoveredWhileDragging: (workspace.workspaceValue === root.draggingTargetWorkspace || workspace.workspaceValue === root.appDragHoverWorkspace)
 
                             implicitWidth: root.workspaceImplicitWidth
                             implicitHeight: root.workspaceImplicitHeight
@@ -153,10 +166,13 @@ Item {
 
                             DropArea {
                                 anchors.fill: parent
-                                onEntered: {
+                                onEntered: (drag) => {
                                     root.draggingTargetWorkspace = workspace.workspaceValue
                                     if (root.draggingFromWorkspace == root.draggingTargetWorkspace) return;
                                     hoveredWhileDragging = true
+                                    if (root.draggingFromWorkspace === -1) {
+                                        Hyprland.dispatch(`hl.dsp.focus({ workspace = ${workspace.workspaceValue} })`)
+                                    }
                                 }
                                 onExited: {
                                     hoveredWhileDragging = false

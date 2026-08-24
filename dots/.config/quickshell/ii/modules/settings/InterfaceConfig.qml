@@ -837,6 +837,40 @@ ContentPage {
     }
 
     ContentSection {
+        icon: "mouse"
+        title: Translation.tr("Cursor")
+
+        ContentSubsection {
+            title: Translation.tr("Shake to locate")
+            tooltip: Translation.tr("Quickly shake the mouse pointer to temporarily enlarge or magnify it")
+
+            ConfigSelectionArray {
+                currentValue: Config.options.cursor ? Config.options.cursor.shakeMode : "off"
+                onSelected: newValue => {
+                    Config.options.cursor.shakeMode = newValue;
+                }
+                options: [
+                    {
+                        displayName: Translation.tr("Disabled"),
+                        icon: "close",
+                        value: "off"
+                    },
+                    {
+                        displayName: Translation.tr("Grow cursor"),
+                        icon: "zoom_out_map",
+                        value: "grow"
+                    },
+                    {
+                        displayName: Translation.tr("Magnifier"),
+                        icon: "zoom_in",
+                        value: "zoom"
+                    }
+                ]
+            }
+        }
+    }
+
+    ContentSection {
         icon: "text_format"
         title: Translation.tr("Fonts")
 

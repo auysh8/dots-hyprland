@@ -16,14 +16,183 @@ FocusScope {
     focus: true
     activeFocusOnTab: true
     signal closeRequested()
+    signal appDragStarted(var app, real sceneX, real sceneY)
+    signal appDragUpdate(real sceneX, real sceneY)
+    signal appDropped(var app, real sceneX, real sceneY)
+    signal appDragCancelled()
+
+    property bool dockedInOverview: false
+    property bool _isDraggingApp: false
     property bool expanded: false
     property string searchText: ""
     property string sortMode: "name" // "name", "recent"
     property string currentCategory: "All"
+
+    // --- Uninstaller State ---
+    property bool uninstallModalVisible: false
+    property var uninstallApp: null
+    property string uninstallPkg: ""
+    property string uninstallKind: "" // "native", "flatpak", "local"
+    property string uninstallInst: "user" // "user" or "system"
+    property string uninstallSize: ""
+    property bool uninstallBlocked: false
+    property string uninstallReason: ""
+    property bool uninstallBusy: false
+    property string uninstallStatus: ""
+
+    function startUninstall(app) {
+        if (!app) return;
+        root.uninstallApp = app;
+        root.uninstallPkg = "";
+        root.uninstallKind = "";
+        root.uninstallInst = "user";
+        root.uninstallSize = "";
+        root.uninstallBlocked = false;
+        root.uninstallReason = "";
+        root.uninstallBusy = true;
+        root.uninstallStatus = Translation.tr("Checking app…");
+        root.uninstallModalVisible = true;
+        
+        const did = root.getAppId(app) || "";
+        const name = app.name || "";
+        const fileName = (app.fileName && app.fileName.length > 0) ? app.fileName : "";
+        
+        resolveAppProc.fileName = fileName;
+        resolveAppProc.did = did;
+        resolveAppProc.appName = name;
+        resolveAppProc.command = [
+            "bash", "-c",
+            'ID="$1"; NAME="$2"; FILE="$3"; FOUND=""; ' +
+            'if [ -n "$FILE" ] && [ -f "$FILE" ]; then ' +
+            '  FOUND="$FILE"; ' +
+            'else ' +
+            '  for LOC in /usr/share/applications "$HOME/.local/share/applications" /var/lib/flatpak/exports/share/applications "$HOME/.local/share/flatpak/exports/share/applications"; do ' +
+            '    [ ! -d "$LOC" ] && continue; ' +
+            '    FOUND=$(find "$LOC" -maxdepth 1 -iname "${ID}.desktop" -print -quit 2>/dev/null); ' +
+            '    [ -z "$FOUND" ] && FOUND=$(find "$LOC" -maxdepth 1 -iname "${ID}" -print -quit 2>/dev/null); ' +
+            '    [ -z "$FOUND" ] && [ -n "$NAME" ] && FOUND=$(find "$LOC" -maxdepth 1 -iname "*${NAME// /*}*.desktop" -print -quit 2>/dev/null); ' +
+            '    [ -z "$FOUND" ] && FOUND=$(find "$LOC" -maxdepth 1 -iname "*${ID}*.desktop" -print -quit 2>/dev/null); ' +
+            '    [ -n "$FOUND" ] && break; ' +
+            '  done; ' +
+            'fi; ' +
+            'if [[ "$FOUND" == *"/flatpak/"* ]] || (command -v flatpak &>/dev/null && flatpak info "$ID" &>/dev/null); then ' +
+            '  INST="system"; [[ "$FOUND" == *"$HOME"* ]] && INST="user"; ' +
+            '  echo "KIND:flatpak"; echo "PKG:$ID"; echo "INST:$INST"; exit 0; ' +
+            'fi; ' +
+            'if [ -n "$FOUND" ] && [ -f "$FOUND" ]; then ' +
+            '  PKG=$(pacman -Qoq "$FOUND" 2>/dev/null || pacman -Qq "$ID" 2>/dev/null || echo ""); ' +
+            '  if [ -n "$PKG" ]; then ' +
+            '    echo "KIND:native"; echo "PKG:$PKG"; ' +
+            '    SIZE=$(pacman -Qi "$PKG" 2>/dev/null | awk -F\': *\' \'/^Installed Size/{print $2; exit}\'); ' +
+            '    echo "SIZE:$SIZE"; ' +
+            '    PREVIEW=$(app-remover preview "$PKG" 2>&1 || true); ' +
+            '    if echo "$PREVIEW" | grep -qE "ERROR:|protected"; then ' +
+            '      echo "BLOCKED:1"; echo "REASON:$(echo "$PREVIEW" | sed "s/.*ERROR: //")"; ' +
+            '    else ' +
+            '      echo "BLOCKED:0"; ' +
+            '    fi; ' +
+            '    exit 0; ' +
+            '  fi; ' +
+            '  echo "KIND:local"; echo "PKG:$FOUND"; exit 0; ' +
+            'fi; ' +
+            'PKG=$(pacman -Qq "$ID" 2>/dev/null || echo ""); ' +
+            'if [ -n "$PKG" ]; then ' +
+            '  echo "KIND:native"; echo "PKG:$PKG"; ' +
+            '  SIZE=$(pacman -Qi "$PKG" 2>/dev/null | awk -F\': *\' \'/^Installed Size/{print $2; exit}\'); ' +
+            '  echo "SIZE:$SIZE"; ' +
+            '  echo "BLOCKED:0"; exit 0; ' +
+            'fi; ' +
+            'echo "KIND:unknown"',
+            "_", did, name, fileName
+        ];
+        resolveAppProc.running = true;
+    }
+
+    function confirmUninstall() {
+        if (root.uninstallBlocked) return;
+        const targetPkg = root.uninstallPkg || root.getAppId(root.uninstallApp) || root.uninstallApp?.name;
+        if (!targetPkg) return;
+        const appName = root.uninstallApp?.name || targetPkg;
+        const did = root.getAppId(root.uninstallApp) || "";
+        
+        root.uninstallModalVisible = false;
+        GlobalStates.appDrawerOpen = false;
+        GlobalStates.overviewOpen = false;
+        
+        let cmd = "";
+        if (root.uninstallKind === "flatpak") {
+            cmd = (root.uninstallInst === "user")
+                ? `flatpak uninstall -y --noninteractive '${targetPkg}'`
+                : `pkexec flatpak uninstall -y --noninteractive '${targetPkg}'`;
+        } else if (root.uninstallKind === "native") {
+            cmd = `pkexec pacman -Rns --noconfirm '${targetPkg}'`;
+        } else {
+            if (targetPkg.endsWith(".desktop") || targetPkg.includes("/")) {
+                cmd = `rm -f '${targetPkg}'`;
+            } else {
+                cmd = `pkexec pacman -Rns --noconfirm '${targetPkg}'`;
+            }
+        }
+        
+        const cleanName = StringUtils.shellSingleQuoteEscape(appName);
+        const fullScript = `nice -n 10 bash -c "${cmd} && rm -f ~/.local/share/applications/'${did}.desktop' && update-desktop-database ~/.local/share/applications 2>/dev/null && echo 'success|Uninstall|${cleanName} was uninstalled|delete|success' >> /tmp/qs_popup.log || echo 'error|Uninstall|Failed to uninstall ${cleanName}|error|error' >> /tmp/qs_popup.log"`;
+        
+        Quickshell.execDetached(["bash", "-c", fullScript]);
+    }
+
+    Process {
+        id: resolveAppProc
+        property string fileName: ""
+        property string did: ""
+        property string appName: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = this.text.split("\n");
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith("KIND:")) root.uninstallKind = trimmed.slice(5);
+                    else if (trimmed.startsWith("PKG:")) root.uninstallPkg = trimmed.slice(4);
+                    else if (trimmed.startsWith("INST:")) root.uninstallInst = trimmed.slice(5);
+                    else if (trimmed.startsWith("SIZE:")) root.uninstallSize = trimmed.slice(5);
+                    else if (trimmed.startsWith("BLOCKED:")) root.uninstallBlocked = (trimmed.slice(8) === "1");
+                    else if (trimmed.startsWith("REASON:")) root.uninstallReason = trimmed.slice(7);
+                }
+                root.uninstallBusy = false;
+                root.uninstallStatus = "";
+            }
+        }
+        onExited: (code) => {
+            root.uninstallBusy = false;
+        }
+    }
+
+    Process {
+        id: execUninstallProc
+        property string appName: ""
+        property string did: ""
+        property string errBuf: ""
+        stderr: StdioCollector { onStreamFinished: execUninstallProc.errBuf = this.text }
+        onExited: (exitCode) => {
+            root.uninstallBusy = false;
+            if (exitCode === 0) {
+                if (execUninstallProc.did) {
+                    Quickshell.execDetached(["bash", "-c", "rm -f ~/.local/share/applications/'" + execUninstallProc.did + ".desktop'; update-desktop-database ~/.local/share/applications 2>/dev/null || true"]);
+                }
+                root.uninstallModalVisible = false;
+                const msg = execUninstallProc.appName + " " + Translation.tr("was uninstalled.");
+                const line = "success|Uninstall|" + msg + "|delete|success";
+                Quickshell.execDetached(["bash", "-c", "echo '" + StringUtils.shellSingleQuoteEscape(line) + "' >> /tmp/qs_popup.log"]);
+            } else if (exitCode === 126 || exitCode === 127) {
+                root.uninstallStatus = Translation.tr("Removal cancelled.");
+            } else {
+                root.uninstallStatus = Translation.tr("Couldn't remove ") + execUninstallProc.appName;
+            }
+        }
+    }
     
     // --- UI Configuration ---
-    property real iconSize: 56
-    property real spacing: 16
+    property real iconSize: root.dockedInOverview ? 48 : 56
+    property real spacing: root.dockedInOverview ? 12 : 16
     
     property color backgroundColor: Appearance.colors.colLayer0Base
     property color surfaceTint: Appearance.m3colors.m3primary
@@ -44,14 +213,17 @@ FocusScope {
     // Calculate columns (stable regardless of sidebar expanded/collapsed state)
     property int columns: {
         const totalWidth = root.width > 0 ? root.width : (availableWidth > 0 ? availableWidth : 1000);
-        // Base width for the grid assuming expanded sidebar (220px) + margins/paddings (~80px)
-        const baseGridWidth = totalWidth - 220 - 80;
-        const targetCellWidth = 110;
-        if (baseGridWidth > 0) {
-            const cols = Math.floor(baseGridWidth / targetCellWidth);
-            return Math.max(6, Math.min(10, cols));
+        if (root.dockedInOverview) {
+            const targetCellWidth = 110;
+            return Math.max(6, Math.min(12, Math.floor(totalWidth / targetCellWidth)));
+        } else {
+            const baseGridWidth = totalWidth - 220 - 64;
+            const targetCellWidth = 130;
+            if (baseGridWidth > 0) {
+                return Math.max(5, Math.min(8, Math.floor(baseGridWidth / targetCellWidth)));
+            }
+            return 6;
         }
-        return 7;
     }
 
     property var contextMenuApp: null
@@ -87,14 +259,23 @@ FocusScope {
     onSortModeChanged: updateFilteredApps()
     onColumnsChanged: recomputeAppPositions()
 
+    Timer {
+        id: appListDebounceTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            extractCategories();
+            updateFilteredApps();
+        }
+    }
+
     Component.onCompleted: {
         extractCategories();
         updateFilteredApps();
     }
     
     onAllAppsChanged: {
-        extractCategories();
-        updateFilteredApps();
+        appListDebounceTimer.restart();
     }
 
     function updateFilteredApps() {
@@ -107,7 +288,7 @@ FocusScope {
         const filtered = root.filteredAppsList;
         const cols = root.columns;
         const cellW = appGrid.width / cols;
-        const cellH = cellW * 1.18;
+        const cellH = root.dockedInOverview ? 105 : Math.max(120, cellW * 1.05);
         const newPos = {};
         for (let i = 0; i < filtered.length; i++) {
             const app = filtered[i];
@@ -119,7 +300,7 @@ FocusScope {
             newPos[key] = { x: x, y: y, width: cellW, height: cellH, index: i };
         }
         const totalRows = Math.ceil(filtered.length / cols);
-        root.totalGridContentHeight = totalRows * cellH + 32;
+        root.totalGridContentHeight = totalRows * cellH + (root.dockedInOverview ? 8 : 24);
         root.appPositions = newPos;
     }
     
@@ -263,7 +444,8 @@ FocusScope {
         }
     }
     
-    implicitHeight: root.expanded ? root.expandedHeight : root.collapsedHeight
+    implicitWidth: root.dockedInOverview ? width : 1000
+    implicitHeight: root.dockedInOverview ? 320 : (root.expanded ? root.expandedHeight : root.collapsedHeight)
 
     Behavior on implicitHeight {
         NumberAnimation {
@@ -347,10 +529,17 @@ FocusScope {
     
     function executeApp(app) {
         if (!app) return;
-        if (app.execute) {
+        if (typeof app.execute === "function") {
             app.execute();
-        } else {
-             console.warn("App has no execute method:", app.name);
+            return;
+        }
+        if (app.command && app.command.length > 0) {
+            Quickshell.execDetached(app.command);
+            return;
+        }
+        if (typeof app.exec === "string") {
+            Quickshell.execDetached(["bash", "-c", app.exec]);
+            return;
         }
     }
 
@@ -369,8 +558,9 @@ FocusScope {
 
             // --- Top Header ---
             Item {
+                visible: !root.dockedInOverview
                 Layout.fillWidth: true
-                Layout.preferredHeight: 32
+                Layout.preferredHeight: root.dockedInOverview ? 0 : 32
 
                 StyledText {
                     anchors.centerIn: parent
@@ -413,8 +603,9 @@ FocusScope {
             // --- Sidebar ---
             Item {
                 id: navRailWrapper
+                visible: !root.dockedInOverview
                 Layout.fillHeight: true
-                implicitWidth: categoryNavRail.expanded ? 220 : 80
+                implicitWidth: root.dockedInOverview ? 0 : (categoryNavRail.expanded ? 220 : 80)
 
                 Behavior on implicitWidth {
                     NumberAnimation {
@@ -699,17 +890,18 @@ FocusScope {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.leftMargin: 8
-                color: Appearance.colors.colLayer1
+                Layout.leftMargin: root.dockedInOverview ? 0 : 8
+                color: root.dockedInOverview ? "transparent" : Appearance.colors.colLayer1
                 radius: Appearance.rounding.large
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 20
+                    anchors.margins: root.dockedInOverview ? 4 : 16
+                    spacing: root.dockedInOverview ? 4 : 20
 
                     // Header & Search
                 RowLayout {
+                    visible: !root.dockedInOverview
                     Layout.fillWidth: true
                     
                     RowLayout {
@@ -839,8 +1031,9 @@ FocusScope {
                     StyledFlickable {
                         id: appGrid
                         anchors.fill: parent
-                        anchors.margins: 24
+                        anchors.margins: root.dockedInOverview ? 8 : 24
                         clip: true
+                        interactive: !root._isDraggingApp
 
                         ScrollBar.vertical: StyledScrollBar {}
 
@@ -943,54 +1136,103 @@ FocusScope {
                                         }
                                     }
 
-                                    RippleButton {
+                                    Item {
                                         id: appButton
                                         property bool isPinned: TaskbarApps.isPinned(root.getAppId(modelData))
                                         property bool isKeyboardSelected: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && pos && root.selectedGridIndex === pos.index
 
                                         anchors.centerIn: parent
-                                        width: parent.width - 12
-                                        height: parent.height - 12
-                                        buttonRadius: Appearance.rounding.verylarge
-                                        colBackground: Appearance.colors.colLayer1
-                                        colBackgroundHover: Appearance.colors.colLayer2
-                                        colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                                        colBackgroundToggledHover: ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colOnSecondaryContainer, 0.08)
-                                        colRippleToggled: ColorUtils.applyAlpha(Appearance.colors.colOnSecondaryContainer, 0.88)
-                                        toggled: isKeyboardSelected
+                                        width: root.dockedInOverview ? Math.min(parent.width - 6, 96) : (parent.width - 12)
+                                        height: root.dockedInOverview ? (parent.height - 6) : (parent.height - 12)
 
-                                        scale: hovered ? 1.06 : 1.0
-                                        y: hovered ? -3 : 0
+                                        scale: itemDragArea.containsMouse ? 1.05 : 1.0
+                                        y: itemDragArea.containsMouse ? -2 : 0
 
                                         Behavior on scale {
-                                            SpringAnimation {
-                                                spring: 3
-                                                damping: 0.7
-                                                mass: 1.0
-                                            }
+                                            SpringAnimation { spring: 3; damping: 0.7; mass: 1.0 }
                                         }
-
                                         Behavior on y {
-                                            SpringAnimation {
-                                                spring: 3
-                                                damping: 0.7
-                                                mass: 1.0
+                                            SpringAnimation { spring: 3; damping: 0.7; mass: 1.0 }
+                                        }
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: Appearance.rounding.verylarge
+                                            color: appButton.isKeyboardSelected
+                                                ? (itemDragArea.containsMouse ? ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colOnSecondaryContainer, 0.08) : Appearance.colors.colSecondaryContainer)
+                                                : (itemDragArea.containsMouse ? Appearance.colors.colLayer2 : Appearance.colors.colLayer1)
+
+                                            Behavior on color {
+                                                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                                             }
                                         }
 
-                                        onClicked: {
-                                            GlobalStates.appDrawerOpen = false;
-                                            GlobalStates.overviewOpen = false;
-                                            root.trackRecentApp(modelData);
-                                            root.executeApp(modelData);
-                                        }
+                                        MouseArea {
+                                            id: itemDragArea
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
 
-                                        // Right-click context menu
-                                        altAction: () => {
-                                            root.contextMenuApp = modelData;
-                                            root.contextMenuVisible = true;
-                                            let globalPos = appButton.mapToItem(drawerBackground, appButton.width / 2, appButton.height / 2);
-                                            root.contextMenuPosition = Qt.point(globalPos.x, globalPos.y);
+                                            property real startX: 0
+                                            property real startY: 0
+                                            property bool isDragging: false
+
+                                            onPressed: (mouse) => {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    root.contextMenuApp = modelData;
+                                                    root.contextMenuVisible = true;
+                                                    let globalPos = appButton.mapToItem(drawerBackground, appButton.width / 2, appButton.height / 2);
+                                                    root.contextMenuPosition = Qt.point(globalPos.x, globalPos.y);
+                                                    return;
+                                                }
+                                                startX = mouse.x;
+                                                startY = mouse.y;
+                                                isDragging = false;
+                                            }
+
+                                            onPositionChanged: (mouse) => {
+                                                if (pressedButtons & Qt.LeftButton) {
+                                                    const dx = mouse.x - startX;
+                                                    const dy = mouse.y - startY;
+                                                    if (!isDragging && (dx * dx + dy * dy > 324)) {
+                                                        isDragging = true;
+                                                        root._isDraggingApp = true;
+                                                        const sp = itemDragArea.mapToItem(null, mouse.x, mouse.y);
+                                                        root.appDragStarted(modelData, sp.x, sp.y);
+                                                    }
+                                                    if (isDragging) {
+                                                        const sp = itemDragArea.mapToItem(null, mouse.x, mouse.y);
+                                                        root.appDragUpdate(sp.x, sp.y);
+                                                    }
+                                                }
+                                            }
+
+                                            onClicked: (mouse) => {
+                                                if (!isDragging && mouse.button === Qt.LeftButton) {
+                                                    GlobalStates.appDrawerOpen = false;
+                                                    GlobalStates.overviewOpen = false;
+                                                    root.trackRecentApp(modelData);
+                                                    root.executeApp(modelData);
+                                                }
+                                            }
+
+                                            onReleased: (mouse) => {
+                                                if (isDragging) {
+                                                    isDragging = false;
+                                                    root._isDraggingApp = false;
+                                                    const sp = itemDragArea.mapToItem(null, mouse.x, mouse.y);
+                                                    root.appDropped(modelData, sp.x, sp.y);
+                                                }
+                                            }
+
+                                            onCanceled: {
+                                                if (isDragging) {
+                                                    isDragging = false;
+                                                    root._isDraggingApp = false;
+                                                    root.appDragCancelled();
+                                                }
+                                            }
                                         }
 
                                         ColumnLayout {
@@ -1150,22 +1392,11 @@ FocusScope {
                     buttonRadius: Appearance.rounding.small
                     
                     onClicked: {
-                        if (root.contextMenuApp) {
-                            const desktopFile = root.contextMenuApp.fileName;
-                            const appId = root.getAppId(root.contextMenuApp);
-                            const appName = root.contextMenuApp.name;
-                            const scriptPath = Directories.scriptPath + "/uninstall_app.sh";
-                            
-                            // Launch terminal to run the script
-                            // Using bash -c wrapper to ensure args are handled and window stays open
-                            const term = Config.options.apps.terminal; 
-                            const fullCmd = term + " bash -c \"'" + scriptPath + "' '" + desktopFile + "' '" + appId + "' '" + StringUtils.shellSingleQuoteEscape(appName) + "'; echo; echo Press Enter to close...; read\"";
-                            
-                            Quickshell.execDetached(["bash", "-c", fullCmd]);
-                        }
+                        const target = root.contextMenuApp;
                         root.contextMenuVisible = false;
-                        GlobalStates.appDrawerOpen = false;
-                        GlobalStates.overviewOpen = false;
+                        if (target) {
+                            root.startUninstall(target);
+                        }
                     }
                     
                     contentItem: Item {
@@ -1193,6 +1424,201 @@ FocusScope {
                                 verticalAlignment: Text.AlignVCenter
                                 text: Translation.tr("Uninstall")
                                 color: Appearance.colors.colOnLayer1
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── In-Drawer Uninstall Confirmation Modal ──
+    Rectangle {
+        id: uninstallModalScrim
+        anchors.fill: parent
+        z: 200
+        visible: root.uninstallModalVisible
+        color: Appearance.colors.colScrim
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onClicked: {
+                if (!root.uninstallBusy) root.uninstallModalVisible = false;
+            }
+        }
+
+        Rectangle {
+            id: uninstallCard
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 40, 420)
+            radius: Appearance.rounding.large
+            color: Appearance.m3colors.m3surfaceContainerHigh
+            border.width: 1
+            border.color: Appearance.colors.colOutlineVariant
+            implicitHeight: uninstallCardCol.implicitHeight + 40
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+                onClicked: {}
+            }
+
+            ColumnLayout {
+                id: uninstallCardCol
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 14
+
+                // Icon / Header
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 12
+
+                    IconImage {
+                        source: root.uninstallApp ? Quickshell.iconPath(root.uninstallApp.icon, "application-x-executable") : ""
+                        width: 44
+                        height: 44
+                        visible: source != ""
+                    }
+
+                    MaterialSymbol {
+                        visible: !root.uninstallApp || !root.uninstallApp.icon
+                        text: root.uninstallBlocked ? "block" : "delete_forever"
+                        iconSize: 44
+                        color: root.uninstallBlocked ? Appearance.colors.colOnLayer1 : Appearance.m3colors.m3error
+                    }
+                }
+
+                // Title
+                StyledText {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: root.uninstallBlocked
+                        ? (Translation.tr("Can't remove ") + (root.uninstallApp?.name || root.uninstallPkg))
+                        : (Translation.tr("Remove ") + (root.uninstallApp?.name || root.uninstallPkg) + "?")
+                    font.pixelSize: Appearance.font.pixelSize.larger
+                    font.weight: Font.Medium
+                    color: Appearance.colors.colOnLayer1
+                    wrapMode: Text.WordWrap
+                }
+
+                // Status message / Info
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: root.uninstallBlocked
+                    text: root.uninstallReason || Translation.tr("This is a protected system component.")
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colSubtext
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: !root.uninstallBlocked && !root.uninstallBusy
+                    text: Translation.tr("The app and anything only it uses will be removed.")
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colSubtext
+                }
+
+                // Package details & size badge
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: !root.uninstallBlocked && (root.uninstallPkg.length > 0 || root.uninstallSize.length > 0)
+                    spacing: 8
+
+                    Rectangle {
+                        visible: root.uninstallKind.length > 0
+                        radius: 6
+                        color: Appearance.m3colors.m3secondaryContainer
+                        implicitWidth: kindText.implicitWidth + 12
+                        implicitHeight: 22
+                        StyledText {
+                            id: kindText
+                            anchors.centerIn: parent
+                            text: root.uninstallKind.toUpperCase()
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.weight: Font.DemiBold
+                            color: Appearance.colors.colOnSecondaryContainer
+                        }
+                    }
+
+                    Rectangle {
+                        visible: root.uninstallSize.length > 0
+                        radius: 6
+                        color: Appearance.colors.colLayer2Base
+                        implicitWidth: sizeText.implicitWidth + 12
+                        implicitHeight: 22
+                        StyledText {
+                            id: sizeText
+                            anchors.centerIn: parent
+                            text: root.uninstallSize
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.colors.colSubtext
+                        }
+                    }
+                }
+
+                // Progress Bar
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    visible: root.uninstallBusy
+                    spacing: 6
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                        text: root.uninstallStatus
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colOnLayer1
+                    }
+
+                    StyledIndeterminateProgressBar {
+                        Layout.fillWidth: true
+                    }
+                }
+
+                // Action Buttons
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: 6
+                    spacing: 10
+                    visible: !root.uninstallBusy
+
+                    RippleButton {
+                        implicitWidth: 100
+                        implicitHeight: 36
+                        buttonRadius: Appearance.rounding.small
+                        colBackground: Appearance.colors.colSecondaryContainer
+                        colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                        onClicked: root.uninstallModalVisible = false
+                        contentItem: Item {
+                            StyledText {
+                                anchors.centerIn: parent
+                                text: root.uninstallBlocked ? Translation.tr("Close") : Translation.tr("Cancel")
+                                color: Appearance.colors.colOnSecondaryContainer
+                            }
+                        }
+                    }
+
+                    RippleButton {
+                        visible: !root.uninstallBlocked
+                        implicitWidth: 120
+                        implicitHeight: 36
+                        buttonRadius: Appearance.rounding.small
+                        colBackground: Appearance.m3colors.m3error
+                        colBackgroundHover: Qt.darker(Appearance.m3colors.m3error, 1.15)
+                        onClicked: root.confirmUninstall()
+                        contentItem: RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            MaterialSymbol { text: "delete"; iconSize: 18; color: Appearance.m3colors.m3onError }
+                            StyledText {
+                                text: Translation.tr("Remove")
+                                color: Appearance.m3colors.m3onError
                             }
                         }
                     }

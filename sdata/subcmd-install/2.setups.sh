@@ -19,6 +19,15 @@ function setup_user_group(){
     x sudo usermod -aG video,i2c,input "$(whoami)"
   fi
 }
+
+function compile_native_helpers(){
+  local cursor_cpp="${REPO_ROOT}/dots/.config/quickshell/ii/scripts/cursor/shake-zoom.cpp"
+  local cursor_bin="${REPO_ROOT}/dots/.config/quickshell/ii/scripts/cursor/shake-zoom"
+  if [[ -f "$cursor_cpp" ]] && command -v g++ >/dev/null 2>&1; then
+    printf "${STY_CYAN}[$0]: Compiling shake-to-locate cursor daemon...${STY_RST}\n"
+    v g++ -O3 -std=c++20 "$cursor_cpp" -o "$cursor_bin"
+  fi
+}
 #####################################################################################
 # These python packages are installed using uv into the venv (virtual environment). Once the folder of the venv gets deleted, they are all gone cleanly. So it's considered as setups, not dependencies.
 showfun install-python-packages
@@ -26,6 +35,9 @@ v install-python-packages
 
 showfun setup_user_group
 v setup_user_group
+
+showfun compile_native_helpers
+v compile_native_helpers
 
 if [[ ! -z $(systemctl --version) ]]; then
 # For Arch Linux, plocate-updatedb.timer can be enabled to keep the plocate database up-to-date.

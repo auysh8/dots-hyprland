@@ -33,6 +33,10 @@ ButtonMouseArea {
     property int workspaceIndexInGroup: (monitor?.activeWorkspace?.id - 1) % wsModel.shownCount
     property real specialTextSize: workspaceButtonWidth * 0.5
 
+    // Exposed for the parent BarGroup pill to glow while a drag-to-scroll
+    // is in progress. Mirrors dragScrollArea.dragActive.
+    readonly property bool dragOver: dragScrollArea.dragActive
+
     Layout.alignment: vertical ? Qt.AlignHCenter : Qt.AlignVCenter
     Layout.fillWidth: vertical
     Layout.fillHeight: !vertical
@@ -48,10 +52,10 @@ ButtonMouseArea {
     // Interactions
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.BackButton
     hoverEnabled: true
-    property int hoverIndex: {
-        const position = root.vertical ? mouseY : mouseX;
-        return Math.floor(position / root.workspaceButtonWidth);
-    }
+    property int dragHoverIndex: 0
+    readonly property int hoverIndex: dragScrollArea.dragActive
+        ? dragHoverIndex
+        : Math.floor((root.vertical ? mouseY : mouseX) / root.workspaceButtonWidth)
 
     function switchWorkspaceToHovered() {
         Hyprland.dispatch(`hl.dsp.focus({workspace = ${wsModel.getWorkspaceIdAt(hoverIndex)}})`);
@@ -74,6 +78,44 @@ ButtonMouseArea {
             Hyprland.dispatch(`hl.dsp.focus({workspace = "r+1"})`);
         else if (event.angleDelta.y > 0)
             Hyprland.dispatch(`hl.dsp.focus({workspace = "r-1"})`);
+    }
+
+    // Direct drag-to-workspace: hover a dragged file over any workspace button to switch to it.
+    DropArea {
+        id: dragScrollArea
+        anchors.fill: parent
+        z: 10
+
+        property bool dragActive: false
+
+        function updateFromDrag(drag) {
+            const pos = root.vertical ? drag.y : drag.x;
+            const idx = Math.max(0, Math.min(wsModel.shownCount - 1, Math.floor(pos / root.workspaceButtonWidth)));
+            root.dragHoverIndex = idx;
+            const targetWsId = wsModel.getWorkspaceIdAt(idx);
+            if (targetWsId && targetWsId > 0 && targetWsId !== monitor?.activeWorkspace?.id) {
+                Hyprland.dispatch(`hl.dsp.focus({workspace = ${targetWsId}})`);
+            }
+        }
+
+        onEntered: (drag) => {
+            GlobalStates.barDragActive = true;
+            dragActive = true;
+            updateFromDrag(drag);
+        }
+        onPositionChanged: (drag) => {
+            GlobalStates.barDragActive = true;
+            dragActive = true;
+            updateFromDrag(drag);
+        }
+        onExited: {
+            GlobalStates.barDragActive = false;
+            dragActive = false;
+        }
+        onDropped: {
+            GlobalStates.barDragActive = false;
+            dragActive = false;
+        }
     }
 
     // Indications
@@ -169,13 +211,13 @@ ButtonMouseArea {
         TrailingIndicator {
             id: interactionIndicator
             z: 3
-            index: root.containsMouse ? root.hoverIndex : root.workspaceIndexInGroup
+            index: (root.containsMouse || dragScrollArea.dragActive) ? root.hoverIndex : root.workspaceIndexInGroup
             color: "transparent"
             StateOverlay {
                 id: hoverOverlay
                 anchors.fill: interactionIndicator.indicatorRectangle
                 radius: root.activeWorkspaceSize / 2
-                hover: root.containsMouse
+                hover: root.containsMouse || dragScrollArea.dragActive
                 press: root.containsPress
                 drag: true // There are too many layers so we need to force this to be a lil more opaque
                 contentColor: Appearance.colors.colPrimary

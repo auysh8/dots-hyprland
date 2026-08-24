@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Widgets
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
@@ -28,7 +29,7 @@ Scope {
         color: "transparent"
 
         mask: Region {
-            item: GlobalStates.overviewOpen ? columnLayout : null
+            item: GlobalStates.overviewOpen ? (dragFloatIcon.visible ? panelWindow.contentItem : columnLayout) : null
         }
 
         anchors {
@@ -45,6 +46,7 @@ Scope {
                     searchWidget.disableExpandAnimation();
                     overviewScope.dontAutoCancelSearch = false;
                     GlobalFocusGrab.dismiss();
+                    panelWindow.searchingText = "";
                 } else {
                     if (!overviewScope.dontAutoCancelSearch) {
                         searchWidget.cancelSearch();
@@ -75,7 +77,7 @@ Scope {
                 horizontalCenter: parent.horizontalCenter
                 top: parent.top
             }
-            spacing: -8
+            spacing: 8
 
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape) {
@@ -99,6 +101,98 @@ Scope {
                     screen: panelWindow.screen
                     visible: (panelWindow.searchingText == "")
                 }
+            }
+
+            Loader {
+                id: dockedAppDrawerLoader
+                anchors.horizontalCenter: parent.horizontalCenter
+                active: GlobalStates.overviewOpen && (panelWindow.searchingText == "")
+                visible: active
+                sourceComponent: ApplicationDrawer {
+                    id: dockedAppDrawer
+                    dockedInOverview: true
+                    width: overviewLoader.item ? overviewLoader.item.width : 1000
+                    implicitWidth: width
+                    availableWidth: width
+                    availableHeight: panelWindow.height
+                }
+            }
+        }
+
+        // Floating drag preview icon
+        Rectangle {
+            id: dragFloatIcon
+            z: 9999
+            visible: false
+            width: 56
+            height: 56
+            radius: Appearance.rounding.normal
+            color: Appearance.colors.colSecondaryContainer
+            opacity: 0.92
+            property var app: null
+
+            IconImage {
+                anchors.centerIn: parent
+                visible: dragFloatIcon.app !== null
+                source: dragFloatIcon.app
+                    ? Quickshell.iconPath(dragFloatIcon.app.icon || dragFloatIcon.app.id, "application-x-executable")
+                    : ""
+                implicitSize: 40
+            }
+        }
+
+        Connections {
+            target: dockedAppDrawerLoader.item
+
+            function onAppDragStarted(app, sceneX, sceneY) {
+                dragFloatIcon.app = app;
+                dragFloatIcon.x = sceneX - dragFloatIcon.width / 2;
+                dragFloatIcon.y = sceneY - dragFloatIcon.height / 2;
+                dragFloatIcon.visible = true;
+            }
+
+            function onAppDragUpdate(sceneX, sceneY) {
+                dragFloatIcon.x = sceneX - dragFloatIcon.width / 2;
+                dragFloatIcon.y = sceneY - dragFloatIcon.height / 2;
+                const ws = overviewLoader.item
+                    ? overviewLoader.item.workspaceAtScenePoint(sceneX, sceneY)
+                    : -1;
+                if (overviewLoader.item) overviewLoader.item.appDragHoverWorkspace = ws;
+            }
+
+            function onAppDropped(app, sceneX, sceneY) {
+                dragFloatIcon.visible = false;
+                dragFloatIcon.app = null;
+                if (overviewLoader.item) overviewLoader.item.appDragHoverWorkspace = -1;
+
+                const ws = overviewLoader.item
+                    ? overviewLoader.item.workspaceAtScenePoint(sceneX, sceneY)
+                    : -1;
+                if (ws <= 0 || !app) return;
+
+                function dispatchExec(parts) {
+                    if (!parts || parts.length === 0) return;
+                    const cmd = parts.map(p => p.includes(" ") ? `"${p}"` : p).join(" ");
+                    const lua = cmd.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+                    Hyprland.dispatch(`hl.dsp.exec_cmd("${lua}", { workspace = "${ws} silent" })`);
+                }
+
+                if (app._isFolder === true) {
+                    const ids = app.appIds || [];
+                    for (let i = 0; i < ids.length; i++) {
+                        const entry = AppSearch.guessDesktopEntry(ids[i]);
+                        dispatchExec(entry ? entry.command : null);
+                    }
+                    return;
+                }
+
+                dispatchExec(app.command);
+            }
+
+            function onAppDragCancelled() {
+                dragFloatIcon.visible = false;
+                dragFloatIcon.app = null;
+                if (overviewLoader.item) overviewLoader.item.appDragHoverWorkspace = -1;
             }
         }
     }

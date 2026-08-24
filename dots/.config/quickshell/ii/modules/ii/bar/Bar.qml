@@ -61,9 +61,51 @@ Scope {
                     }
                 }
                 property bool superShow: false
-                // Show bar when: hovering, Super key pressed, OR workspace is empty (if showOnEmptyWorkspace enabled)
+                property bool dragShow: false
+                // Show bar when: hovering, dragging file, Super key pressed, OR workspace is empty (if showOnEmptyWorkspace enabled)
                 property bool showOnEmptyWorkspace: Config?.options.bar.autoHide.showOnEmptyWorkspace ?? true
-                property bool mustShow: hoverRegion.containsMouse || superShow || (showOnEmptyWorkspace && workspaceEmpty)
+                property bool mustShow: hoverRegion.containsMouse || barDropArea.containsDrag || dragShow || GlobalStates.barDragActive || superShow || (showOnEmptyWorkspace && workspaceEmpty)
+
+                Timer {
+                    id: dragHideTimer
+                    interval: 350
+                    repeat: false
+                    onTriggered: {
+                        if (!GlobalStates.barDragActive && !barDropArea.containsDrag) {
+                            barRoot.dragShow = false
+                        }
+                    }
+                }
+
+                Connections {
+                    target: GlobalStates
+                    function onBarDragActiveChanged() {
+                        if (!GlobalStates.barDragActive && !barDropArea.containsDrag) {
+                            dragHideTimer.restart()
+                        }
+                    }
+                }
+
+                DropArea {
+                    id: barDropArea
+                    anchors.fill: parent
+                    onEntered: (drag) => {
+                        dragHideTimer.stop()
+                        barRoot.dragShow = true
+                    }
+                    onPositionChanged: (drag) => {
+                        dragHideTimer.stop()
+                        barRoot.dragShow = true
+                    }
+                    onExited: {
+                        dragHideTimer.restart()
+                    }
+                    onDropped: {
+                        GlobalStates.barDragActive = false
+                        barRoot.dragShow = false
+                        dragHideTimer.stop()
+                    }
+                }
                 exclusionMode: ExclusionMode.Ignore
                 exclusiveZone: (Config?.options.bar.autoHide.enable && (!mustShow || !Config?.options.bar.autoHide.pushWindows)) ? 0 :
                     Appearance.sizes.baseBarHeight + (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
@@ -106,11 +148,13 @@ Scope {
 
                     Item {
                         id: hoverMaskRegion
-                        anchors {
-                            fill: barContent
-                            topMargin: -Config.options.bar.autoHide.hoverRegionWidth
-                            bottomMargin: -Config.options.bar.autoHide.hoverRegionWidth
-                        }
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: !Config.options.bar.bottom ? parent.top : undefined
+                        anchors.bottom: Config.options.bar.bottom ? parent.bottom : undefined
+                        height: (Config?.options.bar.autoHide.enable && !mustShow)
+                            ? Config.options.bar.autoHide.hoverRegionWidth
+                            : (Appearance.sizes.barHeight + Appearance.rounding.screenRounding)
                     }
 
                     BarContent {

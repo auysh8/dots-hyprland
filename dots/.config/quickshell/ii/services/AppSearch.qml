@@ -44,21 +44,33 @@ Singleton {
 
 	// Cached deduplicated list to avoid rebuilding on every access
 	property list<DesktopEntry> list: []
+
+	Timer {
+		id: rebuildDebounceTimer
+		interval: 300
+		repeat: false
+		onTriggered: rebuild()
+	}
+
 	Connections {
 	    target: DesktopEntries
 
 		function onApplicationsChanged() {
-		    rebuild();
+		    rebuildDebounceTimer.restart();
 		}
+	}
+
+	Component.onCompleted: {
+	    rebuild();
 	}
 
 	// Deduplicate entries by id to prevent duplicate icons
 	function rebuild() {
-	    const apps = Array.from(DesktopEntries.applications.values);
+	    const apps = Array.from(DesktopEntries.applications?.values ?? []);
 	    const seen = new Set();
 
 	    list = apps.filter(app => {
-	        if (seen.has(app.id))
+	        if (!app || !app.id || seen.has(app.id))
 	            return false;
 
 	        seen.add(app.id);
@@ -66,27 +78,67 @@ Singleton {
 	    });
 	}
     
-    readonly property var preppedNames: list.map(a => ({
-        name: Fuzzy.prepare(`${a.name} `),
-        entry: a
-    }))
+    readonly property var preppedTargets: list.map(a => {
+        const nameStr = a.name || "";
+        const idStr = a.id || "";
+        const genericStr = a.genericName || "";
+        const commentStr = a.comment || "";
+        const kwStr = Array.isArray(a.keywords) ? a.keywords.join(" ") : "";
+        const execStr = Array.isArray(a.command) ? a.command.join(" ") : "";
+        const searchBlob = `${nameStr} ${idStr} ${genericStr} ${kwStr} ${commentStr} ${execStr}`;
+        return {
+            name: Fuzzy.prepare(`${nameStr} `),
+            all: Fuzzy.prepare(`${searchBlob} `),
+            entry: a
+        };
+    })
 
     readonly property var preppedIcons: list.map(a => ({
         name: Fuzzy.prepare(`${a.icon} `),
         entry: a
     }))
 
-    function fuzzyQuery(search: string): var { // Idk why list<DesktopEntry> doesn't work
+    function fuzzyQuery(search: string): var {
+        if (!search || search.trim().length === 0) return [];
+        if (root.list.length === 0) rebuild();
+
         if (root.sloppySearch) {
             return root.levenshteinQuery(search);
         }
 
-        return Fuzzy.go(search, preppedNames, {
-            all: true,
-            key: "name"
-        }).map(r => {
-            return r.obj.entry
+        const cleanQuery = search.trim();
+
+        // 1. Primary: Match by application name
+        const nameResults = Fuzzy.go(cleanQuery, preppedTargets, {
+            key: "name",
+            threshold: -10000
+        }).map(r => r.obj.entry);
+
+        // 2. Secondary: Match by keywords, generic name, desktop ID, or command
+        const seen = new Set(nameResults.map(e => e.id));
+        const allResults = Fuzzy.go(cleanQuery, preppedTargets, {
+            key: "all",
+            threshold: -10000
+        }).map(r => r.obj.entry).filter(e => {
+            if (seen.has(e.id)) return false;
+            seen.add(e.id);
+            return true;
         });
+
+        // 3. Fallback: Substring match across all desktop entries if fuzzy yielded nothing
+        let fallbackResults = [];
+        if (nameResults.length === 0 && allResults.length === 0) {
+            const lower = cleanQuery.toLowerCase();
+            fallbackResults = root.list.filter(app => {
+                const n = (app.name || "").toLowerCase();
+                const id = (app.id || "").toLowerCase();
+                const g = (app.genericName || "").toLowerCase();
+                const cmd = (app.command || []).join(" ").toLowerCase();
+                return n.includes(lower) || id.includes(lower) || g.includes(lower) || cmd.includes(lower);
+            });
+        }
+
+        return [...nameResults, ...allResults, ...fallbackResults];
     }
 
     function levenshteinQuery(search: string): var {

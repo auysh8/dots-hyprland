@@ -16,6 +16,8 @@ Singleton {
     property bool sidebarRightOpen: false
     property bool lyricsOpen: false
     property bool mediaControlsOpen: false
+    property Item mediaWidgetItem: null
+    property bool barDragActive: false
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
     property bool oskOpen: false
