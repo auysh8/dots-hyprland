@@ -35,7 +35,7 @@ StyledPopup {
                     lineWidth: 6
                     value: parent.parent.value
                     colPrimary: parent.parent.value > 0.9 ? Appearance.m3colors.m3error : parent.parent.highlightColor
-                    colSecondary: Appearance.colors.colLayer1
+                    colSecondary: ColorUtils.transparentize(parent.parent.value > 0.9 ? Appearance.m3colors.m3error : parent.parent.highlightColor, 0.2)
                 }
 
                 MaterialSymbol {
