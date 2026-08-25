@@ -45,7 +45,7 @@ StyledPopup {
         id: columnLayout
         anchors.centerIn: parent
         spacing: 14
-        Layout.preferredWidth: 360
+        Layout.preferredWidth: 420
 
         // Header Section with elevated container
         Rectangle {
@@ -59,14 +59,14 @@ StyledPopup {
             RowLayout {
                 id: headerContent
                 anchors.centerIn: parent
-                width: parent.width - 24
-                spacing: 14
+                width: parent.width - 28
+                spacing: 16
 
                 // Tonal icon badge
                 Rectangle {
                     implicitWidth: 40
                     implicitHeight: 40
-                    Layout.alignment: Qt.AlignVCenter
+                    Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
                     radius: 12
                     color: duskPrimaryContainer
 
@@ -80,10 +80,12 @@ StyledPopup {
 
                 ColumnLayout {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 280
                     Layout.alignment: Qt.AlignVCenter
                     spacing: 3
 
                     StyledText {
+                        Layout.fillWidth: true
                         text: {
                             const hour = DateTime.clock.date.getHours();
                             if (hour < 12) return Translation.tr("Good Morning");
@@ -99,8 +101,8 @@ StyledPopup {
                     }
 
                     StyledText {
-                        text: root.formattedDate
                         Layout.fillWidth: true
+                        text: root.formattedDate
                         wrapMode: Text.Wrap
                         font.pixelSize: Appearance.font.pixelSize.small + 1
                         font.weight: Font.Medium
@@ -224,14 +226,14 @@ StyledPopup {
                     RowLayout {
                         id: taskContent
                         anchors.centerIn: parent
-                        width: parent.width - 18
-                        spacing: 14
+                        width: parent.width - 20
+                        spacing: 16
 
                         // Expressive numbered badge
                         Rectangle {
                             implicitWidth: 36
                             implicitHeight: 36
-                            Layout.alignment: Qt.AlignVCenter
+                            Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
                             radius: 12
                             color: duskPrimaryContainer
 
@@ -248,9 +250,10 @@ StyledPopup {
                         // Task content
                         StyledText {
                             Layout.fillWidth: true
+                            Layout.minimumWidth: 280
                             Layout.alignment: Qt.AlignVCenter
                             text: unfinishedTodos[index].content
-                            wrapMode: Text.Wrap
+                            wrapMode: Text.NoWrap
                             elide: Text.ElideRight
                             font.pixelSize: Appearance.font.pixelSize.small + 1
                             font.weight: Font.Medium
