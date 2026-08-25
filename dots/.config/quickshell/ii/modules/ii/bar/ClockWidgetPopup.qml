@@ -6,6 +6,7 @@ import QtQuick.Layouts
 
 StyledPopup {
     id: root
+    width: 520
     property string formattedDate: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM dd, yyyy")
     property string formattedTime: DateTime.time
     property string formattedUptime: DateTime.uptime
@@ -59,14 +60,15 @@ StyledPopup {
             RowLayout {
                 id: headerContent
                 anchors.centerIn: parent
-                width: parent.width - 28
-                spacing: 16
+                width: parent.width - 32
+                spacing: 20
 
                 // Tonal icon badge
                 Rectangle {
                     implicitWidth: 40
                     implicitHeight: 40
                     Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
+                    Layout.maximumWidth: 40
                     radius: 12
                     color: duskPrimaryContainer
 
@@ -80,9 +82,9 @@ StyledPopup {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.minimumWidth: 280
+                    Layout.minimumWidth: 380
                     Layout.alignment: Qt.AlignVCenter
-                    spacing: 3
+                    spacing: 4
 
                     StyledText {
                         Layout.fillWidth: true
@@ -250,7 +252,7 @@ StyledPopup {
                         // Task content
                         StyledText {
                             Layout.fillWidth: true
-                            Layout.minimumWidth: 280
+                            Layout.minimumWidth: 380
                             Layout.alignment: Qt.AlignVCenter
                             text: unfinishedTodos[index].content
                             wrapMode: Text.NoWrap
