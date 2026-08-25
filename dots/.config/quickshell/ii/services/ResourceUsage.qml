@@ -31,6 +31,14 @@ Singleton {
     property real cpuUsage: 0
     property var previousCpuStats
 
+    property real gpuUsage: 0
+    property string gpuName: ""
+    property real gpuVramUsedGB: 0
+    property real gpuVramTotalGB: 0
+    property real gpuVramPercent: 0
+    property real gpuTemperature: 0
+    property bool hasGpu: false
+
     property string maxAvailableMemoryString: kbToGbString(ResourceUsage.memoryTotal)
     property string maxAvailableSwapString: kbToGbString(ResourceUsage.swapTotal)
     property string maxAvailableCpuString: "--"
@@ -58,6 +66,11 @@ Singleton {
     function updateDiskUsage() {
         diskUsageProc.running = false;
         diskUsageProc.running = true;
+    }
+
+    function updateGpuUsage() {
+        gpuUsageProc.running = false;
+        gpuUsageProc.running = true;
     }
 
     function updateMemoryUsageHistory() {
@@ -151,6 +164,7 @@ Singleton {
             }
 
             root.updateDiskUsage()
+            root.updateGpuUsage()
             root.updateHistories()
             interval = Config.options?.resources?.updateInterval ?? 3000
         }
@@ -191,6 +205,38 @@ Singleton {
 	        }
 	    }
 	
+	    Process {
+	        id: gpuUsageProc
+	        command: ["bash", "-c", `out=$("${Directories.scriptPath}/gpu/get_dgpuinfo.sh"); if [[ "$out" == "{}" ]]; then "${Directories.scriptPath}/gpu/get_igpuinfo.sh"; else echo "$out"; fi`]
+	        stdout: StdioCollector {
+	            id: gpuUsageCollector
+	            onStreamFinished: {
+                    try {
+                        const data = JSON.parse(gpuUsageCollector.text.trim())
+                        if (Object.keys(data).length > 0) {
+                            root.hasGpu = true
+                            root.gpuUsage = (data.usagePercent || 0) / 100
+                            root.gpuName = data.name || "GPU"
+                            root.gpuVramUsedGB = data.vramUsedGB || 0
+                            root.gpuVramTotalGB = data.vramTotalGB || 0
+                            root.gpuVramPercent = (data.vramPercent || 0) / 100
+                            // Handle potential null or undefined
+                            root.gpuTemperature = data.tempEdgeC ? parseFloat(data.tempEdgeC) : 0
+                        } else {
+                            root.hasGpu = false
+                            root.gpuUsage = 0
+                            root.gpuVramUsedGB = 0
+                            root.gpuVramTotalGB = 0
+                            root.gpuVramPercent = 0
+                            root.gpuTemperature = 0
+                        }
+                    } catch (e) {
+                        root.hasGpu = false
+                    }
+	            }
+	        }
+	    }
+
 	    Process {
 	        id: findThermalZoneProc
 	        environment: ({ LANG: "C" })

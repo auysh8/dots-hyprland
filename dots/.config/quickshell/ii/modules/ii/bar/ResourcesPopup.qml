@@ -93,6 +93,15 @@ StyledPopup {
         }
 
         ResourceCircle {
+            visible: ResourceUsage.hasGpu
+            icon: "memory_alt"
+            label: "GPU"
+            value: ResourceUsage.gpuUsage
+            detail: `${Math.round(ResourceUsage.gpuUsage * 100)}%`
+            highlightColor: Appearance.m3colors.m3secondaryContainer
+        }
+
+        ResourceCircle {
             icon: "device_thermostat"
             label: "TEMP"
             value: ResourceUsage.temperature / 100
