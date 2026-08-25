@@ -236,7 +236,7 @@ Singleton {
 	            }
 	        }
 	    }
-
+	
 	    Process {
 	        id: findThermalZoneProc
 	        environment: ({ LANG: "C" })

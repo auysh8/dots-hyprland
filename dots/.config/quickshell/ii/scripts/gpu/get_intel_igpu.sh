@@ -60,9 +60,9 @@ gpu_name_json=${gpu_name//\"/\\\"}
 
 # Read GPU usage via intel_gpu_top
 usage=0
-usage_line=$(timeout 1s intel_gpu_top -o - 2>/dev/null | head -n 3 | tail -n 1 || echo "")
+usage_line=$(timeout 3s intel_gpu_top -l -n 2 2>/dev/null | tail -n 1 || echo "")
 if [[ -n "$usage_line" ]]; then
-  usage=$(echo "$usage_line" | awk '{print $9}' | tr -d '%' || echo "0")
+  usage=$(echo "$usage_line" | awk '{printf "%.0f", $7}' || echo "0")
 fi
 
 # Read VRAM (iGPU uses system RAM)

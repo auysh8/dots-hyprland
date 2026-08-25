@@ -58,6 +58,15 @@ MouseArea {
             highlightColor: Appearance.m3colors.m3secondaryContainer
         }
 
+        Resource {
+            iconName: "memory_alt"
+            percentage: ResourceUsage.gpuUsage
+            shown: (ResourceUsage.hasGpu && Config.options.bar.resources.alwaysShowGpu) || 
+                root.alwaysShowAllResources
+            Layout.leftMargin: shown ? 6 : 0
+            warningThreshold: Config.options.bar.resources.gpuWarningThreshold
+        }
+
     }
 
     ResourcesPopup {
