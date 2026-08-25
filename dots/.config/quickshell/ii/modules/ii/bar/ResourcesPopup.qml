@@ -7,11 +7,6 @@ import QtQuick.Layouts
 StyledPopup {
     id: root
 
-    // Helper function to format KB to GB
-    function formatKB(kb) {
-        return (kb / (1024 * 1024)).toFixed(1) + " GB";
-    }
-
     Flow {
         anchors.centerIn: parent
         width: 320 // Set a max width to force multi-row layout (e.g. 3 cards per row)
@@ -39,11 +34,12 @@ StyledPopup {
             property string primaryValue: ""
             property string unit: ""
             property color highlightColor: Appearance.colors.colPrimary
+            property int warningThreshold: 100
 
-            property bool isAlert: value > 0.9
+            property bool isAlert: (value * 100) >= warningThreshold
 
-            color: isAlert ? Appearance.m3colors.m3errorContainer : ColorUtils.mix(Appearance.colors.colLayer1, highlightColor, 0.95)
-            border.color: Appearance.colors.colOutlineVariant
+            color: isAlert ? Appearance.colors.colErrorContainer : ColorUtils.mix(Appearance.colors.colLayer1, highlightColor, 0.96)
+            border.color: isAlert ? Appearance.colors.colErrorContainer : Appearance.colors.colLayer0Border
             border.width: 1
 
             MouseArea {
@@ -114,7 +110,8 @@ StyledPopup {
                         spacing: 2
 
                         StyledText {
-                            anchors.baseline: parent.bottom
+                            id: primaryValueText
+                            anchors.bottom: parent.bottom
                             text: cardRect.primaryValue
                             font.weight: Font.Black
                             font.pixelSize: Appearance.font.pixelSize.large
@@ -122,7 +119,7 @@ StyledPopup {
                         }
 
                         StyledText {
-                            anchors.baseline: parent.bottom
+                            anchors.baseline: primaryValueText.baseline
                             text: cardRect.unit
                             font.weight: Font.Medium
                             font.pixelSize: Appearance.font.pixelSize.smaller
@@ -141,6 +138,7 @@ StyledPopup {
             primaryValue: (ResourceUsage.memoryUsed / (1024 * 1024)).toFixed(1)
             unit: "GB"
             highlightColor: Appearance.m3colors.m3primary
+            warningThreshold: Config.options.bar.resources.memoryWarningThreshold
         }
 
         ResourceCircle {
@@ -151,6 +149,7 @@ StyledPopup {
             primaryValue: (ResourceUsage.swapUsed / (1024 * 1024)).toFixed(1)
             unit: "GB"
             highlightColor: Appearance.m3colors.m3tertiary
+            warningThreshold: Config.options.bar.resources.swapWarningThreshold
         }
 
         ResourceCircle {
@@ -160,6 +159,7 @@ StyledPopup {
             primaryValue: Math.round(ResourceUsage.cpuUsage * 100).toString()
             unit: "%"
             highlightColor: Appearance.m3colors.m3secondary
+            warningThreshold: Config.options.bar.resources.cpuWarningThreshold
         }
 
         ResourceCircle {
@@ -170,6 +170,7 @@ StyledPopup {
             primaryValue: Math.round(ResourceUsage.gpuUsage * 100).toString()
             unit: "%"
             highlightColor: Appearance.m3colors.m3secondaryContainer
+            warningThreshold: Config.options.bar.resources.gpuWarningThreshold
         }
 
         ResourceCircle {
@@ -179,6 +180,7 @@ StyledPopup {
             primaryValue: Math.round(ResourceUsage.temperature).toString()
             unit: "°C"
             highlightColor: Appearance.m3colors.m3error
+            warningThreshold: 80 // TEMP threshold generally around 80C
         }
 
         ResourceCircle {
