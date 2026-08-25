@@ -7,12 +7,10 @@ import QtQuick.Layouts
 StyledPopup {
     id: root
     
-    // Set preferred width on the content layout instead of the popup itself
-    ColumnLayout {
+    contentItem: ColumnLayout {
         id: columnLayout
-        anchors.centerIn: parent
         spacing: 14
-        Layout.preferredWidth: 520
+        implicitWidth: 520
         
         property string formattedDate: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM dd, yyyy")
         property string formattedTime: DateTime.time
@@ -51,6 +49,7 @@ StyledPopup {
 
         // Header Section with elevated container
         Rectangle {
+            implicitWidth: columnLayout.implicitWidth - 40
             Layout.fillWidth: true
             implicitHeight: headerContent.implicitHeight + 20
             color: duskSurfaceContainerElevated
@@ -105,7 +104,7 @@ StyledPopup {
 
                     StyledText {
                         Layout.fillWidth: true
-                        text: root.columnLayout.formattedDate
+                        text: columnLayout.formattedDate
                         wrapMode: Text.Wrap
                         font.pixelSize: Appearance.font.pixelSize.small + 1
                         font.weight: Font.Medium
@@ -119,6 +118,7 @@ StyledPopup {
 
         // System Uptime - Pill-shaped card
         Rectangle {
+            implicitWidth: columnLayout.implicitWidth - 40
             Layout.fillWidth: true
             implicitHeight: uptimeContent.implicitHeight + 18
             color: duskSurfaceContainer
@@ -153,7 +153,7 @@ StyledPopup {
                     }
 
                     StyledText {
-                        text: root.columnLayout.formattedUptime
+                        text: columnLayout.formattedUptime
                         font.pixelSize: Appearance.font.pixelSize.normal + 1
                         font.weight: Font.Bold
                         font.family: Appearance.font.family.numbers
@@ -199,6 +199,7 @@ StyledPopup {
                 model: Math.min(columnLayout.unfinishedTodos.length, 5)
                 delegate: Rectangle {
                     id: taskCard
+                    implicitWidth: columnLayout.implicitWidth - 40
                     Layout.fillWidth: true
                     implicitHeight: taskContent.implicitHeight + 18
                     color: duskSurfaceContainer
@@ -269,6 +270,7 @@ StyledPopup {
 
             // No tasks message
             Rectangle {
+                implicitWidth: columnLayout.implicitWidth - 40
                 Layout.fillWidth: true
                 implicitHeight: noTasksContent.implicitHeight + 18
                 visible: columnLayout.unfinishedTodos.length === 0
