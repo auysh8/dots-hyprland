@@ -1,5 +1,6 @@
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import qs.services
 import QtQuick
 import QtQuick.Layouts
@@ -22,7 +23,7 @@ StyledPopup {
         color: Appearance.colors.colLayer0
         radius: 30
         border.width: 1
-        border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.75)
+        border.color: Appearance.colors.colLayer0Border
 
         ColumnLayout {
             id: mainLayout
@@ -65,18 +66,14 @@ StyledPopup {
                     }
                 }
 
-                Rectangle {
+                Item {
                     width: 42
                     height: 42
-                    radius: 21
-                    color: ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.88)
-                    border.width: 1
-                    border.color: ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.7)
 
                     MaterialSymbol {
                         anchors.centerIn: parent
                         text: "schedule"
-                        iconSize: 22
+                        iconSize: 26
                         color: Appearance.m3colors.m3primary
                     }
                 }
@@ -89,7 +86,7 @@ StyledPopup {
                 radius: 24
                 color: Appearance.colors.colLayer1
                 border.width: 1
-                border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.85)
+                border.color: Appearance.colors.colLayer0Border
 
                 RowLayout {
                     anchors.fill: parent
@@ -97,18 +94,10 @@ StyledPopup {
                     anchors.rightMargin: 16
                     spacing: 10
 
-                    Rectangle {
-                        width: 28
-                        height: 28
-                        radius: 14
-                        color: ColorUtils.transparentize(Appearance.m3colors.m3secondary, 0.85)
-
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "timelapse"
-                            iconSize: 18
-                            color: Appearance.m3colors.m3secondary
-                        }
+                    MaterialSymbol {
+                        text: "timelapse"
+                        iconSize: 20
+                        color: Appearance.m3colors.m3secondary
                     }
 
                     StyledText {
@@ -153,21 +142,12 @@ StyledPopup {
 
                     Item { Layout.fillWidth: true }
 
-                    Rectangle {
+                    StyledText {
                         visible: root.unfinishedTodos.length > 0
-                        implicitWidth: taskCountText.implicitWidth + 12
-                        implicitHeight: 20
-                        radius: 10
-                        color: ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.85)
-
-                        StyledText {
-                            id: taskCountText
-                            anchors.centerIn: parent
-                            text: root.unfinishedTodos.length.toString()
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            font.weight: Font.Bold
-                            color: Appearance.m3colors.m3primary
-                        }
+                        text: root.unfinishedTodos.length.toString()
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.Bold
+                        color: Appearance.m3colors.m3primary
                     }
                 }
 
@@ -187,9 +167,9 @@ StyledPopup {
                             Layout.fillWidth: true
                             implicitHeight: 46
                             radius: 18
-                            color: mouseArea.containsMouse ? ColorUtils.mix(Appearance.colors.colLayer1, Appearance.m3colors.m3primary, 0.92) : Appearance.colors.colLayer1
+                            color: mouseArea.containsMouse ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
                             border.width: 1
-                            border.color: mouseArea.containsMouse ? ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.6) : ColorUtils.transparentize(Appearance.colors.colOutline, 0.85)
+                            border.color: mouseArea.containsMouse ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
 
                             scale: mouseArea.pressed ? 0.97 : (mouseArea.containsMouse ? 1.01 : 1.0)
 
@@ -211,24 +191,16 @@ StyledPopup {
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 16
                                 spacing: 12
 
-                                // Number badge ("01", "02")
-                                Rectangle {
-                                    width: 28
-                                    height: 28
-                                    radius: 14
-                                    color: ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.85)
-
-                                    StyledText {
-                                        anchors.centerIn: parent
-                                        text: (index + 1 < 10 ? "0" : "") + (index + 1)
-                                        font.pixelSize: Appearance.font.pixelSize.smaller
-                                        font.weight: Font.Black
-                                        color: Appearance.m3colors.m3primary
-                                    }
+                                // Number badge ("01", "02") set as clean high-contrast text without white background circle
+                                StyledText {
+                                    text: (index + 1 < 10 ? "0" : "") + (index + 1)
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: Font.Black
+                                    color: Appearance.m3colors.m3primary
                                 }
 
                                 StyledText {
@@ -251,7 +223,7 @@ StyledPopup {
                         radius: 18
                         color: Appearance.colors.colLayer1
                         border.width: 1
-                        border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.85)
+                        border.color: Appearance.colors.colLayer0Border
 
                         RowLayout {
                             anchors.centerIn: parent
