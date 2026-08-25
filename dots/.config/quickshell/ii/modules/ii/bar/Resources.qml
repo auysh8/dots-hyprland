@@ -23,6 +23,7 @@ MouseArea {
             iconName: "memory"
             percentage: ResourceUsage.memoryUsedPercentage
             warningThreshold: Config.options.bar.resources.memoryWarningThreshold
+            highlightColor: Appearance.m3colors.m3primary
         }
 
         Resource {
@@ -33,6 +34,7 @@ MouseArea {
                 root.alwaysShowAllResources
             Layout.leftMargin: shown ? 6 : 0
             warningThreshold: Config.options.bar.resources.swapWarningThreshold
+            highlightColor: Appearance.m3colors.m3tertiary
         }
 
         Resource {
@@ -43,6 +45,17 @@ MouseArea {
                 root.alwaysShowAllResources
             Layout.leftMargin: shown ? 6 : 0
             warningThreshold: Config.options.bar.resources.cpuWarningThreshold
+            highlightColor: Appearance.m3colors.m3secondary
+        }
+
+        Resource {
+            iconName: "memory_alt"
+            percentage: ResourceUsage.gpuUsage
+            shown: (ResourceUsage.hasGpu && Config.options.bar.resources.alwaysShowGpu) ||
+                root.alwaysShowAllResources
+            Layout.leftMargin: shown ? 6 : 0
+            warningThreshold: Config.options.bar.resources.gpuWarningThreshold
+            highlightColor: Appearance.m3colors.m3secondaryContainer
         }
 
     }

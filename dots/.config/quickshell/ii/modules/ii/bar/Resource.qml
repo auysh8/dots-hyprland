@@ -9,6 +9,7 @@ Item {
     required property double percentage
     property int warningThreshold: 100
     property bool shown: true
+    property color highlightColor: Appearance.colors.colOnSecondaryContainer
     clip: true
     visible: width > 0 && height > 0
     implicitWidth: resourceRowLayout.x < 0 ? 0 : resourceRowLayout.implicitWidth
@@ -29,7 +30,7 @@ Item {
             lineWidth: Appearance.rounding.unsharpen
             value: percentage
             implicitSize: 20
-            colPrimary: root.warning ? Appearance.colors.colError : Appearance.colors.colOnSecondaryContainer
+            colPrimary: root.warning ? Appearance.colors.colError : root.highlightColor
             accountForLightBleeding: !root.warning
             enableAnimation: false
 
@@ -44,7 +45,7 @@ Item {
                     fill: 1
                     text: iconName
                     iconSize: Appearance.font.pixelSize.normal
-                    color: Appearance.m3colors.m3onSecondaryContainer
+                    color: root.highlightColor
                 }
             }
         }
