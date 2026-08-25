@@ -6,6 +6,7 @@ import QtQuick.Layouts
 
 StyledPopup {
     id: root
+    popupBackgroundMargin: -10
     
     ColumnLayout {
         id: columnLayout
