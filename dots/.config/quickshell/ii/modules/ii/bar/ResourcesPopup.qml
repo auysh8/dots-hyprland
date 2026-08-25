@@ -38,8 +38,8 @@ StyledPopup {
 
             property bool isAlert: (value * 100) >= warningThreshold
 
-            color: isAlert ? Appearance.colors.colErrorContainer : ColorUtils.mix(Appearance.colors.colLayer1, highlightColor, 0.96)
-            border.color: isAlert ? Appearance.colors.colErrorContainer : Appearance.colors.colLayer0Border
+            color: ColorUtils.mix(Appearance.colors.colLayer1, highlightColor, 0.96)
+            border.color: Appearance.colors.colLayer0Border
             border.width: 1
 
             MouseArea {
@@ -102,7 +102,7 @@ StyledPopup {
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         font.letterSpacing: 1.5
                         font.capitalization: Font.AllUppercase
-                        color: cardRect.isAlert ? Appearance.m3colors.m3onErrorContainer : Appearance.colors.colOnSurface
+                        color: Appearance.colors.colOnSurface
                     }
 
                     Row {
@@ -115,7 +115,7 @@ StyledPopup {
                             text: cardRect.primaryValue
                             font.weight: Font.Black
                             font.pixelSize: Appearance.font.pixelSize.large
-                            color: cardRect.isAlert ? Appearance.m3colors.m3onErrorContainer : Appearance.colors.colOnSurface
+                            color: Appearance.colors.colOnSurface
                         }
 
                         StyledText {
@@ -123,7 +123,7 @@ StyledPopup {
                             text: cardRect.unit
                             font.weight: Font.Medium
                             font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: cardRect.isAlert ? Appearance.m3colors.m3onErrorContainer : Appearance.colors.colOnSurfaceVariant
+                            color: Appearance.colors.colOnSurfaceVariant
                         }
                     }
                 }
