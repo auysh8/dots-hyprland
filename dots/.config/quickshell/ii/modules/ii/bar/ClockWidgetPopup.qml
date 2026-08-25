@@ -6,47 +6,48 @@ import QtQuick.Layouts
 
 StyledPopup {
     id: root
-    width: 520
-    property string formattedDate: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM dd, yyyy")
-    property string formattedTime: DateTime.time
-    property string formattedUptime: DateTime.uptime
-    property var unfinishedTodos: Todo.list.filter(item => !item.done)
     
-    // Material 3 Expressive dusk-inspired color palette
-    property color duskSurface: "#1a1620"
-    property color duskSurfaceContainer: "#25202e"
-    property color duskSurfaceContainerElevated: "#2d2838"
-    property color duskPrimary: "#d4c5e8"
-    property color duskPrimaryContainer: "#3d3450"
-    property color duskOnPrimary: "#1a1424"
-    property color duskOnSurface: "#e8e2eb"
-    property color duskOnSurfaceVariant: "#b8afc0"
-    property color duskOutline: "#5a5266"
-    property color duskBadge: "#4a405c"
-    property color duskBadgeOn: "#f0ebf5"
-
-    function getUpcomingTodos() {
-        if (unfinishedTodos.length === 0) {
-            return Translation.tr("No pending tasks");
-        }
-
-        const limitedTodos = unfinishedTodos.slice(0, 5);
-        let todoText = limitedTodos.map((item, index) => {
-            return `  ${index + 1}. ${item.content}`;
-        }).join('\n');
-
-        if (unfinishedTodos.length > 5) {
-            todoText += `\n  ${Translation.tr("... and %1 more").arg(unfinishedTodos.length - 5)}`;
-        }
-
-        return todoText;
-    }
-
+    // Set preferred width on the content layout instead of the popup itself
     ColumnLayout {
         id: columnLayout
         anchors.centerIn: parent
         spacing: 14
-        Layout.preferredWidth: 420
+        Layout.preferredWidth: 520
+        
+        property string formattedDate: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM dd, yyyy")
+        property string formattedTime: DateTime.time
+        property string formattedUptime: DateTime.uptime
+        property var unfinishedTodos: Todo.list.filter(item => !item.done)
+        
+        // Material 3 Expressive dusk-inspired color palette
+        property color duskSurface: "#1a1620"
+        property color duskSurfaceContainer: "#25202e"
+        property color duskSurfaceContainerElevated: "#2d2838"
+        property color duskPrimary: "#d4c5e8"
+        property color duskPrimaryContainer: "#3d3450"
+        property color duskOnPrimary: "#1a1424"
+        property color duskOnSurface: "#e8e2eb"
+        property color duskOnSurfaceVariant: "#b8afc0"
+        property color duskOutline: "#5a5266"
+        property color duskBadge: "#4a405c"
+        property color duskBadgeOn: "#f0ebf5"
+
+        function getUpcomingTodos() {
+            if (unfinishedTodos.length === 0) {
+                return Translation.tr("No pending tasks");
+            }
+
+            const limitedTodos = unfinishedTodos.slice(0, 5);
+            let todoText = limitedTodos.map((item, index) => {
+                return `  ${index + 1}. ${item.content}`;
+            }).join('\n');
+
+            if (unfinishedTodos.length > 5) {
+                todoText += `\n  ${Translation.tr("... and %1 more").arg(unfinishedTodos.length - 5)}`;
+            }
+
+            return todoText;
+        }
 
         // Header Section with elevated container
         Rectangle {
@@ -104,7 +105,7 @@ StyledPopup {
 
                     StyledText {
                         Layout.fillWidth: true
-                        text: root.formattedDate
+                        text: root.columnLayout.formattedDate
                         wrapMode: Text.Wrap
                         font.pixelSize: Appearance.font.pixelSize.small + 1
                         font.weight: Font.Medium
@@ -152,7 +153,7 @@ StyledPopup {
                     }
 
                     StyledText {
-                        text: root.formattedUptime
+                        text: root.columnLayout.formattedUptime
                         font.pixelSize: Appearance.font.pixelSize.normal + 1
                         font.weight: Font.Bold
                         font.family: Appearance.font.family.numbers
@@ -195,7 +196,7 @@ StyledPopup {
 
             // Task cards
             Repeater {
-                model: Math.min(unfinishedTodos.length, 5)
+                model: Math.min(columnLayout.unfinishedTodos.length, 5)
                 delegate: Rectangle {
                     id: taskCard
                     Layout.fillWidth: true
@@ -254,7 +255,7 @@ StyledPopup {
                             Layout.fillWidth: true
                             Layout.minimumWidth: 380
                             Layout.alignment: Qt.AlignVCenter
-                            text: unfinishedTodos[index].content
+                            text: columnLayout.unfinishedTodos[index].content
                             wrapMode: Text.NoWrap
                             elide: Text.ElideRight
                             font.pixelSize: Appearance.font.pixelSize.small + 1
@@ -270,7 +271,7 @@ StyledPopup {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: noTasksContent.implicitHeight + 18
-                visible: unfinishedTodos.length === 0
+                visible: columnLayout.unfinishedTodos.length === 0
                 color: duskSurfaceContainer
                 radius: 14
                 border.width: 1
@@ -290,7 +291,7 @@ StyledPopup {
                     }
 
                     StyledText {
-                        text: root.getUpcomingTodos()
+                        text: columnLayout.getUpcomingTodos()
                         font.pixelSize: Appearance.font.pixelSize.small
                         font.weight: Font.Medium
                         color: duskOnSurfaceVariant
@@ -300,8 +301,8 @@ StyledPopup {
 
             // More tasks indicator
             StyledText {
-                visible: unfinishedTodos.length > 5
-                text: Translation.tr("... and %1 more").arg(unfinishedTodos.length - 5)
+                visible: columnLayout.unfinishedTodos.length > 5
+                text: Translation.tr("... and %1 more").arg(columnLayout.unfinishedTodos.length - 5)
                 font.pixelSize: Appearance.font.pixelSize.smallest
                 font.weight: Font.Medium
                 color: duskOnSurfaceVariant
