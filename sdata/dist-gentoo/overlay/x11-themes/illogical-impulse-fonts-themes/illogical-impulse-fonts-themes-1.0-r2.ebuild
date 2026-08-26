@@ -15,7 +15,7 @@ RDEPEND="
 	x11-themes/adw-gtk3
 	kde-plasma/breeze
 	kde-plasma/breeze-plus
-	x11-themes/darkly
+	kde-misc/darkly
 	sys-apps/eza
 	app-shells/fish
 	media-libs/fontconfig

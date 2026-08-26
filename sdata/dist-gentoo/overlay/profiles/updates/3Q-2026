@@ -8,3 +8,4 @@ move app-misc/illogical-impulse-portal sys-apps/illogical-impulse-portal
 move app-misc/illogical-impulse-quickshell-git gui-apps/illogical-impulse-quickshell-git
 move app-misc/illogical-impulse-screencapture gui-apps/illogical-impulse-screencapture
 move app-misc/illogical-impulse-widgets gui-apps/illogical-impulse-widgets
+move x11-themes/darkly kde-misc/darkly

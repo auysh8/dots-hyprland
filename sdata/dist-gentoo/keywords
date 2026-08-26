@@ -44,7 +44,7 @@ dev-util/breakpad
 dev-libs/linux-syscall-support
 dev-embedded/libdisasm
 kde-plasma/breeze-plus
-x11-themes/darkly
+kde-misc/darkly
 x11-themes/adw-gtk3
 media-fonts/space-grotesk
 media-fonts/material-symbols-variable **
