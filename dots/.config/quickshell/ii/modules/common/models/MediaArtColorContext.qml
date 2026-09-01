@@ -74,6 +74,19 @@ Item {
     }
     Component.onCompleted: updateArtState()
 
+    Connections {
+        target: activePlayer || null
+        ignoreUnknownSignals: true
+        function onTrackArtUrlChanged() {
+            root.fallbackArtUrl = ""
+            root.updateArtState()
+        }
+        function onTrackTitleChanged() {
+            root.fallbackArtUrl = ""
+            root.updateArtState()
+        }
+    }
+
     Process {
         id: youtubeArtFetcher
         command: [ "bash", "-c", 'URL=$(playerctl metadata xesam:url 2>/dev/null); VID=$(echo "$URL" | grep -oP "(?:v=|\\/embed\\/|\\/v\\/|youtu\\.be\\/|\\/shorts\\/)\\K[a-zA-Z0-9_-]{11}"); [ -n "$VID" ] && echo "https://i.ytimg.com/vi/$VID/hqdefault.jpg"' ]

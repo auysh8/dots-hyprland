@@ -37,10 +37,13 @@ AbstractBackgroundWidget {
         }
         return MprisController.activePlayer
     }
-    property var artUrl: (currentPlayer ? currentPlayer.trackArtUrl : "")
-    property string artDownloadLocation: Directories.coverArt
-    property string artFileName: Qt.md5(artUrl)
-    property string artFilePath: `${artDownloadLocation}/${artFileName}`
+    MediaArtColorContext {
+        id: mediaContext
+        activePlayer: root.currentPlayer
+    }
+
+    property string displayedArtFilePath: mediaContext.displayedArtFilePath
+    property bool showLyrics: false
 
     property real buttonSize: 34
     property real buttonIconSize: 18
@@ -95,44 +98,8 @@ AbstractBackgroundWidget {
         animation: Appearance.animation.elementResize.numberAnimation.createObject(this)
     }
 
-    property bool downloaded: false
-    property bool showLyrics: false
-
-    property string displayedArtFilePath: {
-        if (!root.artUrl || root.artUrl.length === 0) return ""
-        if (root.artUrl.startsWith("file://")) return root.artUrl
-        return root.downloaded ? "file://" + root.artFilePath : ""
-    }
-
     implicitHeight: card.implicitHeight
     implicitWidth: card.implicitWidth
-
-    onArtUrlChanged: updateArt()
-    onArtFilePathChanged: updateArt()
-    Component.onCompleted: updateArt()
-
-    function updateArt() {
-        if (!root.artUrl || root.artUrl.length === 0) {
-            root.downloaded = false
-            return
-        }
-        if (root.artUrl.startsWith("file://")) {
-            root.downloaded = true
-            return
-        }
-        coverArtDownloader.targetFile = root.artUrl
-        coverArtDownloader.artFilePath = root.artFilePath
-        root.downloaded = false
-        coverArtDownloader.running = true
-    }
-
-    Process {
-        id: coverArtDownloader
-        property string targetFile: root.artUrl
-        property string artFilePath: root.artFilePath
-        command: ["bash", "-c", `mkdir -p "$(dirname "${artFilePath}")" && ([ -f "${artFilePath}" ] || curl -4 -sSL "${targetFile}" -o "${artFilePath}")`]
-        onExited: { root.downloaded = true }
-    }
 
     StyledRectangularShadow {
         target: card
