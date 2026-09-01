@@ -7,6 +7,8 @@ import qs.modules.common
  */
 MouseArea {
     id: root
+    width: implicitWidth
+    height: implicitHeight
     property alias animateXPos: xBehavior.enabled
     property alias animateYPos: yBehavior.enabled
     property bool draggable: true
