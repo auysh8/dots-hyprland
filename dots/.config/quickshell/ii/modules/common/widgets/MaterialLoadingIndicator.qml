@@ -13,6 +13,8 @@ Rectangle {
     // Size, color
     property double implicitSize: 48
     property color shapeColor: Appearance.colors.colOnPrimaryContainer
+    property alias colShape: root.shapeColor
+    property alias colBg: root.color
     implicitWidth: implicitSize
     implicitHeight: implicitSize
     radius: Math.min(width, height) / 2
