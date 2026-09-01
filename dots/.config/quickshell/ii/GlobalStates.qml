@@ -37,6 +37,11 @@ Singleton {
     property bool workspaceShowNumbers: false
     property list<real> visualizerPoints: []
     property bool desktopWidgetKeyboardFocus: false
+    property bool desktopMenuOpen: false
+    property var desktopMenuScreen: null
+    property real desktopMenuX: 0
+    property real desktopMenuY: 0
+    property bool widgetPickerOpen: false
 
     onSidebarRightOpenChanged: {
         if (GlobalStates.sidebarRightOpen) {

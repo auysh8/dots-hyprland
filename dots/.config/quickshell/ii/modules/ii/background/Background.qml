@@ -403,6 +403,52 @@ Variants {
                     }
                 }
             }
+
+            DropArea {
+                id: wallpaperDropArea
+                anchors.fill: parent
+                z: -3
+                keys: ["application/x-widget-key", "text/uri-list"]
+
+                onDropped: (drop) => {
+                    if (drop.hasFormat("application/x-widget-key")) {
+                        const key = drop.getDataAsString("application/x-widget-key")
+                        if (key && Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets[key]) {
+                            Config.options.background.widgets[key].enable = true
+                            Config.options.background.widgets[key].placementStrategy = "free"
+                            Config.options.background.widgets[key].x = Math.max(20, Math.min(drop.x - 100, bgRoot.screen.width - 250))
+                            Config.options.background.widgets[key].y = Math.max(20, Math.min(drop.y - 50, bgRoot.screen.height - 200))
+                            GlobalStates.widgetPickerOpen = false
+                        }
+                        drop.acceptProposedAction()
+                        return
+                    }
+
+                    if (drop.hasUrls) {
+                        const url = drop.urls[0]
+                        if (url) {
+                            const path = FileUtils.trimFileProtocol(url.toString())
+                            if (/\.(jpg|jpeg|png|webp|mp4|webm|mkv|avi|mov)$/i.test(path)) {
+                                Wallpapers.select(path, Appearance.m3colors.darkmode)
+                            }
+                        }
+                        drop.acceptProposedAction()
+                    }
+                }
+            }
+
+            MouseArea {
+                id: desktopRightClickArea
+                anchors.fill: parent
+                z: -2
+                acceptedButtons: Qt.RightButton
+                onClicked: (mouse) => {
+                    GlobalStates.desktopMenuScreen = bgRoot.screen
+                    GlobalStates.desktopMenuX = mouse.x
+                    GlobalStates.desktopMenuY = mouse.y
+                    GlobalStates.desktopMenuOpen = true
+                }
+            }
         }
     }
 }

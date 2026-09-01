@@ -24,6 +24,8 @@ import qs.modules.ii.overlay
 import qs.modules.ii.verticalBar
 import qs.modules.ii.wallpaperSelector
 import qs.modules.ii.sysmon
+import qs.modules.ii.desktopMenu
+import qs.modules.ii.widgetPicker
 
 Scope {
     PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }
@@ -48,4 +50,6 @@ Scope {
     PanelLoader { component: DynamicIsland {} }
     PanelLoader { component: WallpaperSelector {} }
     PanelLoader { component: SystemMonitorWindow {} }
+    PanelLoader { component: DesktopMenu {} }
+    PanelLoader { component: WidgetPicker {} }
 }
