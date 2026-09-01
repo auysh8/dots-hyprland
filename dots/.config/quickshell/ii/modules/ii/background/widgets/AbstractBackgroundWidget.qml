@@ -16,10 +16,10 @@ AbstractWidget {
     required property int scaledScreenHeight
     required property real wallpaperScale
     property bool visibleWhenLocked: Config.options.lock.showWidgets
-    property var configEntry: Config.options.background.widgets[configEntryName]
-    property string placementStrategy: configEntry.placementStrategy
-    property real targetX: Math.max(0, Math.min(configEntry.x, scaledScreenWidth - width))
-    property real targetY : Math.max(0, Math.min(configEntry.y, scaledScreenHeight - height))
+    property var configEntry: (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets[configEntryName]) ? Config.options.background.widgets[configEntryName] : ({})
+    property string placementStrategy: (configEntry && configEntry.placementStrategy) ? configEntry.placementStrategy : "free"
+    property real targetX: (configEntry && configEntry.x !== undefined) ? Math.max(0, Math.min(configEntry.x, scaledScreenWidth - width)) : 100
+    property real targetY : (configEntry && configEntry.y !== undefined) ? Math.max(0, Math.min(configEntry.y, scaledScreenHeight - height)) : 100
     x: targetX
     y: targetY
     visible: opacity > 0
@@ -39,10 +39,12 @@ AbstractWidget {
     }
 
     onReleased: {
-        configEntry.x = root.x;
-        configEntry.y = root.y;
-        root.targetX = Qt.binding(() => Math.max(0, Math.min(configEntry.x, scaledScreenWidth - width)));
-        root.targetY = Qt.binding(() => Math.max(0, Math.min(configEntry.y, scaledScreenHeight - height)));
+        if (configEntry) {
+            configEntry.x = root.x;
+            configEntry.y = root.y;
+        }
+        root.targetX = Qt.binding(() => (configEntry && configEntry.x !== undefined) ? Math.max(0, Math.min(configEntry.x, scaledScreenWidth - width)) : root.x);
+        root.targetY = Qt.binding(() => (configEntry && configEntry.y !== undefined) ? Math.max(0, Math.min(configEntry.y, scaledScreenHeight - height)) : root.y);
         root.restoreXYBinding();
     }
 

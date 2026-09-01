@@ -62,8 +62,12 @@ Item {
                 Layout.fillWidth: true
                 buttonIcon: modelData.icon
                 text: modelData.name
-                checked: Config.options.background.widgets[modelData.key].enable
-                onCheckedChanged: Config.options.background.widgets[modelData.key].enable = checked
+                checked: (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets[modelData.key]) ? Config.options.background.widgets[modelData.key].enable : false
+                onCheckedChanged: {
+                    if (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets[modelData.key]) {
+                        Config.options.background.widgets[modelData.key].enable = checked
+                    }
+                }
             }
         }
     }
