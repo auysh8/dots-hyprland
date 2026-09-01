@@ -11,22 +11,25 @@ ContentPage {
         icon: "wallpaper"
         title: Translation.tr("Wallpaper & Transitions")
 
-        ConfigSelectionArray {
+        ContentSubsection {
             title: Translation.tr("Wallpaper transition effect")
-            currentValue: Config.options.background.wallpaperAnimation
-            onSelected: newValue => {
-                Config.options.background.wallpaperAnimation = newValue;
+
+            ConfigSelectionArray {
+                currentValue: Config.options.background.wallpaperAnimation
+                onSelected: newValue => {
+                    Config.options.background.wallpaperAnimation = newValue;
+                }
+                options: [
+                    { displayName: Translation.tr("Disable"),    icon: "block",              value: "" },
+                    { displayName: Translation.tr("Random"),     icon: "shuffle",            value: "random" },
+                    { displayName: Translation.tr("Magic"),      icon: "auto_awesome",       value: "magic" },
+                    { displayName: Translation.tr("Ripple"),     icon: "waves",              value: "ripple" },
+                    { displayName: Translation.tr("Dissolve"),   icon: "grain",              value: "dissolve" },
+                    { displayName: Translation.tr("Pixelate"),   icon: "grid_view",          value: "pixelate" },
+                    { displayName: Translation.tr("Stripes"),    icon: "texture_minus",      value: "stripes" },
+                    { displayName: Translation.tr("Glitch"),     icon: "electrical_services", value: "glitch" },
+                ]
             }
-            options: [
-                { displayName: Translation.tr("Disable"),    icon: "block",              value: "" },
-                { displayName: Translation.tr("Random"),     icon: "shuffle",            value: "random" },
-                { displayName: Translation.tr("Magic"),      icon: "auto_awesome",       value: "magic" },
-                { displayName: Translation.tr("Ripple"),     icon: "waves",              value: "ripple" },
-                { displayName: Translation.tr("Dissolve"),   icon: "grain",              value: "dissolve" },
-                { displayName: Translation.tr("Pixelate"),   icon: "grid_view",          value: "pixelate" },
-                { displayName: Translation.tr("Stripes"),    icon: "texture_minus",      value: "stripes" },
-                { displayName: Translation.tr("Glitch"),     icon: "electrical_services", value: "glitch" },
-            ]
         }
 
         ConfigSpinBox {
@@ -592,12 +595,13 @@ ContentPage {
                     }
                 ]
             }
+        }
+
         ContentSubsection {
             visible: settingsClock.pixelPresent
             title: Translation.tr("Pixel clock settings")
 
             ConfigSelectionArray {
-                title: Translation.tr("Orientation")
                 currentValue: (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets.clock && Config.options.background.widgets.clock.pixel) ? Config.options.background.widgets.clock.pixel.orientation : "vertical"
                 onSelected: newValue => {
                     if (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets.clock && Config.options.background.widgets.clock.pixel) {
