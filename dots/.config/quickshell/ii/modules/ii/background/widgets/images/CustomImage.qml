@@ -145,14 +145,32 @@ AbstractBackgroundWidget {
                 }
             }
 
-            // Double-click anywhere to change photo
-            MouseArea {
-                anchors.fill: parent
-                enabled: !Config.options.background.widgetsLocked && root.imagePath !== ""
-                cursorShape: Qt.ArrowCursor
-                propagateComposedEvents: true
-                onDoubleClicked: {
-                    filePickerProc.running = true
+            // Small edit button shown on hover when unlocked
+            Rectangle {
+                anchors {
+                    top: parent.top
+                    right: parent.right
+                    margins: 8
+                }
+                implicitWidth: 32
+                implicitHeight: 32
+                radius: Appearance.rounding.full
+                color: Appearance.colors.colLayer1
+                visible: root.containsMouse && !Config.options.background.widgetsLocked && root.imagePath !== ""
+                z: 2
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    iconSize: 18
+                    text: "edit"
+                    color: Appearance.colors.colPrimary
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: filePickerProc.running = true
                 }
             }
 
