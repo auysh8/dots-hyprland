@@ -77,7 +77,7 @@ AbstractBackgroundWidget {
 
     Row {
         anchors.bottom: parent.bottom
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.left: parent.left
         spacing: root.barSpacing
         opacity: root.activityOpacity
 

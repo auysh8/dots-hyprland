@@ -20,6 +20,11 @@ MouseArea {
     drag.target: draggable ? dragProxy : undefined
     cursorShape: (draggable && containsPress) ? Qt.ClosedHandCursor : draggable ? Qt.OpenHandCursor : Qt.ArrowCursor
 
+    onPressed: {
+        dragProxy.x = root.x
+        dragProxy.y = root.y
+    }
+
     function center() {
         if (root.parent) {
             root.x = (root.parent.width - root.width) / 2
