@@ -126,7 +126,7 @@ FocusScope {
     // Process scanner
     Process {
         id: processScanner
-        command: ["/usr/bin/python3", "-u", Qt.resolvedUrl("get_processes.py").toString().replace("file://", "")]
+        command: [Qt.resolvedUrl("get_processes").toString().replace("file://", "")]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {

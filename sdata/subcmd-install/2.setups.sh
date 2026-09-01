@@ -34,6 +34,13 @@ function compile_native_helpers(){
     printf "${STY_CYAN}[$0]: Compiling material color helper...${STY_RST}\n"
     v g++ -O3 -std=c++20 "$color_cpp" -o "$color_bin" -lm
   fi
+
+  local sysmon_cpp="${REPO_ROOT}/dots/.config/quickshell/ii/modules/ii/sysmon/get_processes.cpp"
+  local sysmon_bin="${REPO_ROOT}/dots/.config/quickshell/ii/modules/ii/sysmon/get_processes"
+  if [[ -f "$sysmon_cpp" ]] && command -v g++ >/dev/null 2>&1; then
+    printf "${STY_CYAN}[$0]: Compiling sysmon process scanner...${STY_RST}\n"
+    v g++ -O3 -std=c++20 "$sysmon_cpp" -o "$sysmon_bin"
+  fi
 }
 #####################################################################################
 # These python packages are installed using uv into the venv (virtual environment). Once the folder of the venv gets deleted, they are all gone cleanly. So it's considered as setups, not dependencies.

@@ -93,6 +93,15 @@ StyledPopup {
         }
 
         ResourceCircle {
+            visible: ResourceUsage.gpuAvailable
+            icon: "developer_board"
+            label: "GPU"
+            value: ResourceUsage.gpuUsage
+            detail: `${Math.round(ResourceUsage.gpuUsage * 100)}%`
+            highlightColor: Appearance.m3colors.m3primary
+        }
+
+        ResourceCircle {
             icon: "device_thermostat"
             label: "TEMP"
             value: ResourceUsage.temperature / 100
@@ -106,7 +115,7 @@ StyledPopup {
             // Cap ring at ~15 MB/s (15 * 1024 * 1024 bytes)
             value: Math.min(ResourceUsage.networkDownloadSpeed / 15728640, 1.0)
             detail: ResourceUsage.formatSpeed(ResourceUsage.networkDownloadSpeed)
-            highlightColor: Appearance.m3colors.m3primary
+            highlightColor: Appearance.m3colors.m3tertiary
         }
     }
 }

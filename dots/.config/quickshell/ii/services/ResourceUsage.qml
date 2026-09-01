@@ -31,9 +31,21 @@ Singleton {
     property real cpuUsage: 0
     property var previousCpuStats
 
+    // GPU Properties
+    property string gpuName: ""
+    property string gpuVendor: ""
+    property bool gpuAvailable: false
+    property real gpuUsage: 0
+    property real gpuVramUsedGB: 0
+    property real gpuVramTotalGB: 0
+    property real gpuVramPercentage: 0
+    property real gpuTemperature: 0
+    property list<real> gpuUsageHistory: []
+
     property string maxAvailableMemoryString: kbToGbString(ResourceUsage.memoryTotal)
     property string maxAvailableSwapString: kbToGbString(ResourceUsage.swapTotal)
     property string maxAvailableCpuString: "--"
+    property string maxAvailableGpuString: gpuName.length > 0 ? gpuName : "--"
 
     readonly property int historyLength: Config?.options.resources.historyLength ?? 60
     property list<real> cpuUsageHistory: []
@@ -78,17 +90,27 @@ Singleton {
             cpuUsageHistory.shift()
         }
     }
+    function updateGpuUsageHistory() {
+        gpuUsageHistory = [...gpuUsageHistory, gpuUsage]
+        if (gpuUsageHistory.length > historyLength) {
+            gpuUsageHistory.shift()
+        }
+    }
     function updateHistories() {
         updateMemoryUsageHistory()
         updateSwapUsageHistory()
         updateCpuUsageHistory()
+        updateGpuUsageHistory()
     }
 
 	Timer {
 		interval: 1000
         running: true 
         repeat: true
+        triggeredOnStart: true
 		onTriggered: {
+            gpuInfoProc.running = false
+            gpuInfoProc.running = true
             // Reload files
             fileMeminfo.reload()
             fileStat.reload()
@@ -161,7 +183,7 @@ Singleton {
 	    FileView { id: fileNetDev; path: "/proc/net/dev" }
 	    FileView { 
 	        id: fileTemp
-	        path: "/sys/class/thermal/thermal_zone0/temp" 
+	        path: "/sys/class/thermal/thermal_zone1/temp" 
 	    }
 
 	    Process {
@@ -194,7 +216,7 @@ Singleton {
 	    Process {
 	        id: findThermalZoneProc
 	        environment: ({ LANG: "C" })
-	        command: ["bash", "-c", "grep -l 'x86_pkg_temp\\|TCPU' /sys/class/thermal/thermal_zone*/type | head -n1 | sed 's/type/temp/'"]
+	        command: ["bash", "-c", "p=$(grep -l 'SEN1\\|SEN3\\|acpitz\\|ambient\\|pch_' /sys/class/thermal/thermal_zone*/type 2>/dev/null | head -n1 | sed 's/type/temp/'); if [[ -z \"$p\" ]]; then p=$(grep -l 'x86_pkg_temp\\|TCPU' /sys/class/thermal/thermal_zone*/type 2>/dev/null | head -n1 | sed 's/type/temp/'); fi; echo \"$p\""]
 	        running: true
 	        stdout: StdioCollector {
 	            onStreamFinished: {
@@ -217,6 +239,31 @@ Singleton {
             id: outputCollector
             onStreamFinished: {
                 root.maxAvailableCpuString = (parseFloat(outputCollector.text) / 1000).toFixed(0) + " GHz"
+            }
+        }
+    }
+
+    Process {
+        id: gpuInfoProc
+        command: ["bash", "-c", `${Directories.scriptPath}/gpu/get_igpuinfo.sh`.replace(/file:\/\//, "")]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const data = JSON.parse(this.text);
+                    root.gpuAvailable = Object.keys(data).length > 0;
+                    if (root.gpuAvailable) {
+                        root.gpuVendor = data.vendor || "";
+                        root.gpuName = data.name || "GPU";
+                        root.gpuUsage = (data.usagePercent ?? 0) / 100;
+                        root.gpuVramUsedGB = data.vramUsedGB ?? 0;
+                        root.gpuVramTotalGB = data.vramTotalGB ?? 0;
+                        root.gpuVramPercentage = (data.vramPercent ?? 0) / 100;
+                        root.gpuTemperature = data.tempEdgeC ?? 0;
+                    }
+                } catch (e) {
+                    root.gpuAvailable = false;
+                }
             }
         }
     }

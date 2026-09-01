@@ -4,31 +4,28 @@ LC_NUMERIC=C
 
 # Intel iGPU (Iris Xe, UHD Graphics) monitoring
 
-# Requires intel_gpu_top for usage monitoring
-if ! command -v intel_gpu_top &> /dev/null; then
-  echo '{}'
-  exit 0
-fi
-
 CARD_PATH=""
+CARD_DIR=""
 
 # Check for manual card override via INTEL_GPU_CARD env var
 if [[ -n "${INTEL_GPU_CARD:-}" ]]; then
   if [[ -d "/sys/class/drm/${INTEL_GPU_CARD}/device" ]]; then
     CARD_PATH="/sys/class/drm/${INTEL_GPU_CARD}/device"
+    CARD_DIR="/sys/class/drm/${INTEL_GPU_CARD}"
   else
-    # User specified a card but it doesn't exist - fail instead of auto-detecting
     echo '{}'
     exit 0
   fi
 else
-  for d in /sys/class/drm/card*/device; do
+  for c in /sys/class/drm/card*; do
+    d="$c/device"
     [[ -r "$d/vendor" ]] || continue
     grep -qi "0x8086" "$d/vendor" || continue
 
     # iGPU: should NOT have lmem_total_bytes (Arc dGPUs have this)
     if [[ ! -r "$d/lmem_total_bytes" ]]; then
       CARD_PATH="$d"
+      CARD_DIR="$c"
       break
     fi
   done
@@ -47,7 +44,6 @@ bdf="$(basename "$(readlink -f "$CARD_PATH")")"
 if command -v lspci >/dev/null 2>&1; then
   desc="$(LC_ALL=C lspci -s "$bdf" 2>/dev/null || true)"
   if [[ -n "$desc" ]]; then
-    # Extract graphics name (Iris Xe, UHD Graphics, etc.)
     if [[ "$desc" =~ Iris.* ]]; then
       gpu_name="Iris Xe"
     elif [[ "$desc" =~ UHD.* ]]; then
@@ -58,11 +54,42 @@ fi
 
 gpu_name_json=${gpu_name//\"/\\\"}
 
-# Read GPU usage via intel_gpu_top
+# Read GPU usage via sysfs (RC6 duty cycle & frequency scaling)
 usage=0
-usage_line=$(timeout 1s intel_gpu_top -o - 2>/dev/null | head -n 3 | tail -n 1 || echo "")
-if [[ -n "$usage_line" ]]; then
-  usage=$(echo "$usage_line" | awk '{print $9}' | tr -d '%' || echo "0")
+state_file="/tmp/quickshell_intel_rc6"
+now_ms=$(date +%s%3N 2>/dev/null || python3 -c 'import time; print(int(time.time()*1000))')
+
+rc6_path=""
+if [[ -r "$CARD_DIR/gt/gt0/rc6_residency_ms" ]]; then
+  rc6_path="$CARD_DIR/gt/gt0/rc6_residency_ms"
+elif [[ -r "$CARD_DIR/power/rc6_residency_ms" ]]; then
+  rc6_path="$CARD_DIR/power/rc6_residency_ms"
+fi
+
+if [[ -n "$rc6_path" && -r "$rc6_path" ]]; then
+  curr_rc6=$(<"$rc6_path")
+  if [[ -f "$state_file" ]]; then
+    read -r prev_time prev_rc6 < "$state_file" || true
+    if [[ -n "${prev_time:-}" && -n "${prev_rc6:-}" ]]; then
+      dt=$((now_ms - prev_time))
+      d_rc6=$((curr_rc6 - prev_rc6))
+      if (( dt > 50 && dt < 10000 && d_rc6 >= 0 )); then
+        rc6_pct=$(( (d_rc6 * 100) / dt ))
+        if (( rc6_pct > 100 )); then rc6_pct=100; fi
+        usage=$(( 100 - rc6_pct ))
+      fi
+    fi
+  fi
+  echo "$now_ms $curr_rc6" > "$state_file"
+fi
+
+# Fallback: check frequency scaling
+act_freq=$(cat "$CARD_DIR/gt_act_freq_mhz" 2>/dev/null || cat "$CARD_DIR/gt/gt0/rps_act_freq_mhz" 2>/dev/null || echo 0)
+min_freq=$(cat "$CARD_DIR/gt_min_freq_mhz" 2>/dev/null || cat "$CARD_DIR/gt/gt0/rps_min_freq_mhz" 2>/dev/null || echo 100)
+max_freq=$(cat "$CARD_DIR/gt_max_freq_mhz" 2>/dev/null || cat "$CARD_DIR/gt/gt0/rps_max_freq_mhz" 2>/dev/null || echo 1200)
+
+if (( usage == 0 && act_freq > min_freq && max_freq > min_freq )); then
+  usage=$(( (act_freq - min_freq) * 100 / (max_freq - min_freq) ))
 fi
 
 # Read VRAM (iGPU uses system RAM)
