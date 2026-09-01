@@ -51,6 +51,7 @@ ShellRoot {
 
     Component.onCompleted: {
         Location.load()
+        BluetoothStatus.reconnectTrustedAudioDevicesAtStartup()
         MaterialThemeLoader.reapplyTheme()
         Hyprsunset.load()
         FirstRunExperience.load()
