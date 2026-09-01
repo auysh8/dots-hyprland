@@ -99,15 +99,17 @@ AbstractBackgroundWidget {
     property bool showLyrics: false
 
     property string displayedArtFilePath: {
-        if (!root.downloaded) return ""
-        if (root.artUrl && root.artUrl.startsWith("file://")) return root.artUrl
-        return root.downloaded ? Qt.resolvedUrl(artFilePath) : ""
+        if (!root.artUrl || root.artUrl.length === 0) return ""
+        if (root.artUrl.startsWith("file://")) return root.artUrl
+        return root.downloaded ? "file://" + root.artFilePath : ""
     }
 
     implicitHeight: card.implicitHeight
     implicitWidth: card.implicitWidth
 
+    onArtUrlChanged: updateArt()
     onArtFilePathChanged: updateArt()
+    Component.onCompleted: updateArt()
 
     function updateArt() {
         if (!root.artUrl || root.artUrl.length === 0) {
@@ -128,7 +130,7 @@ AbstractBackgroundWidget {
         id: coverArtDownloader
         property string targetFile: root.artUrl
         property string artFilePath: root.artFilePath
-        command: ["bash", "-c", `[ -f ${artFilePath} ] || curl -sSL '${targetFile}' -o '${artFilePath}'`]
+        command: ["bash", "-c", `mkdir -p "$(dirname "${artFilePath}")" && ([ -f "${artFilePath}" ] || curl -4 -sSL "${targetFile}" -o "${artFilePath}")`]
         onExited: { root.downloaded = true }
     }
 
