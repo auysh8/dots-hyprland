@@ -69,6 +69,7 @@ ContentPage {
 
         readonly property bool digitalPresent: stylePresent("digital")
         readonly property bool cookiePresent: stylePresent("cookie")
+        readonly property bool pixelPresent: stylePresent("pixel")
 
         ConfigRow {
             Layout.fillWidth: true
@@ -140,6 +141,11 @@ ContentPage {
                             displayName: Translation.tr("Cookie"),
                             icon: "cookie",
                             value: "cookie"
+                        },
+                        {
+                            displayName: Translation.tr("Pixel"),
+                            icon: "grid_view",
+                            value: "pixel"
                         }
                     ]
                 }
@@ -163,6 +169,11 @@ ContentPage {
                             displayName: Translation.tr("Cookie"),
                             icon: "cookie",
                             value: "cookie"
+                        },
+                        {
+                            displayName: Translation.tr("Pixel"),
+                            icon: "grid_view",
+                            value: "pixel"
                         }
                     ]
                 }
@@ -541,6 +552,31 @@ ContentPage {
                         displayName: Translation.tr("Rect"),
                         icon: "rectangle",
                         value: "rect"
+                    }
+                ]
+            }
+        ContentSubsection {
+            visible: settingsClock.pixelPresent
+            title: Translation.tr("Pixel clock settings")
+
+            ConfigSelectionArray {
+                title: Translation.tr("Orientation")
+                currentValue: (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets.clock && Config.options.background.widgets.clock.pixel) ? Config.options.background.widgets.clock.pixel.orientation : "vertical"
+                onSelected: newValue => {
+                    if (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets.clock && Config.options.background.widgets.clock.pixel) {
+                        Config.options.background.widgets.clock.pixel.orientation = newValue;
+                    }
+                }
+                options: [
+                    {
+                        displayName: Translation.tr("Vertical"),
+                        icon: "stay_current_portrait",
+                        value: "vertical"
+                    },
+                    {
+                        displayName: Translation.tr("Horizontal"),
+                        icon: "stay_current_landscape",
+                        value: "horizontal"
                     }
                 ]
             }
