@@ -13,7 +13,7 @@ AbstractBackgroundWidget {
     configEntryName: "worldClock"
     hoverEnabled: true
 
-    property string sizeMode: root.configEntry.sizeMode ?? "2x2"
+    property string sizeMode: (root.configEntry && root.configEntry.sizeMode ? root.configEntry.sizeMode : "2x2")
 
     readonly property int clockCount: Math.min(Math.max(root.configEntry.clockCount ?? 4, 1), 4)
     readonly property real fourByOneWidth: root.clockCount * 132 + (root.clockCount - 1) * 12

@@ -53,10 +53,13 @@ Scope {
 
     Process {
         id: cavaProc
-        running: mediaControlsLoader.active
+        running: (mediaControlsLoader.active ||
+            (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets.visualizer && Config.options.background.widgets.visualizer.enable))
+            && MprisController.activePlayer !== null
         onRunningChanged: {
             if (!cavaProc.running) {
                 root.visualizerPoints = [];
+                GlobalStates.visualizerPoints = [];
             }
         }
         command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
@@ -64,6 +67,7 @@ Scope {
             onRead: data => {
                 let points = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
                 root.visualizerPoints = points;
+                GlobalStates.visualizerPoints = points;
             }
         }
     }

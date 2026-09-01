@@ -21,7 +21,7 @@ AbstractBackgroundWidget {
     readonly property real snapWidth2: singleWidth * 2 + cardSpacing  
     readonly property real snapWidth3: singleWidth * 3 + cardSpacing * 2
 
-    property string sizeMode: root.configEntry.sizeMode ?? "2x2"
+    property string sizeMode: (root.configEntry && root.configEntry.sizeMode ? root.configEntry.sizeMode : "2x2")
 
     property real widgetWidth: {
         switch (root.sizeMode) {

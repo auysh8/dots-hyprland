@@ -23,7 +23,7 @@ AbstractBackgroundWidget {
     readonly property real snapHeight2: 120
     readonly property real snapHeight3: 252
 
-    property string sizeMode: root.configEntry.sizeMode ?? "2x2"
+    property string sizeMode: (root.configEntry && root.configEntry.sizeMode ? root.configEntry.sizeMode : "2x2")
 
     property real widgetWidth: {
         switch (root.sizeMode) {
