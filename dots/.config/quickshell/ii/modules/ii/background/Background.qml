@@ -265,13 +265,6 @@ Variants {
                 x: bgRoot.backgroundParallaxEnabled ? (wallpaper.x * parallaxFactor * !locked) : 0
                 y: bgRoot.backgroundParallaxEnabled ? (wallpaper.y * parallaxFactor * !locked) : 0
 
-                Behavior on x {
-                    NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
-                }
-                Behavior on y {
-                    NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
-                }
-
                 transitions: Transition {
                     PropertyAnimation {
                         properties: "width,height"
