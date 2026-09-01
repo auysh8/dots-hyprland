@@ -12,6 +12,7 @@ RowLayout {
 
     property string text: ""
     property string buttonIcon: ""
+    property bool showLabel: true
     property alias value: slider.value
     property alias stopIndicatorValues: slider.stopIndicatorValues
     property bool usePercentTooltip: true
@@ -21,6 +22,7 @@ RowLayout {
 
     RowLayout {
         id: row
+        visible: root.showLabel
         spacing: 10
 
         OptionalMaterialSymbol {

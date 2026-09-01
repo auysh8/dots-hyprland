@@ -256,9 +256,16 @@ Scope {
                                 StyledTextInput {
                                     id: searchInput
                                     Layout.fillWidth: true
-                                    placeholderText: Translation.tr("Search widgets...")
                                     text: root.searchFilter
                                     onTextChanged: root.searchFilter = text
+
+                                    StyledText {
+                                        anchors.fill: parent
+                                        visible: !searchInput.text
+                                        text: Translation.tr("Search widgets...")
+                                        color: Appearance.colors.colSubtext
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                    }
                                 }
 
                                 RippleButton {
