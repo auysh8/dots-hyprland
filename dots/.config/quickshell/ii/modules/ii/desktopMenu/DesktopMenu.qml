@@ -176,24 +176,6 @@ Scope {
                         itemVerticalPadding: 16
                         bgcolor: Appearance.colors.colLayer0
 
-                        // Add Widgets / Open Drawer
-                        RippleButton {
-                            implicitHeight: 40
-                            colBackground: "transparent"
-                            colBackgroundHover: Appearance.colors.colLayer2
-                            contentItem: RowLayout {
-                                anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
-                                spacing: 12
-                                MaterialSymbol { text: "widgets"; iconSize: Appearance.font.pixelSize.larger; color: Appearance.colors.colPrimary }
-                                StyledText { Layout.fillWidth: true; text: Translation.tr("Add Widgets..."); font.pixelSize: Appearance.font.pixelSize.normal; font.weight: Font.DemiBold; color: Appearance.colors.colPrimary }
-                                MaterialSymbol { text: "arrow_forward"; iconSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colPrimary; opacity: 0.8 }
-                            }
-                            onClicked: {
-                                GlobalStates.desktopMenuOpen = false
-                                GlobalStates.widgetPickerOpen = true
-                            }
-                        }
-
                         // Wallpapers
                         RippleButton {
                             id: wallpaperRow
@@ -237,7 +219,7 @@ Scope {
                             contentItem: RowLayout {
                                 anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
                                 spacing: 12
-                                MaterialSymbol { text: "dashboard_customize"; iconSize: Appearance.font.pixelSize.larger; color: Appearance.colors.colOnLayer1 }
+                                MaterialSymbol { text: "widgets"; iconSize: Appearance.font.pixelSize.larger; color: Appearance.colors.colOnLayer1 }
                                 StyledText { Layout.fillWidth: true; text: Translation.tr("Toggle Widgets"); font.pixelSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1 }
                                 MaterialSymbol { text: "chevron_right"; iconSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1; opacity: 0.4 }
                             }
@@ -258,23 +240,9 @@ Scope {
                                     }
                                 }
                             }
-                        }
-
-                        // Settings
-                        RippleButton {
-                            implicitHeight: 40
-                            colBackground: "transparent"
-                            colBackgroundHover: Appearance.colors.colLayer2
-                            contentItem: RowLayout {
-                                anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
-                                spacing: 12
-                                MaterialSymbol { text: "settings"; iconSize: Appearance.font.pixelSize.larger; color: Appearance.colors.colOnLayer1 }
-                                StyledText { Layout.fillWidth: true; text: Translation.tr("Desktop Settings"); font.pixelSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1 }
-                                MaterialSymbol { text: "chevron_right"; iconSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1; opacity: 0.4 }
-                            }
                             onClicked: {
                                 GlobalStates.desktopMenuOpen = false
-                                GlobalStates.settingsOpen = true
+                                GlobalStates.widgetPickerOpen = true
                             }
                         }
                     }
