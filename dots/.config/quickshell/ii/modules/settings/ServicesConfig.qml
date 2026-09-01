@@ -267,6 +267,7 @@ ContentPage {
         
         MaterialTextArea {
             Layout.fillWidth: true
+            enabled: !Config.options.bar.weather.enableGPS
             placeholderText: Translation.tr("City name")
             text: Config.options.bar.weather.city
             wrapMode: TextEdit.Wrap

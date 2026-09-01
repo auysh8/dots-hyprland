@@ -56,20 +56,6 @@ Scope {
         return false;
     }
 
-    function deviceNameForId(deviceId) {
-        for (const dev of availableDevices) {
-            if (dev.id === deviceId) return dev.name;
-        }
-        return "";
-    }
-
-    function selectedDeviceIndex() {
-        for (let i = 0; i < availableDevices.length; i++) {
-            if (availableDevices[i].id === activeDeviceId) return i;
-        }
-        return availableDevices.length > 0 ? 0 : -1;
-    }
-
     function urlsToPaths(urls) {
         const paths = [];
         for (const rawUrl of urls) {
@@ -587,29 +573,30 @@ Scope {
                                     Layout.fillWidth: true
                                 }
 
-                                // Connection badge - unified pill
-                                Rectangle {
-                                    implicitWidth: connectedRow.implicitWidth + 20
-                                    implicitHeight: 24
-                                    radius: 12
+                                // Connection badge - unified Pill
+                                Pill {
+                                    implicitWidth: connectedRow.implicitWidth + 16
+                                    implicitHeight: 22
                                     color: m3SuccessContainer
                                     visible: deviceOnline
 
-                                    RowLayout {
+                                    Row {
                                         id: connectedRow
                                         anchors.centerIn: parent
                                         spacing: 6
 
                                         // Vibrant emerald green dot
                                         Rectangle {
-                                            implicitWidth: 8
-                                            implicitHeight: 8
-                                            radius: 4
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 6
+                                            height: 6
+                                            radius: 3
                                             color: successColor
                                         }
 
                                         // "Connected" text
                                         StyledText {
+                                            anchors.verticalCenter: parent.verticalCenter
                                             text: "Connected"
                                             color: m3OnSuccessContainer
                                             font.pixelSize: 11

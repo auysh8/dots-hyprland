@@ -920,27 +920,20 @@ FocusScope {
                     
                     Item { Layout.fillWidth: true }
 
-                    Rectangle {
+                    Pill {
                         Layout.preferredWidth: 300
                         Layout.preferredHeight: 44
                         Layout.alignment: Qt.AlignVCenter
-                        radius: Appearance.rounding.full
                         color: searchField.activeFocus ? Appearance.colors.colLayer3 : Appearance.colors.colLayer2
 
                         Behavior on color {
                             animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.IBeamCursor
-                            onClicked: searchField.forceActiveFocus()
-                        }
-
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
                             spacing: 10
 
                             MaterialSymbol {
@@ -950,26 +943,17 @@ FocusScope {
                                 color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.6)
                             }
 
-                            StyledTextInput {
+                            ToolbarTextField {
                                 id: searchField
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
+                                placeholderText: Translation.tr("Search applications...")
+                                colBackground: "transparent"
                                 font.pixelSize: 15
-                                color: Appearance.colors.colOnSurface
-                                selectByMouse: true
-                                clip: true
 
                                 onTextChanged: {
                                     root.searchText = text;
                                     appGrid.model.values = root.getFilteredApps();
-                                }
-
-                                StyledText {
-                                    anchors.fill: parent
-                                    text: "Search applications..."
-                                    color: Appearance.colors.colSubtext
-                                    font.pixelSize: 15
-                                    visible: !searchField.text && !searchField.activeFocus
                                 }
 
                                 // Forward navigation keys to root
@@ -1006,17 +990,18 @@ FocusScope {
                                 colBackground: "transparent"
                                 colBackgroundHover: Appearance.colors.colLayer1Hover
 
+                                onClicked: {
+                                    searchField.text = "";
+                                    searchField.forceActiveFocus();
+                                }
+
                                 contentItem: MaterialSymbol {
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                     text: "close"
                                     iconSize: 16
-                                    color: Appearance.colors.colOnLayer0
-                                }
-
-                                onClicked: {
-                                    searchField.text = "";
-                                    searchField.forceActiveFocus();
+                                    color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer2, 0.6)
+                                    fill: 1
                                 }
                             }
                         }
@@ -1530,11 +1515,10 @@ FocusScope {
                     visible: !root.uninstallBlocked && (root.uninstallPkg.length > 0 || root.uninstallSize.length > 0)
                     spacing: 8
 
-                    Rectangle {
+                    Pill {
                         visible: root.uninstallKind.length > 0
-                        radius: 6
                         color: Appearance.m3colors.m3secondaryContainer
-                        implicitWidth: kindText.implicitWidth + 12
+                        implicitWidth: kindText.implicitWidth + 14
                         implicitHeight: 22
                         StyledText {
                             id: kindText
@@ -1546,11 +1530,10 @@ FocusScope {
                         }
                     }
 
-                    Rectangle {
+                    Pill {
                         visible: root.uninstallSize.length > 0
-                        radius: 6
                         color: Appearance.colors.colLayer2Base
-                        implicitWidth: sizeText.implicitWidth + 12
+                        implicitWidth: sizeText.implicitWidth + 14
                         implicitHeight: 22
                         StyledText {
                             id: sizeText

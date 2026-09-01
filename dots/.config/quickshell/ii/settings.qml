@@ -115,7 +115,7 @@ ApplicationWindow {
                 text: Translation.tr("Settings")
                 font {
                     family: Appearance.font.family.title
-                    pixelSize: 13
+                    pixelSize: Appearance.font.pixelSize.large
                     weight: Font.Bold
                 }
             }

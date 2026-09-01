@@ -50,6 +50,7 @@ ShellRoot {
     }
 
     Component.onCompleted: {
+        Location.load()
         MaterialThemeLoader.reapplyTheme()
         Hyprsunset.load()
         FirstRunExperience.load()

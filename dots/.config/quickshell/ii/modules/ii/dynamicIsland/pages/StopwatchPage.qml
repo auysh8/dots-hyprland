@@ -107,10 +107,9 @@ Item {
                 }
 
                 // Lap Capsule Pill
-                Rectangle {
+                Pill {
                     id: lapPill
                     visible: root.isRunning || TimerService.stopwatchTime > 0
-                    radius: 12
                     implicitHeight: 24
                     implicitWidth: lapContent.width + 16
                     color: ColorUtils.applyAlpha(root.accentColor, 0.20)

@@ -99,9 +99,8 @@ Rectangle {
         }
 
         // Right: Tasks Pill
-        Rectangle {
+        Pill {
             property int remainingTasks: Todo.list.filter(task => !task.done).length
-            radius: 17
             color: Appearance.colors.colLayer3
             implicitHeight: 34
             implicitWidth: taskText.implicitWidth + 24
@@ -128,20 +127,12 @@ Rectangle {
 
     RowLayout {
         id: bottomWidgetGroupRow
-        opacity: root.collapsed ? 0 : 1
-        scale: root.collapsed ? 0.85 : 1
-        visible: opacity > 0
         anchors.fill: parent
-        spacing: 20
-
-        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-        Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
+        visible: !root.collapsed
+        spacing: 8
 
         Item {
             Layout.fillHeight: true
-            Layout.fillWidth: false
-            Layout.leftMargin: 10
-            Layout.topMargin: 10
             implicitWidth: navRailContainer.implicitWidth
 
             CalendarHeaderButton {
@@ -157,13 +148,12 @@ Rectangle {
                 }
             }
 
-            Rectangle {
+            Pill {
                 id: navRailContainer
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 implicitWidth: tabBar.implicitWidth + 14
                 implicitHeight: tabBar.implicitHeight + 24
-                radius: implicitWidth / 2
                 color: Appearance.colors.colLayer2
 
                 NavigationRailTabArray {

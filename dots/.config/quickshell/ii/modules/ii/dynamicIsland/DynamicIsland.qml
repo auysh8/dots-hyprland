@@ -1061,9 +1061,8 @@ Scope {
                                 spacing: 10
 
                                 // Time Pill
-                                Rectangle {
+                                Pill {
                                     id: timePill
-                                    radius: 16
                                     color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.10)
                                     border.width: 1
                                     border.color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.12)
@@ -1077,11 +1076,10 @@ Scope {
                                         spacing: 6
 
                                         // Mint Circular Clock Badge
-                                        Rectangle {
+                                        Pill {
                                             anchors.verticalCenter: parent.verticalCenter
                                             width: 20
                                             height: 20
-                                            radius: 10
                                             color: Appearance.colors.colPrimary
 
                                             MaterialSymbol {
@@ -1109,9 +1107,8 @@ Scope {
                                 }
 
                                 // Date Pill
-                                Rectangle {
+                                Pill {
                                     id: datePill
-                                    radius: 16
                                     color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.10)
                                     border.width: 1
                                     border.color: ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.12)

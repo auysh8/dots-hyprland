@@ -283,7 +283,7 @@ Item {
         implicitHeight: 40
 
         // Left: Uptime Pill Capsule (40px height matching buttons)
-        Rectangle {
+        Pill {
             id: uptimeContainer
             anchors {
                 verticalCenter: parent.verticalCenter
@@ -291,7 +291,6 @@ Item {
             }
             height: 40
             color: Appearance.colors.colLayer2
-            radius: height / 2
             border.width: 1
             border.color: Appearance.colors.colLayer0Border
             implicitWidth: uptimeRow.implicitWidth + 20
@@ -302,11 +301,10 @@ Item {
                 spacing: 8
 
                 // Mint/Teal/Primary Circular Icon Badge
-                Rectangle {
+                Pill {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 26
                     height: 26
-                    radius: 13
                     color: Appearance.colors.colPrimaryContainer
 
                     MaterialSymbol {

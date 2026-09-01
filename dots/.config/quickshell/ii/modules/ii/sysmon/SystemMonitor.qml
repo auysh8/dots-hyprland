@@ -513,49 +513,33 @@ FocusScope {
                 Layout.fillWidth: true
                 spacing: 16
                 
-                                // Search field
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.maximumWidth: 400
-                                    height: 44
-                                    radius: 22
-                                    color: searchInput.activeFocus ? Appearance.colors.colLayer3 : root.cardColor
-                
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.IBeamCursor
-                                        onClicked: searchInput.forceActiveFocus()
-                                    }
-                
-                                    RowLayout {                        anchors.fill: parent
+                // Search field
+                Pill {
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: 400
+                    height: 44
+                    color: searchInput.activeFocus ? Appearance.colors.colLayer3 : root.cardColor
+
+                    RowLayout {
+                        anchors.fill: parent
                         anchors.leftMargin: 16
                         anchors.rightMargin: 16
                         spacing: 12
-                        
+
                         MaterialSymbol {
                             text: "search"
                             iconSize: 18
                             color: root.textSecondary
                             fill: 1
                         }
-                        
-                        StyledTextInput {
+
+                        ToolbarTextField {
                             id: searchInput
                             Layout.fillWidth: true
+                            placeholderText: Translation.tr("Search processes...")
+                            colBackground: "transparent"
                             font.pixelSize: 14
-                            clip: true
-                            selectByMouse: true
-                            selectionColor: ColorUtils.applyAlpha(root.cpuColor, 0.5)
-                            selectedTextColor: Appearance.colors.colOnPrimary
                             onTextChanged: root.searchText = text
-
-                            StyledText {
-                                anchors.fill: parent
-                                text: "Search processes..."
-                                font.pixelSize: 14
-                                color: root.textSecondary
-                                visible: !searchInput.text && !searchInput.activeFocus
-                            }
                         }
 
                         RippleButton {
@@ -814,10 +798,9 @@ FocusScope {
                                     Layout.fillWidth: true
                                     spacing: 12
 
-                                    Rectangle {
+                                    Pill {
                                         width: 28
                                         height: 28
-                                        radius: 14
                                         color: {
                                             if (root.selectedPid === pid) {
                                                 return ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colOnPrimaryContainer, 0.22);
@@ -876,11 +859,10 @@ FocusScope {
                                     Layout.preferredWidth: root.metricColumnWidth
                                     Layout.fillHeight: true
 
-                                    Rectangle {
+                                    Pill {
                                         anchors.centerIn: parent
                                         implicitHeight: 24
                                         implicitWidth: 64
-                                        radius: 12
                                         color: root.selectedPid === pid
                                             ? ColorUtils.mix(Appearance.colors.colPrimaryContainer, Appearance.colors.colOnPrimaryContainer, 0.22)
                                             : (cpu > 20 ? Appearance.colors.colPrimaryContainer : Appearance.colors.colLayer3)
@@ -939,10 +921,9 @@ FocusScope {
                         Layout.fillWidth: true
 
                         // Left Pill: Showing X processes
-                        Rectangle {
+                        Pill {
                             implicitHeight: 26
                             implicitWidth: processCountText.implicitWidth + 24
-                            radius: 13
                             color: Appearance.colors.colLayer3
 
                             StyledText {
@@ -958,10 +939,9 @@ FocusScope {
                         Item { Layout.fillWidth: true }
 
                         // Right Pill: Refreshes every 2s
-                        Rectangle {
+                        Pill {
                             implicitHeight: 26
                             implicitWidth: refreshRateText.implicitWidth + 24
-                            radius: 13
                             color: Appearance.colors.colLayer3
 
                             StyledText {
