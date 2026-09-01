@@ -109,9 +109,76 @@ Variants {
             animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
         }
 
+        property string currentWallpaperSource: Config.options.background.wallpaperPath
+        property string previousWallpaperSource: Config.options.background.wallpaperPath
+        property real transitionProgress: 1.0
+        property var shaderList: ["circlePit", "circleSelect", "magic", "Doom", "Peel", "transition", "pixelate", "stripes", "crt", "dissolve", "glitch", "ripple", "shatter"]
+        property string currentShader: "magic"
+        property string wallpaperAnimation: Config.options.background.wallpaperAnimation ?? "random"
+
+        Component.onCompleted: {
+            previousWallpaper.source = ""
+            wallpaper.source = bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+            bgRoot.currentWallpaperSource = bgRoot.wallpaperPath
+            bgRoot.previousWallpaperSource = ""
+            bgRoot.transitionProgress = 1.0
+            if (bgRoot.wallpaperAnimation !== "") {
+                bgRoot.currentShader = bgRoot.wallpaperAnimation === "random"
+                    ? bgRoot.shaderList[Math.floor(Math.random() * bgRoot.shaderList.length)]
+                    : bgRoot.wallpaperAnimation
+            }
+        }
+
         onWallpaperPathChanged: {
             bgRoot.updateZoomScale();
-            // Clock position gets updated after zoom scale is updated
+            if (wallpaperSafetyTriggered) {
+                previousWallpaper.source = ""
+                wallpaper.source = ""
+                bgRoot.transitionProgress = 1.0
+                return
+            }
+            if (bgRoot.wallpaperAnimation === "") {
+                wallpaper.source = wallpaperPath
+                bgRoot.currentWallpaperSource = wallpaperPath
+                return
+            }
+
+            previousWallpaper.source = bgRoot.currentWallpaperSource
+            wallpaper.source = wallpaperPath
+            bgRoot.currentWallpaperSource = wallpaperPath
+            if (bgRoot.wallpaperAnimation === "random") {
+                bgRoot.currentShader = bgRoot.shaderList[Math.floor(Math.random() * bgRoot.shaderList.length)]
+            } else {
+                bgRoot.currentShader = bgRoot.wallpaperAnimation
+            }
+            bgRoot.transitionProgress = 0.0
+        }
+
+        NumberAnimation {
+            id: transitionAnim
+            target: bgRoot
+            property: "transitionProgress"
+            from: 0.0
+            to: 1.0
+            duration: 1200
+            easing.type: Easing.InOutCubic
+            onFinished: {
+                previousWallpaper.source = ""
+                bgRoot.previousWallpaperSource = ""
+                bgRoot.transitionProgress = 1.0
+            }
+        }
+
+        Timer {
+            id: wallpaperChangeTimer
+            interval: (Config.options && Config.options.wallpaperSelector && Config.options.wallpaperSelector.changeInterval) ? Config.options.wallpaperSelector.changeInterval : 0
+            running: interval > 0
+            repeat: true
+            onTriggered: {
+                if (Wallpapers.folderModel.count > 0) {
+                    Wallpapers.randomFromCurrentFolder()
+                }
+            }
         }
 
         // Wallpaper zoom scale
@@ -144,13 +211,31 @@ Variants {
         Item {
             anchors.fill: parent
 
+            Image {
+                id: previousWallpaper
+                anchors.fill: wallpaper
+                fillMode: Image.PreserveAspectCrop
+                cache: true
+                smooth: true
+                asynchronous: true
+                layer.enabled: true
+                visible: false
+            }
+
             // Wallpaper
             StyledImage {
                 id: wallpaper
                 visible: opacity > 0 && !blurLoader.active
+                    && (bgRoot.wallpaperAnimation === "" || bgRoot.transitionProgress >= 1.0)
                 opacity: (status === Image.Ready && !bgRoot.wallpaperIsVideo) ? 1 : 0
-                cache: false
-                smooth: false
+                cache: true
+                smooth: true
+                asynchronous: true
+                onStatusChanged: {
+                    if (status === Image.Ready && bgRoot.transitionProgress === 0.0) {
+                        transitionAnim.restart()
+                    }
+                }
 
                 property int workspaceIndex: (bgRoot.monitor.activeWorkspace?.id ?? 1) - 1
                 property real middleFraction: 0.5
@@ -215,6 +300,37 @@ Variants {
                 height: bgRoot.scaledWallpaperHeight
             }
 
+            ShaderEffect {
+                id: transitionEffect
+                anchors.fill: wallpaper
+                layer.enabled: blurLoader.active
+                visible: !blurLoader.active && !bgRoot.wallpaperIsVideo
+                    && bgRoot.wallpaperAnimation !== "" && bgRoot.transitionProgress < 1.0
+
+                property var fromImage: previousWallpaper
+                property var toImage: wallpaper
+                property var source1: previousWallpaper
+                property var source2: wallpaper
+                property real time: 0.0
+                property real progress: bgRoot.transitionProgress
+                property real aspectX: width / height
+                property real aspectY: 1.0
+                property vector2d aspectRatio: Qt.vector2d(aspectX, aspectY)
+                property vector2d origin: Qt.vector2d(0.5, 0.5)
+
+                fragmentShader: bgRoot.wallpaperAnimation !== ""
+                    ? Qt.resolvedUrl(`shaders/${bgRoot.currentShader}.frag.qsb`)
+                    : ""
+
+                Timer {
+                    interval: 16
+                    repeat: true
+                    running: transitionEffect.visible
+                    onTriggered: transitionEffect.time += interval / 1000.0
+                }
+                onVisibleChanged: if (!visible) transitionEffect.time = 0.0
+            }
+
             Loader {
                 id: blurLoader
                 active: Config.options.lock.blur.enable && (GlobalStates.screenLocked || scaleAnim.running)
@@ -229,7 +345,7 @@ Variants {
                     }
                 }
                 sourceComponent: GaussianBlur {
-                    source: wallpaper
+                    source: bgRoot.wallpaperAnimation === "" || bgRoot.transitionProgress >= 1.0 ? wallpaper : transitionEffect
                     radius: GlobalStates.screenLocked ? Config.options.lock.blur.radius : 0
                     samples: radius * 2 + 1
 

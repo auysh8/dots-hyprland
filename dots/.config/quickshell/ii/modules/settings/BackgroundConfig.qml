@@ -8,6 +8,43 @@ ContentPage {
     forceWidth: true
 
     ContentSection {
+        icon: "wallpaper"
+        title: Translation.tr("Wallpaper & Transitions")
+
+        ConfigSelectionArray {
+            title: Translation.tr("Wallpaper transition effect")
+            currentValue: Config.options.background.wallpaperAnimation
+            onSelected: newValue => {
+                Config.options.background.wallpaperAnimation = newValue;
+            }
+            options: [
+                { displayName: Translation.tr("Disable"),    icon: "block",              value: "" },
+                { displayName: Translation.tr("Random"),     icon: "shuffle",            value: "random" },
+                { displayName: Translation.tr("Magic"),      icon: "auto_awesome",       value: "magic" },
+                { displayName: Translation.tr("Ripple"),     icon: "waves",              value: "ripple" },
+                { displayName: Translation.tr("Dissolve"),   icon: "grain",              value: "dissolve" },
+                { displayName: Translation.tr("Pixelate"),   icon: "grid_view",          value: "pixelate" },
+                { displayName: Translation.tr("Stripes"),    icon: "texture_minus",      value: "stripes" },
+                { displayName: Translation.tr("Glitch"),     icon: "electrical_services", value: "glitch" },
+            ]
+        }
+
+        ConfigSpinBox {
+            icon: "timer"
+            text: Translation.tr("Auto-rotate interval (seconds, 0 = off)")
+            value: (Config.options && Config.options.wallpaperSelector && Config.options.wallpaperSelector.changeInterval) ? Math.floor(Config.options.wallpaperSelector.changeInterval / 1000) : 0
+            from: 0
+            to: 3600
+            stepSize: 30
+            onValueChanged: {
+                if (Config.options && Config.options.wallpaperSelector) {
+                    Config.options.wallpaperSelector.changeInterval = value * 1000;
+                }
+            }
+        }
+    }
+
+    ContentSection {
         icon: "sync_alt"
         title: Translation.tr("Parallax")
 

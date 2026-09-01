@@ -310,6 +310,7 @@ Singleton {
                 }
                 property string wallpaperPath: ""
                 property string thumbnailPath: ""
+                property string wallpaperAnimation: "magic"
                 property bool hideWhenFullscreen: true
                 property JsonObject parallax: JsonObject {
                     property bool vertical: false
@@ -700,6 +701,7 @@ Singleton {
             
             property JsonObject wallpaperSelector: JsonObject {
                 property bool useSystemFileDialog: false
+                property int changeInterval: 0
             }
             
             property JsonObject windows: JsonObject {

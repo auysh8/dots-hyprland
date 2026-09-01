@@ -196,10 +196,14 @@ Item {
 
                 Repeater {
                     model: [
-                        { displayName: Translation.tr("Disable"),    icon: "block",        value: "" },
-                        { displayName: Translation.tr("Magic"),   icon: "auto_awesome", value: "magic" },
-                        { displayName: Translation.tr("Stripes"), icon: "texture_minus", value: "stripes" },
-                        { displayName: Translation.tr("Random"),  icon: "shuffle",      value: "random" },
+                        { displayName: Translation.tr("Disable"),    icon: "block",         value: "" },
+                        { displayName: Translation.tr("Random"),     icon: "shuffle",       value: "random" },
+                        { displayName: Translation.tr("Magic"),      icon: "auto_awesome",  value: "magic" },
+                        { displayName: Translation.tr("Ripple"),     icon: "waves",         value: "ripple" },
+                        { displayName: Translation.tr("Dissolve"),   icon: "grain",         value: "dissolve" },
+                        { displayName: Translation.tr("Pixelate"),   icon: "grid_view",     value: "pixelate" },
+                        { displayName: Translation.tr("Stripes"),    icon: "texture_minus", value: "stripes" },
+                        { displayName: Translation.tr("Glitch"),     icon: "electrical_services", value: "glitch" },
                     ]
                     delegate: RippleButton {
                         id: transRow
