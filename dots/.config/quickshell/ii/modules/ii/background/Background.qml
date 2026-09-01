@@ -241,9 +241,36 @@ Variants {
                 }
             }
 
+            FadeLoader {
+                id: visualizerLoader
+                shown: Config.options.background.widgets.visualizer ? Config.options.background.widgets.visualizer.enable : false
+                sourceComponent: VisualizerWidget {
+                    screenWidth: bgRoot.screen.width
+                    screenHeight: bgRoot.screen.height
+                    scaledScreenWidth: bgRoot.screen.width
+                    scaledScreenHeight: bgRoot.screen.height
+                    wallpaperScale: 1
+                }
+            }
+
             WidgetCanvas {
                 id: widgetCanvas
-                anchors.fill: parent
+                width: parent.width
+                height: parent.height
+                readonly property real parallaxFactor: {
+                    var f = Config.options.background.parallax.widgetsFactor;
+                    return f / bgRoot.effectiveParallaxRatio;
+                }
+                readonly property bool locked: GlobalStates.screenLocked
+                x: bgRoot.backgroundParallaxEnabled ? (wallpaper.x * parallaxFactor * !locked) : 0
+                y: bgRoot.backgroundParallaxEnabled ? (wallpaper.y * parallaxFactor * !locked) : 0
+
+                Behavior on x {
+                    NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+                }
+                Behavior on y {
+                    NumberAnimation { duration: 600; easing.type: Easing.OutCubic }
+                }
 
                 transitions: Transition {
                     PropertyAnimation {
@@ -256,17 +283,6 @@ Variants {
                         duration: Appearance.animation.elementMove.duration
                         easing.type: Appearance.animation.elementMove.type
                         easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
-                    }
-                }
-
-                FadeLoader {
-                    shown: Config.options.background.widgets.visualizer ? Config.options.background.widgets.visualizer.enable : false
-                    sourceComponent: VisualizerWidget {
-                        screenWidth: bgRoot.screen.width
-                        screenHeight: bgRoot.screen.height
-                        scaledScreenWidth: bgRoot.screen.width
-                        scaledScreenHeight: bgRoot.screen.height
-                        wallpaperScale: 1
                     }
                 }
                 FadeLoader {
