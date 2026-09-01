@@ -57,15 +57,76 @@ Item {
 
         Repeater {
             model: root.widgetList
-            delegate: ConfigSwitch {
+            delegate: ColumnLayout {
+                id: delegateCol
                 required property var modelData
                 Layout.fillWidth: true
-                buttonIcon: modelData.icon
-                text: modelData.name
-                checked: (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets[modelData.key]) ? Config.options.background.widgets[modelData.key].enable : false
-                onCheckedChanged: {
-                    if (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets[modelData.key]) {
-                        Config.options.background.widgets[modelData.key].enable = checked
+                spacing: 2
+
+                ConfigSwitch {
+                    Layout.fillWidth: true
+                    buttonIcon: delegateCol.modelData.icon
+                    text: delegateCol.modelData.name
+                    checked: (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets[delegateCol.modelData.key]) ? Config.options.background.widgets[delegateCol.modelData.key].enable : false
+                    onCheckedChanged: {
+                        if (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets[delegateCol.modelData.key]) {
+                            Config.options.background.widgets[delegateCol.modelData.key].enable = checked
+                        }
+                    }
+                }
+
+                // Quick style selector for Clock
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 36
+                    Layout.rightMargin: 8
+                    Layout.bottomMargin: 4
+                    spacing: 6
+                    visible: delegateCol.modelData.key === "clock" && (Config.options.background.widgets.clock ? Config.options.background.widgets.clock.enable : false)
+
+                    Repeater {
+                        model: [
+                            { label: "Cookie", value: "cookie" },
+                            { label: "Pixel", value: "pixel" },
+                            { label: "Digital", value: "digital" }
+                        ]
+                        delegate: Rectangle {
+                            id: pill
+                            required property var modelData
+                            Layout.fillWidth: true
+                            implicitHeight: 26
+                            radius: Appearance.rounding.small
+                            readonly property bool isSelected: Config.options.background.widgets.clock && Config.options.background.widgets.clock.style === modelData.value
+                            color: isSelected
+                                ? Appearance.colors.colPrimary
+                                : (pillMouse.containsMouse ? Appearance.colors.colLayer2 : Appearance.colors.colLayer1)
+
+                            Behavior on color {
+                                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                            }
+
+                            StyledText {
+                                anchors.centerIn: parent
+                                text: pill.modelData.label
+                                font.pixelSize: 11
+                                font.weight: pill.isSelected ? 700 : 400
+                                color: pill.isSelected
+                                    ? Appearance.colors.colOnPrimary
+                                    : Appearance.colors.colOnLayer0
+                            }
+
+                            MouseArea {
+                                id: pillMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (Config.options.background.widgets.clock) {
+                                        Config.options.background.widgets.clock.style = pill.modelData.value
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
