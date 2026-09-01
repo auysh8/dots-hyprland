@@ -152,7 +152,7 @@ RippleButton {
             }
 
             // Content preview — plain text, M3 bodySmall
-            Text {
+            StyledText {
                 Layout.fillWidth: true
                 text: {
                     const content = root.noteContent || "";
@@ -162,9 +162,8 @@ RippleButton {
                     return lines.slice(0, 6).join("\n") || "Empty note...";
                 }
                 textFormat: Text.PlainText
-                renderType: Text.NativeRendering
                 font.family: Appearance.font.family.reading
-                font.pixelSize: Appearance.font.pixelSize.small // ~15px ≈ bodySmall
+                font.pixelSize: Appearance.font.pixelSize.small
                 font.weight: Font.Normal
                 color: root.notePinned ? root.pinnedContentColor : Appearance.colors.colOnSurfaceVariant
                 wrapMode: Text.Wrap

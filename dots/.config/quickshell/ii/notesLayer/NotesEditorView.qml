@@ -359,76 +359,27 @@ Item {
                     Item {
                         required property var modelData
                         Layout.fillWidth: true
-                        Layout.preferredHeight: modelData.id === "divider" ? 11 : 44
+                        Layout.preferredHeight: modelData.id === "divider" ? 9 : 40
 
-                        // Section divider - 1px hairline separator
+                        // Section divider
                         Rectangle {
                             visible: modelData.id === "divider"
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            implicitHeight: 1
                             height: 1
                             color: Appearance.colors.colOutlineVariant
-                            opacity: 0.4 // More subtle divider
+                            opacity: 0.3
                         }
 
-                        // Menu item
-                        RippleButton {
+                        MenuButton {
                             visible: modelData.id !== "divider"
                             anchors.fill: parent
-                            buttonRadius: 8 // Rounded corners for individual menu items
-                            implicitHeight: 44
-                            
-                            // Destructive action styling
+                            buttonRadius: 8
+                            iconText: modelData.icon || ""
+                            buttonText: root.menuLabel(modelData)
                             property bool isDestructive: modelData.isDestructive || false
-                            // Subtle low-opacity error container background for destructive actions
-                            colBackgroundHover: isDestructive ? 
-                                Appearance.colors.colErrorContainer :
-                                Appearance.colors.colSurfaceContainerHigh
-                            
-                            contentItem: Item {
-                                anchors.fill: parent
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 8
-
-                                // Icon slot
-                                Item {
-                                    id: iconSlot
-                                    anchors.left: parent.left
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 20
-                                    height: 20
-                                    visible: modelData.icon !== ""
-                                    clip: true
-
-                                    MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        width: 20
-                                        height: 20
-                                        text: modelData.icon
-                                        iconSize: 20
-                                        color: parent.parent.isDestructive ? 
-                                            Appearance.colors.colError : 
-                                            Appearance.colors.colOnSurface
-                                    }
-                                }
-
-                                // Text label
-                                StyledText {
-                                    anchors.left: iconSlot.right
-                                    anchors.leftMargin: modelData.icon !== "" ? 12 : 0
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: root.menuLabel(modelData)
-                                    horizontalAlignment: Text.AlignLeft
-                                    font.pixelSize: Appearance.font.pixelSize.normal
-                                    color: parent.parent.isDestructive ? 
-                                        Appearance.colors.colError : 
-                                        Appearance.colors.colOnSurface
-                                }
-                            }
-
+                            colBackgroundHover: isDestructive ? Appearance.colors.colErrorContainer : Appearance.colors.colSurfaceContainerHigh
                             onClicked: {
                                 root.menuOpen = false;
                                 modelData.action();
@@ -449,195 +400,17 @@ Item {
         }
     }
 
-    // ── Delete confirmation modal ─────────────────────────────────────────────
-    Rectangle {
-        id: deleteConfirmDialog
-        anchors.fill: parent
-        z: 20
-        visible: root.showDeleteDialog
-        radius: Appearance.rounding.screenRounding // Match screen/window rounding
-        
-        // Smooth opacity fade for backdrop
-        color: Appearance.colors.colScrim
-        opacity: root.showDeleteDialog ? 1 : 0
-        
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 250
-                easing.type: Appearance.animation.elementMoveFast.type
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
-        }
-        
-        // Click outside to dismiss
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.AllButtons
-            hoverEnabled: true
-            onPressed: root.showDeleteDialog = false
-        }
-        
-        // Dialog container
-        Rectangle {
-            id: dialogContainer
-            anchors.centerIn: parent
-            width: Math.max(320, Math.min(parent.width * 0.9, 400))
-            height: dialogColumn.implicitHeight + 48 // 24px padding top + bottom
-            radius: Appearance.rounding.verylarge // 28-30px - M3 Expressive
-            color: Appearance.colors.colLayer3
-            clip: true
-            
-            // M3 elevation shadow
-            StyledRectangularShadow {
-                target: dialogContainer
-            }
-            
-            // Entry/Exit animation using expressive curves
-            property real animProgress: root.showDeleteDialog ? 1 : 0
-            opacity: animProgress
-            scale: 0.95 + animProgress * 0.05
-            transformOrigin: Item.Center
-            
-            Behavior on animProgress {
-                NumberAnimation {
-                    duration: 280
-                    easing.type: Appearance.animation.elementMoveFast.type
-                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                }
-            }
-            
-            // Prevent clicks on dialog from dismissing
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.AllButtons
-                hoverEnabled: true
-                onPressed: {} // Consume clicks
-            }
-            
-            // Content column with 24px padding
-            ColumnLayout {
-                id: dialogColumn
-                anchors.fill: parent
-                anchors.margins: 24
-                spacing: 0
-                
-                // Dialog title - M3 Expressive typography
-                StyledText {
-                    Layout.fillWidth: true
-                    Layout.alignment: Qt.AlignLeft
-                    Layout.bottomMargin: 16
-                    text: Translation.tr("Delete note?")
-                    color: Appearance.colors.colOnSurface
-                    wrapMode: Text.Wrap
-                    font {
-                        family: Appearance.font.family.title
-                        pixelSize: Appearance.font.pixelSize.hugeass
-                        weight: Font.DemiBold
-                    }
-                }
-                
-                // Body text - readable with explicit word wrapping
-                StyledText {
-                    Layout.fillWidth: true
-                    Layout.alignment: Qt.AlignLeft
-                    Layout.bottomMargin: 24
-                    text: Translation.tr("This will permanently delete this note. This action cannot be undone.")
-                    color: Appearance.colors.colOnSurfaceVariant
-                    wrapMode: Text.WordWrap
-                    font {
-                        family: Appearance.font.family.main
-                        pixelSize: Appearance.font.pixelSize.small
-                    }
-                    lineHeight: 1.5
-                }
-                
-                // Spacer to push buttons to bottom
-                Item {
-                    Layout.fillHeight: true
-                    Layout.preferredHeight: 24
-                }
-                
-                // Actions row - M3 Expressive pill buttons
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    
-                    // Spacer to push buttons to the right
-                    Item {
-                        Layout.fillWidth: true
-                    }
-                    
-                    // Cancel button - transparent with hover state
-                    RippleButton {
-                        Layout.preferredHeight: 40
-                        Layout.preferredWidth: cancelText.implicitWidth + 32 // 16px padding each side
-                        buttonRadius: Appearance.rounding.full // Pill shape
-                        colBackground: "transparent"
-                        colBackgroundHover: Appearance.colors.colLayer1Hover
-                        
-                        contentItem: StyledText {
-                            id: cancelText
-                            anchors.fill: parent
-                            text: Translation.tr("Cancel")
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font {
-                                family: Appearance.font.family.main
-                                pixelSize: Appearance.font.pixelSize.normal
-                                weight: Font.Medium
-                            }
-                            color: Appearance.colors.colPrimary
-                        }
-                        
-                        onClicked: root.showDeleteDialog = false
-                    }
-                    
-                    // Delete button - destructive with error background
-                    RippleButton {
-                        Layout.preferredHeight: 40
-                        Layout.preferredWidth: deleteText.implicitWidth + 32 // 16px padding each side
-                        buttonRadius: Appearance.rounding.full // Pill shape
-                        colBackground: Appearance.colors.colError
-                        colBackgroundHover: Appearance.colors.colErrorHover
-                        
-                        contentItem: StyledText {
-                            id: deleteText
-                            anchors.fill: parent
-                            text: Translation.tr("Delete")
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font {
-                                family: Appearance.font.family.main
-                                pixelSize: Appearance.font.pixelSize.normal
-                                weight: Font.Medium
-                            }
-                            color: Appearance.colors.colOnError
-                        }
-                        
-                        onClicked: {
-                            root.showDeleteDialog = false;
-                            NotesService.deleteNote(root.noteId);
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Handle keyboard focus
-        Connections {
-            target: deleteConfirmDialog
-            function onVisibleChanged() {
-                if (deleteConfirmDialog.visible) {
-                    deleteConfirmDialog.forceActiveFocus();
-                }
-            }
-        }
-        
-        Keys.onPressed: (event) => {
-            if (event.key === Qt.Key_Escape) {
-                root.showDeleteDialog = false;
-                event.accepted = true;
-            }
+    // ── Delete confirmation modal (Shared ConfirmationDialog) ──────────────
+    ConfirmationDialog {
+        show: root.showDeleteDialog
+        title: Translation.tr("Delete note?")
+        text: Translation.tr("This will permanently delete this note. This action cannot be undone.")
+        confirmText: Translation.tr("Delete")
+        isDestructive: true
+        onCanceled: root.showDeleteDialog = false
+        onConfirmed: {
+            root.showDeleteDialog = false;
+            NotesService.deleteNote(root.noteId);
         }
     }
 
@@ -652,11 +425,10 @@ Item {
         spacing: 12
 
         // Timestamp chip
-        Rectangle {
+        Pill {
             implicitHeight: 28
             implicitWidth: timestampRow.implicitWidth + 24
             Layout.alignment: Qt.AlignVCenter
-            radius: Appearance.rounding.full
             color: Appearance.colors.colSurfaceContainerHigh
             visible: root.editedLabel.length > 0
 
@@ -684,11 +456,10 @@ Item {
         }
 
         // Word/character count chip
-        Rectangle {
+        Pill {
             implicitHeight: 28
             implicitWidth: statsRow.implicitWidth + 24
             Layout.alignment: Qt.AlignVCenter
-            radius: Appearance.rounding.full
             color: Appearance.colors.colSurfaceContainerHigh
 
             Row {

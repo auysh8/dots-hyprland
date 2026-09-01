@@ -167,6 +167,10 @@ Item {
     property bool cardMenuOpen: false
     property point cardMenuPos: Qt.point(0, 0)
     readonly property int cardMenuWidth: 200
+    // ── Delete confirmation modal state ──────────────────────────────────
+    property bool showDeleteDialog: false
+    property string deleteTargetNoteId: ""
+
     property var cardMenuItems: [{
         "id": "pin",
         "label": "Pin note",
@@ -189,7 +193,8 @@ Item {
         "icon": "delete",
         "isDestructive": true,
         "action": function() {
-            NotesService.deleteNote(root.cardMenuNoteId);
+            root.deleteTargetNoteId = root.cardMenuNoteId;
+            root.showDeleteDialog = true;
         }
     }]
 
@@ -217,10 +222,15 @@ Item {
     }
 
     Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Escape && (root.cardMenuOpen || root.filterMenuOpen)) {
-            root.cardMenuOpen = false;
-            root.filterMenuOpen = false;
-            event.accepted = true;
+        if (event.key === Qt.Key_Escape) {
+            if (root.showDeleteDialog) {
+                root.showDeleteDialog = false;
+                event.accepted = true;
+            } else if (root.cardMenuOpen || root.filterMenuOpen) {
+                root.cardMenuOpen = false;
+                root.filterMenuOpen = false;
+                event.accepted = true;
+            }
         }
     }
 
@@ -269,15 +279,15 @@ Item {
             // M3 Expressive: Fully pill-shaped search bar on surfaceContainerHigh
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 56
-                radius: Appearance.rounding.full // Full pill shape
+                implicitHeight: 52
+                radius: Appearance.rounding.full
                 color: Appearance.colors.colSurfaceContainerHigh
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 20
-                    anchors.rightMargin: 12
-                    spacing: 14
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 8
+                    spacing: 12
 
                     MaterialSymbol {
                         text: "search"
@@ -285,41 +295,28 @@ Item {
                         color: Appearance.colors.colOnSurfaceVariant
                     }
 
-                    TextField {
+                    ToolbarTextField {
                         id: searchInput
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        verticalAlignment: Text.AlignVCenter
-                        background: null
-                        padding: 0
-                        placeholderText: "Search notes..."
-                        placeholderTextColor: Appearance.colors.colOnSurfaceVariant
-                        color: Appearance.colors.colOnSurface
-                        selectedTextColor: Appearance.colors.colOnSecondaryContainer
-                        selectionColor: Appearance.colors.colSecondaryContainer
-                        renderType: Text.NativeRendering
+                        placeholderText: Translation.tr("Search notes...")
+                        colBackground: "transparent"
+                        font.pixelSize: Appearance.font.pixelSize.normal
                         onTextChanged: root.searchQuery = text
-
-                        font {
-                            family: Appearance.font.family.main
-                            pixelSize: Appearance.font.pixelSize.normal // ~16px ≈ bodyLarge
-                            hintingPreference: Font.PreferFullHinting
-                            variableAxes: Appearance.font.variableAxes.main
-                        }
                     }
 
                     RippleButton {
                         id: filterButton
-                        implicitWidth: 40
-                        implicitHeight: 40
+                        implicitWidth: 38
+                        implicitHeight: 38
                         Layout.alignment: Qt.AlignVCenter
                         buttonRadius: Appearance.rounding.full
                         colBackground: Appearance.colors.colSecondaryContainer
-                        colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                        colBackgroundHover: ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colOnSecondaryContainer, 0.88)
                         colRipple: Appearance.colors.colOnSecondaryContainer
                         onClicked: root.filterMenuOpen = !root.filterMenuOpen
 
-                        StyledToolTip { text: "Sort notes" }
+                        StyledToolTip { text: Translation.tr("Sort notes") }
 
                         contentItem: MaterialSymbol {
                             anchors.fill: parent
@@ -446,52 +443,23 @@ Item {
     }
 
     // ── M3 Expressive Floating Action Button ────────────────────────────────
-    // Prominent primary-colored squircle FAB with level-3 elevation shadow.
-    Item {
-        implicitWidth: fabWidget.implicitWidth
-        implicitHeight: fabWidget.implicitHeight
-
+    FloatingActionButton {
         anchors {
             right: parent.right
             bottom: parent.bottom
             margins: 32
         }
+        iconText: "add"
+        buttonText: "New note"
+        expanded: true
+        colBackground: Appearance.colors.colPrimary
+        colBackgroundHover: ColorUtils.mix(Appearance.colors.colPrimary, Appearance.colors.colOnPrimary, 0.88)
+        colRipple: Appearance.colors.colOnPrimary
+        colOnBackground: Appearance.colors.colOnPrimary
+        onClicked: root.addClicked()
 
-        // Elevation shadow (level-3)
-        RectangularShadow {
-            anchors.fill: fabWidget
-            radius: fabWidget.buttonRadius
-            blur: fabWidget.hovered ? 18 : 12
-            offset: Qt.vector2d(0, 3)
-            spread: 1
-            color: ColorUtils.transparentize(Appearance.colors.colShadow, 0.3)
-            cached: true
-
-            Behavior on blur {
-                NumberAnimation {
-                    duration: Appearance.animation.elementMoveFast.duration
-                    easing.type: Appearance.animation.elementMoveFast.type
-                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                }
-            }
-        }
-
-        FloatingActionButton {
-            id: fabWidget
-            iconText: "add"
-            buttonText: "New note"
-            expanded: true
-            baseSize: 56
-            buttonRadius: Appearance.rounding.large
-            colBackground: Appearance.colors.colPrimary
-            colBackgroundHover: Appearance.colors.colPrimaryHover
-            colRipple: Appearance.colors.colOnPrimary
-            colOnBackground: Appearance.colors.colOnPrimary
-            onClicked: root.addClicked()
-
-            StyledToolTip {
-                text: "New note"
-            }
+        StyledToolTip {
+            text: "New note"
         }
     }
 
@@ -625,76 +593,27 @@ Item {
                     Item {
                         required property var modelData
                         Layout.fillWidth: true
-                        Layout.preferredHeight: modelData.id === "divider" ? 11 : 44
+                        Layout.preferredHeight: modelData.id === "divider" ? 9 : 40
 
-                        // Section divider - 1px hairline separator
+                        // Section divider
                         Rectangle {
                             visible: modelData.id === "divider"
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            implicitHeight: 1
                             height: 1
                             color: Appearance.colors.colOutlineVariant
-                            opacity: 0.4 // More subtle divider
+                            opacity: 0.3
                         }
 
-                        // Menu item
-                        RippleButton {
+                        MenuButton {
                             visible: modelData.id !== "divider"
                             anchors.fill: parent
-                            buttonRadius: 8 // Rounded corners for individual menu items
-                            implicitHeight: 44
-
-                            // Destructive action styling
+                            buttonRadius: 8
+                            iconText: modelData.icon || ""
+                            buttonText: root.cardMenuLabel(modelData)
                             property bool isDestructive: modelData.isDestructive || false
-                            // Subtle low-opacity error container background for destructive actions
-                            colBackgroundHover: isDestructive ?
-                                Appearance.colors.colErrorContainer :
-                                Appearance.colors.colSurfaceContainerHigh
-
-                            contentItem: Item {
-                                anchors.fill: parent
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 8
-
-                                // Icon slot
-                                Item {
-                                    id: iconSlot
-                                    anchors.left: parent.left
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 20
-                                    height: 20
-                                    visible: modelData.icon !== ""
-                                    clip: true
-
-                                    MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        width: 20
-                                        height: 20
-                                        text: modelData.icon
-                                        iconSize: 20
-                                        color: parent.parent.isDestructive ?
-                                            Appearance.colors.colError :
-                                            Appearance.colors.colOnSurface
-                                    }
-                                }
-
-                                // Text label
-                                StyledText {
-                                    anchors.left: iconSlot.right
-                                    anchors.leftMargin: modelData.icon !== "" ? 12 : 0
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: root.cardMenuLabel(modelData)
-                                    horizontalAlignment: Text.AlignLeft
-                                    font.pixelSize: Appearance.font.pixelSize.normal
-                                    color: parent.parent.isDestructive ?
-                                        Appearance.colors.colError :
-                                        Appearance.colors.colOnSurface
-                                }
-                            }
-
+                            colBackgroundHover: isDestructive ? Appearance.colors.colErrorContainer : Appearance.colors.colSurfaceContainerHigh
                             onClicked: {
                                 root.cardMenuOpen = false;
                                 modelData.action();
@@ -712,6 +631,23 @@ Item {
                     easing.type: Appearance.animation.elementMoveFast.type
                     easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                 }
+            }
+        }
+    }
+
+    // ── Delete confirmation modal (Shared ConfirmationDialog) ──────────────
+    ConfirmationDialog {
+        show: root.showDeleteDialog
+        title: Translation.tr("Delete note?")
+        text: Translation.tr("This will permanently delete this note. This action cannot be undone.")
+        confirmText: Translation.tr("Delete")
+        isDestructive: true
+        onCanceled: root.showDeleteDialog = false
+        onConfirmed: {
+            root.showDeleteDialog = false;
+            if (root.deleteTargetNoteId.length > 0) {
+                NotesService.deleteNote(root.deleteTargetNoteId);
+                root.deleteTargetNoteId = "";
             }
         }
     }

@@ -38,7 +38,7 @@ apply_kitty() {
   cp "$SCRIPT_DIR/terminal/kitty-theme.conf" "$STATE_DIR"/user/generated/terminal/kitty-theme.conf
   # Apply colors
   for i in "${!colorlist[@]}"; do
-    sed -i "s/${colorlist[$i]} #/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/terminal/kitty-theme.conf
+    sed -i "s/${colorlist[$i]//\$/\\$} #/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/terminal/kitty-theme.conf
   done
 
   # Reload is handled by apply_anyterm sending OSC sequences to avoid Wayland freeze.
@@ -89,7 +89,7 @@ apply_anyterm() {
   cp "$SCRIPT_DIR/terminal/sequences.txt" "$STATE_DIR"/user/generated/terminal/sequences.txt
   # Apply colors
   for i in "${!colorlist[@]}"; do
-    sed -i "s/${colorlist[$i]} #/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/terminal/sequences.txt
+    sed -i "s/${colorlist[$i]//\$/\\$} #/${colorvalues[$i]#\#}/g" "$STATE_DIR"/user/generated/terminal/sequences.txt
   done
 
   sed -i "s/\$alpha/$term_alpha/g" "$STATE_DIR/user/generated/terminal/sequences.txt"
@@ -104,9 +104,25 @@ apply_anyterm() {
 }
 
 apply_term() {
-  apply_anyterm &
-  apply_kitty &
-  apply_ghostty &
+  if [ -x "$SCRIPT_DIR/material-color-helper" ]; then
+    "$SCRIPT_DIR/material-color-helper" template \
+      --scss "$STATE_DIR/user/generated/material_colors.scss" \
+      --out-dir "$STATE_DIR/user/generated/terminal" \
+      --templates-dir "$SCRIPT_DIR/terminal" \
+      --alpha "$term_alpha"
+
+    for file in /dev/pts/*; do
+      if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
+        {
+        cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"
+        } & disown || true
+      fi
+    done
+  else
+    apply_anyterm &
+    apply_kitty &
+    apply_ghostty &
+  fi
 }
 
 apply_icon() {

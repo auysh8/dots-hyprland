@@ -155,10 +155,26 @@ set_thumbnail_path() {
     fi
 }
 
-categorize_wallpaper() {
-    img_cat=$("$SCRIPT_DIR/../ai/gemini-categorize-wallpaper.sh" "$1")
-    # notify-send "Wallpaper category" "$img_cat"
-    echo "$img_cat" > "$STATE_DIR/user/generated/wallpaper/category.txt"
+get_type_from_config() {
+    jq -r '.appearance.palette.type' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "auto"
+}
+get_accent_color_from_config() {
+    jq -r '.appearance.palette.accentColor' "$SHELL_CONFIG_FILE" 2>/dev/null || echo ""
+}
+set_accent_color() {
+    local color="$1"
+    jq --arg color "$color" '.appearance.palette.accentColor = $color' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+}
+
+detect_scheme_type_from_image() {
+    local img="$1"
+    if [ -x "$SCRIPT_DIR/material-color-helper" ]; then
+        "$SCRIPT_DIR/material-color-helper" scheme "$img" 2>/dev/null | tr -d '\n'
+    else
+        source "$(eval echo $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate" 2>/dev/null
+        python3 "$SCRIPT_DIR/scheme_for_image.py" "$img" 2>/dev/null | tr -d '\n'
+        deactivate 2>/dev/null
+    fi
 }
 
 switch() {
@@ -246,14 +262,18 @@ switch() {
             else
                 # For static images: Resize to 256x256 BEFORE color extraction
                 # This reduces processing time significantly and saves CPU/heat.
-                nice -n 19 ionice -c3 convert "$imgpath" \
-                    -resize 256x256\> \
-                    -quality 85 \
-                    "$color_thumb" 2>/dev/null
+                if [ -x "$SCRIPT_DIR/material-color-helper" ]; then
+                    nice -n 19 ionice -c3 "$SCRIPT_DIR/material-color-helper" thumbnail "$imgpath" "$color_thumb" 256 85 2>/dev/null
+                else
+                    nice -n 19 ionice -c3 convert "$imgpath" \
+                        -resize 256x256\> \
+                        -quality 85 \
+                        "$color_thumb" 2>/dev/null
+                fi
             fi
             
             # ⭐ Use the SMALL thumbnail for color extraction (not the full 8K image!)
-            matugen_args=(image "$color_thumb")
+            matugen_args=(image "$color_thumb" --source-color-index 0)
             generate_colors_material_args=(--path "$color_thumb")
         fi
 
@@ -273,13 +293,13 @@ switch() {
         fi
 
         # Auto-detect scheme if needed
-        if [[ "$type_flag" == "auto" ]]; then
-            allowed_types=(scheme-content scheme-expressive scheme-fidelity scheme-fruit-salad scheme-monochrome scheme-neutral scheme-rainbow scheme-tonal-spot auto)
+        if [[ "$type_flag" == "auto" || -z "$type_flag" ]]; then
+            allowed_types=(scheme-content scheme-expressive scheme-fidelity scheme-fruit-salad scheme-monochrome scheme-neutral scheme-rainbow scheme-tonal-spot)
             if [[ -n "$imgpath" && -f "$imgpath" ]]; then
                 detected_type="$(detect_scheme_type_from_image "$imgpath")"
                 valid_detected=0
                 for t in "${allowed_types[@]}"; do
-                    if [[ "$detected_type" == "$t" && "$detected_type" != "auto" ]]; then
+                    if [[ "$detected_type" == "$t" ]]; then
                         valid_detected=1
                         break
                     fi
@@ -347,24 +367,6 @@ main() {
     color_flag=""
     color=""
     noswitch_flag=""
-
-    get_type_from_config() {
-        jq -r '.appearance.palette.type' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "auto"
-    }
-    get_accent_color_from_config() {
-        jq -r '.appearance.palette.accentColor' "$SHELL_CONFIG_FILE" 2>/dev/null || echo ""
-    }
-    set_accent_color() {
-        local color="$1"
-        jq --arg color "$color" '.appearance.palette.accentColor = $color' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
-    }
-
-    detect_scheme_type_from_image() {
-        local img="$1"
-        source "$(eval echo $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate"
-        "$SCRIPT_DIR"/scheme_for_image.py "$img" 2>/dev/null | tr -d '\n'
-        deactivate
-    }
 
     while [[ $# -gt 0 ]]; do
         case "$1" in

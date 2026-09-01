@@ -27,6 +27,13 @@ function compile_native_helpers(){
     printf "${STY_CYAN}[$0]: Compiling shake-to-locate cursor daemon...${STY_RST}\n"
     v g++ -O3 -std=c++20 "$cursor_cpp" -o "$cursor_bin"
   fi
+
+  local color_cpp="${REPO_ROOT}/dots/.config/quickshell/ii/scripts/colors/material-color-helper.cpp"
+  local color_bin="${REPO_ROOT}/dots/.config/quickshell/ii/scripts/colors/material-color-helper"
+  if [[ -f "$color_cpp" ]] && command -v g++ >/dev/null 2>&1; then
+    printf "${STY_CYAN}[$0]: Compiling material color helper...${STY_RST}\n"
+    v g++ -O3 -std=c++20 "$color_cpp" -o "$color_bin" -lm
+  fi
 }
 #####################################################################################
 # These python packages are installed using uv into the venv (virtual environment). Once the folder of the venv gets deleted, they are all gone cleanly. So it's considered as setups, not dependencies.
