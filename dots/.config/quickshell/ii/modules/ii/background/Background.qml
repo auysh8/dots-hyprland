@@ -262,8 +262,8 @@ Variants {
                     return f / bgRoot.effectiveParallaxRatio;
                 }
                 readonly property bool locked: GlobalStates.screenLocked
-                x: bgRoot.backgroundParallaxEnabled ? (wallpaper.x * parallaxFactor * !locked) : 0
-                y: bgRoot.backgroundParallaxEnabled ? (wallpaper.y * parallaxFactor * !locked) : 0
+                x: (bgRoot.backgroundParallaxEnabled && !bgRoot.verticalParallax) ? (wallpaper.x * parallaxFactor * !locked) : 0
+                y: (bgRoot.backgroundParallaxEnabled && bgRoot.verticalParallax) ? (wallpaper.y * parallaxFactor * !locked) : 0
 
                 transitions: Transition {
                     PropertyAnimation {
