@@ -116,24 +116,42 @@ AbstractBackgroundWidget {
                 visible: root.imagePath !== ""
             }
 
-            // Placeholder + hover hint
-            MaterialSymbol {
+            // Central pick button when empty
+            Rectangle {
+                id: pickButton
                 anchors.centerIn: parent
-                iconSize: contentItem.implicitWidth / 3
-                text: root.dropHover ? "download" : "add_photo_alternate"
-                fill: root.dropHover ? 1 : 0
-                color: root.dropHover
-                    ? Appearance.colors.colPrimary
-                    : Appearance.colors.colOnPrimaryContainer
+                implicitWidth: Math.min(64, contentItem.implicitWidth * 0.4)
+                implicitHeight: Math.min(64, contentItem.implicitHeight * 0.4)
+                radius: Appearance.rounding.full
+                color: pickMouse.containsMouse ? Appearance.colors.colPrimaryContainer : Appearance.colors.colSurfaceContainerHigh
                 visible: root.imagePath === ""
+                z: 2
                 Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    iconSize: parent.implicitWidth * 0.55
+                    text: root.dropHover ? "download" : "add_photo_alternate"
+                    fill: root.dropHover ? 1 : 0
+                    color: Appearance.colors.colPrimary
+                }
+
+                MouseArea {
+                    id: pickMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: filePickerProc.running = true
+                }
             }
 
+            // Double-click anywhere to change photo
             MouseArea {
                 anchors.fill: parent
-                enabled: !Config.options.background.widgetsLocked
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
+                enabled: !Config.options.background.widgetsLocked && root.imagePath !== ""
+                cursorShape: Qt.ArrowCursor
+                propagateComposedEvents: true
+                onDoubleClicked: {
                     filePickerProc.running = true
                 }
             }
