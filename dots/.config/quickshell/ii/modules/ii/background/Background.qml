@@ -90,8 +90,10 @@ Variants {
         screen: modelData
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.layer: (GlobalStates.screenLocked && !scaleAnim.running) ? WlrLayer.Overlay : WlrLayer.Bottom
-        // WlrLayershell.layer: WlrLayer.Bottom
         WlrLayershell.namespace: "quickshell:background"
+        WlrLayershell.keyboardFocus: GlobalStates.desktopWidgetKeyboardFocus
+            ? WlrKeyboardFocus.OnDemand
+            : WlrKeyboardFocus.None
         anchors {
             top: true
             bottom: true

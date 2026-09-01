@@ -20,7 +20,23 @@ AbstractBackgroundWidget {
     property string mode: "list" // "list" | "edit"
     property var pendingNoteId: null
     property string editingText: ""
-    onModeChanged: GlobalStates.desktopWidgetKeyboardFocus = (mode === "edit")
+    onModeChanged: {
+        GlobalStates.desktopWidgetKeyboardFocus = (mode === "edit")
+        if (mode === "edit") {
+            editFocusTimer.restart()
+        }
+    }
+
+    Timer {
+        id: editFocusTimer
+        interval: 160
+        repeat: false
+        onTriggered: {
+            if (root.mode === "edit") {
+                editTextArea.forceActiveFocus()
+            }
+        }
+    }
 
     function toggleFlip() { flipAnim.start() }
 
@@ -242,6 +258,10 @@ AbstractBackgroundWidget {
                         background: null
                         focus: root.mode === "edit"
                         onTextChanged: root.editingText = text
+                        Keys.onEscapePressed: (event) => {
+                            root.saveAndBack()
+                            event.accepted = true
+                        }
                     }
                 }
             }
