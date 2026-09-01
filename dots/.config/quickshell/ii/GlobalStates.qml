@@ -35,6 +35,8 @@ Singleton {
     property bool notesLayerOpen: false
     property bool wallpaperSelectorOpen: false
     property bool workspaceShowNumbers: false
+    property list<real> visualizerPoints: []
+    property bool desktopWidgetKeyboardFocus: false
 
     onSidebarRightOpenChanged: {
         if (GlobalStates.sidebarRightOpen) {
