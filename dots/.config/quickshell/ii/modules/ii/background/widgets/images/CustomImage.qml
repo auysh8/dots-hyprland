@@ -119,13 +119,41 @@ AbstractBackgroundWidget {
             MaterialSymbol {
                 anchors.centerIn: parent
                 iconSize: contentItem.implicitWidth / 3
-                text: root.dropHover ? "download" : "image"
+                text: root.dropHover ? "download" : "add_photo_alternate"
                 fill: root.dropHover ? 1 : 0
                 color: root.dropHover
                     ? Appearance.colors.colPrimary
                     : Appearance.colors.colOnPrimaryContainer
                 visible: root.imagePath === ""
                 Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                enabled: !Config.options.background.widgetsLocked
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    filePickerProc.running = true
+                }
+            }
+
+            Process {
+                id: filePickerProc
+                command: ["bash", "-c", `
+                    if command -v kdialog >/dev/null 2>&1; then
+                        kdialog --getopenfilename ~ "Images (*.png *.jpg *.jpeg *.webp *.gif *.avif *.bmp)"
+                    elif command -v zenity >/dev/null 2>&1; then
+                        zenity --file-selection --title="Select Image" --file-filter="Images | *.png *.jpg *.jpeg *.webp *.gif *.avif *.bmp"
+                    fi
+                `]
+                stdout: SplitParser {
+                    onRead: data => {
+                        let path = data.trim();
+                        if (path.length > 0) {
+                            Config.options.background.widgets.customImage.path = path;
+                        }
+                    }
+                }
             }
 
             DropArea {

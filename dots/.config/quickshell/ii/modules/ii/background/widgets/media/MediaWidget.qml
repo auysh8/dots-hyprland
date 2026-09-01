@@ -24,13 +24,16 @@ AbstractBackgroundWidget {
 
     readonly property var playerList: MprisController.players
     property MprisPlayer currentPlayer: {
-        const preferred = Config.options.bar.media.preferredPlayer.trim().toLowerCase()
+        const preferred = (Config.options && Config.options.media && Config.options.media.preferredPlayer)
+            ? Config.options.media.preferredPlayer.trim().toLowerCase()
+            : ""
         if (preferred.length === 0) return MprisController.activePlayer
-        const _ = MprisController.players.count
-        for (const p of MprisController.players) {
-            if ((p.identity ?? "").toLowerCase().includes(preferred) ||
-                (p.desktopEntry ?? "").toLowerCase().includes(preferred))
-                return p
+        if (MprisController.players) {
+            for (const p of MprisController.players) {
+                if ((p.identity && p.identity.toLowerCase().includes(preferred)) ||
+                    (p.desktopEntry && p.desktopEntry.toLowerCase().includes(preferred)))
+                    return p
+            }
         }
         return MprisController.activePlayer
     }

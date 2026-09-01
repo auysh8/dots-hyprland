@@ -27,21 +27,24 @@ AbstractBackgroundWidget {
     function openNewNote() {
         root.pendingNoteId = null
         root.editingText = ""
+        editTextArea.text = ""
         toggleFlip()
     }
 
     function openNote(note) {
         root.pendingNoteId = note.id
         root.editingText = note.content
+        editTextArea.text = note.content
         toggleFlip()
     }
 
     function saveAndBack() {
-        if (root.editingText.length > 0) {
+        let textToSave = editTextArea.text.trim()
+        if (textToSave.length > 0) {
             if (root.pendingNoteId) {
-                Notes.updateNote(root.pendingNoteId, root.editingText)
+                Notes.updateNote(root.pendingNoteId, textToSave)
             } else {
-                Notes.addNote(root.editingText)
+                Notes.addNote(textToSave)
             }
         }
         toggleFlip()
@@ -234,8 +237,10 @@ AbstractBackgroundWidget {
                         text: root.editingText
                         wrapMode: TextArea.Wrap
                         placeholderText: "Type your note..."
+                        placeholderTextColor: Appearance.colors.colOutline
                         color: Appearance.colors.colOnLayer0
                         background: null
+                        focus: root.mode === "edit"
                         onTextChanged: root.editingText = text
                     }
                 }
