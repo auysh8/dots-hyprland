@@ -41,6 +41,13 @@ function compile_native_helpers(){
     printf "${STY_CYAN}[$0]: Compiling sysmon process scanner...${STY_RST}\n"
     v g++ -O3 -std=c++20 "$sysmon_cpp" -o "$sysmon_bin"
   fi
+
+  local watch_cpp="${REPO_ROOT}/dots/.config/quickshell/scripts/watch_downloads.cpp"
+  local watch_bin="${REPO_ROOT}/dots/.config/quickshell/scripts/watch_downloads"
+  if [[ -f "$watch_cpp" ]] && command -v g++ >/dev/null 2>&1; then
+    printf "${STY_CYAN}[$0]: Compiling inotify downloads watcher...${STY_RST}\n"
+    v g++ -O3 -std=c++20 "$watch_cpp" -o "$watch_bin"
+  fi
 }
 #####################################################################################
 # These python packages are installed using uv into the venv (virtual environment). Once the folder of the venv gets deleted, they are all gone cleanly. So it's considered as setups, not dependencies.
