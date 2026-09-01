@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import Qt5Compat.GraphicalEffects
 import Quickshell
+import Quickshell.Io
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.ii.background.widgets
