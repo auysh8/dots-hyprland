@@ -42,12 +42,6 @@ ContentPage {
             ? Config.options.background.thumbnailPath
             : path
     }
-
-    ColumnLayout {
-        id: mainLayout 
-        Layout.fillWidth: true   
-        Layout.fillHeight: true
-        spacing: 20
             
         ContentSection {
             icon: "panorama"
@@ -1150,4 +1144,3 @@ ContentPage {
             }
         }
     }
-}
