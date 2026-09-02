@@ -32,10 +32,71 @@ Variants {
     id: root
     model: Quickshell.screens
 
+    function getShapeFromName(name) {
+        switch (name) {
+            case "Circle":        return MaterialShape.Shape.Circle
+            case "Square":        return MaterialShape.Shape.Square
+            case "Slanted":       return MaterialShape.Shape.Slanted
+            case "Arch":          return MaterialShape.Shape.Arch
+            case "Fan":           return MaterialShape.Shape.Fan
+            case "Arrow":         return MaterialShape.Shape.Arrow
+            case "SemiCircle":    return MaterialShape.Shape.SemiCircle
+            case "Oval":          return MaterialShape.Shape.Oval
+            case "Pill":          return MaterialShape.Shape.Pill
+            case "Triangle":      return MaterialShape.Shape.Triangle
+            case "Diamond":       return MaterialShape.Shape.Diamond
+            case "ClamShell":     return MaterialShape.Shape.ClamShell
+            case "Pentagon":      return MaterialShape.Shape.Pentagon
+            case "Gem":           return MaterialShape.Shape.Gem
+            case "Sunny":         return MaterialShape.Shape.Sunny
+            case "VerySunny":     return MaterialShape.Shape.VerySunny
+            case "Cookie4Sided":  return MaterialShape.Shape.Cookie4Sided
+            case "Cookie6Sided":  return MaterialShape.Shape.Cookie6Sided
+            case "Cookie7Sided":  return MaterialShape.Shape.Cookie7Sided
+            case "Cookie9Sided":  return MaterialShape.Shape.Cookie9Sided
+            case "Cookie12Sided": return MaterialShape.Shape.Cookie12Sided
+            case "Ghostish":      return MaterialShape.Shape.Ghostish
+            case "Clover4Leaf":   return MaterialShape.Shape.Clover4Leaf
+            case "Clover8Leaf":   return MaterialShape.Shape.Clover8Leaf
+            case "Burst":         return MaterialShape.Shape.Burst
+            case "SoftBurst":     return MaterialShape.Shape.SoftBurst
+            case "Boom":          return MaterialShape.Shape.Boom
+            case "SoftBoom":      return MaterialShape.Shape.SoftBoom
+            case "Flower":        return MaterialShape.Shape.Flower
+            case "Puffy":         return MaterialShape.Shape.Puffy
+            case "PuffyDiamond":  return MaterialShape.Shape.PuffyDiamond
+            case "PixelCircle":   return MaterialShape.Shape.PixelCircle
+            case "PixelTriangle": return MaterialShape.Shape.PixelTriangle
+            case "Bun":           return MaterialShape.Shape.Bun
+            case "Heart":         return MaterialShape.Shape.Heart
+            default:              return MaterialShape.Shape.Cookie7Sided
+        }
+    }
+
+    function getColorFromName(name) {
+        switch (name) {
+            case "primary":            return Appearance.colors.colPrimary
+            case "secondary":          return Appearance.colors.colSecondary
+            case "tertiary":           return Appearance.colors.colTertiary
+            case "primaryContainer":   return Appearance.colors.colPrimaryContainer
+            case "secondaryContainer": return Appearance.colors.colSecondaryContainer
+            case "tertiaryContainer":  return Appearance.colors.colTertiaryContainer
+            case "layer0":             return Appearance.colors.colLayer0
+            case "layer1":             return Appearance.colors.colLayer1
+            default:                  return Appearance.colors.colPrimaryContainer
+        }
+    }
+
     PanelWindow {
         id: bgRoot
 
         required property var modelData
+
+        // Centered wallpaper
+        property bool centeredWallpaperEnabled: (Config.options.background.centeredWallpaper ?? false) && (!(Config.options.background.centeredWallpaperOnlyWhenLocked ?? false) || GlobalStates.screenLocked)
+        property int centeredWallpaperShape: root.getShapeFromName(Config.options.background.centeredWallpaperShape ?? "Cookie7Sided")
+        property int centeredWallpaperSize: Config.options.background.centeredWallpaperSize ?? 400
+        property color centeredWallpaperColor: root.getColorFromName(Config.options.background.centeredWallpaperColor ?? "primaryContainer")
 
         // Hide when fullscreen
         property list<HyprlandWorkspace> workspacesForMonitor: Hyprland.workspaces.values.filter(workspace => workspace.monitor && workspace.monitor.name == monitor.name)
@@ -225,7 +286,7 @@ Variants {
             // Wallpaper
             StyledImage {
                 id: wallpaper
-                visible: opacity > 0 && !blurLoader.active
+                visible: opacity > 0 && !blurLoader.active && !bgRoot.centeredWallpaperEnabled
                     && (bgRoot.wallpaperAnimation === "" || bgRoot.transitionProgress >= 1.0)
                 opacity: (status === Image.Ready && !bgRoot.wallpaperIsVideo) ? 1 : 0
                 cache: true
@@ -304,7 +365,7 @@ Variants {
                 id: transitionEffect
                 anchors.fill: wallpaper
                 layer.enabled: blurLoader.active
-                visible: !blurLoader.active && !bgRoot.wallpaperIsVideo
+                visible: !blurLoader.active && !bgRoot.wallpaperIsVideo && !bgRoot.centeredWallpaperEnabled
                     && bgRoot.wallpaperAnimation !== "" && bgRoot.transitionProgress < 1.0
 
                 property var fromImage: previousWallpaper
@@ -354,6 +415,78 @@ Variants {
                         anchors.fill: parent
                         color: CF.ColorUtils.transparentize(Appearance.colors.colLayer0, 0.7)
                     }
+                }
+            }
+
+            Rectangle {
+                id: centeredWallpaperBg
+                anchors.fill: parent
+                color: bgRoot.centeredWallpaperColor
+                opacity: bgRoot.centeredWallpaperEnabled ? 1 : 0
+                visible: opacity > 0
+
+                Behavior on opacity {
+                    animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+                }
+            }
+
+            MaterialShape {
+                id: centeredWallpaperShapeItem
+                anchors.centerIn: parent
+                width: bgRoot.centeredWallpaperSize
+                height: bgRoot.centeredWallpaperSize
+                color: bgRoot.centeredWallpaperColor
+                shape: bgRoot.centeredWallpaperShape
+                transformOrigin: Item.Center
+                visible: opacity > 0
+
+                state: bgRoot.centeredWallpaperEnabled ? "shown" : "hidden"
+
+                states: [
+                    State {
+                        name: "shown"
+                        PropertyChanges { target: centeredWallpaperShapeItem; scale: 1; opacity: 1 }
+                    },
+                    State {
+                        name: "hidden"
+                        PropertyChanges { target: centeredWallpaperShapeItem; scale: 1.4; opacity: 0 }
+                    }
+                ]
+
+                transitions: [
+                    Transition {
+                        to: "shown"
+                        ParallelAnimation {
+                            NumberAnimation { target: centeredWallpaperShapeItem; property: "scale"; from: 0; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                            NumberAnimation { target: centeredWallpaperShapeItem; property: "opacity"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                        }
+                    },
+                    Transition {
+                        to: "hidden"
+                        ParallelAnimation {
+                            NumberAnimation { target: centeredWallpaperShapeItem; property: "scale"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                            NumberAnimation { target: centeredWallpaperShapeItem; property: "opacity"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                        }
+                    }
+                ]
+
+                layer.enabled: true
+                layer.effect: OpacityMask {
+                    maskSource: MaterialShape {
+                        width: centeredWallpaperShapeItem.width
+                        height: centeredWallpaperShapeItem.height
+                        shape: bgRoot.centeredWallpaperShape
+                    }
+                }
+
+                StyledImage {
+                    anchors.fill: parent
+                    source: bgRoot.wallpaperPath
+                    fillMode: Image.PreserveAspectCrop
+                    cache: false
+                    antialiasing: true
+                    sourceSize.width: parent.width
+                    sourceSize.height: parent.height
                 }
             }
 

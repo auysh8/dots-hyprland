@@ -311,6 +311,11 @@ Singleton {
                 property string wallpaperPath: ""
                 property string thumbnailPath: ""
                 property string wallpaperAnimation: "magic"
+                property bool centeredWallpaper: false
+                property string centeredWallpaperShape: "Cookie7Sided"
+                property int centeredWallpaperSize: 400
+                property string centeredWallpaperColor: "primaryContainer"
+                property bool centeredWallpaperOnlyWhenLocked: false
                 property bool hideWhenFullscreen: true
                 property JsonObject parallax: JsonObject {
                     property bool vertical: false
