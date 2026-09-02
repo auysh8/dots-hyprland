@@ -104,7 +104,7 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 Config.options.appearance.palette.type = schemeTile.modelData.value
-                                Quickshell.execDetached(["bash", "-c", `${Directories.wallpaperSwitchScriptPath} --noswitch`])
+                                Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--type", schemeTile.modelData.value, "--noswitch"])
                             }
                         }
 

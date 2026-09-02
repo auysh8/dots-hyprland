@@ -158,6 +158,12 @@ set_thumbnail_path() {
 get_type_from_config() {
     jq -r '.appearance.palette.type' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "auto"
 }
+set_type() {
+    local type="$1"
+    if [ -f "$SHELL_CONFIG_FILE" ]; then
+        jq --arg type "$type" '.appearance.palette.type = $type' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+    fi
+}
 get_accent_color_from_config() {
     jq -r '.appearance.palette.accentColor' "$SHELL_CONFIG_FILE" 2>/dev/null || echo ""
 }
@@ -376,6 +382,7 @@ main() {
                 ;;
             --type)
                 type_flag="$2"
+                set_type "$2"
                 shift 2
                 ;;
             --color)
