@@ -98,6 +98,17 @@ Variants {
         property int centeredWallpaperSize: Config.options.background.centeredWallpaperSize ?? 400
         property color centeredWallpaperColor: root.getColorFromName(Config.options.background.centeredWallpaperColor ?? "primaryContainer")
 
+        readonly property real splitFraction: {
+            switch (Config.options.background.splitRatio ?? "100") {
+                case "25": return 0.28
+                case "50": return 0.54
+                default:   return 1.0
+            }
+        }
+        readonly property bool overviewBlurActive: (Config.options.overview?.style === "niri" && GlobalStates.overviewOpen && Config.options.overview?.enable) ?? false
+        readonly property bool userBlurActive: (Config.options.background.showBlur ?? false) && !bgRoot.wallpaperIsVideo
+        readonly property bool blurFullScreen: bgRoot.overviewBlurActive || bgRoot.splitFraction >= 1.0
+
         // Hide when fullscreen
         property list<HyprlandWorkspace> workspacesForMonitor: Hyprland.workspaces.values.filter(workspace => workspace.monitor && workspace.monitor.name == monitor.name)
         property var activeWorkspaceWithFullscreen: workspacesForMonitor.filter(workspace => ((workspace.toplevels.values.filter(window => window.wayland?.fullscreen)[0] != undefined) && workspace.active))[0]
@@ -419,6 +430,46 @@ Variants {
                         opacity: GlobalStates.screenLocked ? 1 : 0
                         anchors.fill: parent
                         color: CF.ColorUtils.transparentize(Appearance.colors.colLayer0, 0.7)
+                    }
+                }
+            }
+
+            Loader {
+                id: fastBlurLoader
+                active: (bgRoot.userBlurActive || bgRoot.overviewBlurActive)
+                    && (!bgRoot.centeredWallpaperEnabled || bgRoot.blurFullScreen)
+                anchors.fill: parent
+                sourceComponent: Item {
+                    id: blurRoot
+                    anchors.fill: parent
+
+                    readonly property real fadeWidth: 140
+                    readonly property real blurRadius: 48
+                    readonly property bool alignRight: (Config.options.background.splitSide ?? "left") === "right"
+                    property real coreWidth: bgRoot.blurFullScreen ? blurRoot.width : blurRoot.width * bgRoot.splitFraction
+
+                    Behavior on coreWidth {
+                        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                    }
+
+                    FastBlur {
+                        id: blurLayer
+                        anchors.fill: parent
+                        source: bgRoot.wallpaperAnimation === "" || bgRoot.transitionProgress >= 1.0 ? wallpaper : transitionEffect
+                        radius: blurRoot.blurRadius
+
+                        layer.enabled: !bgRoot.blurFullScreen
+                        layer.effect: OpacityMask {
+                            maskSource: Rectangle {
+                                width: blurLayer.width
+                                height: blurLayer.height
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: blurRoot.alignRight ? 1 - (blurRoot.coreWidth / blurRoot.width) : Math.max(0, (blurRoot.coreWidth - blurRoot.fadeWidth) / blurRoot.width); color: blurRoot.alignRight ? "transparent" : "white" }
+                                    GradientStop { position: blurRoot.alignRight ? Math.min(1, 1 - (blurRoot.coreWidth - blurRoot.fadeWidth) / blurRoot.width) : Math.min(1, blurRoot.coreWidth / blurRoot.width); color: blurRoot.alignRight ? "white" : "transparent" }
+                                }
+                            }
+                        }
                     }
                 }
             }
