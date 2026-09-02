@@ -377,6 +377,7 @@ ContentPage {
                             Config.options.background.centeredWallpaperSize = value;
                         }
                     }
+                }
             }
         }
 
