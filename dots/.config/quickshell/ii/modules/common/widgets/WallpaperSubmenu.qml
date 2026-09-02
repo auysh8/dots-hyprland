@@ -145,40 +145,43 @@ Item {
                     onCheckedChanged: Config.options.background.centeredWallpaperOnlyWhenLocked = checked
                 }
 
-                ConfigSelectionShapeArray {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.topMargin: 2
+                    spacing: 6
                     visible: Config.options.background.centeredWallpaper
-                    currentValue: Config.options.background.centeredWallpaperShape
-                    shapeColor: Appearance.colors.colPrimary
-                    backgroundColor: Appearance.colors.colPrimaryContainer
-                    options: root.shapeOptions
-                    onSelected: newValue => Config.options.background.centeredWallpaperShape = newValue
-                }
 
-                ColorSelectionArray {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 0
-                    Layout.rightMargin: 0
-                    visible: Config.options.background.centeredWallpaper
-                    showLabel: false
-                    itemSpacing: 5
-                    currentValue: Config.options.background.centeredWallpaperColor
-                    options: ["primary", "secondary", "tertiary", "primaryContainer", "secondaryContainer", "tertiaryContainer"]
-                    onSelected: newValue => Config.options.background.centeredWallpaperColor = newValue
-                }
+                    ConfigSelectionShapeArray {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 2
+                        currentValue: Config.options.background.centeredWallpaperShape
+                        shapeColor: Appearance.colors.colPrimary
+                        backgroundColor: Appearance.colors.colPrimaryContainer
+                        options: root.shapeOptions
+                        onSelected: newValue => Config.options.background.centeredWallpaperShape = newValue
+                    }
 
-                ConfigSlider {
-                    Layout.fillWidth: true
-                    showLabel: false
-                    visible: Config.options.background.centeredWallpaper
-                    value: Config.options.background.centeredWallpaperSize
-                    usePercentTooltip: false
-                    buttonIcon: "aspect_ratio"
-                    from: 400
-                    to: 800
-                    stopIndicatorValues: [400]
-                    onValueChanged: Config.options.background.centeredWallpaperSize = value
+                    ColorSelectionArray {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 0
+                        Layout.rightMargin: 0
+                        showLabel: false
+                        itemSpacing: 5
+                        currentValue: Config.options.background.centeredWallpaperColor
+                        options: ["primary", "secondary", "tertiary", "primaryContainer", "secondaryContainer", "tertiaryContainer"]
+                        onSelected: newValue => Config.options.background.centeredWallpaperColor = newValue
+                    }
+
+                    ConfigSlider {
+                        Layout.fillWidth: true
+                        showLabel: false
+                        value: Config.options.background.centeredWallpaperSize
+                        usePercentTooltip: false
+                        buttonIcon: "aspect_ratio"
+                        from: 400
+                        to: 800
+                        stopIndicatorValues: [400]
+                        onValueChanged: Config.options.background.centeredWallpaperSize = value
+                    }
                 }
             }
         }

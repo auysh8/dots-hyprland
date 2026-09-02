@@ -6,6 +6,7 @@ import QtQuick.Controls
 
 RippleButton {
     id: root
+    checkable: true
     property string buttonIcon
     property alias iconSize: iconWidget.iconSize
 
