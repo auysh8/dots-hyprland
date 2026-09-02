@@ -164,6 +164,10 @@ Singleton {
             property JsonObject background: JsonObject {
                 property bool widgetsLocked: false
                 property bool showGrid: true
+                property bool showBlur: false
+                property bool enableWallpaperPreview: true
+                property string splitRatio: "100"
+                property string splitSide: "left"
                 property bool showSnapLines: true
                 property list<string> screenList: []
                 property JsonObject widgets: JsonObject {

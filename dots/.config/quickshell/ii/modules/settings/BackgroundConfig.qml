@@ -38,8 +38,9 @@ ContentPage {
     }
 
     function displayPathFor(path) {
+        if (!path) return ""
         return /\.(mp4|webm|mkv|avi|mov)$/i.test(path)
-            ? Config.options.background.thumbnailPath
+            ? (Config.options.background.thumbnailPath || "")
             : path
     }
             
