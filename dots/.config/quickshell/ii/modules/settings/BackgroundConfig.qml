@@ -62,9 +62,9 @@ ContentPage {
 
             ConfigRow {
                 visible: Config.options.background.lockWall !== ""
-                ConfigButton {
-                    buttonIcon: "lock"
-                    text: Translation.tr("Pick separate lockscreen wallpaper")
+                RippleButtonWithIcon {
+                    materialIcon: "lock"
+                    mainText: Translation.tr("Pick separate lockscreen wallpaper")
                     onClicked: {
                         GlobalStates.wallpaperSelectorTarget = "lockWall";
                         GlobalStates.wallpaperSelectorOpen = true;

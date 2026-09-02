@@ -365,6 +365,14 @@ ApplicationWindow {
                             y: 0
                         }
 
+                        onStatusChanged: {
+                            if (status === Loader.Error) {
+                                console.error("[Settings PageLoader Error]:", source, sourceComponent?.errorString());
+                            } else if (status === Loader.Ready) {
+                                console.log("[Settings PageLoader Ready]:", source);
+                            }
+                        }
+
                         Component.onCompleted: {
                             source = root.currentComponent
                         }
