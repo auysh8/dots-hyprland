@@ -310,6 +310,7 @@ Singleton {
                 }
                 property string wallpaperPath: ""
                 property string thumbnailPath: ""
+                property string lockWall: ""
                 property string wallpaperAnimation: "magic"
                 property bool centeredWallpaper: false
                 property string centeredWallpaperShape: "Cookie7Sided"

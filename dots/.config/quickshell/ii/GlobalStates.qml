@@ -34,6 +34,7 @@ Singleton {
     property bool superReleaseMightTrigger: true
     property bool notesLayerOpen: false
     property bool wallpaperSelectorOpen: false
+    property string wallpaperSelectorTarget: "wallpaper" // "wallpaper" or "lockWall"
     property bool workspaceShowNumbers: false
     property list<real> visualizerPoints: []
     property bool desktopWidgetKeyboardFocus: false

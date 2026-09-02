@@ -42,7 +42,17 @@ MouseArea {
 
     function selectWallpaperPath(filePath) {
         if (filePath && filePath.length > 0) {
-            Wallpapers.select(filePath, root.useDarkMode);
+            if (GlobalStates.wallpaperSelectorTarget === "lockWall") {
+                Wallpapers.select(filePath, root.useDarkMode, finalPath => {
+                    Config.options.background.lockWall = finalPath;
+                    GlobalStates.wallpaperSelectorTarget = "wallpaper";
+                    GlobalStates.wallpaperSelectorOpen = false;
+                });
+            } else {
+                if (Config.options.background.enableWallpaperPreview)
+                    Wallpapers.stopPreview();
+                Wallpapers.select(filePath, root.useDarkMode);
+            }
             filterField.text = "";
         }
     }
@@ -151,12 +161,90 @@ MouseArea {
 
                     StyledText {
                         Layout.margins: 12
+                        Layout.bottomMargin: 4
                         font {
                             pixelSize: Appearance.font.pixelSize.normal
                             weight: Font.Medium
                         }
                         text: Translation.tr("Pick a wallpaper")
                     }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        Layout.bottomMargin: 8
+                        spacing: 4
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 28
+                            radius: Appearance.rounding.small
+                            color: GlobalStates.wallpaperSelectorTarget === "wallpaper"
+                                ? Appearance.colors.colPrimary
+                                : Appearance.colors.colLayer2
+
+                            RowLayout {
+                                anchors.centerIn: parent
+                                spacing: 4
+                                MaterialSymbol {
+                                    text: "desktop_windows"
+                                    iconSize: 14
+                                    color: GlobalStates.wallpaperSelectorTarget === "wallpaper"
+                                        ? Appearance.colors.colOnPrimary
+                                        : Appearance.colors.colOnLayer2
+                                }
+                                StyledText {
+                                    text: Translation.tr("Home")
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    font.weight: Font.Medium
+                                    color: GlobalStates.wallpaperSelectorTarget === "wallpaper"
+                                        ? Appearance.colors.colOnPrimary
+                                        : Appearance.colors.colOnLayer2
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: GlobalStates.wallpaperSelectorTarget = "wallpaper"
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 28
+                            radius: Appearance.rounding.small
+                            color: GlobalStates.wallpaperSelectorTarget === "lockWall"
+                                ? Appearance.colors.colPrimary
+                                : Appearance.colors.colLayer2
+
+                            RowLayout {
+                                anchors.centerIn: parent
+                                spacing: 4
+                                MaterialSymbol {
+                                    text: "lock"
+                                    iconSize: 14
+                                    color: GlobalStates.wallpaperSelectorTarget === "lockWall"
+                                        ? Appearance.colors.colOnPrimary
+                                        : Appearance.colors.colOnLayer2
+                                }
+                                StyledText {
+                                    text: Translation.tr("Lock")
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    font.weight: Font.Medium
+                                    color: GlobalStates.wallpaperSelectorTarget === "lockWall"
+                                        ? Appearance.colors.colOnPrimary
+                                        : Appearance.colors.colOnLayer2
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: GlobalStates.wallpaperSelectorTarget = "lockWall"
+                            }
+                        }
+                    }
+
                     ListView {
                         // Quick dirs
                         Layout.fillHeight: true

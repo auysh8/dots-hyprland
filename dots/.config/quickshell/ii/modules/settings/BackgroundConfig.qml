@@ -45,6 +45,33 @@ ContentPage {
                 }
             }
         }
+
+        ContentSubsection {
+            title: Translation.tr("Lockscreen Wallpaper")
+
+            ConfigSwitch {
+                buttonIcon: "sync"
+                text: Translation.tr("Sync lockscreen with desktop wallpaper")
+                checked: Config.options.background.lockWall === ""
+                onCheckedChanged: {
+                    if (checked) {
+                        Config.options.background.lockWall = "";
+                    }
+                }
+            }
+
+            ConfigRow {
+                visible: Config.options.background.lockWall !== ""
+                ConfigButton {
+                    buttonIcon: "lock"
+                    text: Translation.tr("Pick separate lockscreen wallpaper")
+                    onClicked: {
+                        GlobalStates.wallpaperSelectorTarget = "lockWall";
+                        GlobalStates.wallpaperSelectorOpen = true;
+                    }
+                }
+            }
+        }
     }
 
     ContentSection {
