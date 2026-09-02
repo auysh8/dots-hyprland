@@ -36,7 +36,8 @@ ApplicationWindow {
             title: Translation.tr("Interface & style"),
             subpages: [
                 { name: Translation.tr("Desktop bar"), icon: "toast", iconRotation: 180, component: "modules/settings/BarConfig.qml" },
-                { name: Translation.tr("Wallpapers"), icon: "texture", component: "modules/settings/BackgroundConfig.qml" },
+                { name: Translation.tr("Wallpapers (New)"), icon: "texture", component: "modules/settings/BackgroundConfig.qml" },
+                { name: Translation.tr("Wallpapers (Classic)"), icon: "history", component: "modules/settings/BackgroundConfigClassic.qml" },
                 { name: Translation.tr("Visual theme"), icon: "bottom_app_bar", component: "modules/settings/InterfaceConfig.qml" }
             ]
         },
