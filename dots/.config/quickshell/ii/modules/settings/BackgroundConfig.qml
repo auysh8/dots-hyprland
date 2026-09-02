@@ -50,24 +50,30 @@ ContentPage {
             title: Translation.tr("Lockscreen Wallpaper")
 
             ConfigSwitch {
+                id: syncLockSwitch
                 buttonIcon: "sync"
                 text: Translation.tr("Sync lockscreen with desktop wallpaper")
                 checked: Config.options.background.lockWall === ""
                 onCheckedChanged: {
                     if (checked) {
                         Config.options.background.lockWall = "";
+                    } else if (Config.options.background.lockWall === "") {
+                        Config.options.background.lockWall = Config.options.background.wallpaperPath;
                     }
                 }
             }
 
             ConfigRow {
                 visible: Config.options.background.lockWall !== ""
+
                 RippleButtonWithIcon {
-                    materialIcon: "lock"
-                    mainText: Translation.tr("Pick separate lockscreen wallpaper")
+                    materialIcon: "folder_open"
+                    mainText: Translation.tr("Choose lockscreen wallpaper...")
                     onClicked: {
-                        GlobalStates.wallpaperSelectorTarget = "lockWall";
-                        GlobalStates.wallpaperSelectorOpen = true;
+                        Quickshell.execDetached([
+                            "bash", "-c",
+                            `IMG="$(kdialog --getopenfilename "${Directories.pictures}/Wallpapers" --title 'Choose Lockscreen Wallpaper' 2>/dev/null || zenity --file-selection --title='Choose Lockscreen Wallpaper' 2>/dev/null)"; if [ -n "$IMG" ]; then jq --arg path "$IMG" '.background.lockWall = $path' "$HOME/.config/illogical-impulse/config.json" > "$HOME/.config/illogical-impulse/config.json.tmp" && mv "$HOME/.config/illogical-impulse/config.json.tmp" "$HOME/.config/illogical-impulse/config.json"; fi`
+                        ]);
                     }
                 }
             }
