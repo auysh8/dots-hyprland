@@ -77,6 +77,11 @@ Scope {
             root.toggleWallpaperSelector();
         }
 
+        function openWithTarget(target: string): void {
+            GlobalStates.wallpaperSelectorTarget = (target === "lockWall" ? "lockWall" : "wallpaper");
+            GlobalStates.wallpaperSelectorOpen = true;
+        }
+
         function random(): void {
             Wallpapers.randomFromCurrentFolder();
         }

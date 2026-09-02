@@ -44,6 +44,25 @@ ContentPage {
             : path
     }
 
+    function pickWallpaper(target) {
+        GlobalStates.wallpaperSelectorTarget = target;
+        GlobalStates.wallpaperSelectorOpen = true;
+
+        if (Config.options.wallpaperSelector.useSystemFileDialog) {
+            if (target === "lockWall") {
+                Quickshell.execDetached([
+                    "bash", "-c",
+                    `IMG="$(kdialog --getopenfilename "${Directories.pictures}/Wallpapers" --title 'Choose Lockscreen Wallpaper' 2>/dev/null || zenity --file-selection --title='Choose Lockscreen Wallpaper' 2>/dev/null)"; if [ -n "$IMG" ]; then jq --arg path "$IMG" '.background.lockWall = $path' "$HOME/.config/illogical-impulse/config.json" > "$HOME/.config/illogical-impulse/config.json.tmp" && mv "$HOME/.config/illogical-impulse/config.json.tmp" "$HOME/.config/illogical-impulse/config.json"; fi`
+                ]);
+            } else {
+                Quickshell.execDetached([Directories.wallpaperSwitchScriptPath]);
+            }
+        } else {
+            // Trigger the built-in Quickshell wallpaper selector overlay
+            Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "wallpaperSelector", "openWithTarget", target]);
+        }
+    }
+
     ColumnLayout {
         id: mainLayout 
         Layout.fillWidth: true   
@@ -88,8 +107,7 @@ ContentPage {
                         wheelEnabled: false
                         dragEnabled: false
                         clickAction: (index, modelData) => {
-                            GlobalStates.wallpaperSelectorTarget = index === 1 ? "lockWall" : "wallpaper"
-                            GlobalStates.wallpaperSelectorOpen = true
+                            page.pickWallpaper(index === 1 ? "lockWall" : "wallpaper");
                         }
                     }
 
@@ -172,8 +190,7 @@ ContentPage {
                         wheelEnabled: false
                         dragEnabled: false
                         clickAction: (index, modelData) => {
-                            GlobalStates.wallpaperSelectorTarget = "wallpaper"
-                            GlobalStates.wallpaperSelectorOpen = true
+                            page.pickWallpaper("wallpaper");
                         }
                     }
 
@@ -215,6 +232,15 @@ ContentPage {
                         if (checked) {
                             Config.options.background.lockWall = "";
                         }
+                    }
+                }
+
+                ConfigSwitch {
+                    buttonIcon: "folder_open"
+                    text: Translation.tr("Use system file picker")
+                    checked: Config.options.wallpaperSelector.useSystemFileDialog
+                    onCheckedChanged: {
+                        Config.options.wallpaperSelector.useSystemFileDialog = checked;
                     }
                 }
 
