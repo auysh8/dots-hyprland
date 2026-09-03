@@ -375,6 +375,16 @@ ContentPage {
                         }
                         enabled: Config.options.background.centeredWallpaper && WM.compositor !== "niri"
                     }
+                    ConfigSwitch {
+                        Layout.fillWidth: true
+                        buttonIcon: "face"
+                        text: Translation.tr("Face tracking")
+                        checked: Config.options.background.centeredWallpaperFaceTracking ?? true
+                        onCheckedChanged: {
+                            Config.options.background.centeredWallpaperFaceTracking = checked;
+                        }
+                        enabled: Config.options.background.centeredWallpaper
+                    }
                 }
 
                 GroupedList {

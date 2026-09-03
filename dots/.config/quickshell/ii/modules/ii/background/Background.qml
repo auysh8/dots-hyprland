@@ -97,6 +97,10 @@ Variants {
         property int centeredWallpaperShape: root.getShapeFromName(Config.options.background.centeredWallpaperShape ?? "Cookie7Sided")
         property int centeredWallpaperSize: Config.options.background.centeredWallpaperSize ?? 400
         property color centeredWallpaperColor: root.getColorFromName(Config.options.background.centeredWallpaperColor ?? "primaryContainer")
+        readonly property bool centeredWallpaperFaceTracking: Config.options.background.centeredWallpaperFaceTracking ?? true
+        property real focalX: 0.5
+        property real focalY: 0.5
+        property bool hasFace: false
 
         readonly property real splitFraction: {
             switch (Config.options.background.splitRatio ?? "100") {
@@ -207,9 +211,23 @@ Variants {
                     ? bgRoot.shaderList[Math.floor(Math.random() * bgRoot.shaderList.length)]
                     : bgRoot.wallpaperAnimation
             }
+            bgRoot.updateFocalPoint()
+        }
+
+        function updateFocalPoint() {
+            if (!bgRoot.centeredWallpaperFaceTracking || bgRoot.wallpaperPath.length === 0 || bgRoot.wallpaperSafetyTriggered || bgRoot.wallpaperIsVideo) {
+                bgRoot.focalX = 0.5
+                bgRoot.focalY = 0.5
+                bgRoot.hasFace = false
+                return
+            }
+            detectFocalPointProc.imagePath = bgRoot.wallpaperPath
+            detectFocalPointProc.running = false
+            detectFocalPointProc.running = true
         }
 
         onWallpaperPathChanged: {
+            bgRoot.updateFocalPoint()
             if (wallpaperSafetyTriggered) {
                 previousWallpaper.source = ""
                 // wallpaper.source is driven by _originalPath binding — safety path handled by _originalPath returning ""
@@ -231,6 +249,35 @@ Variants {
                 bgRoot.currentShader = bgRoot.wallpaperAnimation
             }
             bgRoot.transitionProgress = 0.0
+        }
+
+        Process {
+            id: detectFocalPointProc
+            property string imagePath: ""
+            command: [Quickshell.shellPath("scripts/images/detect-focal-point-venv.sh"), imagePath]
+            stdout: StdioCollector {
+                id: focalPointCollector
+                onStreamFinished: {
+                    const output = focalPointCollector.text ? focalPointCollector.text.trim() : ""
+                    if (!output || output.length === 0) return
+                    try {
+                        const res = JSON.parse(output)
+                        if (res.has_face) {
+                            bgRoot.focalX = res.focal_x ?? 0.5
+                            bgRoot.focalY = res.focal_y ?? 0.5
+                            bgRoot.hasFace = true
+                        } else {
+                            bgRoot.focalX = 0.5
+                            bgRoot.focalY = 0.5
+                            bgRoot.hasFace = false
+                        }
+                    } catch (e) {
+                        bgRoot.focalX = 0.5
+                        bgRoot.focalY = 0.5
+                        bgRoot.hasFace = false
+                    }
+                }
+            }
         }
 
         NumberAnimation {
@@ -478,7 +525,31 @@ Variants {
 
             MaterialShape {
                 id: centeredWallpaperShapeItem
-                anchors.centerIn: parent
+                property real targetCenterX: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasFace)
+                    ? Math.max(width / 2 + 40, Math.min(parent.width - width / 2 - 40, parent.width * bgRoot.focalX))
+                    : parent.width / 2
+                property real targetCenterY: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasFace)
+                    ? Math.max(height / 2 + 40, Math.min(parent.height - height / 2 - 40, parent.height * bgRoot.focalY))
+                    : parent.height / 2
+
+                x: targetCenterX - width / 2
+                y: targetCenterY - height / 2
+
+                Behavior on x {
+                    NumberAnimation {
+                        duration: 800
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                    }
+                }
+                Behavior on y {
+                    NumberAnimation {
+                        duration: 800
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                    }
+                }
+
                 width: bgRoot.centeredWallpaperSize
                 height: bgRoot.centeredWallpaperSize
                 color: bgRoot.centeredWallpaperColor
@@ -525,14 +596,46 @@ Variants {
                     }
                 }
 
-                StyledImage {
+                Item {
+                    id: framedImageContainer
                     anchors.fill: parent
-                    source: bgRoot.wallpaperPath
-                    fillMode: Image.PreserveAspectCrop
-                    cache: false
-                    antialiasing: true
-                    sourceSize.width: parent.width
-                    sourceSize.height: parent.height
+                    clip: true
+
+                    // Scaled image sized to fill the shape frame, centered at the focal coordinates
+                    StyledImage {
+                        id: framedImage
+                        property real focalNormX: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasFace) ? bgRoot.focalX : 0.5
+                        property real focalNormY: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasFace) ? bgRoot.focalY : 0.5
+                        property real imgScale: Math.max(parent.width / Math.max(1, sourceSize.width), parent.height / Math.max(1, sourceSize.height), 1.0)
+
+                        // Sized proportional to original aspect ratio
+                        width: Math.max(parent.width, (sourceSize.width > 0 ? sourceSize.width * imgScale : parent.width))
+                        height: Math.max(parent.height, (sourceSize.height > 0 ? sourceSize.height * imgScale : parent.height))
+
+                        // Center focal point inside the frame
+                        x: Math.max(parent.width - width, Math.min(0, (parent.width / 2) - (width * focalNormX)))
+                        y: Math.max(parent.height - height, Math.min(0, (parent.height / 2) - (height * focalNormY)))
+
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: 800
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                            }
+                        }
+                        Behavior on y {
+                            NumberAnimation {
+                                duration: 800
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                            }
+                        }
+
+                        source: bgRoot.wallpaperPath
+                        fillMode: Image.PreserveAspectCrop
+                        cache: true
+                        antialiasing: true
+                    }
                 }
             }
 
