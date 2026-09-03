@@ -17,6 +17,7 @@ Singleton {
 
     property string thumbgenScriptPath: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/thumbnails/thumbgen-venv.sh`
     property string generateThumbnailsMagickScriptPath: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/thumbnails/generate-thumbnails-magick.sh`
+    property string generateWallpaperCropsScriptPath: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/thumbnails/generate-wallpaper-crops.sh`
     property alias directory: folderModel.folder
     readonly property string effectiveDirectory: FileUtils.trimFileProtocol(folderModel.folder.toString())
     property url defaultFolder: Qt.resolvedUrl(`${Directories.pictures}/Wallpapers`)
@@ -28,12 +29,26 @@ Singleton {
     property list<string> wallpapers: [] // List of absolute file paths (without file://)
     readonly property bool thumbnailGenerationRunning: thumbgenProc.running
     property real thumbnailGenerationProgress: 0
+    property string previewPath: ""
+    property string confirmedPath: ""
+    // Screen resolution for crop cache — set by Background.qml on first load
+    property int screenWidth: 1920
+    property int screenHeight: 1080
 
     signal changed()
     signal thumbnailGenerated(directory: string)
     signal thumbnailGeneratedFile(filePath: string)
 
     function load () {} // For forcing initialization
+
+    function startPreview(path) {
+        if (!path || path.length === 0) return;
+        root.previewPath = path;
+    }
+
+    function stopPreview() {
+        root.previewPath = "";
+    }
     
     function openFallbackPicker(darkMode = Appearance.m3colors.darkmode) {
         Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light"]);
@@ -41,6 +56,7 @@ Singleton {
 
     function apply(path, darkMode = Appearance.m3colors.darkmode) {
         if (!path || path.length === 0) return;
+        root.confirmedPath = path;
         Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light", "--image", path]);
         root.changed()
     }
@@ -173,6 +189,51 @@ Singleton {
         onExited: (exitCode, exitStatus) => {
             // print("[Wallpapers] Thumbnail generation completed with exit code", exitCode)
             root.thumbnailGenerated(thumbgenProc.directory)
+        }
+    }
+
+    // Wallpaper crop cache generation
+    // Generates center-cropped versions of all wallpapers at exact screen resolution.
+    // Cropped files are cached in ~/.cache/wallpapers/WxH/<md5hash>.png
+    readonly property bool cropGenerationRunning: wallpaperCropProc.running
+    signal cropGenerated(directory: string)
+
+    function generateCrops(screenWidth: int, screenHeight: int) {
+        const resolution = `${screenWidth}x${screenHeight}`
+        wallpaperCropProc.resolution = resolution
+        wallpaperCropProc.running = false
+        wallpaperCropProc.command = [
+            "bash",
+            generateWallpaperCropsScriptPath,
+            "--directory", FileUtils.trimFileProtocol(root.directory),
+            "--resolution", resolution,
+            "--machine_progress",
+            "--extensions", `*.${extensions.join("|*.").replace(/svg/g, "").replace(/\|\*\.\|/g, "|").replace(/^\|/, "").replace(/\|$/, "")}`,
+        ]
+        wallpaperCropProc.running = true
+    }
+
+    // Returns the pre-cropped cache path for a wallpaper at a given resolution.
+    // Uses the same URI encoding + Qt.md5 hash as ThumbnailImage.qml for consistency.
+    // The file may not exist yet if crops haven't been generated — callers should check.
+    function getCachedCropPath(originalPath: string, screenWidth: int, screenHeight: int): string {
+        if (!originalPath || originalPath.length === 0) return ""
+        const resolution = `${screenWidth}x${screenHeight}`
+        const encoded = originalPath.split("/").map(part => encodeURIComponent(part)).join("/")
+        const md5Hash = Qt.md5(`file://${encoded}`)
+        return `${FileUtils.trimFileProtocol(Directories.genericCache)}/wallpapers/${resolution}/${md5Hash}.png`
+    }
+
+    Process {
+        id: wallpaperCropProc
+        property string resolution: ""
+        stdout: SplitParser {
+            onRead: data => {
+                // Crop proc uses same PROGRESS/FILE format for forward compat
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            root.cropGenerated(FileUtils.trimFileProtocol(root.directory))
         }
     }
 

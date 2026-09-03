@@ -76,27 +76,48 @@ Singleton {
 	        seen.add(app.id);
 	        return true;
 	    });
+	    _targetsDirty = true;
+	    _iconsDirty = true;
+	    _preppedTargets = null;
+	    _preppedIcons = null;
 	}
     
-    readonly property var preppedTargets: list.map(a => {
-        const nameStr = a.name || "";
-        const idStr = a.id || "";
-        const genericStr = a.genericName || "";
-        const commentStr = a.comment || "";
-        const kwStr = Array.isArray(a.keywords) ? a.keywords.join(" ") : "";
-        const execStr = Array.isArray(a.command) ? a.command.join(" ") : "";
-        const searchBlob = `${nameStr} ${idStr} ${genericStr} ${kwStr} ${commentStr} ${execStr}`;
-        return {
-            name: Fuzzy.prepare(`${nameStr} `),
-            all: Fuzzy.prepare(`${searchBlob} `),
-            entry: a
-        };
-    })
+    property var _preppedTargets: null
+    property var _preppedIcons: null
+    property bool _targetsDirty: true
+    property bool _iconsDirty: true
 
-    readonly property var preppedIcons: list.map(a => ({
-        name: Fuzzy.prepare(`${a.icon} `),
-        entry: a
-    }))
+    function ensureTargetsPrepped() {
+        if (!_targetsDirty && _preppedTargets) return _preppedTargets;
+        if (root.list.length === 0) rebuild();
+        _preppedTargets = root.list.map(a => {
+            const nameStr = a.name || "";
+            const idStr = a.id || "";
+            const genericStr = a.genericName || "";
+            const commentStr = a.comment || "";
+            const kwStr = Array.isArray(a.keywords) ? a.keywords.join(" ") : "";
+            const execStr = Array.isArray(a.command) ? a.command.join(" ") : "";
+            const searchBlob = `${nameStr} ${idStr} ${genericStr} ${kwStr} ${commentStr} ${execStr}`;
+            return {
+                name: Fuzzy.prepare(`${nameStr} `),
+                all: Fuzzy.prepare(`${searchBlob} `),
+                entry: a
+            };
+        });
+        _targetsDirty = false;
+        return _preppedTargets;
+    }
+
+    function ensureIconsPrepped() {
+        if (!_iconsDirty && _preppedIcons) return _preppedIcons;
+        if (root.list.length === 0) rebuild();
+        _preppedIcons = root.list.map(a => ({
+            name: Fuzzy.prepare(`${a.icon} `),
+            entry: a
+        }));
+        _iconsDirty = false;
+        return _preppedIcons;
+    }
 
     function fuzzyQuery(search: string): var {
         if (!search || search.trim().length === 0) return [];
@@ -106,17 +127,18 @@ Singleton {
             return root.levenshteinQuery(search);
         }
 
+        const targets = ensureTargetsPrepped();
         const cleanQuery = search.trim();
 
         // 1. Primary: Match by application name
-        const nameResults = Fuzzy.go(cleanQuery, preppedTargets, {
+        const nameResults = Fuzzy.go(cleanQuery, targets, {
             key: "name",
             threshold: -10000
         }).map(r => r.obj.entry);
 
         // 2. Secondary: Match by keywords, generic name, desktop ID, or command
         const seen = new Set(nameResults.map(e => e.id));
-        const allResults = Fuzzy.go(cleanQuery, preppedTargets, {
+        const allResults = Fuzzy.go(cleanQuery, targets, {
             key: "all",
             threshold: -10000
         }).map(r => r.obj.entry).filter(e => {
@@ -206,7 +228,8 @@ Singleton {
         if (iconExists(undescoreToKebabGuess)) return undescoreToKebabGuess;
 
         // Search in desktop entries
-        const iconSearchResults = Fuzzy.go(str, preppedIcons, {
+        const icons = root.ensureIconsPrepped();
+        const iconSearchResults = Fuzzy.go(str, icons, {
             all: true,
             key: "name"
         }).map(r => {

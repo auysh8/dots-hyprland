@@ -20,6 +20,8 @@ MouseArea {
         const totalImageMargin = (Appearance.sizes.wallpaperSelectorItemMargins + Appearance.sizes.wallpaperSelectorItemPadding) * 2;
         const thumbnailSizeName = Images.thumbnailSizeNameForDimensions(grid.cellWidth - totalImageMargin, grid.cellHeight - totalImageMargin);
         Wallpapers.generateThumbnail(thumbnailSizeName);
+        // Also pre-crop wallpapers to screen resolution for seamless transitions
+        Wallpapers.generateCrops(Wallpapers.screenWidth, Wallpapers.screenHeight);
     }
 
     Connections {
@@ -394,6 +396,11 @@ MouseArea {
                         function moveSelection(delta) {
                             currentIndex = Math.max(0, Math.min(grid.model.count - 1, currentIndex + delta));
                             positionViewAtIndex(currentIndex, GridView.Contain);
+                            const filePath = grid.model.get(currentIndex, "filePath");
+                            const isDir = grid.model.get(currentIndex, "fileIsDir");
+                            if (!isDir && filePath && Config.options.background.enableWallpaperPreview && GlobalStates.wallpaperSelectorTarget !== "lockWall") {
+                                Wallpapers.startPreview(filePath);
+                            }
                         }
 
                         function activateCurrent() {
@@ -414,6 +421,9 @@ MouseArea {
 
                             onEntered: {
                                 grid.currentIndex = index;
+                                if (!fileModelData.fileIsDir && Config.options.background.enableWallpaperPreview && GlobalStates.wallpaperSelectorTarget !== "lockWall") {
+                                    Wallpapers.startPreview(fileModelData.filePath);
+                                }
                             }
 
                             onActivated: {

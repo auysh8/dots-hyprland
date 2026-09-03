@@ -231,7 +231,12 @@ ContentPage {
                     onCheckedChanged: {
                         if (checked) {
                             Config.options.background.lockWall = "";
+                        } else if (Config.options.background.lockWall === "") {
+                            Config.options.background.lockWall = Config.options.background.wallpaperPath;
                         }
+                    }
+                    StyledToolTip {
+                        text: Translation.tr("Synchronize lockscreen with desktop wallpaper, or uncheck to use separate wallpapers")
                     }
                 }
 
@@ -242,6 +247,9 @@ ContentPage {
                     onCheckedChanged: {
                         Config.options.wallpaperSelector.useSystemFileDialog = checked;
                     }
+                    StyledToolTip {
+                        text: Translation.tr("Open the native system file dialog instead of the Quickshell wallpaper grid")
+                    }
                 }
 
                 ConfigSwitch {
@@ -251,6 +259,9 @@ ContentPage {
                     onCheckedChanged: {
                         Config.options.background.enableWallpaperPreview = checked;
                     }
+                    StyledToolTip {
+                        text: Translation.tr("Temporarily show wallpaper preview on desktop when hovering in the wallpaper picker")
+                    }
                 }
 
                 ConfigSwitch {
@@ -259,6 +270,9 @@ ContentPage {
                     checked: Config.options.background.showBlur
                     onCheckedChanged: {
                         Config.options.background.showBlur = checked;
+                    }
+                    StyledToolTip {
+                        text: Translation.tr("Apply a frosted blur effect over the wallpaper")
                     }
                 }
 

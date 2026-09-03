@@ -141,15 +141,15 @@ Variants {
         readonly property bool backgroundParallaxEnabled: workspaceParallaxEnabled || sidebarParallaxEnabled
         readonly property real minimumParallaxRatio: 1.07
         readonly property real effectiveParallaxRatio: backgroundParallaxEnabled ? Math.max(parallaxRation, minimumParallaxRatio) : parallaxRation
-        property real minSuitableScale: 1 // Some reasonable init, to be updated
-        property real effectiveWallpaperScale: minSuitableScale * effectiveParallaxRatio
-        property int wallpaperWidth: modelData.width // Some reasonable init value, to be updated
-        property int wallpaperHeight: modelData.height // Some reasonable init value, to be updated
-        property real scaledWallpaperWidth: wallpaperWidth * effectiveWallpaperScale
-        property real scaledWallpaperHeight: wallpaperHeight * effectiveWallpaperScale
+        // Wallpaper item is always sized as screen × parallax ratio, regardless of image pixel dimensions.
+        // fillMode: PreserveAspectCrop handles covering any aspect ratio — no magick identify needed.
+        property real scaledWallpaperWidth: screen.width * effectiveParallaxRatio
+        property real scaledWallpaperHeight: screen.height * effectiveParallaxRatio
         property real parallaxTotalPixelsX: Math.max(0, scaledWallpaperWidth - screen.width)
         property real parallaxTotalPixelsY: Math.max(0, scaledWallpaperHeight - screen.height)
-        readonly property bool verticalParallax: (Config.options.background.parallax.autoVertical && wallpaperHeight > wallpaperWidth) || Config.options.background.parallax.vertical
+        // verticalParallax derived from the loaded image's intrinsic size (set in wallpaper.onStatusChanged)
+        property bool wallpaperIsPortrait: false
+        readonly property bool verticalParallax: (Config.options.background.parallax.autoVertical && wallpaperIsPortrait) || Config.options.background.parallax.vertical
         // Colors
         property bool shouldBlur: (GlobalStates.screenLocked && Config.options.lock.blur.enable)
         property color dominantColor: Appearance.colors.colPrimary // Default, to be changed
@@ -194,8 +194,11 @@ Variants {
         property string wallpaperAnimation: Config.options.background.wallpaperAnimation ?? "random"
 
         Component.onCompleted: {
+            // Publish screen dimensions to Wallpapers service for crop cache generation
+            Wallpapers.screenWidth = bgRoot.screen.width
+            Wallpapers.screenHeight = bgRoot.screen.height
             previousWallpaper.source = ""
-            wallpaper.source = bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+            // wallpaper.source is driven by _originalPath binding (bgRoot.wallpaperPath)
             bgRoot.currentWallpaperSource = bgRoot.wallpaperPath
             bgRoot.previousWallpaperSource = ""
             bgRoot.transitionProgress = 1.0
@@ -207,21 +210,20 @@ Variants {
         }
 
         onWallpaperPathChanged: {
-            bgRoot.updateZoomScale();
             if (wallpaperSafetyTriggered) {
                 previousWallpaper.source = ""
-                wallpaper.source = ""
+                // wallpaper.source is driven by _originalPath binding — safety path handled by _originalPath returning ""
                 bgRoot.transitionProgress = 1.0
                 return
             }
             if (bgRoot.wallpaperAnimation === "") {
-                wallpaper.source = wallpaperPath
+                // wallpaper.source auto-updates via _originalPath → bgRoot.wallpaperPath binding
                 bgRoot.currentWallpaperSource = wallpaperPath
                 return
             }
 
             previousWallpaper.source = bgRoot.currentWallpaperSource
-            wallpaper.source = wallpaperPath
+            // wallpaper.source auto-updates via _originalPath → bgRoot.wallpaperPath binding
             bgRoot.currentWallpaperSource = wallpaperPath
             if (bgRoot.wallpaperAnimation === "random") {
                 bgRoot.currentShader = bgRoot.shaderList[Math.floor(Math.random() * bgRoot.shaderList.length)]
@@ -258,33 +260,6 @@ Variants {
             }
         }
 
-        // Wallpaper zoom scale
-        function updateZoomScale() {
-            getWallpaperSizeProc.path = bgRoot.wallpaperPath;
-            getWallpaperSizeProc.running = true;
-        }
-        Process {
-            id: getWallpaperSizeProc
-            property string path: bgRoot.wallpaperPath
-            command: ["magick", "identify", "-format", "%w %h", path]
-            stdout: StdioCollector {
-                id: wallpaperSizeOutputCollector
-                onStreamFinished: {
-                    const output = wallpaperSizeOutputCollector.text;
-                    const [width, height] = output.split(" ").map(Number);
-                    const [screenWidth, screenHeight] = [bgRoot.screen.width, bgRoot.screen.height];
-                    bgRoot.wallpaperWidth = width;
-                    bgRoot.wallpaperHeight = height;
-
-                    // Perfect image; scale = 1
-                    // Small picture; scale > 1; will zoom in the picture
-                    // Big picture; scale < 1; will zoom out the picture
-                    // Choose max number so every side will fit
-                    bgRoot.minSuitableScale = Math.max(screenWidth / width, screenHeight / height);
-                }
-            }
-        }
-
         Item {
             anchors.fill: parent
 
@@ -294,9 +269,10 @@ Variants {
                 fillMode: Image.PreserveAspectCrop
                 cache: true
                 smooth: true
-                asynchronous: true
+                asynchronous: false
                 layer.enabled: true
-                visible: false
+                visible: !blurLoader.active && !bgRoot.centeredWallpaperEnabled && previousWallpaper.source != "" && (bgRoot.wallpaperAnimation !== "" && bgRoot.transitionProgress < 1.0)
+                opacity: (status === Image.Ready) ? 1 : 0
             }
 
             // Wallpaper
@@ -309,8 +285,15 @@ Variants {
                 smooth: true
                 asynchronous: true
                 onStatusChanged: {
-                    if (status === Image.Ready && bgRoot.transitionProgress === 0.0) {
-                        transitionAnim.restart()
+                    if (status === Image.Ready) {
+                        // Update portrait detection for vertical parallax using QML's intrinsic image size
+                        bgRoot.wallpaperIsPortrait = (implicitHeight > implicitWidth)
+                        if (bgRoot.transitionProgress === 0.0) {
+                            transitionAnim.restart()
+                        }
+                    } else if (status === Image.Error && source === _cropPath && _originalPath.length > 0) {
+                        // Crop not generated yet — fall back to original
+                        source = _originalPath
                     }
                 }
 
@@ -359,7 +342,12 @@ Variants {
                     return - bgRoot.parallaxTotalPixelsY * usedFractionY;
                 }
 
-                source: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+                // Use pre-cropped cache if available, fall back to original
+                property string _originalPath: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+                property string _cropPath: _originalPath.length > 0
+                    ? Wallpapers.getCachedCropPath(_originalPath, bgRoot.screen.width, bgRoot.screen.height)
+                    : ""
+                source: _cropPath.length > 0 ? _cropPath : _originalPath
                 fillMode: Image.PreserveAspectCrop
                 Behavior on x {
                     NumberAnimation {
@@ -377,12 +365,14 @@ Variants {
                 height: bgRoot.scaledWallpaperHeight
             }
 
+
             ShaderEffect {
                 id: transitionEffect
                 anchors.fill: wallpaper
                 layer.enabled: blurLoader.active
                 visible: !blurLoader.active && !bgRoot.wallpaperIsVideo && !bgRoot.centeredWallpaperEnabled
                     && bgRoot.wallpaperAnimation !== "" && bgRoot.transitionProgress < 1.0
+                    && wallpaper.status === Image.Ready
 
                 property var fromImage: previousWallpaper
                 property var toImage: wallpaper

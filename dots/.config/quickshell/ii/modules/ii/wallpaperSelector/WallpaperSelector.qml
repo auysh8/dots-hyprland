@@ -45,11 +45,13 @@ Scope {
             }
             Component.onDestruction: {
                 GlobalFocusGrab.removeDismissable(panelWindow);
+                Wallpapers.stopPreview();
             }
             Connections {
                 target: GlobalFocusGrab
                 function onDismissed() {
                     GlobalStates.wallpaperSelectorOpen = false;
+                    Wallpapers.stopPreview();
                 }
             }
 
