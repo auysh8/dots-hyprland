@@ -71,32 +71,8 @@ def detect_faces(img, orig_w, orig_h):
         except Exception:
             pass
 
-    # 2. Try Haar Cascade if YuNet didn't find any
-    if len(faces_found) == 0:
-        try:
-            scale = 800.0 / max(orig_w, orig_h)
-            nw, nh = int(orig_w * scale), int(orig_h * scale)
-            gray = cv2.cvtColor(cv2.resize(img, (nw, nh)), cv2.COLOR_BGR2GRAY)
-            gray = cv2.equalizeHist(gray)
-
-            face_cascade = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
-            haar_dets = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(24, 24))
-            if len(haar_dets) == 0:
-                profile_cascade = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_profileface.xml"))
-                haar_dets = profile_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(24, 24))
-
-            for (x, y, w, h) in haar_dets:
-                cx = (x + w / 2.0) / nw
-                cy = (y + h / 2.0) / nh
-                area = (w / nw) * (h / nh)
-                faces_found.append({
-                    "cx": float(cx),
-                    "cy": float(cy),
-                    "area": float(area),
-                    "score": 0.5
-                })
-        except Exception:
-            pass
+    # 2. Return None if no genuine deep-learning face found (prevents false positives on patterns/charts)
+    pass
 
     if len(faces_found) > 0:
         # Pick largest / most prominent face
