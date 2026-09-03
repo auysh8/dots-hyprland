@@ -4,9 +4,34 @@ import sys
 import json
 import hashlib
 import argparse
+import numpy as np
 
 os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
 import cv2
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(SCRIPT_DIR)
+try:
+    from yolox import YoloX
+except ImportError:
+    YoloX = None
+
+MODELS_DIR = os.path.join(SCRIPT_DIR, "models")
+YUNET_MODEL_PATH = os.path.join(MODELS_DIR, "face_detection_yunet_2023mar.onnx")
+YOLOX_MODEL_PATH = os.path.join(MODELS_DIR, "object_detection_yolox_2022nov_int8.onnx")
+
+COCO_CLASSES = [
+    'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
+    'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
+    'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
+    'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+    'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+    'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+    'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake',
+    'chair', 'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
+    'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
+    'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+]
 
 def get_cache_path(img_path: str) -> str:
     cache_dir = os.path.expanduser("~/.cache/wallpapers/focal")
@@ -14,11 +39,132 @@ def get_cache_path(img_path: str) -> str:
     m = hashlib.md5(img_path.encode("utf-8")).hexdigest()
     return os.path.join(cache_dir, f"{m}.json")
 
+def detect_faces(img, orig_w, orig_h):
+    """
+    Tier 1: Deep Learning Face Detection (YuNet) with Haar Cascade fallback
+    """
+    faces_found = []
+
+    # 1. Try YuNet ONNX
+    if os.path.exists(YUNET_MODEL_PATH):
+        try:
+            target_dim = 1024
+            scale = min(1.0, float(target_dim) / max(orig_w, orig_h))
+            nw, nh = max(1, int(orig_w * scale)), max(1, int(orig_h * scale))
+            small = cv2.resize(img, (nw, nh))
+
+            yunet = cv2.FaceDetectorYN.create(YUNET_MODEL_PATH, "", (nw, nh), score_threshold=0.35)
+            _, dets = yunet.detect(small)
+            if dets is not None and len(dets) > 0:
+                for d in dets:
+                    fx, fy, fw, fh = d[:4]
+                    score = float(d[-1])
+                    cx = (fx + fw / 2.0) / nw
+                    cy = (fy + fh / 2.0) / nh
+                    area = (fw / nw) * (fh / nh)
+                    faces_found.append({
+                        "cx": float(cx),
+                        "cy": float(cy),
+                        "area": float(area),
+                        "score": score
+                    })
+        except Exception:
+            pass
+
+    # 2. Try Haar Cascade if YuNet didn't find any
+    if len(faces_found) == 0:
+        try:
+            scale = 800.0 / max(orig_w, orig_h)
+            nw, nh = int(orig_w * scale), int(orig_h * scale)
+            gray = cv2.cvtColor(cv2.resize(img, (nw, nh)), cv2.COLOR_BGR2GRAY)
+            gray = cv2.equalizeHist(gray)
+
+            face_cascade = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
+            haar_dets = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(24, 24))
+            if len(haar_dets) == 0:
+                profile_cascade = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_profileface.xml"))
+                haar_dets = profile_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(24, 24))
+
+            for (x, y, w, h) in haar_dets:
+                cx = (x + w / 2.0) / nw
+                cy = (y + h / 2.0) / nh
+                area = (w / nw) * (h / nh)
+                faces_found.append({
+                    "cx": float(cx),
+                    "cy": float(cy),
+                    "area": float(area),
+                    "score": 0.5
+                })
+        except Exception:
+            pass
+
+    if len(faces_found) > 0:
+        # Pick largest / most prominent face
+        best = max(faces_found, key=lambda f: f["area"])
+        return {
+            "has_subject": True,
+            "focal_type": "face",
+            "focal_x": round(float(np.clip(best["cx"], 0.0, 1.0)), 4),
+            "focal_y": round(float(np.clip(best["cy"], 0.0, 1.0)), 4),
+            "count": len(faces_found)
+        }
+
+    return None
+
+def detect_objects(img, orig_w, orig_h):
+    """
+    Tier 2: Neural Object Detection (YOLOX) for cars, animals, bicycles, etc.
+    """
+    if YoloX is None or not os.path.exists(YOLOX_MODEL_PATH):
+        return None
+
+    try:
+        yolox = YoloX(YOLOX_MODEL_PATH, confThreshold=0.35)
+        # Letterbox to 640x640
+        scale = min(640.0 / orig_h, 640.0 / orig_w)
+        nh, nw = int(orig_h * scale), int(orig_w * scale)
+        resized = cv2.resize(img, (nw, nh))
+        padded = np.full((640, 640, 3), 114, dtype=np.uint8)
+        padded[:nh, :nw] = resized
+
+        dets = yolox.infer(padded)
+        if len(dets) == 0:
+            return None
+
+        objects = []
+        for d in dets:
+            bx, by, bw, bh, score, cls_id = d
+            cls_name = COCO_CLASSES[int(cls_id)] if int(cls_id) < len(COCO_CLASSES) else "object"
+            cx = (bx + bw / 2.0) / scale / orig_w
+            cy = (by + bh / 2.0) / scale / orig_h
+            area = (bw / scale / orig_w) * (bh / scale / orig_h)
+            objects.append({
+                "label": cls_name,
+                "cx": float(cx),
+                "cy": float(cy),
+                "area": float(area),
+                "score": float(score)
+            })
+
+        if len(objects) > 0:
+            # Pick largest/most prominent object
+            best = max(objects, key=lambda o: o["area"])
+            return {
+                "has_subject": True,
+                "focal_type": best["label"],
+                "focal_x": round(float(np.clip(best["cx"], 0.0, 1.0)), 4),
+                "focal_y": round(float(np.clip(best["cy"], 0.0, 1.0)), 4),
+                "count": len(objects)
+            }
+    except Exception:
+        pass
+
+    return None
+
 def detect_focal_point(image_path: str):
     if not os.path.exists(image_path):
-        return {"has_face": False, "focal_x": 0.5, "focal_y": 0.5, "face_count": 0}
+        return {"has_subject": False, "focal_type": "center", "focal_x": 0.5, "focal_y": 0.5, "count": 0}
 
-    # Check cache first
     cache_file = get_cache_path(image_path)
     if os.path.exists(cache_file):
         try:
@@ -31,75 +177,47 @@ def detect_focal_point(image_path: str):
 
     img = cv2.imread(image_path)
     if img is None:
-        return {"has_face": False, "focal_x": 0.5, "focal_y": 0.5, "face_count": 0}
+        return {"has_subject": False, "focal_type": "center", "focal_x": 0.5, "focal_y": 0.5, "count": 0}
 
     orig_h, orig_w = img.shape[:2]
-    # Downscale for fast detection (max dimension 1024)
-    scale = 1.0
-    max_dim = max(orig_w, orig_h)
-    if max_dim > 1024:
-        scale = 1024.0 / max_dim
-        small = cv2.resize(img, (int(orig_w * scale), int(orig_h * scale)))
-    else:
-        small = img
 
-    gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-    gray = cv2.equalizeHist(gray)
+    # 1. Tier 1: Check faces
+    face_res = detect_faces(img, orig_w, orig_h)
+    if face_res:
+        try:
+            with open(cache_file, "w") as f:
+                json.dump(face_res, f)
+        except Exception:
+            pass
+        return face_res
 
-    # 1. Try frontal face Haar cascade
-    face_cascade = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(28, 28))
+    # 2. Tier 2: Check objects (cars, animals, etc.)
+    obj_res = detect_objects(img, orig_w, orig_h)
+    if obj_res:
+        try:
+            with open(cache_file, "w") as f:
+                json.dump(obj_res, f)
+        except Exception:
+            pass
+        return obj_res
 
-    # 2. Try profile face cascade if no frontal faces found
-    if len(faces) == 0:
-        profile_cascade = cv2.CascadeClassifier(os.path.join(cv2.data.haarcascades, "haarcascade_profileface.xml"))
-        faces = profile_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(28, 28))
-
-    sw, sh = int(orig_w * scale), int(orig_h * scale)
-
-    if len(faces) > 0:
-        # Pick the most prominent face (largest area) or center of largest
-        best_face = None
-        max_area = 0
-        for (x, y, w, h) in faces:
-            area = w * h
-            if area > max_area:
-                max_area = area
-                best_face = (x, y, w, h)
-
-        fx, fy, fw, fh = best_face
-        # Normalized coordinates [0.0, 1.0]
-        focal_x = (fx + fw / 2.0) / sw
-        focal_y = (fy + fh / 2.0) / sh
-
-        res = {
-            "has_face": True,
-            "focal_x": round(float(focal_x), 4),
-            "focal_y": round(float(focal_y), 4),
-            "face_count": len(faces),
-            "face_width_rel": round(float(fw / sw), 4),
-            "face_height_rel": round(float(fh / sh), 4),
-        }
-    else:
-        # Fallback to center
-        res = {
-            "has_face": False,
-            "focal_x": 0.5,
-            "focal_y": 0.5,
-            "face_count": 0
-        }
-
-    # Save to cache
+    # 3. Fallback: Center (0.5, 0.5) as requested
+    center_res = {
+        "has_subject": False,
+        "focal_type": "center",
+        "focal_x": 0.5,
+        "focal_y": 0.5,
+        "count": 0
+    }
     try:
         with open(cache_file, "w") as f:
-            json.dump(res, f)
+            json.dump(center_res, f)
     except Exception:
         pass
-
-    return res
+    return center_res
 
 def main():
-    parser = argparse.ArgumentParser(description="Detect face / focal point in wallpaper")
+    parser = argparse.ArgumentParser(description="Deep Learning Face & Object Focal Point Detector")
     parser.add_argument("image_path", help="Path to wallpaper image")
     args = parser.parse_args()
 

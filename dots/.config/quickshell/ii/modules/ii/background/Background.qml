@@ -100,7 +100,8 @@ Variants {
         readonly property bool centeredWallpaperFaceTracking: Config.options.background.centeredWallpaperFaceTracking ?? true
         property real focalX: 0.5
         property real focalY: 0.5
-        property bool hasFace: false
+        property bool hasSubject: false
+        property string focalType: "center"
 
         readonly property real splitFraction: {
             switch (Config.options.background.splitRatio ?? "100") {
@@ -218,7 +219,8 @@ Variants {
             if (!bgRoot.centeredWallpaperFaceTracking || bgRoot.wallpaperPath.length === 0 || bgRoot.wallpaperSafetyTriggered || bgRoot.wallpaperIsVideo) {
                 bgRoot.focalX = 0.5
                 bgRoot.focalY = 0.5
-                bgRoot.hasFace = false
+                bgRoot.hasSubject = false
+                bgRoot.focalType = "center"
                 return
             }
             detectFocalPointProc.imagePath = bgRoot.wallpaperPath
@@ -262,19 +264,22 @@ Variants {
                     if (!output || output.length === 0) return
                     try {
                         const res = JSON.parse(output)
-                        if (res.has_face) {
+                        if (res.has_subject) {
                             bgRoot.focalX = res.focal_x ?? 0.5
                             bgRoot.focalY = res.focal_y ?? 0.5
-                            bgRoot.hasFace = true
+                            bgRoot.hasSubject = true
+                            bgRoot.focalType = res.focal_type ?? "subject"
                         } else {
                             bgRoot.focalX = 0.5
                             bgRoot.focalY = 0.5
-                            bgRoot.hasFace = false
+                            bgRoot.hasSubject = false
+                            bgRoot.focalType = "center"
                         }
                     } catch (e) {
                         bgRoot.focalX = 0.5
                         bgRoot.focalY = 0.5
-                        bgRoot.hasFace = false
+                        bgRoot.hasSubject = false
+                        bgRoot.focalType = "center"
                     }
                 }
             }
@@ -525,11 +530,11 @@ Variants {
 
             MaterialShape {
                 id: centeredWallpaperShapeItem
-                property real targetCenterX: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasFace)
-                    ? Math.max(width / 2 + 40, Math.min(parent.width - width / 2 - 40, parent.width * bgRoot.focalX))
+                property real targetCenterX: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                    ? Math.max(width / 2 + 40, Math.min(parent.width - width / 2 - 40, wallpaper.x + (wallpaper.width * bgRoot.focalX)))
                     : parent.width / 2
-                property real targetCenterY: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasFace)
-                    ? Math.max(height / 2 + 40, Math.min(parent.height - height / 2 - 40, parent.height * bgRoot.focalY))
+                property real targetCenterY: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                    ? Math.max(height / 2 + 40, Math.min(parent.height - height / 2 - 40, wallpaper.y + (wallpaper.height * bgRoot.focalY)))
                     : parent.height / 2
 
                 x: targetCenterX - width / 2
@@ -601,37 +606,17 @@ Variants {
                     anchors.fill: parent
                     clip: true
 
-                    // Scaled image sized to fill the shape frame, centered at the focal coordinates
+                    // 1:1 Wallpaper peephole:
+                    // Positioned and sized identically to the background wallpaper so the shape
+                    // acts as a seamless cutout/aperture revealing the true wallpaper underneath.
                     StyledImage {
                         id: framedImage
-                        property real focalNormX: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasFace) ? bgRoot.focalX : 0.5
-                        property real focalNormY: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasFace) ? bgRoot.focalY : 0.5
-                        property real imgScale: Math.max(parent.width / Math.max(1, sourceSize.width), parent.height / Math.max(1, sourceSize.height), 1.0)
+                        x: wallpaper.x - centeredWallpaperShapeItem.x
+                        y: wallpaper.y - centeredWallpaperShapeItem.y
+                        width: wallpaper.width
+                        height: wallpaper.height
 
-                        // Sized proportional to original aspect ratio
-                        width: Math.max(parent.width, (sourceSize.width > 0 ? sourceSize.width * imgScale : parent.width))
-                        height: Math.max(parent.height, (sourceSize.height > 0 ? sourceSize.height * imgScale : parent.height))
-
-                        // Center focal point inside the frame
-                        x: Math.max(parent.width - width, Math.min(0, (parent.width / 2) - (width * focalNormX)))
-                        y: Math.max(parent.height - height, Math.min(0, (parent.height / 2) - (height * focalNormY)))
-
-                        Behavior on x {
-                            NumberAnimation {
-                                duration: 800
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                            }
-                        }
-                        Behavior on y {
-                            NumberAnimation {
-                                duration: 800
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                            }
-                        }
-
-                        source: bgRoot.wallpaperPath
+                        source: wallpaper.source
                         fillMode: Image.PreserveAspectCrop
                         cache: true
                         antialiasing: true

@@ -377,8 +377,8 @@ ContentPage {
                     }
                     ConfigSwitch {
                         Layout.fillWidth: true
-                        buttonIcon: "face"
-                        text: Translation.tr("Face tracking")
+                        buttonIcon: "center_focus_strong"
+                        text: Translation.tr("Subject & face tracking")
                         checked: Config.options.background.centeredWallpaperFaceTracking ?? true
                         onCheckedChanged: {
                             Config.options.background.centeredWallpaperFaceTracking = checked;
