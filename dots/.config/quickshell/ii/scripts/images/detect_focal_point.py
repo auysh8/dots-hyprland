@@ -65,6 +65,8 @@ def detect_faces(img, orig_w, orig_h):
                     faces_found.append({
                         "cx": float(cx),
                         "cy": float(cy),
+                        "w": float(fw / nw),
+                        "h": float(fh / nh),
                         "area": float(area),
                         "score": score
                     })
@@ -82,6 +84,8 @@ def detect_faces(img, orig_w, orig_h):
             "focal_type": "face",
             "focal_x": round(float(np.clip(best["cx"], 0.0, 1.0)), 4),
             "focal_y": round(float(np.clip(best["cy"], 0.0, 1.0)), 4),
+            "width_rel": round(float(best["w"]), 4),
+            "height_rel": round(float(best["h"]), 4),
             "count": len(faces_found)
         }
 
@@ -113,11 +117,15 @@ def detect_objects(img, orig_w, orig_h):
             cls_name = COCO_CLASSES[int(cls_id)] if int(cls_id) < len(COCO_CLASSES) else "object"
             cx = (bx + bw / 2.0) / scale / orig_w
             cy = (by + bh / 2.0) / scale / orig_h
-            area = (bw / scale / orig_w) * (bh / scale / orig_h)
+            w_rel = (bw / scale) / orig_w
+            h_rel = (bh / scale) / orig_h
+            area = w_rel * h_rel
             objects.append({
                 "label": cls_name,
                 "cx": float(cx),
                 "cy": float(cy),
+                "w": float(w_rel),
+                "h": float(h_rel),
                 "area": float(area),
                 "score": float(score)
             })
@@ -130,6 +138,8 @@ def detect_objects(img, orig_w, orig_h):
                 "focal_type": best["label"],
                 "focal_x": round(float(np.clip(best["cx"], 0.0, 1.0)), 4),
                 "focal_y": round(float(np.clip(best["cy"], 0.0, 1.0)), 4),
+                "width_rel": round(float(best["w"]), 4),
+                "height_rel": round(float(best["h"]), 4),
                 "count": len(objects)
             }
     except Exception:
@@ -183,6 +193,8 @@ def detect_focal_point(image_path: str):
         "focal_type": "center",
         "focal_x": 0.5,
         "focal_y": 0.5,
+        "width_rel": 0.3,
+        "height_rel": 0.3,
         "count": 0
     }
     try:

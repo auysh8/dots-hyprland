@@ -98,8 +98,11 @@ Variants {
         property int centeredWallpaperSize: Config.options.background.centeredWallpaperSize ?? 400
         property color centeredWallpaperColor: root.getColorFromName(Config.options.background.centeredWallpaperColor ?? "primaryContainer")
         readonly property bool centeredWallpaperFaceTracking: Config.options.background.centeredWallpaperFaceTracking ?? true
+        readonly property bool centeredWallpaperAutoResize: Config.options.background.centeredWallpaperAutoResize ?? true
         property real focalX: 0.5
         property real focalY: 0.5
+        property real subjectWidthRel: 0.3
+        property real subjectHeightRel: 0.3
         property bool hasSubject: false
         property string focalType: "center"
 
@@ -267,17 +270,23 @@ Variants {
                         if (res.has_subject) {
                             bgRoot.focalX = res.focal_x ?? 0.5
                             bgRoot.focalY = res.focal_y ?? 0.5
+                            bgRoot.subjectWidthRel = res.width_rel ?? 0.3
+                            bgRoot.subjectHeightRel = res.height_rel ?? 0.3
                             bgRoot.hasSubject = true
                             bgRoot.focalType = res.focal_type ?? "subject"
                         } else {
                             bgRoot.focalX = 0.5
                             bgRoot.focalY = 0.5
+                            bgRoot.subjectWidthRel = 0.3
+                            bgRoot.subjectHeightRel = 0.3
                             bgRoot.hasSubject = false
                             bgRoot.focalType = "center"
                         }
                     } catch (e) {
                         bgRoot.focalX = 0.5
                         bgRoot.focalY = 0.5
+                        bgRoot.subjectWidthRel = 0.3
+                        bgRoot.subjectHeightRel = 0.3
                         bgRoot.hasSubject = false
                         bgRoot.focalType = "center"
                     }
@@ -555,8 +564,43 @@ Variants {
                     }
                 }
 
-                width: bgRoot.centeredWallpaperSize
-                height: bgRoot.centeredWallpaperSize
+                property real calculatedTargetSize: {
+                    if (!bgRoot.centeredWallpaperAutoResize || !bgRoot.centeredWallpaperFaceTracking || !bgRoot.hasSubject) {
+                        return bgRoot.centeredWallpaperSize
+                    }
+                    // Compute pixel size of the subject on screen
+                    const subjectPixelW = wallpaper.width * bgRoot.subjectWidthRel
+                    const subjectPixelH = wallpaper.height * bgRoot.subjectHeightRel
+                    const maxSubjectDim = Math.max(subjectPixelW, subjectPixelH)
+                    
+                    // Add comfortable framing padding (1.8x for faces, 1.35x for objects)
+                    const paddingMultiplier = (bgRoot.focalType === "face") ? 2.0 : 1.4
+                    const framedSize = maxSubjectDim * paddingMultiplier
+                    
+                    // Clamp between minimum aesthetic size (320px) and screen headroom (up to 85% of screen height)
+                    const minSize = 320
+                    const maxSize = Math.min(parent.height * 0.85, 900)
+                    return Math.max(minSize, Math.min(maxSize, framedSize))
+                }
+
+                width: calculatedTargetSize
+                height: calculatedTargetSize
+
+                Behavior on width {
+                    NumberAnimation {
+                        duration: 800
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                    }
+                }
+                Behavior on height {
+                    NumberAnimation {
+                        duration: 800
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                    }
+                }
+
                 color: bgRoot.centeredWallpaperColor
                 shape: bgRoot.centeredWallpaperShape
                 transformOrigin: Item.Center

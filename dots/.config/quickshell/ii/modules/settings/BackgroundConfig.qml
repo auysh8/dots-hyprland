@@ -385,6 +385,16 @@ ContentPage {
                         }
                         enabled: Config.options.background.centeredWallpaper
                     }
+                    ConfigSwitch {
+                        Layout.fillWidth: true
+                        buttonIcon: "fit_screen"
+                        text: Translation.tr("Auto-resize frame to subject")
+                        checked: Config.options.background.centeredWallpaperAutoResize ?? true
+                        onCheckedChanged: {
+                            Config.options.background.centeredWallpaperAutoResize = checked;
+                        }
+                        enabled: Config.options.background.centeredWallpaper && (Config.options.background.centeredWallpaperFaceTracking ?? true)
+                    }
                 }
 
                 GroupedList {

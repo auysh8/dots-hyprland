@@ -322,6 +322,7 @@ Singleton {
                 property string centeredWallpaperColor: "primaryContainer"
                 property bool centeredWallpaperOnlyWhenLocked: false
                 property bool centeredWallpaperFaceTracking: true
+                property bool centeredWallpaperAutoResize: true
                 property bool hideWhenFullscreen: true
                 property JsonObject parallax: JsonObject {
                     property bool vertical: false
