@@ -53,31 +53,32 @@ def detect_faces(img, orig_w, orig_h):
             nw, nh = max(1, int(orig_w * scale)), max(1, int(orig_h * scale))
             small = cv2.resize(img, (nw, nh))
 
-            yunet = cv2.FaceDetectorYN.create(YUNET_MODEL_PATH, "", (nw, nh), score_threshold=0.35)
+            yunet = cv2.FaceDetectorYN.create(YUNET_MODEL_PATH, "", (nw, nh), score_threshold=0.5)
             _, dets = yunet.detect(small)
             if dets is not None and len(dets) > 0:
                 for d in dets:
                     fx, fy, fw, fh = d[:4]
                     score = float(d[-1])
+                    w_rel = float(fw / nw)
+                    h_rel = float(fh / nh)
+                    area = w_rel * h_rel
+                    # Ignore microscopic artifacts (e.g. less than 3% of image dimension)
+                    if max(w_rel, h_rel) < 0.05 and score < 0.65:
+                        continue
                     cx = (fx + fw / 2.0) / nw
                     cy = (fy + fh / 2.0) / nh
-                    area = (fw / nw) * (fh / nh)
                     faces_found.append({
                         "cx": float(cx),
                         "cy": float(cy),
-                        "w": float(fw / nw),
-                        "h": float(fh / nh),
+                        "w": w_rel,
+                        "h": h_rel,
                         "area": float(area),
                         "score": score
                     })
         except Exception:
             pass
 
-    # 2. Return None if no genuine deep-learning face found (prevents false positives on patterns/charts)
-    pass
-
     if len(faces_found) > 0:
-        # Pick largest / most prominent face
         best = max(faces_found, key=lambda f: f["area"])
         return {
             "has_subject": True,
@@ -93,7 +94,7 @@ def detect_faces(img, orig_w, orig_h):
 
 def detect_objects(img, orig_w, orig_h):
     """
-    Tier 2: Neural Object Detection (YOLOX) for cars, animals, bicycles, etc.
+    Tier 2: Neural Object Detection (YOLOX) for cars, trains, animals, bicycles, etc.
     """
     if YoloX is None or not os.path.exists(YOLOX_MODEL_PATH):
         return None
@@ -149,7 +150,7 @@ def detect_objects(img, orig_w, orig_h):
 
 def detect_focal_point(image_path: str):
     if not os.path.exists(image_path):
-        return {"has_subject": False, "focal_type": "center", "focal_x": 0.5, "focal_y": 0.5, "count": 0}
+        return {"has_subject": False, "focal_type": "center", "focal_x": 0.5, "focal_y": 0.5, "width_rel": 0.3, "height_rel": 0.3, "count": 0}
 
     cache_file = get_cache_path(image_path)
     if os.path.exists(cache_file):
@@ -163,29 +164,37 @@ def detect_focal_point(image_path: str):
 
     img = cv2.imread(image_path)
     if img is None:
-        return {"has_subject": False, "focal_type": "center", "focal_x": 0.5, "focal_y": 0.5, "count": 0}
+        return {"has_subject": False, "focal_type": "center", "focal_x": 0.5, "focal_y": 0.5, "width_rel": 0.3, "height_rel": 0.3, "count": 0}
 
     orig_h, orig_w = img.shape[:2]
 
-    # 1. Tier 1: Check faces
     face_res = detect_faces(img, orig_w, orig_h)
-    if face_res:
-        try:
-            with open(cache_file, "w") as f:
-                json.dump(face_res, f)
-        except Exception:
-            pass
-        return face_res
-
-    # 2. Tier 2: Check objects (cars, animals, etc.)
     obj_res = detect_objects(img, orig_w, orig_h)
-    if obj_res:
+
+    # If face is prominent (> 6% of image) or no prominent object, prioritize face
+    # If face is tiny/ambiguous (< 6%) but there is a major object (like a train, car, plane), prioritize the major object
+    final_res = None
+    if face_res and obj_res:
+        face_dim = max(face_res.get("width_rel", 0), face_res.get("height_rel", 0))
+        obj_area = obj_res.get("width_rel", 0) * obj_res.get("height_rel", 0)
+        face_area = face_res.get("width_rel", 0) * face_res.get("height_rel", 0)
+
+        if face_dim < 0.06 and obj_area > (face_area * 10):
+            final_res = obj_res
+        else:
+            final_res = face_res
+    elif face_res:
+        final_res = face_res
+    elif obj_res:
+        final_res = obj_res
+
+    if final_res:
         try:
             with open(cache_file, "w") as f:
-                json.dump(obj_res, f)
+                json.dump(final_res, f)
         except Exception:
             pass
-        return obj_res
+        return final_res
 
     # 3. Fallback: Center (0.5, 0.5) as requested
     center_res = {
