@@ -121,6 +121,15 @@ def detect_objects(img, orig_w, orig_h):
             w_rel = (bw / scale) / orig_w
             h_rel = (bh / scale) / orig_h
             area = w_rel * h_rel
+
+            # Ignore tiny distant background clutter (e.g. tiny passerby at 0.3% area or edge artifacts)
+            if area < 0.015 and max(w_rel, h_rel) < 0.16:
+                continue
+
+            # Ignore extreme screen-edge slivers in the bottom 8% or top 5% unless significant
+            if (cy > 0.92 or cy < 0.05) and area < 0.04:
+                continue
+
             objects.append({
                 "label": cls_name,
                 "cx": float(cx),
