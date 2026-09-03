@@ -121,18 +121,15 @@ def detect_objects(img, orig_w, orig_h):
             w_rel = (bw / scale) / orig_w
             h_rel = (bh / scale) / orig_h
             area = w_rel * h_rel
+            bottom_edge = cy + h_rel / 2.0
+            top_edge = cy - h_rel / 2.0
 
-            # Ignore extreme perimeter slivers (near outer 8% screen edges) unless large
-            dist_from_center = np.hypot(cx - 0.5, cy - 0.5)
-            if (cy > 0.90 or cy < 0.08 or cx < 0.08 or cx > 0.92) and area < 0.03:
+            # Discard microscopic noise (< 0.25% area)
+            if area < 0.0025:
                 continue
 
-            # Ignore microscopic noise (< 0.8% area)
-            if area < 0.008:
-                continue
-
-            # Distant background clutter (< 1.5% area): only keep if it is centrally composed and confident
-            if area < 0.015 and (dist_from_center > 0.28 or score < 0.60):
+            # Discard tiny peripheral items that get clipped directly on the screen edge
+            if (bottom_edge > 0.95 or top_edge < 0.05 or cx < 0.05 or cx > 0.95) and area < 0.025:
                 continue
 
             objects.append({
@@ -146,7 +143,28 @@ def detect_objects(img, orig_w, orig_h):
             })
 
         if len(objects) > 0:
-            # Pick largest/most prominent object
+            # If multiple people are standing together (like a couple or group), frame all of them together!
+            people = [o for o in objects if o["label"] == "person"]
+            if len(people) >= 2:
+                # Check if they are close together
+                min_x = min(p["cx"] - p["w"] / 2.0 for p in people)
+                max_x = max(p["cx"] + p["w"] / 2.0 for p in people)
+                min_y = min(p["cy"] - p["h"] / 2.0 for p in people)
+                max_y = max(p["cy"] + p["h"] / 2.0 for p in people)
+                group_w = max_x - min_x
+                group_h = max_y - min_y
+                if group_w < 0.5: # Standing in proximity
+                    return {
+                        "has_subject": True,
+                        "focal_type": "people",
+                        "focal_x": round(float(np.clip((min_x + max_x) / 2.0, 0.0, 1.0)), 4),
+                        "focal_y": round(float(np.clip((min_y + max_y) / 2.0, 0.0, 1.0)), 4),
+                        "width_rel": round(float(group_w), 4),
+                        "height_rel": round(float(group_h), 4),
+                        "count": len(people)
+                    }
+
+            # Otherwise pick largest/most prominent object
             best = max(objects, key=lambda o: o["area"])
             return {
                 "has_subject": True,
