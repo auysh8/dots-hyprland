@@ -122,12 +122,17 @@ def detect_objects(img, orig_w, orig_h):
             h_rel = (bh / scale) / orig_h
             area = w_rel * h_rel
 
-            # Ignore tiny distant background clutter (e.g. tiny passerby at 0.3% area or edge artifacts)
-            if area < 0.015 and max(w_rel, h_rel) < 0.16:
+            # Ignore extreme perimeter slivers (near outer 8% screen edges) unless large
+            dist_from_center = np.hypot(cx - 0.5, cy - 0.5)
+            if (cy > 0.90 or cy < 0.08 or cx < 0.08 or cx > 0.92) and area < 0.03:
                 continue
 
-            # Ignore extreme screen-edge slivers in the bottom 8% or top 5% unless significant
-            if (cy > 0.92 or cy < 0.05) and area < 0.04:
+            # Ignore microscopic noise (< 0.8% area)
+            if area < 0.008:
+                continue
+
+            # Distant background clutter (< 1.5% area): only keep if it is centrally composed and confident
+            if area < 0.015 and (dist_from_center > 0.28 or score < 0.60):
                 continue
 
             objects.append({
