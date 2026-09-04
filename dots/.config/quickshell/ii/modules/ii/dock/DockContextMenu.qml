@@ -14,8 +14,8 @@ Item {
     property Item targetButton
     property alias isOpen: menuLoader.active
     readonly property var desktopEntry: appToplevel ? DesktopEntries.heuristicLookup(appToplevel.appId) : null
-    readonly property bool hasWindows: (appToplevel?.toplevels.length ?? 0) > 0
-    readonly property bool hasDesktopActions: (desktopEntry?.actions.length ?? 0) > 0
+    readonly property bool hasWindows: Boolean(appToplevel && appToplevel.toplevels && appToplevel.toplevels.length > 0)
+    readonly property bool hasDesktopActions: Boolean(desktopEntry && desktopEntry.actions && desktopEntry.actions.length > 0)
 
     function open(button, appToplevelData) {
         if (menuLoader.item && typeof menuLoader.item.forceClose === "function")
@@ -45,6 +45,7 @@ Item {
             property real revealProgress: 0
 
             anchor {
+                window: root.targetButton?.QsWindow?.window ?? root.QsWindow?.window
                 item: root.targetButton
                 gravity: Edges.Top
                 edges: Edges.Top
@@ -52,9 +53,21 @@ Item {
             }
 
             HyprlandFocusGrab {
-                active: true
+                id: focusGrab
+                active: false
                 windows: [contextPopup]
                 onCleared: root.close()
+            }
+
+            Timer {
+                id: grabTimer
+                interval: Appearance.animation.elementMoveFast.duration + 40
+                running: true
+                onTriggered: {
+                    if (menuLoader.active && !contextPopup.closing) {
+                        focusGrab.active = true;
+                    }
+                }
             }
 
             Component.onCompleted: openAnim.start();
@@ -62,11 +75,13 @@ Item {
             function close() {
                 if (closing) return;
                 closing = true;
+                focusGrab.active = false;
                 closeAnim.restart();
             }
 
             function forceClose() {
                 closing = false;
+                focusGrab.active = false;
                 openAnim.stop();
                 closeAnim.stop();
                 menuLoader.active = false;
@@ -116,8 +131,10 @@ Item {
                 property real padding: 4
                 opacity: contextPopup.revealProgress
                 scale: 0.96 + contextPopup.revealProgress * 0.04
-                y: (1 - contextPopup.revealProgress) * 10
                 transformOrigin: Item.Bottom
+                transform: Translate {
+                    y: (1 - contextPopup.revealProgress) * 10
+                }
 
                 anchors {
                     bottom: parent.bottom

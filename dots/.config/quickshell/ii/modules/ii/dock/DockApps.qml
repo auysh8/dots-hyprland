@@ -33,6 +33,7 @@ Item {
     }
 
     function openContextMenu(button, appToplevelData) {
+        previewPopup.show = false;
         contextMenu.open(button, appToplevelData);
     }
 
@@ -68,7 +69,7 @@ Item {
         id: previewPopup
         property var appTopLevel: root.lastHoveredButton?.appToplevel
 
-        property bool shouldShow: (popupMouseArea.containsMouse || root.buttonHovered) && appTopLevel && appTopLevel.toplevels && appTopLevel.toplevels.length > 0
+        property bool shouldShow: !contextMenu.isOpen && (popupMouseArea.containsMouse || root.buttonHovered) && appTopLevel && appTopLevel.toplevels && appTopLevel.toplevels.length > 0
 
         property bool show: false
         property real cachedCenterX: 0

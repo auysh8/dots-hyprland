@@ -24,9 +24,9 @@ DockButton {
     implicitWidth: isSeparator ? 1 : implicitHeight - topInset - bottomInset
 
     // Drag-to-reorder
-    readonly property bool isDragged: appListRoot.dragging && delegateIndex === appListRoot.dragSourceIndex
+    readonly property bool isDragged: Boolean(appListRoot?.dragging && delegateIndex === appListRoot?.dragSourceIndex)
     readonly property real dragTranslateX: {
-        if (!appListRoot.dragging) return 0;
+        if (!appListRoot?.dragging) return 0;
         if (isDragged) return appListRoot.dragCursorX - appListRoot.dragStartCursorX;
         if (!appToplevel.pinned || isSeparator) return 0;
         var src = appListRoot.dragSourceIndex;
@@ -89,12 +89,16 @@ DockButton {
         sourceComponent: MouseArea {
             id: dragOverlay
             anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
             preventStealing: true
             property real pressX: 0
             property bool dragActive: false
 
             onPressed: (event) => {
+                if (event.button === Qt.RightButton) {
+                    appListRoot.openContextMenu(root, appToplevel);
+                    return;
+                }
                 pressX = event.x;
                 root.down = true;
                 root.startRipple(event.x, event.y);
@@ -121,9 +125,10 @@ DockButton {
                 }
             }
             onReleased: (event) => {
+                if (event.button === Qt.RightButton) return;
                 if (dragActive) {
                     dragActive = false;
-                    appListRoot.finishDrag();
+                    if (typeof appListRoot.finishDrag === "function") appListRoot.finishDrag();
                 } else {
                     root.down = false;
                     root.cancelRipple();
@@ -133,7 +138,7 @@ DockButton {
             onCanceled: {
                 if (dragActive) {
                     dragActive = false;
-                    appListRoot.cancelDrag();
+                    if (typeof appListRoot.cancelDrag === "function") appListRoot.cancelDrag();
                 }
                 root.down = false;
                 root.cancelRipple();
