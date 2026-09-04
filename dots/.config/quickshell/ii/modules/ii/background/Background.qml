@@ -339,7 +339,7 @@ Variants {
 
         Timer {
             id: unlockRevealTimer
-            interval: 500 // Duration of frame expansion reveal
+            interval: 650 // Duration of frame expansion reveal
             repeat: false
             onTriggered: {
                 bgRoot.unlockExpansionActive = false
@@ -574,7 +574,7 @@ Variants {
                 id: centeredWallpaperBg
                 anchors.fill: parent
                 color: bgRoot.centeredWallpaperColor
-                opacity: (bgRoot.centeredWallpaperEnabled && !bgRoot.unlockExpansionActive) ? 1 : 0
+                opacity: bgRoot.centeredWallpaperEnabled ? 1 : 0
                 visible: opacity > 0
 
                 Behavior on opacity {
@@ -668,7 +668,7 @@ Variants {
                     },
                     State {
                         name: "expanding"
-                        PropertyChanges { target: centeredWallpaperShapeItem; scale: 2.6; opacity: 0 }
+                        PropertyChanges { target: centeredWallpaperShapeItem; scale: 12.0; opacity: 1 }
                     },
                     State {
                         name: "hidden"
@@ -680,21 +680,12 @@ Variants {
                     Transition {
                         from: "shown"
                         to: "expanding"
-                        ParallelAnimation {
-                            NumberAnimation {
-                                target: centeredWallpaperShapeItem
-                                property: "scale"
-                                duration: 500
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                            }
-                            NumberAnimation {
-                                target: centeredWallpaperShapeItem
-                                property: "opacity"
-                                duration: 400
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                            }
+                        NumberAnimation {
+                            target: centeredWallpaperShapeItem
+                            property: "scale"
+                            duration: 650
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
                         }
                     },
                     Transition {
