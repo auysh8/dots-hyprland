@@ -229,6 +229,15 @@ switch() {
             done
             create_restore_script "$video_path"
         else
+            # Ensure pre-crop cache is freshly generated if needed
+            local max_w
+            local max_h
+            max_w="$(hyprctl monitors -j 2>/dev/null | jq '([.[].width] | max)' 2>/dev/null | xargs 2>/dev/null || echo 1920)"
+            max_h="$(hyprctl monitors -j 2>/dev/null | jq '([.[].height] | max)' 2>/dev/null | xargs 2>/dev/null || echo 1080)"
+            if [ -n "$imgpath" ] && [ -f "$imgpath" ]; then
+                "$SCRIPT_DIR/../thumbnails/generate-wallpaper-crops.sh" --file "$imgpath" --resolution "${max_w}x${max_h}"
+            fi
+
             # Update wallpaper path in config
             set_wallpaper_path "$imgpath"
             remove_restore

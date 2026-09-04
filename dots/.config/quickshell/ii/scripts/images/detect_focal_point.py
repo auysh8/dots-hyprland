@@ -187,10 +187,11 @@ def detect_focal_point(image_path: str):
     cache_file = get_cache_path(image_path)
     if os.path.exists(cache_file):
         try:
-            with open(cache_file, "r") as f:
-                data = json.load(f)
-                if "focal_x" in data and "focal_y" in data:
-                    return data
+            if os.path.getmtime(image_path) <= os.path.getmtime(cache_file):
+                with open(cache_file, "r") as f:
+                    data = json.load(f)
+                    if "focal_x" in data and "focal_y" in data:
+                        return data
         except Exception:
             pass
 

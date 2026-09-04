@@ -64,8 +64,8 @@ generate_crop() {
     local out="$CACHE_DIR/$hash.png"
     mkdir -p "$CACHE_DIR"
 
-    if [ -f "$out" ]; then
-        # Already cached — signal completion and skip
+    if [ -f "$out" ] && [ "$out" -nt "$abs_path" ]; then
+        # Already cached and newer than source — signal completion and skip
         if [ -n "$signal_dir" ]; then
             echo "$abs_path" > "$signal_dir/$$.done"
         fi

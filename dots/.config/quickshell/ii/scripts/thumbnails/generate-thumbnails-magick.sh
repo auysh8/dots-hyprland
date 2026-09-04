@@ -75,8 +75,8 @@ generate_thumbnail() {
     hash="$(md5 "$uri")"
     local out="$CACHE_DIR/$hash.png"
     mkdir -p "$CACHE_DIR"
-    if [ -f "$out" ]; then
-        # If thumbnail already exists, consider it "done" and signal completion
+    if [ -f "$out" ] && [ "$out" -nt "$abs_path" ]; then
+        # If thumbnail already exists and is newer than source, consider it "done" and signal completion
         if [ -n "$signal_dir" ]; then
             echo "$abs_path" > "$signal_dir/$$.done"
         fi
@@ -124,8 +124,6 @@ while [[ $# -gt 0 ]]; do
             usage
             ;;
     esac
-    # Only one mode allowed
-    [[ -n "$MODE" ]] && break
 done
 
 THUMBNAIL_SIZE="$(get_thumbnail_size "$SIZE_NAME")"

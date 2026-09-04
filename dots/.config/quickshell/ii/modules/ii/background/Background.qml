@@ -389,7 +389,7 @@ Variants {
                 id: previousWallpaper
                 anchors.fill: wallpaper
                 fillMode: Image.PreserveAspectCrop
-                cache: true
+                cache: false
                 smooth: true
                 asynchronous: false
                 layer.enabled: true
@@ -403,7 +403,7 @@ Variants {
                 visible: opacity > 0 && !blurLoader.active && !bgRoot.centeredWallpaperEnabled
                     && (bgRoot.wallpaperAnimation === "" || bgRoot.transitionProgress >= 1.0)
                 opacity: (status === Image.Ready && !bgRoot.wallpaperIsVideo) ? 1 : 0
-                cache: true
+                cache: false
                 smooth: true
                 asynchronous: true
                 onStatusChanged: {
@@ -756,7 +756,7 @@ Variants {
 
                             source: wallpaper.source
                             fillMode: Image.PreserveAspectCrop
-                            cache: true
+                            cache: false
                             antialiasing: true
                         }
                     }
