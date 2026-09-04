@@ -130,11 +130,20 @@ Variants {
 
         // Workspaces
         property HyprlandMonitor monitor: Hyprland.monitorFor(modelData)
-        property list<var> relevantWindows: HyprlandData.windowList.filter(win => win.monitor == monitor?.id && win.workspace.id >= 0).sort((a, b) => a.workspace.id - b.workspace.id)
+        property list<var> relevantWindows: HyprlandData.windowList.filter(win => win.monitor == monitor?.id && win.workspace.id >= 1 && win.workspace.id <= 100).sort((a, b) => a.workspace.id - b.workspace.id)
         property int firstWorkspaceId: relevantWindows[0]?.workspace.id || 1
         property int lastWorkspaceId: relevantWindows[relevantWindows.length - 1]?.workspace.id || 10
         property int workspaceChunkSize: Config?.options.bar.workspaces.shown ?? 10
         property int totalWorkspaces: Math.ceil(lastWorkspaceId / workspaceChunkSize) * workspaceChunkSize
+
+        // Track last valid workspace so lockscreen temp workspace (2147483647 - N) doesn't force wallpaper to workspace 10
+        property int lastValidWorkspaceId: 1
+        readonly property int currentActiveWorkspaceId: monitor?.activeWorkspace?.id ?? 1
+        onCurrentActiveWorkspaceIdChanged: {
+            if (currentActiveWorkspaceId >= 1 && currentActiveWorkspaceId <= 100) {
+                lastValidWorkspaceId = currentActiveWorkspaceId
+            }
+        }
         // Wallpaper
         property string effectiveWallpaperPath: {
             if (GlobalStates.screenLocked && Config.options.background.lockWall !== "")
@@ -220,6 +229,9 @@ Variants {
                 bgRoot.currentShader = bgRoot.wallpaperAnimation === "random"
                     ? bgRoot.shaderList[Math.floor(Math.random() * bgRoot.shaderList.length)]
                     : bgRoot.wallpaperAnimation
+            }
+            if (bgRoot.currentActiveWorkspaceId >= 1 && bgRoot.currentActiveWorkspaceId <= 100) {
+                bgRoot.lastValidWorkspaceId = bgRoot.currentActiveWorkspaceId
             }
             bgRoot.updateFocalPoint()
         }
@@ -431,7 +443,12 @@ Variants {
                     }
                 }
 
-                property int workspaceIndex: (bgRoot.monitor.activeWorkspace?.id ?? 1) - 1
+                property int effectiveWorkspaceId: (GlobalStates.screenLocked || bgRoot.unlockArmed || bgRoot.unlockGlideActive || bgRoot.unlockMagicActive)
+                    ? bgRoot.lastValidWorkspaceId
+                    : ((bgRoot.currentActiveWorkspaceId >= 1 && bgRoot.currentActiveWorkspaceId <= 100)
+                        ? bgRoot.currentActiveWorkspaceId
+                        : bgRoot.lastValidWorkspaceId)
+                property int workspaceIndex: effectiveWorkspaceId - 1
                 property real middleFraction: 0.5
                 property real fraction: {
                     // 0 - start of the picture
