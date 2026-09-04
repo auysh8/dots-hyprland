@@ -23,6 +23,41 @@ AbstractBackgroundWidget {
     implicitWidth: contentItem.implicitWidth
     implicitHeight: contentItem.implicitHeight
 
+    property real pressMouseX: 0
+    property real pressMouseY: 0
+    property bool dragMoved: false
+
+    function openFilePicker() {
+        if (Config.options.background.widgetsLocked && imageShape.hasValidImage) return;
+        if (!filePickerProc.running) {
+            filePickerProc.running = true;
+        }
+    }
+
+    Connections {
+        target: root
+        function onPressed(mouse) {
+            root.pressMouseX = mouse.x;
+            root.pressMouseY = mouse.y;
+            root.dragMoved = false;
+        }
+        function onPositionChanged(mouse) {
+            if (!root.dragMoved && (Math.abs(mouse.x - root.pressMouseX) > 6 || Math.abs(mouse.y - root.pressMouseY) > 6)) {
+                root.dragMoved = true;
+            }
+        }
+    }
+
+    onClicked: (mouse) => {
+        if (!dragMoved && !root.dragging) {
+            root.openFilePicker();
+        }
+    }
+
+    onDoubleClicked: (mouse) => {
+        root.openFilePicker();
+    }
+
     function getShape(name) {
         switch (name) {
             case "Circle":        return MaterialShape.Shape.Circle
@@ -96,6 +131,8 @@ AbstractBackgroundWidget {
             color: Appearance.colors.colPrimaryContainer
             shape: getShape(Config.options.background.widgets.customImage.shape ?? "Cookie4Sided")
 
+            readonly property bool hasValidImage: root.imagePath !== "" && (mainImage.status === Image.Ready || mainImage.status === Image.Loading)
+
             layer.enabled: true
             layer.effect: OpacityMask {
                 maskSource: MaterialShape {
@@ -106,6 +143,7 @@ AbstractBackgroundWidget {
             }
 
             StyledImage {
+                id: mainImage
                 anchors.fill: parent
                 source: root.imagePath !== "" ? root.imagePath : ""
                 fillMode: Image.PreserveAspectCrop
@@ -113,10 +151,10 @@ AbstractBackgroundWidget {
                 antialiasing: true
                 sourceSize.width: parent.width
                 sourceSize.height: parent.height
-                visible: root.imagePath !== ""
+                visible: root.imagePath !== "" && status === Image.Ready
             }
 
-            // Central pick button when empty
+            // Central pick button when empty or image invalid
             Rectangle {
                 id: pickButton
                 anchors.centerIn: parent
@@ -124,7 +162,7 @@ AbstractBackgroundWidget {
                 implicitHeight: Math.min(64, contentItem.implicitHeight * 0.4)
                 radius: Appearance.rounding.full
                 color: pickMouse.containsMouse ? Appearance.colors.colPrimaryContainer : Appearance.colors.colSurfaceContainerHigh
-                visible: root.imagePath === ""
+                visible: !imageShape.hasValidImage
                 z: 2
                 Behavior on color { animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this) }
 
@@ -140,8 +178,9 @@ AbstractBackgroundWidget {
                     id: pickMouse
                     anchors.fill: parent
                     hoverEnabled: true
+                    preventStealing: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: filePickerProc.running = true
+                    onClicked: root.openFilePicker()
                 }
             }
 
@@ -156,7 +195,7 @@ AbstractBackgroundWidget {
                 implicitHeight: 32
                 radius: Appearance.rounding.full
                 color: Appearance.colors.colLayer1
-                visible: root.containsMouse && !Config.options.background.widgetsLocked && root.imagePath !== ""
+                visible: root.containsMouse && !Config.options.background.widgetsLocked && imageShape.hasValidImage
                 z: 2
 
                 MaterialSymbol {
@@ -169,8 +208,9 @@ AbstractBackgroundWidget {
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
+                    preventStealing: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: filePickerProc.running = true
+                    onClicked: root.openFilePicker()
                 }
             }
 
