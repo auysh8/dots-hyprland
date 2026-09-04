@@ -93,7 +93,8 @@ Variants {
         required property var modelData
 
         // Centered wallpaper
-        property bool centeredWallpaperEnabled: (Config.options.background.centeredWallpaper ?? false) && (!(Config.options.background.centeredWallpaperOnlyWhenLocked ?? false) || GlobalStates.screenLocked || bgRoot.unlockGlideActive || bgRoot.unlockMagicActive)
+        property bool unlockArmed: false
+        property bool centeredWallpaperEnabled: (Config.options.background.centeredWallpaper ?? false) && (!(Config.options.background.centeredWallpaperOnlyWhenLocked ?? false) || GlobalStates.screenLocked || bgRoot.unlockArmed || bgRoot.unlockGlideActive || bgRoot.unlockMagicActive)
         property int centeredWallpaperShape: root.getShapeFromName(Config.options.background.centeredWallpaperShape ?? "Cookie7Sided")
         property int centeredWallpaperSize: Config.options.background.centeredWallpaperSize ?? 400
         property color centeredWallpaperColor: root.getColorFromName(Config.options.background.centeredWallpaperColor ?? "primaryContainer")
@@ -179,7 +180,7 @@ Variants {
         // Layer props
         screen: modelData
         exclusionMode: ExclusionMode.Ignore
-        WlrLayershell.layer: (GlobalStates.screenLocked && !scaleAnim.running) ? WlrLayer.Overlay : WlrLayer.Bottom
+        WlrLayershell.layer: (GlobalStates.screenLocked || bgRoot.unlockArmed || bgRoot.unlockGlideActive || bgRoot.unlockMagicActive) ? WlrLayer.Overlay : WlrLayer.Bottom
         WlrLayershell.namespace: "quickshell:background"
         WlrLayershell.keyboardFocus: GlobalStates.desktopWidgetKeyboardFocus
             ? WlrKeyboardFocus.OnDemand
@@ -359,20 +360,31 @@ Variants {
                 const onlyWhenLocked = Config.options.background.centeredWallpaperOnlyWhenLocked ?? false
                 const sameWall = (Config.options.background.lockWall === "" || Config.options.background.lockWall === bgRoot.wallpaperPath)
 
-                if (!GlobalStates.screenLocked && onlyWhenLocked && sameWall) {
+                if (GlobalStates.screenLocked) {
+                    // Arm unlock transition for when the device unlocks
+                    bgRoot.unlockArmed = onlyWhenLocked && sameWall
+                    unlockGlideTimer.stop()
+                    unlockMagicAnim.stop()
+                    bgRoot.unlockGlideActive = false
+                    bgRoot.unlockMagicActive = false
+                    bgRoot.unlockMagicProgress = 0.0
+                } else if (onlyWhenLocked && sameWall) {
                     if (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject) {
                         // Phase 1: Start glide back home from center
                         bgRoot.unlockMagicActive = false
                         bgRoot.unlockGlideActive = true
+                        bgRoot.unlockArmed = false
                         unlockGlideTimer.restart()
                     } else {
                         // Already in center: start Phase 2 magic reveal directly
                         bgRoot.unlockGlideActive = false
+                        bgRoot.unlockArmed = false
                         bgRoot.unlockMagicProgress = 0.0
                         bgRoot.unlockMagicActive = true
                         unlockMagicAnim.restart()
                     }
                 } else {
+                    bgRoot.unlockArmed = false
                     unlockGlideTimer.stop()
                     unlockMagicAnim.stop()
                     bgRoot.unlockGlideActive = false
@@ -695,7 +707,7 @@ Variants {
                         Transition {
                             to: "shown"
                             ParallelAnimation {
-                                NumberAnimation { target: centeredWallpaperShapeItem; property: "scale"; from: 0; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                                NumberAnimation { target: centeredWallpaperShapeItem; property: "scale"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
                                 NumberAnimation { target: centeredWallpaperShapeItem; property: "opacity"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
                             }
                         },
