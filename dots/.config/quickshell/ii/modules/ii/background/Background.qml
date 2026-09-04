@@ -93,7 +93,7 @@ Variants {
         required property var modelData
 
         // Centered wallpaper
-        property bool centeredWallpaperEnabled: (Config.options.background.centeredWallpaper ?? false) && (!(Config.options.background.centeredWallpaperOnlyWhenLocked ?? false) || GlobalStates.screenLocked || bgRoot.unlockGlideActive || bgRoot.unlockExpansionActive)
+        property bool centeredWallpaperEnabled: (Config.options.background.centeredWallpaper ?? false) && (!(Config.options.background.centeredWallpaperOnlyWhenLocked ?? false) || GlobalStates.screenLocked || bgRoot.unlockGlideActive || bgRoot.unlockMagicActive)
         property int centeredWallpaperShape: root.getShapeFromName(Config.options.background.centeredWallpaperShape ?? "Cookie7Sided")
         property int centeredWallpaperSize: Config.options.background.centeredWallpaperSize ?? 400
         property color centeredWallpaperColor: root.getColorFromName(Config.options.background.centeredWallpaperColor ?? "primaryContainer")
@@ -108,7 +108,8 @@ Variants {
 
         // Sequential unlock reveal animation state
         property bool unlockGlideActive: false
-        property bool unlockExpansionActive: false
+        property bool unlockMagicActive: false
+        property real unlockMagicProgress: 0.0
 
         readonly property real splitFraction: {
             switch (Config.options.background.splitRatio ?? "100") {
@@ -326,23 +327,29 @@ Variants {
         }
 
         // Sequential unlock reveal animation timers & controllers
+        NumberAnimation {
+            id: unlockMagicAnim
+            target: bgRoot
+            property: "unlockMagicProgress"
+            from: 0.0
+            to: 1.0
+            duration: 1000
+            easing.type: Easing.InOutCubic
+            onFinished: {
+                bgRoot.unlockMagicActive = false
+                bgRoot.unlockMagicProgress = 0.0
+            }
+        }
+
         Timer {
             id: unlockGlideTimer
             interval: 800 // Duration of the glide back to original coordinates
             repeat: false
             onTriggered: {
                 bgRoot.unlockGlideActive = false
-                bgRoot.unlockExpansionActive = true
-                unlockRevealTimer.restart()
-            }
-        }
-
-        Timer {
-            id: unlockRevealTimer
-            interval: 650 // Duration of frame expansion reveal
-            repeat: false
-            onTriggered: {
-                bgRoot.unlockExpansionActive = false
+                bgRoot.unlockMagicProgress = 0.0
+                bgRoot.unlockMagicActive = true
+                unlockMagicAnim.restart()
             }
         }
 
@@ -352,16 +359,25 @@ Variants {
                 const onlyWhenLocked = Config.options.background.centeredWallpaperOnlyWhenLocked ?? false
                 const sameWall = (Config.options.background.lockWall === "" || Config.options.background.lockWall === bgRoot.wallpaperPath)
 
-                if (!GlobalStates.screenLocked && onlyWhenLocked && sameWall && bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject) {
-                    // Phase 1: Start glide back home from center
-                    bgRoot.unlockExpansionActive = false
-                    bgRoot.unlockGlideActive = true
-                    unlockGlideTimer.restart()
+                if (!GlobalStates.screenLocked && onlyWhenLocked && sameWall) {
+                    if (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject) {
+                        // Phase 1: Start glide back home from center
+                        bgRoot.unlockMagicActive = false
+                        bgRoot.unlockGlideActive = true
+                        unlockGlideTimer.restart()
+                    } else {
+                        // Already in center: start Phase 2 magic reveal directly
+                        bgRoot.unlockGlideActive = false
+                        bgRoot.unlockMagicProgress = 0.0
+                        bgRoot.unlockMagicActive = true
+                        unlockMagicAnim.restart()
+                    }
                 } else {
                     unlockGlideTimer.stop()
-                    unlockRevealTimer.stop()
+                    unlockMagicAnim.stop()
                     bgRoot.unlockGlideActive = false
-                    bgRoot.unlockExpansionActive = false
+                    bgRoot.unlockMagicActive = false
+                    bgRoot.unlockMagicProgress = 0.0
                 }
             }
         }
@@ -570,194 +586,210 @@ Variants {
                 }
             }
 
-            Rectangle {
-                id: centeredWallpaperBg
-                anchors.fill: parent
-                color: bgRoot.centeredWallpaperColor
-                opacity: bgRoot.centeredWallpaperEnabled ? 1 : 0
-                visible: opacity > 0
+            Item {
+                id: lockedFrameContainer
+                anchors.fill: wallpaper
+                layer.enabled: true
+                layer.smooth: true
+                visible: bgRoot.centeredWallpaperEnabled
 
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 350
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                Rectangle {
+                    id: centeredWallpaperBg
+                    anchors.fill: parent
+                    color: bgRoot.centeredWallpaperColor
+                    opacity: bgRoot.centeredWallpaperEnabled ? 1 : 0
+                    visible: opacity > 0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 350
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                        }
+                    }
+                }
+
+                MaterialShape {
+                    id: centeredWallpaperShapeItem
+                    property real targetCenterX: (!GlobalStates.screenLocked && bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                        ? Math.max(-wallpaper.x + width / 2 + 40, Math.min(-wallpaper.x + bgRoot.screen.width - width / 2 - 40, wallpaper.width * bgRoot.focalX))
+                        : (bgRoot.screen.width / 2) - wallpaper.x
+                    property real targetCenterY: (!GlobalStates.screenLocked && bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                        ? Math.max(-wallpaper.y + height / 2 + 40, Math.min(-wallpaper.y + bgRoot.screen.height - height / 2 - 40, wallpaper.height * bgRoot.focalY))
+                        : (bgRoot.screen.height / 2) - wallpaper.y
+
+                    x: targetCenterX - width / 2
+                    y: targetCenterY - height / 2
+
+                    Behavior on x {
+                        NumberAnimation {
+                            duration: 800
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                        }
+                    }
+                    Behavior on y {
+                        NumberAnimation {
+                            duration: 800
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                        }
+                    }
+
+                    property real calculatedTargetSize: {
+                        if (!bgRoot.centeredWallpaperAutoResize || !bgRoot.centeredWallpaperFaceTracking || !bgRoot.hasSubject) {
+                            return bgRoot.centeredWallpaperSize
+                        }
+                        // Compute pixel size of the subject on screen
+                        const subjectPixelW = wallpaper.width * bgRoot.subjectWidthRel
+                        const subjectPixelH = wallpaper.height * bgRoot.subjectHeightRel
+                        const maxSubjectDim = Math.max(subjectPixelW, subjectPixelH)
+                        
+                        // Add comfortable framing padding (1.8x for faces, 1.35x for objects)
+                        const paddingMultiplier = (bgRoot.focalType === "face") ? 2.0 : 1.4
+                        const framedSize = maxSubjectDim * paddingMultiplier
+                        
+                        // Clamp between minimum aesthetic size (320px) and screen headroom (up to 85% of screen height)
+                        const minSize = 320
+                        const maxSize = Math.min(parent.height * 0.85, 900)
+                        return Math.max(minSize, Math.min(maxSize, framedSize))
+                    }
+
+                    width: calculatedTargetSize
+                    height: calculatedTargetSize
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: 800
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                        }
+                    }
+                    Behavior on height {
+                        NumberAnimation {
+                            duration: 800
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                        }
+                    }
+
+                    color: bgRoot.centeredWallpaperColor
+                    shape: bgRoot.centeredWallpaperShape
+                    transformOrigin: Item.Center
+                    visible: opacity > 0
+
+                    state: bgRoot.centeredWallpaperEnabled ? "shown" : "hidden"
+
+                    states: [
+                        State {
+                            name: "shown"
+                            PropertyChanges { target: centeredWallpaperShapeItem; scale: 1; opacity: 1 }
+                        },
+                        State {
+                            name: "hidden"
+                            PropertyChanges { target: centeredWallpaperShapeItem; scale: 1.4; opacity: 0 }
+                        }
+                    ]
+
+                    transitions: [
+                        Transition {
+                            to: "shown"
+                            ParallelAnimation {
+                                NumberAnimation { target: centeredWallpaperShapeItem; property: "scale"; from: 0; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                                NumberAnimation { target: centeredWallpaperShapeItem; property: "opacity"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                            }
+                        },
+                        Transition {
+                            to: "hidden"
+                            ParallelAnimation {
+                                NumberAnimation { target: centeredWallpaperShapeItem; property: "scale"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                                NumberAnimation { target: centeredWallpaperShapeItem; property: "opacity"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
+                            }
+                        }
+                    ]
+
+                    layer.enabled: true
+                    layer.effect: OpacityMask {
+                        maskSource: MaterialShape {
+                            width: centeredWallpaperShapeItem.width
+                            height: centeredWallpaperShapeItem.height
+                            shape: bgRoot.centeredWallpaperShape
+                        }
+                    }
+
+                    Item {
+                        id: framedImageContainer
+                        anchors.fill: parent
+                        clip: true
+
+                        // Option A:
+                        // With face tracking, subject stays centered in the frame.
+                        // When centeredWallpaperShapeItem reaches (wallpaper.width * bgRoot.focalX),
+                        // this coordinate naturally matches -centeredWallpaperShapeItem.x to the exact pixel.
+                        // Without face tracking, acts as a 1:1 wallpaper peephole.
+                        StyledImage {
+                            id: framedImage
+                            property real subjectCenteredX: (centeredWallpaperShapeItem.width / 2) - (wallpaper.width * bgRoot.focalX)
+                            property real subjectCenteredY: (centeredWallpaperShapeItem.height / 2) - (wallpaper.height * bgRoot.focalY)
+                            property real peepholeX: -centeredWallpaperShapeItem.x
+                            property real peepholeY: -centeredWallpaperShapeItem.y
+
+                            x: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject) ? subjectCenteredX : peepholeX
+                            y: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject) ? subjectCenteredY : peepholeY
+                            width: wallpaper.width
+                            height: wallpaper.height
+
+                            Behavior on x {
+                                NumberAnimation {
+                                    duration: 800
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                                }
+                            }
+                            Behavior on y {
+                                NumberAnimation {
+                                    duration: 800
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                                }
+                            }
+
+                            source: wallpaper.source
+                            fillMode: Image.PreserveAspectCrop
+                            cache: true
+                            antialiasing: true
+                        }
                     }
                 }
             }
 
-            MaterialShape {
-                id: centeredWallpaperShapeItem
-                property real targetCenterX: (!GlobalStates.screenLocked && bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
-                    ? Math.max(width / 2 + 40, Math.min(parent.width - width / 2 - 40, wallpaper.x + (wallpaper.width * bgRoot.focalX)))
-                    : parent.width / 2
-                property real targetCenterY: (!GlobalStates.screenLocked && bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
-                    ? Math.max(height / 2 + 40, Math.min(parent.height - height / 2 - 40, wallpaper.y + (wallpaper.height * bgRoot.focalY)))
-                    : parent.height / 2
+            ShaderEffect {
+                id: unlockMagicEffect
+                anchors.fill: wallpaper
+                visible: bgRoot.unlockMagicActive
 
-                x: targetCenterX - width / 2
-                y: targetCenterY - height / 2
+                property var fromImage: lockedFrameContainer
+                property var toImage: wallpaper
+                property var source1: lockedFrameContainer
+                property var source2: wallpaper
+                property real time: 0.0
+                property real progress: bgRoot.unlockMagicProgress
+                property real aspectX: width / height
+                property real aspectY: 1.0
+                property vector2d aspectRatio: Qt.vector2d(aspectX, aspectY)
+                property vector2d origin: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                    ? Qt.vector2d(bgRoot.focalX, bgRoot.focalY)
+                    : Qt.vector2d(0.5, 0.5)
 
-                Behavior on x {
-                    NumberAnimation {
-                        duration: 800
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                    }
+                fragmentShader: Qt.resolvedUrl("shaders/magic.frag.qsb")
+
+                Timer {
+                    interval: 16
+                    repeat: true
+                    running: unlockMagicEffect.visible
+                    onTriggered: unlockMagicEffect.time += interval / 1000.0
                 }
-                Behavior on y {
-                    NumberAnimation {
-                        duration: 800
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                    }
-                }
-
-                property real calculatedTargetSize: {
-                    if (!bgRoot.centeredWallpaperAutoResize || !bgRoot.centeredWallpaperFaceTracking || !bgRoot.hasSubject) {
-                        return bgRoot.centeredWallpaperSize
-                    }
-                    // Compute pixel size of the subject on screen
-                    const subjectPixelW = wallpaper.width * bgRoot.subjectWidthRel
-                    const subjectPixelH = wallpaper.height * bgRoot.subjectHeightRel
-                    const maxSubjectDim = Math.max(subjectPixelW, subjectPixelH)
-                    
-                    // Add comfortable framing padding (1.8x for faces, 1.35x for objects)
-                    const paddingMultiplier = (bgRoot.focalType === "face") ? 2.0 : 1.4
-                    const framedSize = maxSubjectDim * paddingMultiplier
-                    
-                    // Clamp between minimum aesthetic size (320px) and screen headroom (up to 85% of screen height)
-                    const minSize = 320
-                    const maxSize = Math.min(parent.height * 0.85, 900)
-                    return Math.max(minSize, Math.min(maxSize, framedSize))
-                }
-
-                width: calculatedTargetSize
-                height: calculatedTargetSize
-
-                Behavior on width {
-                    NumberAnimation {
-                        duration: 800
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                    }
-                }
-                Behavior on height {
-                    NumberAnimation {
-                        duration: 800
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                    }
-                }
-
-                color: bgRoot.centeredWallpaperColor
-                shape: bgRoot.centeredWallpaperShape
-                transformOrigin: Item.Center
-                visible: opacity > 0
-
-                state: {
-                    if (bgRoot.unlockExpansionActive) return "expanding"
-                    if (bgRoot.centeredWallpaperEnabled) return "shown"
-                    return "hidden"
-                }
-
-                states: [
-                    State {
-                        name: "shown"
-                        PropertyChanges { target: centeredWallpaperShapeItem; scale: 1; opacity: 1 }
-                    },
-                    State {
-                        name: "expanding"
-                        PropertyChanges { target: centeredWallpaperShapeItem; scale: 12.0; opacity: 1 }
-                    },
-                    State {
-                        name: "hidden"
-                        PropertyChanges { target: centeredWallpaperShapeItem; scale: 1.4; opacity: 0 }
-                    }
-                ]
-
-                transitions: [
-                    Transition {
-                        from: "shown"
-                        to: "expanding"
-                        NumberAnimation {
-                            target: centeredWallpaperShapeItem
-                            property: "scale"
-                            duration: 650
-                            easing.type: Easing.BezierSpline
-                            easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                        }
-                    },
-                    Transition {
-                        to: "shown"
-                        ParallelAnimation {
-                            NumberAnimation { target: centeredWallpaperShapeItem; property: "scale"; from: 0; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
-                            NumberAnimation { target: centeredWallpaperShapeItem; property: "opacity"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
-                        }
-                    },
-                    Transition {
-                        to: "hidden"
-                        ParallelAnimation {
-                            NumberAnimation { target: centeredWallpaperShapeItem; property: "scale"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
-                            NumberAnimation { target: centeredWallpaperShapeItem; property: "opacity"; duration: Appearance.animation.elementMove.duration; easing.type: Easing.InOutCubic }
-                        }
-                    }
-                ]
-
-                layer.enabled: true
-                layer.effect: OpacityMask {
-                    maskSource: MaterialShape {
-                        width: centeredWallpaperShapeItem.width
-                        height: centeredWallpaperShapeItem.height
-                        shape: bgRoot.centeredWallpaperShape
-                    }
-                }
-
-                Item {
-                    id: framedImageContainer
-                    anchors.fill: parent
-                    clip: true
-
-                    // When unlocked: acts as a 1:1 wallpaper peephole (matching wallpaper position).
-                    // When locked (Option A): the image shifts so the subject stays centered inside the frame as the frame glides to screen center.
-                    StyledImage {
-                        id: framedImage
-                        property real unlockedX: wallpaper.x - centeredWallpaperShapeItem.x
-                        property real unlockedY: wallpaper.y - centeredWallpaperShapeItem.y
-
-                        property real lockedX: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
-                            ? (centeredWallpaperShapeItem.width / 2) - (wallpaper.width * bgRoot.focalX)
-                            : (wallpaper.x - centeredWallpaperShapeItem.x)
-                        property real lockedY: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
-                            ? (centeredWallpaperShapeItem.height / 2) - (wallpaper.height * bgRoot.focalY)
-                            : (wallpaper.y - centeredWallpaperShapeItem.y)
-
-                        x: GlobalStates.screenLocked ? lockedX : unlockedX
-                        y: GlobalStates.screenLocked ? lockedY : unlockedY
-                        width: wallpaper.width
-                        height: wallpaper.height
-
-                        Behavior on x {
-                            NumberAnimation {
-                                duration: 800
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                            }
-                        }
-                        Behavior on y {
-                            NumberAnimation {
-                                duration: 800
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
-                            }
-                        }
-
-                        source: wallpaper.source
-                        fillMode: Image.PreserveAspectCrop
-                        cache: true
-                        antialiasing: true
-                    }
-                }
+                onVisibleChanged: if (!visible) unlockMagicEffect.time = 0.0
             }
 
             FadeLoader {
