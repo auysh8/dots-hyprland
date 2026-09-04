@@ -93,7 +93,7 @@ Variants {
         required property var modelData
 
         // Centered wallpaper
-        property bool centeredWallpaperEnabled: (Config.options.background.centeredWallpaper ?? false) && (!(Config.options.background.centeredWallpaperOnlyWhenLocked ?? false) || GlobalStates.screenLocked)
+        property bool centeredWallpaperEnabled: (Config.options.background.centeredWallpaper ?? false) && (!(Config.options.background.centeredWallpaperOnlyWhenLocked ?? false) || GlobalStates.screenLocked || bgRoot.unlockGlideActive || bgRoot.unlockExpansionActive)
         property int centeredWallpaperShape: root.getShapeFromName(Config.options.background.centeredWallpaperShape ?? "Cookie7Sided")
         property int centeredWallpaperSize: Config.options.background.centeredWallpaperSize ?? 400
         property color centeredWallpaperColor: root.getColorFromName(Config.options.background.centeredWallpaperColor ?? "primaryContainer")
@@ -105,6 +105,10 @@ Variants {
         property real subjectHeightRel: 0.3
         property bool hasSubject: false
         property string focalType: "center"
+
+        // Sequential unlock reveal animation state
+        property bool unlockGlideActive: false
+        property bool unlockExpansionActive: false
 
         readonly property real splitFraction: {
             switch (Config.options.background.splitRatio ?? "100") {
@@ -321,6 +325,47 @@ Variants {
             }
         }
 
+        // Sequential unlock reveal animation timers & controllers
+        Timer {
+            id: unlockGlideTimer
+            interval: 800 // Duration of the glide back to original coordinates
+            repeat: false
+            onTriggered: {
+                bgRoot.unlockGlideActive = false
+                bgRoot.unlockExpansionActive = true
+                unlockRevealTimer.restart()
+            }
+        }
+
+        Timer {
+            id: unlockRevealTimer
+            interval: 500 // Duration of frame expansion reveal
+            repeat: false
+            onTriggered: {
+                bgRoot.unlockExpansionActive = false
+            }
+        }
+
+        Connections {
+            target: GlobalStates
+            function onScreenLockedChanged() {
+                const onlyWhenLocked = Config.options.background.centeredWallpaperOnlyWhenLocked ?? false
+                const sameWall = (Config.options.background.lockWall === "" || Config.options.background.lockWall === bgRoot.wallpaperPath)
+
+                if (!GlobalStates.screenLocked && onlyWhenLocked && sameWall && bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject) {
+                    // Phase 1: Start glide back home from center
+                    bgRoot.unlockExpansionActive = false
+                    bgRoot.unlockGlideActive = true
+                    unlockGlideTimer.restart()
+                } else {
+                    unlockGlideTimer.stop()
+                    unlockRevealTimer.stop()
+                    bgRoot.unlockGlideActive = false
+                    bgRoot.unlockExpansionActive = false
+                }
+            }
+        }
+
         Item {
             anchors.fill: parent
 
@@ -529,11 +574,15 @@ Variants {
                 id: centeredWallpaperBg
                 anchors.fill: parent
                 color: bgRoot.centeredWallpaperColor
-                opacity: bgRoot.centeredWallpaperEnabled ? 1 : 0
+                opacity: (bgRoot.centeredWallpaperEnabled && !bgRoot.unlockExpansionActive) ? 1 : 0
                 visible: opacity > 0
 
                 Behavior on opacity {
-                    animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+                    NumberAnimation {
+                        duration: 350
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                    }
                 }
             }
 
@@ -606,12 +655,20 @@ Variants {
                 transformOrigin: Item.Center
                 visible: opacity > 0
 
-                state: bgRoot.centeredWallpaperEnabled ? "shown" : "hidden"
+                state: {
+                    if (bgRoot.unlockExpansionActive) return "expanding"
+                    if (bgRoot.centeredWallpaperEnabled) return "shown"
+                    return "hidden"
+                }
 
                 states: [
                     State {
                         name: "shown"
                         PropertyChanges { target: centeredWallpaperShapeItem; scale: 1; opacity: 1 }
+                    },
+                    State {
+                        name: "expanding"
+                        PropertyChanges { target: centeredWallpaperShapeItem; scale: 2.6; opacity: 0 }
                     },
                     State {
                         name: "hidden"
@@ -620,6 +677,26 @@ Variants {
                 ]
 
                 transitions: [
+                    Transition {
+                        from: "shown"
+                        to: "expanding"
+                        ParallelAnimation {
+                            NumberAnimation {
+                                target: centeredWallpaperShapeItem
+                                property: "scale"
+                                duration: 500
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                            }
+                            NumberAnimation {
+                                target: centeredWallpaperShapeItem
+                                property: "opacity"
+                                duration: 400
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                            }
+                        }
+                    },
                     Transition {
                         to: "shown"
                         ParallelAnimation {
