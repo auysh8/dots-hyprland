@@ -415,6 +415,7 @@ Variants {
                 fillMode: Image.PreserveAspectCrop
                 cache: false
                 smooth: true
+                mipmap: true
                 asynchronous: false
                 layer.enabled: true
                 visible: !blurLoader.active && !bgRoot.centeredWallpaperEnabled && previousWallpaper.source != "" && (bgRoot.wallpaperAnimation !== "" && bgRoot.transitionProgress < 1.0)
@@ -429,6 +430,7 @@ Variants {
                 opacity: (status === Image.Ready && !bgRoot.wallpaperIsVideo) ? 1 : 0
                 cache: false
                 smooth: true
+                mipmap: true
                 asynchronous: true
                 onStatusChanged: {
                     if (status === Image.Ready) {
@@ -787,6 +789,7 @@ Variants {
                             fillMode: Image.PreserveAspectCrop
                             cache: false
                             antialiasing: true
+                            mipmap: true
                         }
                     }
                 }
@@ -897,6 +900,9 @@ Variants {
                         scaledScreenHeight: bgRoot.screen.height
                         wallpaperScale: 1
                         wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
+                        frameActive: bgRoot.centeredWallpaperEnabled
+                        frameHeight: (typeof centeredWallpaperShapeItem !== "undefined" && centeredWallpaperShapeItem) ? centeredWallpaperShapeItem.height : (Config.options?.background?.centeredWallpaperSize ?? 400)
+                        frameColor: bgRoot.centeredWallpaperColor
                     }
                 }
                 FadeLoader {

@@ -179,9 +179,12 @@ ContentPage {
                 ConfigSwitch {
                     buttonIcon: "vertical_distribute"
                     text: Translation.tr("Vertical")
-                    checked: Config.options.background.widgets.clock.digital.vertical
+                    enabled: !Config.options.background.centeredWallpaper
+                    checked: !Config.options.background.centeredWallpaper && Config.options.background.widgets.clock.digital.vertical
                     onCheckedChanged: {
-                        Config.options.background.widgets.clock.digital.vertical = checked;
+                        if (enabled) {
+                            Config.options.background.widgets.clock.digital.vertical = checked;
+                        }
                     }
                 }
                 ConfigSwitch {

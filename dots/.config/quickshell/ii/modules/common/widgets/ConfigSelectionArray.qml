@@ -50,11 +50,14 @@ RowLayout {
         Layout.fillWidth: !root.text
         Layout.alignment: Qt.AlignRight
         spacing: 2
+        opacity: root.enabled ? 1 : 0.4
+        enabled: root.enabled
 
         Repeater {
             model: root.options
             delegate: SelectionGroupButton {
                 id: paletteButton
+                enabled: root.enabled
                 required property var modelData
                 required property int index
                 onYChanged: {

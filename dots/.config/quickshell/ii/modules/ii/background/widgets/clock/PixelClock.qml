@@ -12,7 +12,8 @@ import qs.modules.ii.background.widgets
 Item {
     id: root
 
-    readonly property bool isVertical: Config.options.background.widgets.clock.pixel.orientation === "vertical"
+    readonly property bool frameEnabled: Config.options.background.centeredWallpaper
+    readonly property bool isVertical: !frameEnabled && (Config.options.background.widgets.clock.pixel.orientation === "vertical")
 
     implicitWidth: isVertical ? 276 : 420
     implicitHeight: isVertical ? 252 : 150
@@ -21,8 +22,15 @@ Item {
     readonly property string glyphTopRight: DateTime.digitH1
     readonly property string glyphBottomLeft: DateTime.digitM0
     readonly property string glyphBottomRight: DateTime.digitM1
-    readonly property color tintSoft: Appearance.colors.colPrimaryContainer
-    readonly property color tintBold: Appearance.colors.colPrimary
+    property color tintSoft: Appearance.colors.colPrimaryContainer
+    property color tintBold: Appearance.colors.colPrimary
+
+    Behavior on tintSoft {
+        animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+    }
+    Behavior on tintBold {
+        animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+    }
 
     readonly property real fringeSize: isVertical ? root.width * 0.026 : root.height * 0.03
     readonly property real tileW: isVertical ? root.width * 0.66 : root.width * 0.30

@@ -52,7 +52,7 @@ Button {
             colBackgroundToggled) :
         (root.down ? colBackgroundActive : 
             root.hovered ? colBackgroundHover : 
-            colBackground)) : colBackground
+            colBackground)) : (root.toggled ? colBackgroundToggled : colBackground)
 
     onDownChanged: {
         if (root.down) {

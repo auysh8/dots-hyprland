@@ -9,10 +9,14 @@ ColumnLayout {
     id: clockColumn
     spacing: 4
 
-    property bool isVertical: Config.options.background.widgets.clock.digital.vertical
+    readonly property bool frameEnabled: Config.options.background.centeredWallpaper
+    property bool isVertical: !frameEnabled && Config.options.background.widgets.clock.digital.vertical
     property color colText: Config.options.background.widgets.clock.color !== ""
         ? Config.options.background.widgets.clock.color
         : Appearance.colors.colOnSecondaryContainer
+    Behavior on colText {
+        animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+    }
     property var textHorizontalAlignment: Text.AlignHCenter
 
     // Time

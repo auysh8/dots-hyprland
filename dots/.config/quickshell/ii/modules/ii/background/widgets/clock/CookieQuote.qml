@@ -25,12 +25,16 @@ Item {
     
     Rectangle {
         id: quoteBox
-        y: Config.options.background.widgets.clock.style === "pixel" && Config.options.background.widgets.clock.pixel.orientation === "horizontal" ? -26 : 0
-        x: Config.options.background.widgets.clock.style === "pixel" && Config.options.background.widgets.clock.pixel.orientation === "horizontal" ? -20 : 0
+        readonly property bool pixelHorizontal: Config.options.background.widgets.clock.style === "pixel" && (Config.options.background.centeredWallpaper || Config.options.background.widgets.clock.pixel.orientation === "horizontal")
+        readonly property bool frameActive: Config.options.background.centeredWallpaper
+        readonly property string frameColorName: Config.options.background.centeredWallpaperColor ?? "primaryContainer"
+        readonly property bool usePrimaryVariant: frameActive && frameColorName === "secondaryContainer"
+        y: pixelHorizontal ? -26 : 0
+        x: pixelHorizontal ? -20 : 0
         implicitWidth: quoteRow.implicitWidth + 8 * 2
         implicitHeight: quoteRow.implicitHeight + 4 * 2
         radius: Appearance.rounding.small
-        color: Appearance.colors.colSecondaryContainer
+        color: usePrimaryVariant ? Appearance.colors.colPrimaryContainer : Appearance.colors.colSecondaryContainer
 
         Row {
             id: quoteRow
@@ -42,13 +46,13 @@ Item {
                 anchors.top: parent.top
                 iconSize: Appearance.font.pixelSize.huge
                 text: "format_quote"
-                color: Appearance.colors.colOnSecondaryContainer
+                color: quoteBox.usePrimaryVariant ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSecondaryContainer
             }
             StyledText {
                 id: quoteStyledText
                 horizontalAlignment: Text.AlignLeft
                 text: Config.options.background.widgets.clock.quote.text
-                color: Appearance.colors.colOnSecondaryContainer
+                color: quoteBox.usePrimaryVariant ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSecondaryContainer
                 font {
                     family: Config.options.background.widgets.clock.quote.followClock ? Config.options.background.widgets.clock.digital.font.family : Appearance.font.family.reading 
                     pixelSize: Appearance.font.pixelSize.large

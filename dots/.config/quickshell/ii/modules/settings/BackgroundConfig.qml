@@ -363,6 +363,10 @@ ContentPage {
                         checked: Config.options.background.centeredWallpaper
                         onClicked: {
                             Config.options.background.centeredWallpaper = !Config.options.background.centeredWallpaper;
+                            if (Config.options.background.centeredWallpaper) {
+                                Config.options.background.widgets.clock.digital.vertical = false;
+                                Config.options.background.widgets.clock.pixel.orientation = "horizontal";
+                            }
                         }
                     }
                     ConfigSwitch {
@@ -617,8 +621,13 @@ ContentPage {
                         ConfigSwitch {
                             buttonIcon: "vertical_distribute"
                             text: Translation.tr("Vertical")
-                            checked: Config.options.background.widgets.clock.digital.vertical
-                            onCheckedChanged: { Config.options.background.widgets.clock.digital.vertical = checked }
+                            enabled: !Config.options.background.centeredWallpaper
+                            checked: !Config.options.background.centeredWallpaper && Config.options.background.widgets.clock.digital.vertical
+                            onCheckedChanged: {
+                                if (enabled) {
+                                    Config.options.background.widgets.clock.digital.vertical = checked;
+                                }
+                            }
                         }
                         ConfigSwitch {
                             buttonIcon: "date_range"
@@ -989,10 +998,13 @@ ContentPage {
                     ConfigSelectionArray {
                         text: Translation.tr("Pixel clock orientation")
                         visible: Config.options.background.widgets.clock.style === "pixel"
+                        enabled: !Config.options.background.centeredWallpaper
                         icon: "screen_rotation"
-                        currentValue: Config.options.background.widgets.clock.pixel.orientation
+                        currentValue: Config.options.background.centeredWallpaper ? "horizontal" : Config.options.background.widgets.clock.pixel.orientation
                         onSelected: newValue => {
-                            Config.options.background.widgets.clock.pixel.orientation = newValue;
+                            if (enabled) {
+                                Config.options.background.widgets.clock.pixel.orientation = newValue;
+                            }
                         }
                         options: [
                             {
