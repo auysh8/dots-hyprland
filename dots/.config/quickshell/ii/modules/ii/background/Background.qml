@@ -539,10 +539,10 @@ Variants {
 
             MaterialShape {
                 id: centeredWallpaperShapeItem
-                property real targetCenterX: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                property real targetCenterX: (!GlobalStates.screenLocked && bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
                     ? Math.max(width / 2 + 40, Math.min(parent.width - width / 2 - 40, wallpaper.x + (wallpaper.width * bgRoot.focalX)))
                     : parent.width / 2
-                property real targetCenterY: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                property real targetCenterY: (!GlobalStates.screenLocked && bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
                     ? Math.max(height / 2 + 40, Math.min(parent.height - height / 2 - 40, wallpaper.y + (wallpaper.height * bgRoot.focalY)))
                     : parent.height / 2
 
@@ -650,15 +650,39 @@ Variants {
                     anchors.fill: parent
                     clip: true
 
-                    // 1:1 Wallpaper peephole:
-                    // Positioned and sized identically to the background wallpaper so the shape
-                    // acts as a seamless cutout/aperture revealing the true wallpaper underneath.
+                    // When unlocked: acts as a 1:1 wallpaper peephole (matching wallpaper position).
+                    // When locked (Option A): the image shifts so the subject stays centered inside the frame as the frame glides to screen center.
                     StyledImage {
                         id: framedImage
-                        x: wallpaper.x - centeredWallpaperShapeItem.x
-                        y: wallpaper.y - centeredWallpaperShapeItem.y
+                        property real unlockedX: wallpaper.x - centeredWallpaperShapeItem.x
+                        property real unlockedY: wallpaper.y - centeredWallpaperShapeItem.y
+
+                        property real lockedX: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                            ? (centeredWallpaperShapeItem.width / 2) - (wallpaper.width * bgRoot.focalX)
+                            : (wallpaper.x - centeredWallpaperShapeItem.x)
+                        property real lockedY: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                            ? (centeredWallpaperShapeItem.height / 2) - (wallpaper.height * bgRoot.focalY)
+                            : (wallpaper.y - centeredWallpaperShapeItem.y)
+
+                        x: GlobalStates.screenLocked ? lockedX : unlockedX
+                        y: GlobalStates.screenLocked ? lockedY : unlockedY
                         width: wallpaper.width
                         height: wallpaper.height
+
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: 800
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                            }
+                        }
+                        Behavior on y {
+                            NumberAnimation {
+                                duration: 800
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                            }
+                        }
 
                         source: wallpaper.source
                         fillMode: Image.PreserveAspectCrop
