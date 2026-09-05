@@ -149,9 +149,13 @@ Item {
             anchors.fill: parent
             source: root.displayedArtFilePath
             fillMode: Image.PreserveAspectCrop
-            opacity: 0.18
-            visible: root.displayedArtFilePath !== "" && status === Image.Ready
+            opacity: (root.displayedArtFilePath !== "" && status === Image.Ready) ? 0.18 : 0.0
+            visible: opacity > 0.0
             asynchronous: true
+
+            Behavior on opacity {
+                NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
+            }
         }
 
         // Tonal Gradient Overlay
@@ -212,8 +216,13 @@ Item {
                         anchors.fill: parent
                         source: root.displayedArtFilePath
                         fillMode: Image.PreserveAspectCrop
-                        visible: root.displayedArtFilePath !== "" && status === Image.Ready
+                        opacity: (root.displayedArtFilePath !== "" && status === Image.Ready) ? 1.0 : 0.0
+                        visible: opacity > 0.0
                         asynchronous: true
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+                        }
                     }
 
                     // Fallback Icon
@@ -223,7 +232,12 @@ Item {
                         iconSize: 26
                         fill: 1
                         color: root.secondaryContentColor
-                        visible: !coverArtImage.visible
+                        opacity: coverArtImage.opacity < 0.5 ? 1.0 : 0.0
+                        visible: opacity > 0.0
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+                        }
                     }
                 }
 
