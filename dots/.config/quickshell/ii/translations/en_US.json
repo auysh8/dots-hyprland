@@ -769,5 +769,18 @@
   "Click to unmute": "Click to unmute",
   "Health:": "Health:",
   "Polkit": "Polkit",
-  "System updates (Arch only)": "System updates (Arch only)"
+  "System updates (Arch only)": "System updates (Arch only)",
+  "Slideshow": "Slideshow",
+  "Change the wallpaper automatically": "Change the wallpaper automatically",
+  "Rotate through the wallpapers in the slideshow folder automatically": "Rotate through the wallpapers in the slideshow folder automatically",
+  "Shuffle": "Shuffle",
+  "Off, wallpapers follow the folder in name order.": "Off, wallpapers follow the folder in name order.",
+  "Recolor the desktop each time": "Recolor the desktop each time",
+  "Change the UI color for each new wallpaper.": "Change the UI color for each new wallpaper.",
+  "Change every": "Change every",
+  " min": " min",
+  "Show next": "Show next",
+  "Wallpaper": "Wallpaper",
+  "Rotate the wallpaper through a folder's images": "Rotate the wallpaper through a folder's images",
+  "Choose slideshow folder": "Choose slideshow folder"
 }

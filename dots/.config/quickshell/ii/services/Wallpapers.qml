@@ -54,10 +54,12 @@ Singleton {
         Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light"]);
     }
 
-    function apply(path, darkMode = Appearance.m3colors.darkmode) {
+    function apply(path, darkMode = Appearance.m3colors.darkmode, keepSlideshow = false) {
         if (!path || path.length === 0) return;
         root.confirmedPath = path;
-        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light", "--image", path]);
+        const args = [Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light", "--image", path];
+        if (keepSlideshow) args.push("--keep-slideshow");
+        Quickshell.execDetached(args);
         root.changed()
     }
 

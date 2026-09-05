@@ -324,6 +324,13 @@ Singleton {
                 property bool centeredWallpaperFaceTracking: true
                 property bool centeredWallpaperAutoResize: true
                 property bool hideWhenFullscreen: true
+                property JsonObject slideshow: JsonObject {
+                    property bool enable: false
+                    property string folder: ""
+                    property int intervalMinutes: 30
+                    property bool shuffle: true
+                    property bool recolor: false
+                }
                 property JsonObject parallax: JsonObject {
                     property bool vertical: false
                     property bool autoVertical: false

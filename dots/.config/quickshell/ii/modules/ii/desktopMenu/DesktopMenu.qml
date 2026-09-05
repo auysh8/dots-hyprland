@@ -80,11 +80,48 @@ Scope {
         return [root.displayPathFor(current), ...randomWallpapers.map(p => root.displayPathFor(p))]
     }
 
-    // Dismiss menu on workspace change or monitor change
+    // Sizing and positioning calculations
+    readonly property var activeScreen: GlobalStates.desktopMenuScreen ? GlobalStates.desktopMenuScreen : (Quickshell.screens.length > 0 ? Quickshell.screens[0] : null)
+    readonly property real screenWidth: activeScreen ? activeScreen.width : 1920
+    readonly property real screenHeight: activeScreen ? activeScreen.height : 1080
+
+    readonly property real menuCardWidth: 348
+    readonly property real menuCardHeight: 264
+    readonly property real submenuWidth: 284
+    readonly property real menuGap: 8
+
+    readonly property real defaultSubmenuHeight: 820
+    readonly property real maxMenuHeight: defaultSubmenuHeight
+
+    // Stable anchor coordinates (never oscillate with layout passes)
+    readonly property real baseMenuX: Math.min(Math.max(GlobalStates.desktopMenuX - menuCardWidth / 2, 8), screenWidth - menuCardWidth - 8)
+    readonly property real baseMenuY: Math.min(Math.max(GlobalStates.desktopMenuY - menuCardHeight / 2, 8), screenHeight - maxMenuHeight - 8)
+
+    readonly property bool submenuFitsOnRight: (baseMenuX + menuCardWidth + menuGap + submenuWidth <= screenWidth - 8)
+    readonly property real leftMenuX: Math.max(8, baseMenuX - menuGap - submenuWidth)
+
+    property string activeSubmenu: ""
+    readonly property bool hasSubmenu: activeSubmenu !== ""
+
+    readonly property real windowX: submenuFitsOnRight ? baseMenuX : leftMenuX
+    readonly property real windowY: baseMenuY
+    readonly property real windowWidth: menuCardWidth + menuGap + submenuWidth
+    readonly property real windowHeight: defaultSubmenuHeight
+
+    readonly property real cardX: submenuFitsOnRight ? 0 : (submenuWidth + menuGap)
+    readonly property real subX: submenuFitsOnRight ? (menuCardWidth + menuGap) : 0
+
+    Timer {
+        id: submenuCloseTimer
+        interval: 800
+        onTriggered: root.activeSubmenu = ""
+    }
+
+    // Dismiss menu on workspace change (NOT focusedmon, to avoid closing on grab)
     Connections {
         target: Hyprland
         function onRawEvent(event) {
-            if (GlobalStates.desktopMenuOpen && (event.name === "workspace" || event.name === "workspacev2" || event.name === "focusedmon")) {
+            if (GlobalStates.desktopMenuOpen && (event.name === "workspace" || event.name === "workspacev2")) {
                 GlobalStates.desktopMenuOpen = false
             }
         }
@@ -99,95 +136,157 @@ Scope {
         }
     }
 
+    Connections {
+        target: GlobalStates
+        function onDesktopMenuOpenChanged() {
+            if (!GlobalStates.desktopMenuOpen) {
+                root.activeSubmenu = ""
+            }
+        }
+    }
+
+    Connections {
+        target: GlobalFocusGrab
+        function onDismissed() {
+            GlobalStates.desktopMenuOpen = false
+            root.activeSubmenu = ""
+        }
+    }
+
     // Menu window
-    Loader {
-        active: GlobalStates.desktopMenuOpen
-        sourceComponent: PanelWindow {
-            id: menuWindow
+    PanelWindow {
+        id: menuWindow
+        visible: GlobalStates.desktopMenuOpen
 
-            screen: GlobalStates.desktopMenuScreen ? GlobalStates.desktopMenuScreen : (Quickshell.screens.length > 0 ? Quickshell.screens[0] : null)
+        screen: root.activeScreen
 
-            color: "transparent"
-            exclusionMode: ExclusionMode.Ignore
-            exclusiveZone: 0
-            WlrLayershell.namespace: "quickshell:desktopMenu"
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        exclusiveZone: 0
+        WlrLayershell.namespace: "quickshell:desktopMenu"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
-            Shortcut {
-                sequence: "Escape"
-                onActivated: GlobalStates.desktopMenuOpen = false
+        Shortcut {
+            sequence: "Escape"
+            onActivated: GlobalStates.desktopMenuOpen = false
+        }
+
+        anchors.top: true
+        anchors.left: true
+        margins {
+            left: Math.round(root.windowX)
+            top: Math.round(root.windowY)
+        }
+
+        implicitWidth: Math.round(root.windowWidth)
+        implicitHeight: Math.round(root.windowHeight)
+
+        mask: Region {
+            item: root.hasSubmenu ? menuCluster : menuCard
+        }
+
+        HyprlandFocusGrab {
+            id: focusGrab
+            active: false
+            windows: [menuWindow]
+            onCleared: {
+                GlobalStates.desktopMenuOpen = false
+                root.activeSubmenu = ""
             }
+        }
 
-            anchors {
-                top: true
-                bottom: true
-                left: true
-                right: true
+        Timer {
+            id: focusGrabTimer
+            interval: 50
+            onTriggered: {
+                if (GlobalStates.desktopMenuOpen) {
+                    focusGrab.active = true
+                }
             }
+        }
 
-            property Component openSubmenuComponent: null
-            property real submenuAnchorY: 0
-            property real submenuWidth: 284
-
-            Timer {
-                id: submenuCloseTimer
-                interval: 250
-                onTriggered: menuWindow.openSubmenuComponent = null
+        Connections {
+            target: GlobalStates
+            function onDesktopMenuOpenChanged() {
+                if (GlobalStates.desktopMenuOpen) {
+                    focusGrabTimer.restart()
+                } else {
+                    focusGrab.active = false
+                    root.activeSubmenu = ""
+                }
             }
+        }
 
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                onClicked: GlobalStates.desktopMenuOpen = false
+        // Click outside cards (within window bounds) immediately dismisses the entire menu
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: {
+                GlobalStates.desktopMenuOpen = false
+                root.activeSubmenu = ""
             }
+        }
+
+        Item {
+            id: menuCluster
+            anchors.fill: parent
 
             // Menu card 
             Rectangle {
                 id: menuCard
-                width: 348
-                implicitHeight: menuCol.implicitHeight + 16
-                x: Math.min(Math.max(GlobalStates.desktopMenuX - width / 2, 8), menuWindow.width - width - 8)
-                y: Math.min(Math.max(GlobalStates.desktopMenuY - implicitHeight / 2, 8), menuWindow.height - implicitHeight - 8)
+                x: root.cardX
+                width: root.menuCardWidth
+                height: root.menuCardHeight
+                focus: true
                 radius: Appearance.rounding.verylarge
-                color: "transparent"
+                color: Appearance.colors.colLayer0
+                border.width: 1
+                border.color: Appearance.colors.colLayer0Border
 
-                scale: 0.85
-                opacity: 0
+                scale: GlobalStates.desktopMenuOpen ? 1.0 : 0.95
+                opacity: GlobalStates.desktopMenuOpen ? 1.0 : 0.0
                 transformOrigin: Item.Center
 
-                Component.onCompleted: {
-                    scale = 1.0
-                    opacity = 1.0
-                }
-
                 Behavior on scale {
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
                 }
                 Behavior on opacity {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                    NumberAnimation { duration: 120 }
                 }
 
+                // Absorb clicks inside menuCard so they don't dismiss the menu
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.AllButtons
                 }
 
+                HoverHandler {
+                    id: menuCardHover
+                    onHoveredChanged: {
+                        if (hovered) {
+                            submenuCloseTimer.stop()
+                        } else if (!submenuContainerHover.hovered) {
+                            submenuCloseTimer.restart()
+                        }
+                    }
+                }
+
                 ColumnLayout {
                     id: menuCol
                     anchors { fill: parent; margins: 8 }
-                    spacing: 4
+                    spacing: 6
 
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: 160
-                        radius: Appearance.rounding.verylarge
-                        color: Appearance.colors.colLayer0
+                        implicitHeight: 148
+                        radius: Appearance.rounding.large
+                        color: Appearance.colors.colLayer1
                         clip: true
 
                         Carousel {
                             anchors.fill: parent
-                            anchors.margins: 10
+                            anchors.margins: 6
                             model: root.carouselModel
                             onWallpaperSelected: (path) => {
                                 Wallpapers.select(path, Appearance.m3colors.darkmode)
@@ -198,8 +297,8 @@ Scope {
 
                     GroupedList {
                         Layout.fillWidth: true
-                        itemVerticalPadding: 16
-                        bgcolor: Appearance.colors.colLayer0
+                        itemVerticalPadding: 6
+                        bgcolor: Appearance.colors.colLayer1
 
                         // Wallpapers
                         RippleButton {
@@ -214,24 +313,13 @@ Scope {
                                 StyledText { Layout.fillWidth: true; text: Translation.tr("Wallpaper & style"); font.pixelSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1 }
                                 MaterialSymbol { text: "chevron_right"; iconSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1; opacity: 0.4 }
                             }
-                            Component {
-                                id: wallpaperSubmenu
-                                WallpaperSubmenu {}
-                            }
                             HoverHandler {
                                 onHoveredChanged: {
                                     if (hovered) {
                                         submenuCloseTimer.stop()
-                                        menuWindow.submenuAnchorY = menuCard.y + wallpaperRow.mapToItem(menuCard, 0, 0).y
-                                        menuWindow.openSubmenuComponent = wallpaperSubmenu
-                                    } else {
-                                        submenuCloseTimer.restart()
+                                        root.activeSubmenu = "wallpaper"
                                     }
                                 }
-                            }
-                            onClicked: {
-                                GlobalStates.desktopMenuOpen = false
-                                GlobalStates.wallpaperSelectorOpen = true
                             }
                         }
 
@@ -249,65 +337,70 @@ Scope {
                                 MaterialSymbol { text: "chevron_right"; iconSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1; opacity: 0.4 }
                             }
 
-                            Component {
-                                id: widgetsSubmenu
-                                WidgetsSubmenu {}
-                            }
-
                             HoverHandler {
                                 onHoveredChanged: {
                                     if (hovered) {
                                         submenuCloseTimer.stop()
-                                        menuWindow.submenuAnchorY = menuCard.y + widgetsRow.mapToItem(menuCard, 0, 0).y
-                                        menuWindow.openSubmenuComponent = widgetsSubmenu
-                                    } else {
-                                        submenuCloseTimer.restart()
+                                        root.activeSubmenu = "widgets"
                                     }
                                 }
-                            }
-                            onClicked: {
-                                GlobalStates.desktopMenuOpen = false
-                                GlobalStates.widgetPickerOpen = true
                             }
                         }
                     }
                 }
             }
 
-            // SubMenu
-            Loader {
-                id: submenuLoader
-                active: menuWindow.openSubmenuComponent !== null
-                width: menuWindow.submenuWidth
-                sourceComponent: menuWindow.openSubmenuComponent
-
-                x: (menuCard.x + menuCard.width + 8 + menuWindow.submenuWidth > menuWindow.width)
-                    ? menuCard.x - menuWindow.submenuWidth - 8
-                    : menuCard.x + menuCard.width + 8
-
-                y: Math.min(
-                    Math.max(menuWindow.submenuAnchorY, 8),
-                    menuWindow.height - (item ? item.implicitHeight : 0) - 8
-                )
-
-                scale: active ? 1.0 : 0.9
-                opacity: active ? 1.0 : 0.0
+            // SubMenu inside the same window for smooth hovering
+            Item {
+                id: submenuContainer
+                x: root.subX
+                y: 0
+                width: root.submenuWidth
+                height: menuWindow.implicitHeight
+                visible: root.hasSubmenu
+                opacity: root.hasSubmenu ? 1.0 : 0.0
+                scale: root.hasSubmenu ? 1.0 : 0.95
                 transformOrigin: Item.Center
 
                 Behavior on scale {
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
                 }
                 Behavior on opacity {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                    NumberAnimation { duration: 120 }
+                }
+
+                // Absorb clicks inside submenuContainer so they don't dismiss the menu
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.AllButtons
+                }
+
+                WallpaperSubmenu {
+                    id: wallpaperSubmenuItem
+                    anchors { left: parent.left; right: parent.right; top: parent.top }
+                    height: implicitHeight
+                    visible: root.activeSubmenu === "wallpaper"
+                }
+
+                WidgetsSubmenu {
+                    id: widgetsSubmenuItem
+                    anchors { left: parent.left; right: parent.right; top: parent.top }
+                    height: implicitHeight
+                    visible: root.activeSubmenu === "widgets"
                 }
 
                 HoverHandler {
+                    id: submenuContainerHover
                     onHoveredChanged: {
-                        if (hovered) submenuCloseTimer.stop()
-                        else submenuCloseTimer.restart()
+                        if (hovered) {
+                            submenuCloseTimer.stop()
+                        } else if (!menuCardHover.hovered) {
+                            submenuCloseTimer.restart()
+                        }
                     }
                 }
             }
         }
     }
 }
+

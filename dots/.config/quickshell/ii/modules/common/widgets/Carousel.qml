@@ -51,10 +51,11 @@ Item {
         spacing: root.itemSpacing
         clip: true
         interactive: root.dragEnabled
-        snapMode: ListView.SnapOneItem
-        highlightRangeMode: ListView.StrictlyEnforceRange
+        boundsBehavior: Flickable.StopAtBounds
+        snapMode: ListView.SnapToItem
+        highlightRangeMode: ListView.ApplyRange
         preferredHighlightBegin: 0
-        preferredHighlightEnd: 0
+        preferredHighlightEnd: Math.round(listView.width * root.largeItemWidthRatio)
         highlightMoveDuration: 250
         model: root.model
 
@@ -69,10 +70,13 @@ Item {
                 coolingDown = true
                 debounceTimer.restart()
 
-                if (event.angleDelta.y < 0 || event.angleDelta.x > 0)
-                    listView.incrementCurrentIndex()
-                else
-                    listView.decrementCurrentIndex()
+                if (event.angleDelta.y < 0 || event.angleDelta.x > 0) {
+                    if (listView.currentIndex < listView.count - 1)
+                        listView.incrementCurrentIndex()
+                } else {
+                    if (listView.currentIndex > 0)
+                        listView.decrementCurrentIndex()
+                }
             }
         }
 

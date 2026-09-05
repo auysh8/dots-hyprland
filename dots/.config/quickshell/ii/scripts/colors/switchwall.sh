@@ -189,8 +189,13 @@ EOF
 
 set_wallpaper_path() {
     local path="$1"
-    if [ -f "$SHELL_CONFIG_FILE" ] && [ "$CFG_WALLPAPER_PATH" != "$path" ]; then
-        jq --arg path "$path" '.background.wallpaperPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+    local stop_slideshow="${2:-}"
+    local filter='.background.wallpaperPath = $path'
+    if [[ -n "$stop_slideshow" ]]; then
+        filter+=' | (if ((.background.slideshow.enable)? // false) == true then .background.slideshow.enable = false else . end)'
+    fi
+    if [ -f "$SHELL_CONFIG_FILE" ]; then
+        jq --arg path "$path" "$filter" "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
         CFG_WALLPAPER_PATH="$path"
     fi
 }
@@ -273,7 +278,7 @@ switch() {
         if is_video "$imgpath"; then
             mkdir -p "$THUMBNAIL_DIR"
             # Set wallpaper path
-            set_wallpaper_path "$imgpath"
+            set_wallpaper_path "$imgpath" "${stop_slideshow:-}"
             # Start mpvpaper
             local video_path="$imgpath"
             monitors="${MONITOR_NAMES:-$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | .name')}"
@@ -289,9 +294,15 @@ switch() {
             fi
 
             # Update wallpaper path in config
-            set_wallpaper_path "$imgpath"
+            set_wallpaper_path "$imgpath" "${stop_slideshow:-}"
             remove_restore
         fi
+    fi
+
+    # The picture is on screen and config is updated; the
+    # rest of this function is the palette, which a slideshow leaves alone.
+    if [[ -n "${picture_only_flag:-}" ]]; then
+        return 0
     fi
 
     # Kill any previous color generation jobs
@@ -425,6 +436,9 @@ main() {
     color_flag=""
     color=""
     noswitch_flag=""
+    picture_only_flag=""
+    keep_slideshow_flag=""
+    stop_slideshow=""
 
     load_shell_config
 
@@ -460,6 +474,14 @@ main() {
                 imgpath="${CFG_WALLPAPER_PATH:-}"
                 shift
                 ;;
+            --picture-only)
+                picture_only_flag="1"
+                shift
+                ;;
+            --keep-slideshow)
+                keep_slideshow_flag="1"
+                shift
+                ;;
             *)
                 if [[ -z "$imgpath" ]]; then
                     imgpath="$1"
@@ -468,6 +490,16 @@ main() {
                 ;;
         esac
     done
+
+    # A picked accent normally routes switch() down the colour branch, which
+    # never reaches the code that records the wallpaper. Nothing here is going
+    # to generate colours anyway, so drop it and take the image branch — which
+    # also leaves the accent itself untouched, since only the colour path
+    # clears it.
+    if [[ -n "$picture_only_flag" ]]; then
+        color_flag=""
+        color=""
+    fi
 
     # If accentColor is set in config, use it
     config_color="$(get_accent_color_from_config)"
@@ -496,7 +528,7 @@ main() {
     fi
 
     # Only prompt for wallpaper if not using --color and not using --noswitch and no imgpath set
-    if [[ -z "$imgpath" && -z "$color_flag" && -z "$noswitch_flag" ]]; then
+    if [[ -z "$imgpath" && -z "$color_flag" && -z "$noswitch_flag" && -z "$picture_only_flag" ]]; then
         cd "$(xdg-user-dir PICTURES)/Wallpapers/showcase" 2>/dev/null || cd "$(xdg-user-dir PICTURES)/Wallpapers" 2>/dev/null || cd "$(xdg-user-dir PICTURES)" || return 1
         imgpath="$(kdialog --getopenfilename . --title 'Choose wallpaper')"
     fi
@@ -505,6 +537,13 @@ main() {
     if [[ "$type_flag" == "auto" && -z "$imgpath" ]]; then
          # Only warn if we don't have an image path by now
          echo "[switchwall] Warning: No image to auto-detect scheme from (delayed)" >&2
+    fi
+
+    # A picture chosen on purpose is the end of a rotation. Kept apart from the
+    # accent rule above so the rotation's own ticks, which do want the accent
+    # cleared when they regenerate the palette, are not caught by it.
+    if [[ -n "$imgpath" && -z "$noswitch_flag" && -z "$picture_only_flag" && -z "$keep_slideshow_flag" ]]; then
+        stop_slideshow=1
     fi
 
     # If mode_flag is dark or light, try to find a variant with that mode suffix

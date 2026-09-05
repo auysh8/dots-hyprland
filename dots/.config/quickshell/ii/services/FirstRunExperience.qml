@@ -26,7 +26,7 @@ Singleton {
     }
 
     function handleFirstRun() {
-        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, root.defaultWallpaperPath])
+        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--keep-slideshow", root.defaultWallpaperPath])
         Quickshell.execDetached(["bash", "-c", `qs -p '${root.welcomeQmlPath}'`])
     }
 
