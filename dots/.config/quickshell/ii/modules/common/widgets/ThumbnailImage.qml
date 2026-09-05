@@ -43,7 +43,7 @@ StyledImage {
         command: {
             const maxSize = Images.thumbnailSizes[root.thumbnailSizeName];
             return ["bash", "-c", 
-                `[ -f '${FileUtils.trimFileProtocol(root.thumbnailPath)}' ] && exit 0 || { magick '${root.sourcePath}' -resize ${maxSize}x${maxSize} '${FileUtils.trimFileProtocol(root.thumbnailPath)}' && exit 1; }`
+                `[ -f '${FileUtils.trimFileProtocol(root.thumbnailPath)}' ] && exit 0 || { [ -x '${Directories.materialColorHelperPath}' ] && '${Directories.materialColorHelperPath}' thumbnail '${root.sourcePath}' '${FileUtils.trimFileProtocol(root.thumbnailPath)}' ${maxSize} || magick '${root.sourcePath}' -resize ${maxSize}x${maxSize} '${FileUtils.trimFileProtocol(root.thumbnailPath)}'; } && exit 1;`
             ]
         }
         onExited: (exitCode, exitStatus) => {

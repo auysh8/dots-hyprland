@@ -26,13 +26,19 @@ function compile_native_helpers(){
   if [[ -f "$cursor_cpp" ]] && command -v g++ >/dev/null 2>&1; then
     printf "${STY_CYAN}[$0]: Compiling shake-to-locate cursor daemon...${STY_RST}\n"
     v g++ -O3 -std=c++20 "$cursor_cpp" -o "$cursor_bin"
+    v chmod +x "$cursor_bin"
   fi
 
   local color_cpp="${REPO_ROOT}/dots/.config/quickshell/ii/scripts/colors/material-color-helper.cpp"
   local color_bin="${REPO_ROOT}/dots/.config/quickshell/ii/scripts/colors/material-color-helper"
   if [[ -f "$color_cpp" ]] && command -v g++ >/dev/null 2>&1; then
     printf "${STY_CYAN}[$0]: Compiling material color helper...${STY_RST}\n"
-    v g++ -O3 -std=c++20 "$color_cpp" -o "$color_bin" -lm
+    local webp_flags=""
+    if pkg-config --exists libwebp 2>/dev/null; then
+      webp_flags="$(pkg-config --libs libwebp 2>/dev/null)"
+    fi
+    v g++ -O3 -std=c++20 "$color_cpp" -o "$color_bin" $webp_flags -lm
+    v chmod +x "$color_bin"
   fi
 
   local sysmon_cpp="${REPO_ROOT}/dots/.config/quickshell/ii/modules/ii/sysmon/get_processes.cpp"
@@ -40,6 +46,7 @@ function compile_native_helpers(){
   if [[ -f "$sysmon_cpp" ]] && command -v g++ >/dev/null 2>&1; then
     printf "${STY_CYAN}[$0]: Compiling sysmon process scanner...${STY_RST}\n"
     v g++ -O3 -std=c++20 "$sysmon_cpp" -o "$sysmon_bin"
+    v chmod +x "$sysmon_bin"
   fi
 
   local watch_cpp="${REPO_ROOT}/dots/.config/quickshell/scripts/watch_downloads.cpp"
@@ -47,6 +54,23 @@ function compile_native_helpers(){
   if [[ -f "$watch_cpp" ]] && command -v g++ >/dev/null 2>&1; then
     printf "${STY_CYAN}[$0]: Compiling inotify downloads watcher...${STY_RST}\n"
     v g++ -O3 -std=c++20 "$watch_cpp" -o "$watch_bin"
+    v chmod +x "$watch_bin"
+  fi
+
+  local monitor_cpp="${REPO_ROOT}/dots/.config/hypr/custom/scripts/monitor_devices.cpp"
+  local monitor_bin="${REPO_ROOT}/dots/.config/hypr/custom/scripts/monitor_devices"
+  if [[ -f "$monitor_cpp" ]] && command -v g++ >/dev/null 2>&1; then
+    printf "${STY_CYAN}[$0]: Compiling hardware event monitor daemon...${STY_RST}\n"
+    v g++ -O3 -std=c++20 "$monitor_cpp" -o "$monitor_bin" -lsystemd
+    v chmod +x "$monitor_bin"
+  fi
+
+  local gpu_cpp="${REPO_ROOT}/dots/.config/quickshell/ii/scripts/gpu/get_gpuinfo.cpp"
+  local gpu_bin="${REPO_ROOT}/dots/.config/quickshell/ii/scripts/gpu/get_gpuinfo"
+  if [[ -f "$gpu_cpp" ]] && command -v g++ >/dev/null 2>&1; then
+    printf "${STY_CYAN}[$0]: Compiling GPU sysfs telemetry reader...${STY_RST}\n"
+    v g++ -O3 -std=c++20 "$gpu_cpp" -o "$gpu_bin"
+    v chmod +x "$gpu_bin"
   fi
 }
 #####################################################################################

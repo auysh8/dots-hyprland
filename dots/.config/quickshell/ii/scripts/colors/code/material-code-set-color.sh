@@ -14,7 +14,8 @@ settings_paths=(
     # Add more paths as needed for other forks
 )
 
-new_color=$(cat "$COLOR_FILE_PATH")
+[ -s "$COLOR_FILE_PATH" ] || exit 0
+new_color="$(< "$COLOR_FILE_PATH")"
 
 # Loop through each settings file path
 for CODE_SETTINGS_PATH in "${settings_paths[@]}"; do

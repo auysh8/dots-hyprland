@@ -41,12 +41,7 @@ ShellRoot {
             String(Config.options.cursor ? Config.options.cursor.shakeGrowFactor : 2.5)
         ]
 
-        onWantedChanged: if (wanted !== running) running = wanted
-        Component.onCompleted: running = wanted
-        onCommandChanged: if (running) {
-            running = false
-            Qt.callLater(() => running = wanted)
-        }
+        running: wanted
     }
 
     Component.onCompleted: {
@@ -60,6 +55,7 @@ ShellRoot {
         Wallpapers.load()
         Updates.load()
         DownloadService.load()
+        CavaService.load()
     }
 
 

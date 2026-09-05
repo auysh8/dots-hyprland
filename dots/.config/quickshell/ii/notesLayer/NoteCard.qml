@@ -29,29 +29,35 @@ RippleButton {
     property string noteColor: "default"
     property bool notePinned: false
 
-    // Pinned cards alternate secondaryContainer / tertiaryContainer by index
+    // Pinned cards alternate secondaryContainer / tertiaryContainer by index.
+    // In dark mode, ensure tertiary container maintains a matching dark depth
+    // so that the lighter text color has crisp contrast (> 4.5:1).
     readonly property bool usesSecondaryTone: root.cardIndex % 2 === 0
-    readonly property color pinnedFill: root.usesSecondaryTone
-        ? Appearance.colors.colSecondaryContainer
-        : Appearance.colors.colTertiaryContainer
-    readonly property color pinnedOnFill: root.usesSecondaryTone
-        ? Appearance.colors.colOnSecondaryContainer
-        : Appearance.colors.colOnTertiaryContainer
+    readonly property color pinnedFill: {
+        if (root.usesSecondaryTone) {
+            return Appearance.colors.colSecondaryContainer;
+        }
+        const tert = Appearance.colors.colTertiaryContainer;
+        if (Appearance.m3colors.darkmode && tert.hslLightness > 0.35) {
+            return ColorUtils.colorWithLightness(tert, Appearance.colors.colSecondaryContainer.hslLightness);
+        }
+        return tert;
+    }
 
-    // Icon color matches the card's own background fill
-    readonly property color pinnedIconColor: root.pinnedFill
+    // Both odd and even cards use the same lighter text color
+    readonly property color pinnedContentColor: Appearance.colors.colOnSecondaryContainer
 
-    // Content text keeps matched on-color; icons use cross-tone
-    readonly property color pinnedContentColor: root.pinnedOnFill
-    // Button container: even uses colOnSecondaryContainer, odd uses colOnTertiaryContainer
+    // Both odd and even cards use the same lighter action button background
     readonly property color actionContainerColor: root.notePinned
-        ? (root.usesSecondaryTone ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnTertiaryContainer)
+        ? Appearance.colors.colOnSecondaryContainer
         : Appearance.colors.colSurfaceContainerHighest
     readonly property color actionContainerHoverColor: root.notePinned
-        ? (root.usesSecondaryTone ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnTertiaryContainer)
+        ? ColorUtils.mix(Appearance.colors.colOnSecondaryContainer, Appearance.colors.colSecondaryContainer, 0.90)
         : Appearance.colors.colSurfaceContainerHighestHover
+
+    // Both odd and even cards use the same icon color
     readonly property color actionIconColor: root.notePinned
-        ? root.pinnedIconColor
+        ? Appearance.colors.colSecondaryContainer
         : Appearance.colors.colOnSurface
 
     signal moreClicked()
@@ -109,10 +115,10 @@ RippleButton {
     colBackgroundHover: root.notePinned
         ? (root.usesSecondaryTone
             ? Appearance.colors.colSecondaryContainerHover
-            : Appearance.colors.colTertiaryContainerHover)
+            : ColorUtils.mix(root.pinnedFill, Appearance.colors.colOnSurface, 0.92))
         : Appearance.colors.colSurfaceContainerHighestHover
     colRipple: root.notePinned
-        ? root.pinnedOnFill
+        ? root.pinnedContentColor
         : Appearance.colors.colOnSurface
 
     // Right-click to delete

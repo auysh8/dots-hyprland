@@ -21,11 +21,15 @@ colorstrings=''
 colorlist=()
 colorvalues=()
 
-colornames=$(cat $STATE_DIR/user/generated/material_colors.scss | cut -d: -f1)
-colorstrings=$(cat $STATE_DIR/user/generated/material_colors.scss | cut -d: -f2 | cut -d ' ' -f2 | cut -d ";" -f1)
-IFS=$'\n'
-colorlist=($colornames)     # Array of color names
-colorvalues=($colorstrings) # Array of color values
+parse_legacy_colors() {
+  if [ ${#colorlist[@]} -eq 0 ] && [ -f "$STATE_DIR/user/generated/material_colors.scss" ]; then
+    colornames=$(cut -d: -f1 "$STATE_DIR/user/generated/material_colors.scss")
+    colorstrings=$(cut -d: -f2 "$STATE_DIR/user/generated/material_colors.scss" | cut -d ' ' -f2 | cut -d ";" -f1)
+    IFS=$'\n'
+    colorlist=($colornames)
+    colorvalues=($colorstrings)
+  fi
+}
 
 apply_kitty() {  
   # Check if terminal escape sequence template exists
@@ -33,6 +37,7 @@ apply_kitty() {
     echo "Template file not found for Kitty theme. Skipping that."
     return
   fi
+  parse_legacy_colors
   # Copy template
   mkdir -p "$STATE_DIR"/user/generated/terminal
   cp "$SCRIPT_DIR/terminal/kitty-theme.conf" "$STATE_DIR"/user/generated/terminal/kitty-theme.conf
@@ -84,6 +89,7 @@ apply_anyterm() {
     echo "Template file not found for Terminal. Skipping that."
     return
   fi
+  parse_legacy_colors
   # Copy template
   mkdir -p "$STATE_DIR"/user/generated/terminal
   cp "$SCRIPT_DIR/terminal/sequences.txt" "$STATE_DIR"/user/generated/terminal/sequences.txt
@@ -94,13 +100,13 @@ apply_anyterm() {
 
   sed -i "s/\$alpha/$term_alpha/g" "$STATE_DIR/user/generated/terminal/sequences.txt"
 
-  for file in /dev/pts/*; do
-    if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
-      {
-      cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"
-      } & disown || true
-    fi
-  done
+  (
+    for file in /dev/pts/[0-9]*; do
+      if [ -w "$file" ]; then
+        cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file" 2>/dev/null
+      fi
+    done
+  ) & disown || true
 }
 
 apply_term() {
@@ -111,13 +117,13 @@ apply_term() {
       --templates-dir "$SCRIPT_DIR/terminal" \
       --alpha "$term_alpha"
 
-    for file in /dev/pts/*; do
-      if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
-        {
-        cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"
-        } & disown || true
-      fi
-    done
+    (
+      for file in /dev/pts/[0-9]*; do
+        if [ -w "$file" ]; then
+          cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file" 2>/dev/null
+        fi
+      done
+    ) & disown || true
   else
     apply_anyterm &
     apply_kitty &
@@ -126,9 +132,6 @@ apply_term() {
 }
 
 apply_icon() {
-	enable_icon=$(jq -r '.appearance.wallpaperTheming.enableIcon // false' "$CONFIG_FILE")
-    user_icons=$(jq -r '.appearance.wallpaperTheming.userIcons // ""' "$CONFIG_FILE") # should be a path to the icon theme
-
 	if [ "$enable_icon" = "false" ]; then
         if [ -n "$user_icons" ] && [ -d "$user_icons" ]; then
             "$CONFIG_DIR/scripts/colors/set-icons.sh" "$user_icons"
@@ -136,21 +139,36 @@ apply_icon() {
 		return
 	fi
 
-	primary_color=$(awk -F ':' '/^\$primary:/ {gsub(/;/,"",$2); print $2}' "$STATE_DIR/user/generated/material_colors.scss" | xargs)
+    primary_color=""
+    if [ -s "$STATE_DIR/user/generated/color.txt" ]; then
+        primary_color="$(< "$STATE_DIR/user/generated/color.txt")"
+        primary_color="${primary_color#\#}"
+    elif [ -f "$STATE_DIR/user/generated/material_colors.scss" ]; then
+        primary_color=$(awk -F ':' '/^\$primary:/ {gsub(/;/,"",$2); print $2}' "$STATE_DIR/user/generated/material_colors.scss" | xargs)
+        primary_color="${primary_color#\#}"
+    fi
+
     if [ -z "$primary_color" ]; then
         echo "Primary color not found. Skipping icon generation."
         return
     fi
-	primary_color="${primary_color#\#}"
 
 	"$CONFIG_DIR/scripts/colors/custom-tela" custom-tela "$primary_color"
 	"$CONFIG_DIR/scripts/colors/set-icons.sh" "$HOME/.local/share/icons/custom-tela"
 }
 
-# Check if terminal theming is enabled in config
+# Check if terminal and icon theming are enabled in config in a single pass
 CONFIG_FILE="$XDG_CONFIG_HOME/illogical-impulse/config.json"
+enable_terminal="true"
+enable_icon="false"
+user_icons=""
+
 if [ -f "$CONFIG_FILE" ]; then
-  enable_terminal=$(jq -r '.appearance.wallpaperTheming.enableTerminal' "$CONFIG_FILE")
+  eval "$(jq -r '
+    "enable_terminal=" + (.appearance.wallpaperTheming.enableTerminal // true | tostring) + "\n" +
+    "enable_icon=" + (.appearance.wallpaperTheming.enableIcon // false | tostring) + "\n" +
+    "user_icons=" + (.appearance.wallpaperTheming.userIcons // "" | @sh)
+  ' "$CONFIG_FILE" 2>/dev/null)"
   if [ "$enable_terminal" = "true" ]; then
     apply_term &
   fi
@@ -159,8 +177,6 @@ else
   echo "Config file not found at $CONFIG_FILE. Applying terminal theming by default."
   apply_term &
 fi
-
-apply_qt & # Qt theming is already handled by kde-material-colors
 
 # Trigger Quickshell to reload colors
 sleep 0.2 && quickshell ipc -c ii call theme reload &

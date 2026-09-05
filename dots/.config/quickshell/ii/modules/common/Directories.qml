@@ -23,6 +23,8 @@ Singleton {
     // Other dirs used by the shell, without "file://"
     property string assetsPath: Quickshell.shellPath("assets")
     property string scriptPath: Quickshell.shellPath("scripts")
+    property string scripts: FileUtils.trimFileProtocol(Quickshell.shellPath("scripts"))
+    property string materialColorHelperPath: `${scripts}/colors/material-color-helper`
     // Per-user runtime dir for transient files. Using a shared "/tmp/quickshell"
     // breaks on multi-user machines: whoever logs in first owns the dir and
     // locks every other user out (grim/magick get "Permission denied", so

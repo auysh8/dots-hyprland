@@ -106,23 +106,16 @@ Scope {
                 property string currentTimeWithSeconds: Qt.formatTime(new Date(), "h:mm AP")
                 property string currentDate: Qt.formatDate(new Date(), "ddd, MMM d")
 
-                property list<real> visualizerPoints: []
-                Process {
-                    id: cavaProc
-                    running: islandContainer.hasMedia && islandPill.renderMode === 0 && !islandContainer.expanded
-                    onRunningChanged: {
-                        if (!cavaProc.running) {
-                            islandContainer.visualizerPoints = new Array(25).fill(0.0);
-                        }
-                    }
-                    command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
-                    stdout: SplitParser {
-                        onRead: data => {
-                            let points = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
-                            // Slice to the first 25 bars to cut off the quiet high frequencies on the right
-                            islandContainer.visualizerPoints = points.slice(0, 25);
-                        }
-                    }
+                property list<real> visualizerPoints: GlobalStates.visualizerPoints
+                readonly property bool visualizerActive: islandContainer.hasMedia && islandPill.renderMode === 0 && !islandContainer.expanded && islandContainer.islandVisible
+                onVisualizerActiveChanged: {
+                    CavaService.setIslandActive(islandRoot.screen.name, visualizerActive)
+                }
+                Component.onCompleted: {
+                    if (visualizerActive) CavaService.setIslandActive(islandRoot.screen.name, true)
+                }
+                Component.onDestruction: {
+                    CavaService.setIslandActive(islandRoot.screen.name, false)
                 }
 
                 function updateHasOpenWindow() {

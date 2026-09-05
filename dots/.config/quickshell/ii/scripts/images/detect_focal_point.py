@@ -164,8 +164,94 @@ def detect_objects(img, orig_w, orig_h):
                         "count": len(people)
                     }
 
-            # Otherwise pick largest/most prominent object
-            best = max(objects, key=lambda o: o["area"])
+            # Prominence scoring based on subject category, confidence, size, and centrality
+            SUBJECT_WEIGHTS = {
+                # Tier 1: Living beings / People / Animals (primary hero subjects)
+                "person": 3.2,
+                "cat": 3.0,
+                "dog": 3.0,
+                "bird": 3.0,
+                "horse": 3.0,
+                "sheep": 2.8,
+                "cow": 2.8,
+                "elephant": 2.8,
+                "bear": 2.8,
+                "zebra": 2.8,
+                "giraffe": 2.8,
+                # Tier 2: Hero vehicles & machines
+                "airplane": 2.4,
+                "car": 2.0,
+                "motorcycle": 2.0,
+                "bicycle": 2.0,
+                "boat": 2.0,
+                "train": 2.0,
+                "bus": 2.0,
+                # Tier 3: Foreground / interactive items
+                "backpack": 1.2,
+                "handbag": 1.2,
+                "suitcase": 1.2,
+                "skateboard": 1.2,
+                "surfboard": 1.2,
+                "snowboard": 1.2,
+                "skis": 1.2,
+                "laptop": 1.2,
+                "tv": 1.1,
+                "teddy bear": 1.5,
+                # Tier 4: Background scenery, furniture, small props (low priority)
+                "potted plant": 0.4,
+                "chair": 0.5,
+                "couch": 0.5,
+                "dining table": 0.4,
+                "bed": 0.5,
+                "toilet": 0.3,
+                "bench": 0.5,
+                "bottle": 0.3,
+                "wine glass": 0.3,
+                "cup": 0.3,
+                "fork": 0.2,
+                "knife": 0.2,
+                "spoon": 0.2,
+                "bowl": 0.3,
+                "banana": 0.3,
+                "apple": 0.3,
+                "sandwich": 0.4,
+                "orange": 0.3,
+                "broccoli": 0.3,
+                "carrot": 0.3,
+                "hot dog": 0.3,
+                "pizza": 0.4,
+                "donut": 0.3,
+                "cake": 0.4,
+                "vase": 0.3,
+                "scissors": 0.3,
+                "hair drier": 0.2,
+                "toothbrush": 0.2,
+                "book": 0.4,
+                "clock": 0.4,
+                "cell phone": 0.6,
+                "microwave": 0.4,
+                "oven": 0.4,
+                "toaster": 0.3,
+                "sink": 0.3,
+                "refrigerator": 0.4,
+                "remote": 0.3,
+                "keyboard": 0.4,
+                "mouse": 0.3,
+            }
+
+            def compute_prominence(o):
+                weight = SUBJECT_WEIGHTS.get(o["label"], 1.0)
+                # Centrality factor: prioritize subjects composed near screen center vs extreme borders
+                dist_x = abs(o["cx"] - 0.5)
+                dist_y = abs(o["cy"] - 0.5)
+                centrality = max(0.2, 1.0 - 0.7 * dist_x - 0.3 * dist_y)
+                if o["cx"] < 0.12 or o["cx"] > 0.88:
+                    centrality *= 0.7
+                if o["cy"] < 0.10 or o["cy"] > 0.90:
+                    centrality *= 0.8
+                return weight * (o["score"] ** 0.5) * (o["area"] ** 0.7) * centrality
+
+            best = max(objects, key=compute_prominence)
             return {
                 "has_subject": True,
                 "focal_type": best["label"],

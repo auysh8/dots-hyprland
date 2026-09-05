@@ -1,6 +1,7 @@
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
+import qs.services
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -9,10 +10,10 @@ Item {
     id: root
 
     property bool show: false
-    property string title: Translation.tr("Confirm")
+    property string title: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Confirm") : "Confirm"
     property string text: ""
-    property string cancelText: Translation.tr("Cancel")
-    property string confirmText: Translation.tr("OK")
+    property string cancelText: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Cancel") : "Cancel"
+    property string confirmText: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("OK") : "OK"
     property bool isDestructive: false
     property real dialogWidth: 380
 
@@ -132,6 +133,10 @@ Item {
 
                 DialogButton {
                     buttonText: root.cancelText
+                    colEnabled: Appearance.colors.colOnSurface
+                    colBackground: "transparent"
+                    colBackgroundHover: Appearance.colors.colLayer3Hover
+                    colRipple: Appearance.colors.colLayer3Active
                     onClicked: root.canceled()
                 }
 

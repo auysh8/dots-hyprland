@@ -274,14 +274,6 @@ Connections {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Clipboard Watcher
-    // -------------------------------------------------------------------------
-    Process {
-        id: clipboardWatcher
-        command: ["wl-paste", "--watch", "bash", "-c", "echo 'neutral|Clipboard|Copied|clipboard|copied' >> /tmp/qs_popup.log"]
-        running: true
-    }
 
     // -------------------------------------------------------------------------
     // Universal Mic Mute Watcher (Pipewire native + Audio service)

@@ -12,13 +12,55 @@ SHELL_CONFIG_FILE="$XDG_CONFIG_HOME/illogical-impulse/config.json"
 MATUGEN_DIR="$XDG_CONFIG_HOME/matugen"
 terminalscheme="$SCRIPT_DIR/terminal/scheme-base.json"
 
+load_shell_config() {
+    if [ -f "$SHELL_CONFIG_FILE" ]; then
+        eval "$(jq -r '
+            "CFG_AI_STYLING=" + (.background.widgets.clock.cookie.aiStyling // false | tostring) + "\n" +
+            "CFG_FORCE_DARK=" + (.appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode // false | tostring) + "\n" +
+            "CFG_ENABLE_APPS_SHELL=" + (.appearance.wallpaperTheming.enableAppsAndShell // true | tostring) + "\n" +
+            "CFG_HARMONY=" + (.appearance.wallpaperTheming.terminalGenerationProps.harmony // "" | tostring) + "\n" +
+            "CFG_HARMONIZE_THRESHOLD=" + (.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold // "" | tostring) + "\n" +
+            "CFG_TERM_FG_BOOST=" + (.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost // "" | tostring) + "\n" +
+            "CFG_ENABLE_QT_APPS=" + (.appearance.wallpaperTheming.enableQtApps // false | tostring) + "\n" +
+            "CFG_PALETTE_TYPE=" + (.appearance.palette.type // "auto" | @sh) + "\n" +
+            "CFG_ACCENT_COLOR=" + (.appearance.palette.accentColor // "" | @sh) + "\n" +
+            "CFG_WALLPAPER_PATH=" + (.background.wallpaperPath // "" | @sh) + "\n" +
+            "CFG_THUMBNAIL_PATH=" + (.background.thumbnailPath // "" | @sh)
+        ' "$SHELL_CONFIG_FILE" 2>/dev/null)"
+    fi
+    CFG_AI_STYLING="${CFG_AI_STYLING:-false}"
+    CFG_FORCE_DARK="${CFG_FORCE_DARK:-false}"
+    CFG_ENABLE_APPS_SHELL="${CFG_ENABLE_APPS_SHELL:-true}"
+    CFG_ENABLE_QT_APPS="${CFG_ENABLE_QT_APPS:-false}"
+    CFG_PALETTE_TYPE="${CFG_PALETTE_TYPE:-auto}"
+    CFG_ACCENT_COLOR="${CFG_ACCENT_COLOR:-}"
+    CFG_WALLPAPER_PATH="${CFG_WALLPAPER_PATH:-}"
+    CFG_THUMBNAIL_PATH="${CFG_THUMBNAIL_PATH:-}"
+}
+
+get_monitor_resolutions() {
+    local monitor_json
+    monitor_json="$(hyprctl monitors -j 2>/dev/null)"
+    if [ -n "$monitor_json" ]; then
+        eval "$(echo "$monitor_json" | jq -r '
+            "MONITOR_MAX_W=" + ([.[].width] | max | tostring) + "\n" +
+            "MONITOR_MAX_H=" + ([.[].height] | max | tostring) + "\n" +
+            "MONITOR_MIN_W=" + ([.[].width] | min | tostring) + "\n" +
+            "MONITOR_MIN_H=" + ([.[].height] | min | tostring) + "\n" +
+            "MONITOR_NAMES=" + ([.[].name] | join(" ") | @sh)
+        ' 2>/dev/null)"
+    fi
+    MONITOR_MAX_W="${MONITOR_MAX_W:-1920}"
+    MONITOR_MAX_H="${MONITOR_MAX_H:-1080}"
+    MONITOR_MIN_W="${MONITOR_MIN_W:-1920}"
+    MONITOR_MIN_H="${MONITOR_MIN_H:-1080}"
+    MONITOR_NAMES="${MONITOR_NAMES:-}"
+}
+
 handle_kde_material_you_colors() {
     # Check if Qt app theming is enabled in config
-    if [ -f "$SHELL_CONFIG_FILE" ]; then
-        enable_qt_apps=$(jq -r '.appearance.wallpaperTheming.enableQtApps' "$SHELL_CONFIG_FILE")
-        if [ "$enable_qt_apps" == "false" ]; then
-            return
-        fi
+    if [ "$CFG_ENABLE_QT_APPS" == "false" ]; then
+        return
     fi
 
     # Map $type_flag to allowed scheme variants for kde-material-you-colors-wrapper.sh
@@ -36,13 +78,17 @@ handle_kde_material_you_colors() {
 
 pre_process() {
     local mode_flag="$1"
-    # Set GNOME color-scheme if mode_flag is dark or light
+    # Set GNOME color-scheme asynchronously to avoid blocking color generation
     if [[ "$mode_flag" == "dark" ]]; then
-        gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
-        gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark'
+        (
+            gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+            gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark'
+        ) &
     elif [[ "$mode_flag" == "light" ]]; then
-        gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
-        gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3'
+        (
+            gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
+            gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3'
+        ) &
     fi
 
     if [ ! -d "$CACHE_DIR"/user/generated ]; then
@@ -61,8 +107,8 @@ post_process() {
 
 check_and_prompt_upscale() {
     local img="$1"
-    min_width_desired="$(hyprctl monitors -j | jq '([.[].width] | max)' | xargs)" # max monitor width
-    min_height_desired="$(hyprctl monitors -j | jq '([.[].height] | max)' | xargs)" # max monitor height
+    local min_width_desired="${MONITOR_MAX_W:-1920}"
+    local min_height_desired="${MONITOR_MAX_H:-1080}"
 
     if command -v identify &>/dev/null && [ -f "$img" ]; then
         local img_width img_height
@@ -143,33 +189,39 @@ EOF
 
 set_wallpaper_path() {
     local path="$1"
-    if [ -f "$SHELL_CONFIG_FILE" ]; then
+    if [ -f "$SHELL_CONFIG_FILE" ] && [ "$CFG_WALLPAPER_PATH" != "$path" ]; then
         jq --arg path "$path" '.background.wallpaperPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        CFG_WALLPAPER_PATH="$path"
     fi
 }
 
 set_thumbnail_path() {
     local path="$1"
-    if [ -f "$SHELL_CONFIG_FILE" ]; then
+    if [ -f "$SHELL_CONFIG_FILE" ] && [ "$CFG_THUMBNAIL_PATH" != "$path" ]; then
         jq --arg path "$path" '.background.thumbnailPath = $path' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        CFG_THUMBNAIL_PATH="$path"
     fi
 }
 
 get_type_from_config() {
-    jq -r '.appearance.palette.type' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "auto"
+    echo "${CFG_PALETTE_TYPE:-auto}"
 }
 set_type() {
     local type="$1"
-    if [ -f "$SHELL_CONFIG_FILE" ]; then
+    if [ -f "$SHELL_CONFIG_FILE" ] && [ "$CFG_PALETTE_TYPE" != "$type" ]; then
         jq --arg type "$type" '.appearance.palette.type = $type' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        CFG_PALETTE_TYPE="$type"
     fi
 }
 get_accent_color_from_config() {
-    jq -r '.appearance.palette.accentColor' "$SHELL_CONFIG_FILE" 2>/dev/null || echo ""
+    echo "${CFG_ACCENT_COLOR:-}"
 }
 set_accent_color() {
     local color="$1"
-    jq --arg color "$color" '.appearance.palette.accentColor = $color' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+    if [ -f "$SHELL_CONFIG_FILE" ] && [ "$CFG_ACCENT_COLOR" != "$color" ]; then
+        jq --arg color "$color" '.appearance.palette.accentColor = $color' "$SHELL_CONFIG_FILE" > "$SHELL_CONFIG_FILE.tmp" && mv "$SHELL_CONFIG_FILE.tmp" "$SHELL_CONFIG_FILE"
+        CFG_ACCENT_COLOR="$color"
+    fi
 }
 
 detect_scheme_type_from_image() {
@@ -204,9 +256,11 @@ switch() {
         exit 0
     fi
 
+    # Single-pass monitor resolution detection
+    get_monitor_resolutions
+
     # Start Gemini auto-categorization if enabled
-    aiStylingEnabled=$(jq -r '.background.widgets.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE" 2>/dev/null)
-    if [[ "$aiStylingEnabled" == "true" ]]; then
+    if [[ "$CFG_AI_STYLING" == "true" ]]; then
         categorize_wallpaper "$imgpath" &
     fi
 
@@ -222,7 +276,7 @@ switch() {
             set_wallpaper_path "$imgpath"
             # Start mpvpaper
             local video_path="$imgpath"
-            monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
+            monitors="${MONITOR_NAMES:-$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | .name')}"
             for monitor in $monitors; do
                 mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" &
                 sleep 0.1
@@ -230,12 +284,8 @@ switch() {
             create_restore_script "$video_path"
         else
             # Ensure pre-crop cache is freshly generated if needed
-            local max_w
-            local max_h
-            max_w="$(hyprctl monitors -j 2>/dev/null | jq '([.[].width] | max)' 2>/dev/null | xargs 2>/dev/null || echo 1920)"
-            max_h="$(hyprctl monitors -j 2>/dev/null | jq '([.[].height] | max)' 2>/dev/null | xargs 2>/dev/null || echo 1080)"
             if [ -n "$imgpath" ] && [ -f "$imgpath" ]; then
-                "$SCRIPT_DIR/../thumbnails/generate-wallpaper-crops.sh" --file "$imgpath" --resolution "${max_w}x${max_h}"
+                "$SCRIPT_DIR/../thumbnails/generate-wallpaper-crops.sh" --file "$imgpath" --resolution "${MONITOR_MAX_W}x${MONITOR_MAX_H}"
             fi
 
             # Update wallpaper path in config
@@ -293,8 +343,7 @@ switch() {
         fi
 
         # 2. MEDIUM PRIORITY: AI categorize in background (lowest priority)
-        aiStylingEnabled=$(jq -r '.background.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE" 2>/dev/null)
-        if [[ "$aiStylingEnabled" == "true" ]]; then
+        if [[ "$CFG_AI_STYLING" == "true" ]]; then
             (
                 nice -n 19 ionice -c3 "$SCRIPT_DIR/../ai/gemini-categorize-wallpaper.sh" "$imgpath" \
                 > "$STATE_DIR/user/generated/wallpaper/category.txt"
@@ -332,7 +381,7 @@ switch() {
         # Enforce mode for terminal
         if [[ -n "$mode_flag" ]]; then
             matugen_args+=(--mode "$mode_flag")
-            if [[ $(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode' "$SHELL_CONFIG_FILE" 2>/dev/null) == "true" ]]; then
+            if [[ "$CFG_FORCE_DARK" == "true" ]]; then
                 generate_colors_material_args+=(--mode "dark")
             else
                 generate_colors_material_args+=(--mode "$mode_flag")
@@ -345,18 +394,14 @@ switch() {
         pre_process "$mode_flag"
 
         # Check if app and shell theming is enabled
-        enable_apps_shell=$(jq -r '.appearance.wallpaperTheming.enableAppsAndShell' "$SHELL_CONFIG_FILE" 2>/dev/null)
-        if [[ "$enable_apps_shell" == "false" ]]; then
+        if [[ "$CFG_ENABLE_APPS_SHELL" == "false" ]]; then
             exit 0
         fi
 
         # Harmony settings
-        harmony=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmony' "$SHELL_CONFIG_FILE" 2>/dev/null)
-        harmonize_threshold=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold' "$SHELL_CONFIG_FILE" 2>/dev/null)
-        term_fg_boost=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost' "$SHELL_CONFIG_FILE" 2>/dev/null)
-        [[ "$harmony" != "null" && -n "$harmony" ]] && generate_colors_material_args+=(--harmony "$harmony")
-        [[ "$harmonize_threshold" != "null" && -n "$harmonize_threshold" ]] && generate_colors_material_args+=(--harmonize_threshold "$harmonize_threshold")
-        [[ "$term_fg_boost" != "null" && -n "$term_fg_boost" ]] && generate_colors_material_args+=(--term_fg_boost "$term_fg_boost")
+        [[ "$CFG_HARMONY" != "null" && -n "$CFG_HARMONY" ]] && generate_colors_material_args+=(--harmony "$CFG_HARMONY")
+        [[ "$CFG_HARMONIZE_THRESHOLD" != "null" && -n "$CFG_HARMONIZE_THRESHOLD" ]] && generate_colors_material_args+=(--harmonize_threshold "$CFG_HARMONIZE_THRESHOLD")
+        [[ "$CFG_TERM_FG_BOOST" != "null" && -n "$CFG_TERM_FG_BOOST" ]] && generate_colors_material_args+=(--term_fg_boost "$CFG_TERM_FG_BOOST")
 
         # 3. HIGH PRIORITY: Generate colors (needed for UI)
         nice -n 5 ionice -c2 -n4 matugen "${matugen_args[@]}" &>/dev/null
@@ -369,9 +414,7 @@ switch() {
         deactivate
 
         # 5. FINAL: Post processing
-        max_width_desired="$(hyprctl monitors -j | jq '([.[].width] | min)' | xargs)"
-        max_height_desired="$(hyprctl monitors -j | jq '([.[].height] | min)' | xargs)"
-        post_process "$max_width_desired" "$max_height_desired" "$imgpath"
+        post_process "$MONITOR_MIN_W" "$MONITOR_MIN_H" "$imgpath"
     ) &
 }
 
@@ -382,6 +425,8 @@ main() {
     color_flag=""
     color=""
     noswitch_flag=""
+
+    load_shell_config
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -412,7 +457,7 @@ main() {
                 ;;
             --noswitch)
                 noswitch_flag="1"
-                imgpath=$(jq -r '.background.wallpaperPath' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "")
+                imgpath="${CFG_WALLPAPER_PATH:-}"
                 shift
                 ;;
             *)

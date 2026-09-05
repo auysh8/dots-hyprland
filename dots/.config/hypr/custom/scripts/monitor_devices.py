@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 import os
 import sys
+
+# Fast-path: delegate to native C++ daemon if compiled
+script_dir = os.path.dirname(os.path.abspath(__file__))
+bin_path = os.path.join(script_dir, "monitor_devices")
+if os.path.isfile(bin_path) and os.access(bin_path, os.X_OK):
+    os.execv(bin_path, sys.argv)
+
 import time
 import subprocess
 import dbus

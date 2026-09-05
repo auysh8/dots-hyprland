@@ -7,6 +7,12 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HELPER_BIN="$SCRIPT_DIR/../colors/material-color-helper"
+if [[ -x "$HELPER_BIN" ]]; then
+    exec "$HELPER_BIN" thumbnail-batch "$@"
+fi
+
 matches_pattern() {
     local filename="$1"
     local patterns_str="$2"

@@ -96,6 +96,69 @@ MouseArea {
     //     }
     // }
 
+    // Locked status pill
+    Item {
+        id: lockedPill
+        anchors {
+            horizontalCenter: parent.horizontalCenter
+            bottom: mainIsland.top
+            bottomMargin: 16
+        }
+        visible: Config.options.lock.showLockedText
+        scale: root.toolbarScale
+        opacity: (root.toolbarOpacity && visible) ? 1 : 0
+        Behavior on opacity {
+            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+        }
+        Behavior on scale {
+            NumberAnimation {
+                duration: Appearance.animation.elementMove.duration
+                easing.type: Appearance.animation.elementMove.type
+                easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
+            }
+        }
+
+        implicitWidth: pillBg.implicitWidth
+        implicitHeight: pillBg.implicitHeight
+
+        StyledRectangularShadow {
+            target: pillBg
+            anchors.fill: undefined
+        }
+
+        Rectangle {
+            id: pillBg
+            anchors.centerIn: parent
+            implicitHeight: 36
+            implicitWidth: pillRow.implicitWidth + 14 * 2
+            radius: height / 2
+            color: Appearance.m3colors.m3surfaceContainer
+
+            Row {
+                id: pillRow
+                anchors.centerIn: parent
+                spacing: 6
+
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconSize: Appearance.font.pixelSize.larger
+                    text: "lock"
+                    color: Appearance.colors.colPrimary
+                }
+
+                StyledText {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Translation.tr("Locked")
+                    color: Appearance.colors.colOnSurfaceVariant
+                    font {
+                        pixelSize: Appearance.font.pixelSize.normal
+                        weight: Font.Medium
+                    }
+                }
+            }
+        }
+    }
+
     // Main toolbar: password box
     Toolbar {
         id: mainIsland

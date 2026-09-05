@@ -4,6 +4,10 @@ set -euo pipefail
 # iGPU router - detects vendor and calls appropriate script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HELPER_BIN="$SCRIPT_DIR/get_gpuinfo"
+if [[ -x "$HELPER_BIN" ]]; then
+    exec "$HELPER_BIN" "$@"
+fi
 
 # Check for Intel iGPU first (most common)
 # Intel iGPU: vendor 0x8086, NO lmem_total_bytes

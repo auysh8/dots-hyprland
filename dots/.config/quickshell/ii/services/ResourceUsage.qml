@@ -245,7 +245,7 @@ Singleton {
 
     Process {
         id: gpuInfoProc
-        command: ["bash", "-c", `${Directories.scriptPath}/gpu/get_igpuinfo.sh`.replace(/file:\/\//, "")]
+        command: [`${Directories.scripts}/gpu/get_igpuinfo.sh`]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {

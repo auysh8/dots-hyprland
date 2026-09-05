@@ -641,6 +641,7 @@ Item {
         title: Translation.tr("Delete note?")
         text: Translation.tr("This will permanently delete this note. This action cannot be undone.")
         confirmText: Translation.tr("Delete")
+        cancelText: Translation.tr("Cancel")
         isDestructive: true
         onCanceled: root.showDeleteDialog = false
         onConfirmed: {

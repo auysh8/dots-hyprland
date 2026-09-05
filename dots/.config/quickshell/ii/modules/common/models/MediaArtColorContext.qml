@@ -16,27 +16,46 @@ Item {
     
     property var activePlayer: null
     
+    function getYoutubeThumbnail(url) {
+        if (!url) return "";
+        let match = String(url).match(/(?:v=|\/embed\/|\/v\/|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+        return (match && match[1]) ? ("https://i.ytimg.com/vi/" + match[1] + "/hqdefault.jpg") : "";
+    }
+
     // Core inputs
     property string artUrl: (activePlayer && activePlayer.trackArtUrl) ? activePlayer.trackArtUrl : ""
     property string fallbackArtUrl: ""
-    property string effectiveArtUrl: (artUrl && artUrl.length > 0) ? artUrl : fallbackArtUrl
+    property string effectiveArtUrl: {
+        if (artUrl && artUrl.length > 0) return artUrl;
+        if (fallbackArtUrl && fallbackArtUrl.length > 0) return fallbackArtUrl;
+        let directUrl = (activePlayer && activePlayer.url) || (activePlayer && activePlayer.trackUrl) || (activePlayer && activePlayer.metadata ? (activePlayer.metadata["xesam:url"] || activePlayer.metadata["url"]) : "");
+        let ytThumb = getYoutubeThumbnail(directUrl);
+        if (ytThumb.length > 0) return ytThumb;
+        return "";
+    }
     property bool isLocalArt: effectiveArtUrl ? (String(effectiveArtUrl).startsWith("file://") || String(effectiveArtUrl).startsWith("/")) : false
     
     // File paths
     property string artDownloadLocation: Directories.coverArt
-    property string artFileName: isLocalArt ? String(effectiveArtUrl).split('/').pop() : Qt.md5(String(effectiveArtUrl))
+    property string artFileName: isLocalArt ? String(effectiveArtUrl).split('/').pop() : (Qt.md5(String(effectiveArtUrl)) + ".jpg")
     property string artFilePath: isLocalArt ? String(effectiveArtUrl).replace("file://", "") : `${artDownloadLocation}/${artFileName}`
 
     // State
     property bool downloaded: false
-    property string displayedArtFilePath: downloaded ? (isLocalArt ? effectiveArtUrl : Qt.resolvedUrl(artFilePath)) : ""
+    property string displayedArtFilePath: {
+        if (!downloaded) return "";
+        let path = isLocalArt ? effectiveArtUrl : artFilePath;
+        if (!path || path.length === 0) return "";
+        return (path.startsWith("file://") || path.startsWith("http://") || path.startsWith("https://")) 
+            ? path 
+            : Qt.resolvedUrl(path);
+    }
     
     function updateArtState() {
         console.log("[MediaArtColorContext] updateArtState() activePlayer:", activePlayer ? activePlayer.identity : "null", "effectiveArtUrl:", root.effectiveArtUrl, "isLocalArt:", root.isLocalArt, "artFilePath:", root.artFilePath)
-        localArtRetryTimer.stop()
-        localArtRetryTimer.retryCount = 0
         localArtChecker.running = false
         coverArtDownloader.running = false
+        fallbackCoverArtDownloader.running = false
 
         if (!root.effectiveArtUrl || root.effectiveArtUrl.length === 0) {
             console.log("[MediaArtColorContext] effectiveArtUrl is empty, running youtubeArtFetcher...")
@@ -89,11 +108,16 @@ Item {
 
     Process {
         id: youtubeArtFetcher
-        command: [ "bash", "-c", 'URL=$(playerctl metadata xesam:url 2>/dev/null); VID=$(echo "$URL" | grep -oP "(?:v=|\\/embed\\/|\\/v\\/|youtu\\.be\\/|\\/shorts\\/)\\K[a-zA-Z0-9_-]{11}"); [ -n "$VID" ] && echo "https://i.ytimg.com/vi/$VID/hqdefault.jpg"' ]
+        command: {
+            let pName = (activePlayer && activePlayer.dbusName) ? String(activePlayer.dbusName).replace("org.mpris.MediaPlayer2.", "") : "";
+            return pName ? [ "playerctl", "--player=" + pName, "metadata", "xesam:url" ] : [ "playerctl", "metadata", "xesam:url" ];
+        }
         stdout: SplitParser {
             onRead: data => {
-                var url = String(data).trim()
-                if (url.length > 0) {
+                var text = String(data).trim()
+                var match = text.match(/(?:v=|\/embed\/|\/v\/|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/)
+                if (match && match[1]) {
+                    var url = "https://i.ytimg.com/vi/" + match[1] + "/hqdefault.jpg"
                     console.log("[MediaArtColorContext] youtubeArtFetcher extracted thumbnail URL:", url)
                     root.fallbackArtUrl = url
                 }
@@ -104,42 +128,28 @@ Item {
     Process {
         id: localArtChecker
         property string checkPath: ""
-        command: [ "bash", "-c", '[ -s "$1" ]', "_", checkPath ]
+        command: [
+            Directories.materialColorHelperPath,
+            "file-ready", checkPath, "1500"
+        ]
         onExited: (exitCode, exitStatus) => {
             console.log("[MediaArtColorContext] localArtChecker exited with code:", exitCode, "for path:", checkPath)
+            root.downloaded = true
             if (exitCode === 0) {
-                root.downloaded = true
                 console.log("[MediaArtColorContext] Local art verified non-empty! displayedArtFilePath:", root.displayedArtFilePath)
-            } else if (localArtRetryTimer.retryCount < 15) {
-                console.log("[MediaArtColorContext] Local art not ready yet, retrying...", localArtRetryTimer.retryCount + 1)
-                localArtRetryTimer.start()
             } else {
-                console.log("[MediaArtColorContext] Max retries reached for local art. Setting downloaded = true anyway.")
-                root.downloaded = true
+                console.log("[MediaArtColorContext] Local art wait timed out. Setting downloaded = true.")
             }
-        }
-    }
-
-    Timer {
-        id: localArtRetryTimer
-        property int retryCount: 0
-        interval: 100
-        repeat: false
-        onTriggered: {
-            retryCount++
-            localArtChecker.running = false
-            localArtChecker.running = true
         }
     }
 
     Process {
         id: coverArtDownloader
-        property string targetFile: root.artUrl
+        property string targetFile: root.effectiveArtUrl
         property string artFilePath: root.artFilePath
         command: [
-            "bash", "-c",
-            '[ -f "$1" ] && [ -s "$1" ] || { curl -sSL -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0" "$2" -o "$1" && [ -s "$1" ]; }',
-            "_", artFilePath, targetFile
+            Directories.materialColorHelperPath,
+            "download-cover", targetFile, artFilePath
         ]
         onExited: (exitCode, exitStatus) => {
             console.log("[MediaArtColorContext] coverArtDownloader exited with code:", exitCode, "target:", targetFile)
@@ -147,18 +157,32 @@ Item {
                 root.downloaded = true
                 console.log("[MediaArtColorContext] Remote art downloaded successfully! displayedArtFilePath:", root.displayedArtFilePath)
             } else {
-                console.log("[MediaArtColorContext] Remote art download failed!")
-                coverArtCleaner.running = false
-                coverArtCleaner.cleanPath = artFilePath
-                coverArtCleaner.running = true
+                console.log("[MediaArtColorContext] Remote art helper download failed, attempting shell curl fallback...")
+                fallbackCoverArtDownloader.targetFile = targetFile
+                fallbackCoverArtDownloader.artFilePath = artFilePath
+                fallbackCoverArtDownloader.running = false
+                fallbackCoverArtDownloader.running = true
             }
         }
     }
 
     Process {
-        id: coverArtCleaner
-        property string cleanPath: ""
-        command: [ "bash", "-c", '[ -f "$1" ] && [ ! -s "$1" ] && rm -f "$1"', "_", cleanPath ]
+        id: fallbackCoverArtDownloader
+        property string targetFile: root.effectiveArtUrl
+        property string artFilePath: root.artFilePath
+        command: [
+            "bash", "-c",
+            'mkdir -p "$(dirname "$1")" && { [ -f "$1" ] && [ -s "$1" ] || curl -sSL -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0" "$2" -o "$1"; } && [ -s "$1" ]',
+            "_", artFilePath, targetFile
+        ]
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                root.downloaded = true
+                console.log("[MediaArtColorContext] Fallback curl download succeeded! displayedArtFilePath:", root.displayedArtFilePath)
+            } else {
+                console.log("[MediaArtColorContext] Fallback curl download failed!")
+            }
+        }
     }
 
     // Color Extraction

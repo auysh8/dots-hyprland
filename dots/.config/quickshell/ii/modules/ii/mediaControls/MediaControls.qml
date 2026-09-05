@@ -22,7 +22,7 @@ Scope {
     readonly property real widgetWidth: Appearance.sizes.mediaControlsWidth
     readonly property real widgetHeight: Appearance.sizes.mediaControlsHeight
     property real popupRounding: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
-    property list<real> visualizerPoints: []
+    property list<real> visualizerPoints: GlobalStates.visualizerPoints
 
     function filterDuplicatePlayers(players) {
         let filtered = [];
@@ -51,26 +51,6 @@ Scope {
         return filtered;
     }
 
-    Process {
-        id: cavaProc
-        running: (mediaControlsLoader.active ||
-            (Config.options && Config.options.background && Config.options.background.widgets && Config.options.background.widgets.visualizer && Config.options.background.widgets.visualizer.enable))
-            && MprisController.activePlayer !== null
-        onRunningChanged: {
-            if (!cavaProc.running) {
-                root.visualizerPoints = [];
-                GlobalStates.visualizerPoints = [];
-            }
-        }
-        command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
-        stdout: SplitParser {
-            onRead: data => {
-                let points = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
-                root.visualizerPoints = points;
-                GlobalStates.visualizerPoints = points;
-            }
-        }
-    }
 
     Loader {
         id: mediaControlsLoader

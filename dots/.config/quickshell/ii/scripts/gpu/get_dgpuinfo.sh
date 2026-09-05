@@ -4,6 +4,10 @@ set -euo pipefail
 # dGPU router - detects vendor and calls appropdriate script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HELPER_BIN="$SCRIPT_DIR/get_gpuinfo"
+if [[ -x "$HELPER_BIN" ]]; then
+    exec "$HELPER_BIN" --dgpu "$@"
+fi
 
 # Check for NVIDIA dGPU (nvidia-smi is the easiest indicator)
 if command -v nvidia-smi &> /dev/null; then

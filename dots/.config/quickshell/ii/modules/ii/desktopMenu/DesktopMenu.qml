@@ -80,6 +80,25 @@ Scope {
         return [root.displayPathFor(current), ...randomWallpapers.map(p => root.displayPathFor(p))]
     }
 
+    // Dismiss menu on workspace change or monitor change
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (GlobalStates.desktopMenuOpen && (event.name === "workspace" || event.name === "workspacev2" || event.name === "focusedmon")) {
+                GlobalStates.desktopMenuOpen = false
+            }
+        }
+    }
+
+    Connections {
+        target: WM
+        function onActiveWorkspaceChanged() {
+            if (GlobalStates.desktopMenuOpen) {
+                GlobalStates.desktopMenuOpen = false
+            }
+        }
+    }
+
     // Menu window
     Loader {
         active: GlobalStates.desktopMenuOpen
@@ -93,6 +112,12 @@ Scope {
             exclusiveZone: 0
             WlrLayershell.namespace: "quickshell:desktopMenu"
             WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+
+            Shortcut {
+                sequence: "Escape"
+                onActivated: GlobalStates.desktopMenuOpen = false
+            }
 
             anchors {
                 top: true

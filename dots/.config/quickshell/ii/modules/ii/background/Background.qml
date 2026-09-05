@@ -667,27 +667,8 @@ Variants {
                         }
                     }
 
-                    property real calculatedTargetSize: {
-                        if (!bgRoot.centeredWallpaperAutoResize || !bgRoot.centeredWallpaperFaceTracking || !bgRoot.hasSubject) {
-                            return bgRoot.centeredWallpaperSize
-                        }
-                        // Compute pixel size of the subject on screen
-                        const subjectPixelW = wallpaper.width * bgRoot.subjectWidthRel
-                        const subjectPixelH = wallpaper.height * bgRoot.subjectHeightRel
-                        const maxSubjectDim = Math.max(subjectPixelW, subjectPixelH)
-                        
-                        // Add comfortable framing padding (1.8x for faces, 1.35x for objects)
-                        const paddingMultiplier = (bgRoot.focalType === "face") ? 2.0 : 1.4
-                        const framedSize = maxSubjectDim * paddingMultiplier
-                        
-                        // Clamp between minimum aesthetic size (320px) and screen headroom (up to 85% of screen height)
-                        const minSize = 320
-                        const maxSize = Math.min(parent.height * 0.85, 900)
-                        return Math.max(minSize, Math.min(maxSize, framedSize))
-                    }
-
-                    width: calculatedTargetSize
-                    height: calculatedTargetSize
+                    width: bgRoot.centeredWallpaperSize
+                    height: bgRoot.centeredWallpaperSize
 
                     Behavior on width {
                         NumberAnimation {
@@ -753,22 +734,55 @@ Variants {
                         anchors.fill: parent
                         clip: true
 
-                        // Option A:
-                        // With face tracking, subject stays centered in the frame.
-                        // When centeredWallpaperShapeItem reaches (wallpaper.width * bgRoot.focalX),
-                        // this coordinate naturally matches -centeredWallpaperShapeItem.x to the exact pixel.
-                        // Without face tracking, acts as a 1:1 wallpaper peephole.
                         StyledImage {
                             id: framedImage
-                            property real subjectCenteredX: (centeredWallpaperShapeItem.width / 2) - (wallpaper.width * bgRoot.focalX)
-                            property real subjectCenteredY: (centeredWallpaperShapeItem.height / 2) - (wallpaper.height * bgRoot.focalY)
-                            property real peepholeX: -centeredWallpaperShapeItem.x
-                            property real peepholeY: -centeredWallpaperShapeItem.y
+
+                            readonly property real frameW: centeredWallpaperShapeItem.width
+                            readonly property real frameH: centeredWallpaperShapeItem.height
+
+                            // Minimum scale so the image always covers the entire frame
+                            readonly property real minCoverScale: (wallpaper.width > 0 && wallpaper.height > 0)
+                                ? Math.max(frameW / wallpaper.width, frameH / wallpaper.height)
+                                : 1.0
+
+                            // Scaling factor so the subject occupies ~65% of the frame
+                            readonly property real subjectScale: {
+                                if (!bgRoot.centeredWallpaperFaceTracking || !bgRoot.hasSubject) {
+                                    return Math.max(minCoverScale, 0.5);
+                                }
+                                const subjW = wallpaper.width * bgRoot.subjectWidthRel;
+                                const subjH = wallpaper.height * bgRoot.subjectHeightRel;
+                                const maxSubjDim = Math.max(subjW, subjH);
+                                if (maxSubjDim <= 0) return Math.max(minCoverScale, 0.5);
+
+                                const targetSubjSize = Math.min(frameW, frameH) * 0.65;
+                                const desiredScale = targetSubjSize / maxSubjDim;
+                                // Can scale down to minCoverScale for large subjects, but never zoom in past 0.5x
+                                return Math.max(minCoverScale, Math.min(0.5, desiredScale));
+                            }
+
+                            readonly property real effectiveScale: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject)
+                                ? subjectScale
+                                : Math.max(minCoverScale, 0.5)
+
+                            width: wallpaper.width * effectiveScale
+                            height: wallpaper.height * effectiveScale
+
+                            // Translation bounds: ensure image always fully covers the frame
+                            readonly property real minX: Math.min(0, frameW - width)
+                            readonly property real maxX: 0
+                            readonly property real minY: Math.min(0, frameH - height)
+                            readonly property real maxY: 0
+
+                            property real rawSubjectCenteredX: (frameW / 2) - (width * bgRoot.focalX)
+                            property real rawSubjectCenteredY: (frameH / 2) - (height * bgRoot.focalY)
+                            property real subjectCenteredX: Math.max(minX, Math.min(maxX, rawSubjectCenteredX))
+                            property real subjectCenteredY: Math.max(minY, Math.min(maxY, rawSubjectCenteredY))
+                            property real peepholeX: Math.max(minX, Math.min(maxX, -centeredWallpaperShapeItem.x * effectiveScale))
+                            property real peepholeY: Math.max(minY, Math.min(maxY, -centeredWallpaperShapeItem.y * effectiveScale))
 
                             x: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject) ? subjectCenteredX : peepholeX
                             y: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject) ? subjectCenteredY : peepholeY
-                            width: wallpaper.width
-                            height: wallpaper.height
 
                             Behavior on x {
                                 NumberAnimation {
@@ -778,6 +792,20 @@ Variants {
                                 }
                             }
                             Behavior on y {
+                                NumberAnimation {
+                                    duration: 800
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                                }
+                            }
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: 800
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
+                                }
+                            }
+                            Behavior on height {
                                 NumberAnimation {
                                     duration: 800
                                     easing.type: Easing.BezierSpline

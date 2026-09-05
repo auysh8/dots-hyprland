@@ -31,33 +31,21 @@ Item {
         readonly property bool usePrimaryVariant: frameActive && frameColorName === "secondaryContainer"
         y: pixelHorizontal ? -26 : 0
         x: pixelHorizontal ? -20 : 0
-        implicitWidth: quoteRow.implicitWidth + 8 * 2
-        implicitHeight: quoteRow.implicitHeight + 4 * 2
+        implicitWidth: quoteStyledText.implicitWidth + 12 * 2
+        implicitHeight: quoteStyledText.implicitHeight + 6 * 2
         radius: Appearance.rounding.small
         color: usePrimaryVariant ? Appearance.colors.colPrimaryContainer : Appearance.colors.colSecondaryContainer
 
-        Row {
-            id: quoteRow
+        StyledText {
+            id: quoteStyledText
             anchors.centerIn: parent
-            spacing: 4
-            
-            MaterialSymbol {
-                id: quoteIcon
-                anchors.top: parent.top
-                iconSize: Appearance.font.pixelSize.huge
-                text: "format_quote"
-                color: quoteBox.usePrimaryVariant ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSecondaryContainer
-            }
-            StyledText {
-                id: quoteStyledText
-                horizontalAlignment: Text.AlignLeft
-                text: Config.options.background.widgets.clock.quote.text
-                color: quoteBox.usePrimaryVariant ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSecondaryContainer
-                font {
-                    family: Config.options.background.widgets.clock.quote.followClock ? Config.options.background.widgets.clock.digital.font.family : Appearance.font.family.reading 
-                    pixelSize: Appearance.font.pixelSize.large
-                    weight: Font.Normal
-                }
+            horizontalAlignment: Text.AlignHCenter
+            text: Config.options.background.widgets.clock.quote.text
+            color: quoteBox.usePrimaryVariant ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSecondaryContainer
+            font {
+                family: Config.options.background.widgets.clock.quote.followClock ? Config.options.background.widgets.clock.digital.font.family : Appearance.font.family.reading 
+                pixelSize: Appearance.font.pixelSize.large
+                weight: Font.Normal
             }
         }
     }
