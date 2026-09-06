@@ -31,23 +31,25 @@ Item {
         anchors.centerIn: parent
         spacing: 4
 
-        StyledText {
+        StyledText { // Time: expressive numbers typeface, heavy weight
+            font.family: Appearance.font.family.numbers
             font.pixelSize: Appearance.font.pixelSize.large
-            color: Appearance.colors.colOnLayer1
+            font.weight: Font.Bold
+            color: Appearance.colors.colOnLayer0
             text: DateTime.time
         }
 
         StyledText {
             visible: root.showDate
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colOnLayer1
+            color: Appearance.colors.colSubtext
             text: "•"
         }
 
         StyledText {
             visible: root.showDate
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colOnLayer1
+            color: Appearance.colors.colSubtext
             text: DateTime.longDate
         }
     }

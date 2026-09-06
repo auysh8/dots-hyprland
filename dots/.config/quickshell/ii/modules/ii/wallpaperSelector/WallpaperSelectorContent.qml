@@ -20,8 +20,8 @@ MouseArea {
         const totalImageMargin = (Appearance.sizes.wallpaperSelectorItemMargins + Appearance.sizes.wallpaperSelectorItemPadding) * 2;
         const thumbnailSizeName = Images.thumbnailSizeNameForDimensions(grid.cellWidth - totalImageMargin, grid.cellHeight - totalImageMargin);
         Wallpapers.generateThumbnail(thumbnailSizeName);
-        // Also pre-crop wallpapers to screen resolution for seamless transitions
-        Wallpapers.generateCrops(Wallpapers.screenWidth, Wallpapers.screenHeight);
+        // Also pre-crop wallpapers to parallax resolution for seamless transitions without loss of sharpness
+        Wallpapers.generateCrops(Wallpapers.cropWidth, Wallpapers.cropHeight);
     }
 
     Connections {

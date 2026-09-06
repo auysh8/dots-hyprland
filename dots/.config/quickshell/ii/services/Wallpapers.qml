@@ -34,6 +34,9 @@ Singleton {
     // Screen resolution for crop cache — set by Background.qml on first load
     property int screenWidth: 1920
     property int screenHeight: 1080
+    readonly property real parallaxRatio: Math.max(Config.options.background.parallax.workspaceZoom ?? 1.2, 1.07)
+    readonly property int cropWidth: Math.ceil(screenWidth * (Config.options.background.parallax.enableWorkspace || Config.options.background.parallax.enableSidebar ? parallaxRatio : 1.0))
+    readonly property int cropHeight: Math.ceil(screenHeight * (Config.options.background.parallax.enableWorkspace || Config.options.background.parallax.enableSidebar ? parallaxRatio : 1.0))
 
     signal changed()
     signal thumbnailGenerated(directory: string)
@@ -200,8 +203,10 @@ Singleton {
     readonly property bool cropGenerationRunning: wallpaperCropProc.running
     signal cropGenerated(directory: string)
 
-    function generateCrops(screenWidth: int, screenHeight: int) {
-        const resolution = `${screenWidth}x${screenHeight}`
+    function generateCrops(width = 0, height = 0) {
+        const targetW = width > 0 ? width : root.cropWidth
+        const targetH = height > 0 ? height : root.cropHeight
+        const resolution = `${targetW}x${targetH}`
         wallpaperCropProc.resolution = resolution
         wallpaperCropProc.running = false
         wallpaperCropProc.command = [
@@ -218,9 +223,11 @@ Singleton {
     // Returns the pre-cropped cache path for a wallpaper at a given resolution.
     // Uses the same URI encoding + Qt.md5 hash as ThumbnailImage.qml for consistency.
     // The file may not exist yet if crops haven't been generated — callers should check.
-    function getCachedCropPath(originalPath: string, screenWidth: int, screenHeight: int): string {
+    function getCachedCropPath(originalPath, width = 0, height = 0) {
         if (!originalPath || originalPath.length === 0) return ""
-        const resolution = `${screenWidth}x${screenHeight}`
+        const targetW = width > 0 ? width : root.cropWidth
+        const targetH = height > 0 ? height : root.cropHeight
+        const resolution = `${targetW}x${targetH}`
         const encoded = originalPath.split("/").map(part => encodeURIComponent(part)).join("/")
         const md5Hash = Qt.md5(`file://${encoded}`)
         return `${FileUtils.trimFileProtocol(Directories.genericCache)}/wallpapers/${resolution}/${md5Hash}.png`

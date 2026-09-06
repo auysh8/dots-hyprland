@@ -25,7 +25,12 @@ MouseArea {
         valueBarHeight: 36
         value: percentage
         // value: 1
-        highlightColor: (isLow && !isCharging) ? Appearance.m3colors.m3error : Appearance.colors.colOnSecondaryContainer
+        // Filled-accent mapping mirroring BatteryPopup: the color doubles as the fill
+        // behind the OneUI-style clipped readout, so use the filled accent roles
+        // (guaranteed contrast) instead of container/on-container pairs.
+        highlightColor: (isLow && !isCharging) ? Appearance.colors.colError
+            : (isCharging || percentage >= 1) ? Appearance.colors.colPrimary
+            : Appearance.colors.colTertiary
 
         font {
             pixelSize: 13

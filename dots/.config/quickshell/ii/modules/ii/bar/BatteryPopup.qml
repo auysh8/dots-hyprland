@@ -14,24 +14,19 @@ StyledPopup {
     readonly property bool fullyCharged: Battery.chargeState == 4
     readonly property bool lowAndNotCharging: Battery.isLow && !Battery.isCharging
 
-    // State -> M3 color role mapping: containers for surfaces, on-colors for content
+    // State -> M3 color role mapping. Filled accent + its on-color guarantees contrast
+    // even when the wallpaper generates muddy, low-chroma container pairs.
     readonly property color accentColor: {
         if (!Battery.available) return Appearance.colors.colSecondary;
         if (lowAndNotCharging) return Appearance.colors.colError;
         if (Battery.isCharging || fullyCharged) return Appearance.colors.colPrimary;
         return Appearance.colors.colTertiary;
     }
-    readonly property color accentContainerColor: {
-        if (!Battery.available) return Appearance.colors.colSecondaryContainer;
-        if (lowAndNotCharging) return Appearance.colors.colErrorContainer;
-        if (Battery.isCharging || fullyCharged) return Appearance.colors.colPrimaryContainer;
-        return Appearance.colors.colTertiaryContainer;
-    }
-    readonly property color onAccentContainerColor: {
-        if (!Battery.available) return Appearance.colors.colOnSecondaryContainer;
-        if (lowAndNotCharging) return Appearance.colors.colOnErrorContainer;
-        if (Battery.isCharging || fullyCharged) return Appearance.colors.colOnPrimaryContainer;
-        return Appearance.colors.colOnTertiaryContainer;
+    readonly property color onAccentColor: {
+        if (!Battery.available) return Appearance.colors.colOnSecondary;
+        if (lowAndNotCharging) return Appearance.colors.colOnError;
+        if (Battery.isCharging || fullyCharged) return Appearance.colors.colOnPrimary;
+        return Appearance.colors.colOnTertiary;
     }
 
     readonly property string stateIcon: {
@@ -73,14 +68,15 @@ StyledPopup {
             : Translation.tr("Discharging");
     }
 
-    // Hero silhouette morph: charging = spiky 9-sided cookie (energetic), full = flower
-    // (blooming), discharging = calm 12-sided cookie, no battery / low battery = plain
-    // circle (still, alarming). ShapeCanvas morphs between them automatically.
+    // Hero silhouette morph: charging = sunny (radiating energy), full = pill
+    // (calm and complete), discharging = 4-sided cookie (gentle scallops),
+    // no battery / low battery = plain circle (still, alarming). ShapeCanvas
+    // morphs between them automatically.
     readonly property int heroShape: {
         if (!Battery.available || lowAndNotCharging) return MaterialShape.Shape.Circle;
-        if (fullyCharged) return MaterialShape.Shape.Flower;
-        if (Battery.isCharging) return MaterialShape.Shape.Cookie9Sided;
-        return MaterialShape.Shape.Cookie12Sided;
+        if (fullyCharged) return MaterialShape.Shape.Pill;
+        if (Battery.isCharging) return MaterialShape.Shape.Sunny;
+        return MaterialShape.Shape.Cookie4Sided;
     }
 
     // NOTE: the state-change and entrance animations are declared inside columnLayout —
@@ -114,22 +110,22 @@ StyledPopup {
             id: heroBadge
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 4
-            implicitWidth: 72
-            implicitHeight: 72
+            implicitWidth: 79 // 72 * 1.1 — 10% bigger
+            implicitHeight: 79
             opacity: 0 // Animated in by heroEntrance
             scale: 0.9
 
             MaterialShapeWrappedMaterialSymbol {
                 id: heroVessel
                 anchors.centerIn: parent
-                implicitSize: 64
+                implicitSize: 70 // 64 * 1.1 — 10% bigger
                 wrappedShape: root.heroShape
                 text: root.stateIcon
-                iconSize: 36
+                iconSize: 40 // 36 * 1.1 — 10% bigger
                 fill: 1
                 padding: 14
-                color: root.accentContainerColor
-                colSymbol: root.onAccentContainerColor
+                color: root.accentColor
+                colSymbol: root.onAccentColor
 
                 Behavior on color {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -172,7 +168,7 @@ StyledPopup {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: Battery.available ? `${Math.round(Battery.percentage * 100)}%` : "AC"
                 font.family: Appearance.font.family.numbers
-                font.pixelSize: 42
+                font.pixelSize: 36 // 38 * 0.95 — 10% + 5% smaller per design tweaks
                 font.weight: Font.Black
                 font.variableAxes: ({}) // Let font.weight drive wght (override StyledText's default axes)
                 color: root.accentColor
@@ -185,10 +181,10 @@ StyledPopup {
             Rectangle { // Tonal capsule pill badge — container/on-container pair
                 id: badgePill
                 anchors.horizontalCenter: parent.horizontalCenter
-                implicitWidth: badgeLabel.implicitWidth + 26
-                implicitHeight: badgeLabel.implicitHeight + 12
+                implicitWidth: badgeLabel.implicitWidth + 22
+                implicitHeight: badgeLabel.implicitHeight + 10
                 radius: Appearance.rounding.full
-                color: root.accentContainerColor
+                color: root.accentColor
 
                 Behavior on color {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -198,10 +194,10 @@ StyledPopup {
                     id: badgeLabel
                     anchors.centerIn: parent
                     text: root.badgeText
-                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.pixelSize: Appearance.font.pixelSize.smaller // 12 — ~15% below `small`
                     font.weight: Font.DemiBold
                     font.letterSpacing: 0.3
-                    color: root.onAccentContainerColor
+                    color: root.onAccentColor
 
                     Behavior on color {
                         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)

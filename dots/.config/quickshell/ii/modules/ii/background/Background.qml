@@ -495,10 +495,10 @@ Variants {
                     return - bgRoot.parallaxTotalPixelsY * usedFractionY;
                 }
 
-                // Use pre-cropped cache if available, fall back to original
+                // Use pre-cropped cache matching full scaled parallax resolution if available, fall back to original
                 property string _originalPath: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
                 property string _cropPath: _originalPath.length > 0
-                    ? Wallpapers.getCachedCropPath(_originalPath, bgRoot.screen.width, bgRoot.screen.height)
+                    ? Wallpapers.getCachedCropPath(_originalPath, Math.ceil(bgRoot.scaledWallpaperWidth), Math.ceil(bgRoot.scaledWallpaperHeight))
                     : ""
                 source: _cropPath.length > 0 ? _cropPath : _originalPath
                 fillMode: Image.PreserveAspectCrop

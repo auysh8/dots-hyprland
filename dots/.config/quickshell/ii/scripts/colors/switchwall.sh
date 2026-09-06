@@ -288,9 +288,22 @@ switch() {
             done
             create_restore_script "$video_path"
         else
-            # Ensure pre-crop cache is freshly generated if needed
+            # Ensure pre-crop cache is freshly generated if needed at full parallax scale
             if [ -n "$imgpath" ] && [ -f "$imgpath" ]; then
-                "$SCRIPT_DIR/../thumbnails/generate-wallpaper-crops.sh" --file "$imgpath" --resolution "${MONITOR_MAX_W}x${MONITOR_MAX_H}"
+                local p_zoom
+                p_zoom="$(jq -r '.background.parallax.workspaceZoom // 1.2' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "1.2")"
+                local p_ws
+                p_ws="$(jq -r '.background.parallax.enableWorkspace // true' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "true")"
+                local p_sb
+                p_sb="$(jq -r '.background.parallax.enableSidebar // true' "$SHELL_CONFIG_FILE" 2>/dev/null || echo "true")"
+                
+                local crop_w="$MONITOR_MAX_W"
+                local crop_h="$MONITOR_MAX_H"
+                if [ "$p_ws" = "true" ] || [ "$p_sb" = "true" ]; then
+                    crop_w=$(python3 -c "import math; print(math.ceil($MONITOR_MAX_W * max(float('$p_zoom'), 1.07)))" 2>/dev/null || echo "$MONITOR_MAX_W")
+                    crop_h=$(python3 -c "import math; print(math.ceil($MONITOR_MAX_H * max(float('$p_zoom'), 1.07)))" 2>/dev/null || echo "$MONITOR_MAX_H")
+                fi
+                "$SCRIPT_DIR/../thumbnails/generate-wallpaper-crops.sh" --file "$imgpath" --resolution "${crop_w}x${crop_h}"
             fi
 
             # Update wallpaper path in config
@@ -416,6 +429,16 @@ switch() {
 
         # 3. HIGH PRIORITY: Generate colors (needed for UI)
         nice -n 5 ionice -c2 -n4 matugen "${matugen_args[@]}" &>/dev/null
+        
+        # Ensure path.txt and hyprlock use the real wallpaper path, not the color thumbnail
+        if [[ -n "$imgpath" ]]; then
+            mkdir -p "$STATE_DIR/user/generated/wallpaper"
+            echo "$imgpath" > "$STATE_DIR/user/generated/wallpaper/path.txt"
+            if [[ -f "$HOME/.config/hypr/hyprlock/colors.conf" ]]; then
+                sed -i "s|^\$background_image = .*|\$background_image = $imgpath|" "$HOME/.config/hypr/hyprlock/colors.conf"
+            fi
+        fi
+
         source "$(eval echo $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate"
         nice -n 5 ionice -c2 -n4 python3 "$SCRIPT_DIR/generate_colors_material.py" \
             "${generate_colors_material_args[@]}" > "$STATE_DIR"/user/generated/material_colors.scss

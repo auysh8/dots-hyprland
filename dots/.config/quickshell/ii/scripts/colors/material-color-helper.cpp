@@ -675,7 +675,13 @@ static bool process_single_crop(const std::string& src_path, const std::string& 
 
         std::vector<unsigned char> out_data(tw * th * 3);
         const unsigned char* in_sub = img->data + (src_y * w + src_x) * 3;
-        stbir_resize_uint8_linear(in_sub, crop_w, crop_h, w * 3, out_data.data(), tw, th, 0, STBIR_RGB);
+        
+        STBIR_RESIZE resize;
+        stbir_resize_init(&resize, in_sub, crop_w, crop_h, w * 3, out_data.data(), tw, th, tw * 3, STBIR_RGB, STBIR_TYPE_UINT8);
+        stbir_set_filters(&resize, STBIR_FILTER_MITCHELL, STBIR_FILTER_MITCHELL);
+        if (!stbir_resize_extended(&resize)) {
+            stbir_resize_uint8_linear(in_sub, crop_w, crop_h, w * 3, out_data.data(), tw, th, 0, STBIR_RGB);
+        }
         return stbi_write_png(out_path.c_str(), tw, th, 3, out_data.data(), tw * 3) != 0;
     }
 
