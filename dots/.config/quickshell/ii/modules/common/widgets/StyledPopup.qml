@@ -11,6 +11,7 @@ LazyLoader {
     property Item hoverTarget
     default property Item contentItem
     property real popupBackgroundMargin: 0
+    property real popupRadius: Appearance.rounding.normal + 4
     active: hoverTarget && hoverTarget.containsMouse
 
     readonly property bool barVertical: Config.options.bar.vertical
@@ -97,8 +98,8 @@ LazyLoader {
             implicitWidth: (popupWindow.innerContent?.implicitWidth ?? 0) + margin * 2
             implicitHeight: (popupWindow.innerContent?.implicitHeight ?? 0) + margin * 2
 
-            color: Appearance.colors.colLayer1Base
-            radius: Appearance.rounding.normal + 4
+            color: Appearance.colors.colLayer0
+            radius: root.popupRadius
             border.width: 1
             border.color: Appearance.colors.colLayer0Border
 

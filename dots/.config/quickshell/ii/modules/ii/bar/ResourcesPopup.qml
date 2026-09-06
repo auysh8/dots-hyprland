@@ -44,7 +44,7 @@ StyledPopup {
             readonly property color effectiveTrack: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.12)
 
             Layout.preferredWidth: 104
-            Layout.preferredHeight: 130
+            Layout.preferredHeight: 140
             radius: Appearance.rounding.large
 
             // Uniform elevated surface for all containers
@@ -125,7 +125,7 @@ StyledPopup {
                         Layout.alignment: Qt.AlignHCenter
                         text: card.label
                         font.weight: Font.DemiBold
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.small
                         font.letterSpacing: 0.8
                         color: card.effectiveAccent
                     }
