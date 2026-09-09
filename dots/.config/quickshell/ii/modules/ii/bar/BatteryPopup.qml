@@ -164,17 +164,34 @@ StyledPopup {
             opacity: 0 // Animated in by statusClusterEntrance
             scale: 0.92
 
-            StyledText { // Large display percentage in the numbers typeface
+            Item { // Large display percentage in the numbers typeface
+                // Width reserved for the widest value so the cluster doesn't resize as digits change
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: Battery.available ? `${Math.round(Battery.percentage * 100)}%` : "AC"
-                font.family: Appearance.font.family.numbers
-                font.pixelSize: 36 // 38 * 0.95 — 10% + 5% smaller per design tweaks
-                font.weight: Font.Black
-                font.variableAxes: ({}) // Let font.weight drive wght (override StyledText's default axes)
-                color: root.accentColor
+                implicitWidth: heroPercentageMetrics.width
+                implicitHeight: heroPercentage.implicitHeight
 
-                Behavior on color {
-                    animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                TextMetrics {
+                    id: heroPercentageMetrics
+                    text: "100%"
+                    font.family: Appearance.font.family.numbers
+                    font.pixelSize: 36 // 38 * 0.95 — 10% + 5% smaller per design tweaks
+                    font.weight: Font.Black
+                }
+
+                StyledText {
+                    id: heroPercentage
+                    anchors.centerIn: parent
+                    text: Battery.available ? `${Math.round(Battery.percentage * 100)}%` : "AC"
+                    font.family: Appearance.font.family.numbers
+                    font.pixelSize: 36 // 38 * 0.95 — 10% + 5% smaller per design tweaks
+                    font.weight: Font.Black
+                    font.variableAxes: ({}) // Let font.weight drive wght (override StyledText's default axes)
+                    font.features: { "tnum": 1 } // Equal-width digits: no jitter as the number updates
+                    color: root.accentColor
+
+                    Behavior on color {
+                        animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                    }
                 }
             }
 
@@ -189,6 +206,10 @@ StyledPopup {
                 Behavior on color {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
                 }
+                // Morph the pill's width so text changes don't snap the size
+                Behavior on implicitWidth {
+                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                }
 
                 StyledText {
                     id: badgeLabel
@@ -198,6 +219,29 @@ StyledPopup {
                     font.weight: Font.DemiBold
                     font.letterSpacing: 0.3
                     color: root.onAccentColor
+
+                    // Crossfade when the state text changes (overrides StyledText's
+                    // x/y-based text animation, which would fight the center anchor)
+                    Behavior on text {
+                        SequentialAnimation {
+                            alwaysRunToEnd: true
+                            NumberAnimation {
+                                target: badgeLabel
+                                property: "opacity"
+                                to: 0
+                                duration: Appearance.animation.elementMoveFast.duration / 2
+                                easing.type: Appearance.animation.elementMoveFast.type
+                            }
+                            PropertyAction {} // Swap the text while invisible
+                            NumberAnimation {
+                                target: badgeLabel
+                                property: "opacity"
+                                to: 1
+                                duration: Appearance.animation.elementMoveFast.duration / 2
+                                easing.type: Appearance.animation.elementMoveFast.type
+                            }
+                        }
+                    }
 
                     Behavior on color {
                         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -245,6 +289,8 @@ StyledPopup {
                 property color iconColor
                 property string label
                 property string value
+                // Widest expected value, used to reserve width so cards don't resize as numbers update
+                property string widestValue
 
                 Layout.fillWidth: true
                 // Size to content so the parent row knows the real space needed
@@ -286,14 +332,31 @@ StyledPopup {
                         }
                     }
 
-                    StyledText { // Large bold numeric readout in the numbers typeface
+                    Item { // Large bold numeric readout in the numbers typeface
+                        // Width reserved for the widest value so cards don't resize as numbers update
                         Layout.alignment: Qt.AlignHCenter
-                        text: card.value
-                        font.family: Appearance.font.family.numbers
-                        font.pixelSize: Appearance.font.pixelSize.huge
-                        font.weight: Font.Bold
-                        font.variableAxes: ({}) // Let font.weight drive wght
-                        color: Appearance.colors.colOnSurface
+                        implicitWidth: valueMetrics.width
+                        implicitHeight: cardValue.implicitHeight
+
+                        TextMetrics {
+                            id: valueMetrics
+                            text: card.widestValue
+                            font.family: Appearance.font.family.numbers
+                            font.pixelSize: Appearance.font.pixelSize.huge
+                            font.weight: Font.Bold
+                        }
+
+                        StyledText {
+                            id: cardValue
+                            anchors.centerIn: parent
+                            text: card.value
+                            font.family: Appearance.font.family.numbers
+                            font.pixelSize: Appearance.font.pixelSize.huge
+                            font.weight: Font.Bold
+                            font.variableAxes: ({}) // Let font.weight drive wght
+                            font.features: { "tnum": 1 } // Equal-width digits: no jitter as the number updates
+                            color: Appearance.colors.colOnSurface
+                        }
                     }
                 }
             }
@@ -303,6 +366,7 @@ StyledPopup {
                 iconColor: root.accentColor
                 label: Translation.tr("RATE")
                 value: Battery.available ? `${Battery.energyRate.toFixed(1)}W` : "—"
+                widestValue: "100.0W"
             }
 
             MetricCard {
@@ -310,6 +374,7 @@ StyledPopup {
                 iconColor: Appearance.colors.colSecondary
                 label: Translation.tr("HEALTH")
                 value: Battery.health > 0 ? `${Battery.health.toFixed(1)}%` : "—"
+                widestValue: "100.0%"
             }
 
             SequentialAnimation {
