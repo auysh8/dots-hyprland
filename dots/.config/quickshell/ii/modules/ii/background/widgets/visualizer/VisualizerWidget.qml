@@ -75,6 +75,23 @@ AbstractBackgroundWidget {
     y: screenHeight - implicitHeight
     draggable: false
 
+    // Precomputed 20-step gradient table: evaluated once when colors change, 0 JS overhead per frame
+    readonly property var colorPalette: {
+        let p = []
+        const c1 = Appearance.colors.colPrimary
+        const c0 = Appearance.colors.colPrimaryContainer
+        for (let i = 0; i <= 20; i++) {
+            let t = i / 20.0
+            p.push(Qt.rgba(
+                c1.r * t + c0.r * (1.0 - t),
+                c1.g * t + c0.g * (1.0 - t),
+                c1.b * t + c0.b * (1.0 - t),
+                1
+            ))
+        }
+        return p
+    }
+
     Row {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
@@ -99,17 +116,8 @@ AbstractBackgroundWidget {
                 topRightRadius: root.barWidth / 2
                 anchors.bottom: parent.bottom
 
-                property real intensity: pointValue / root.maxBarHeight
-                color: Qt.rgba(
-                    Appearance.colors.colPrimary.r * intensity + Appearance.colors.colPrimaryContainer.r * (1 - intensity),
-                    Appearance.colors.colPrimary.g * intensity + Appearance.colors.colPrimaryContainer.g * (1 - intensity),
-                    Appearance.colors.colPrimary.b * intensity + Appearance.colors.colPrimaryContainer.b * (1 - intensity),
-                    1
-                )
-
-                Behavior on height {
-                    NumberAnimation { duration: root.smoothingDuration; easing.type: Easing.OutQuad }
-                }
+                // Instant table lookup for the gradient
+                color: root.colorPalette[Math.min(20, Math.floor((pointValue / root.maxBarHeight) * 20))]
             }
         }
     }

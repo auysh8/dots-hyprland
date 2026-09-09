@@ -107,7 +107,13 @@ Scope {
                 property string currentDate: Qt.formatDate(new Date(), "ddd, MMM d")
 
                 property list<real> visualizerPoints: GlobalStates.visualizerPoints
-                readonly property bool visualizerActive: islandContainer.hasMedia && islandPill.renderMode === 0 && !islandContainer.expanded && islandContainer.islandVisible
+                readonly property bool visualizerActive: islandContainer.hasMedia
+                    && islandPill.renderMode === 0
+                    && !islandContainer.expanded
+                    && islandContainer.islandVisible
+                    && islandPill.renderActive
+                    && islandPill.scale > 0.5
+                    && (!islandContainer.hasOpenWindow || triggerArea.containsMouse)
                 onVisualizerActiveChanged: {
                     CavaService.setIslandActive(islandRoot.screen.name, visualizerActive)
                 }
@@ -328,6 +334,19 @@ Scope {
                     repeat: true
                     running: true
                     onTriggered: islandContainer.updateHasOpenWindow()
+                }
+
+                Connections {
+                    target: HyprlandData
+                    function onWindowListChanged() {
+                        islandContainer.updateHasOpenWindow();
+                    }
+                    function onActiveWorkspaceChanged() {
+                        islandContainer.updateHasOpenWindow();
+                    }
+                    function onMonitorsChanged() {
+                        islandContainer.updateHasOpenWindow();
+                    }
                 }
 
                 IdleMonitor {
@@ -784,23 +803,31 @@ Scope {
                                             opacity: 0.6
                                         }
 
-                                        WaveVisualizer {
-                                            anchors.fill: parent
+                                        Row {
+                                            id: islandPillVisualizer
+                                            anchors.centerIn: parent
                                             visible: MprisController.isPlaying
-                                            style: "pills"
-                                            live: MprisController.isPlaying
-                                            points: {
-                                                let src = islandContainer.visualizerPoints;
-                                                if (!src || src.length === 0) return [];
-                                                let arr = [];
-                                                for (let i = 0; i < 5; i++) {
-                                                    arr.push(src[1 + (i * 3)] || 0);
+                                            spacing: 1.5
+
+                                            readonly property var points: islandContainer.visualizerPoints
+
+                                            Repeater {
+                                                model: 5
+                                                Rectangle {
+                                                    required property int index
+                                                    width: 2.4
+                                                    radius: width / 2
+                                                    color: Appearance.colors.colPrimary
+                                                    anchors.verticalCenter: parent.verticalCenter
+
+                                                    property real rawVal: {
+                                                        const pts = islandPillVisualizer.points
+                                                        return (pts && pts.length > 0) ? (pts[1 + (index * 3)] || 0) : 0
+                                                    }
+                                                    property real normVal: Math.max(0.18, Math.min(1.0, rawVal / 1000))
+                                                    height: Math.max(width * 1.3, normVal * 16)
                                                 }
-                                                return arr;
                                             }
-                                            maxVisualizerValue: 1000
-                                            smoothing: 0
-                                            color: Appearance.colors.colPrimary
                                         }
                                     }
 
