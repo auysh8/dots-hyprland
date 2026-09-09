@@ -191,10 +191,10 @@ FocusScope {
     }
     
     // --- UI Configuration ---
-    property real iconSize: root.dockedInOverview ? 48 : 56
-    property real spacing: root.dockedInOverview ? 12 : 16
+    property real iconSize: 48
+    property real spacing: 12
     
-    property color backgroundColor: Appearance.colors.colLayer0Base
+    property color backgroundColor: Appearance.colors.colLayer0
     property color surfaceTint: Appearance.m3colors.m3primary
     
     // Hidden item to hold focus when in Grid mode
@@ -210,20 +210,11 @@ FocusScope {
         return 600;
     }
     
-    // Calculate columns (stable regardless of sidebar expanded/collapsed state)
+    // Calculate columns for compact Windows 11 style drawer
     property int columns: {
-        const totalWidth = root.width > 0 ? root.width : (availableWidth > 0 ? availableWidth : 1000);
-        if (root.dockedInOverview) {
-            const targetCellWidth = 110;
-            return Math.max(6, Math.min(12, Math.floor(totalWidth / targetCellWidth)));
-        } else {
-            const baseGridWidth = totalWidth - 220 - 64;
-            const targetCellWidth = 130;
-            if (baseGridWidth > 0) {
-                return Math.max(5, Math.min(8, Math.floor(baseGridWidth / targetCellWidth)));
-            }
-            return 6;
-        }
+        const totalWidth = root.width > 0 ? root.width : (availableWidth > 0 ? availableWidth : 740);
+        const targetCellWidth = 115;
+        return Math.max(4, Math.min(6, Math.floor(totalWidth / targetCellWidth)));
     }
 
     property var contextMenuApp: null
@@ -288,7 +279,7 @@ FocusScope {
         const filtered = root.filteredAppsList;
         const cols = root.columns;
         const cellW = appGrid.width / cols;
-        const cellH = root.dockedInOverview ? 105 : Math.max(120, cellW * 1.05);
+        const cellH = 110;
         const newPos = {};
         for (let i = 0; i < filtered.length; i++) {
             const app = filtered[i];
@@ -300,7 +291,7 @@ FocusScope {
             newPos[key] = { x: x, y: y, width: cellW, height: cellH, index: i };
         }
         const totalRows = Math.ceil(filtered.length / cols);
-        root.totalGridContentHeight = totalRows * cellH + (root.dockedInOverview ? 8 : 24);
+        root.totalGridContentHeight = totalRows * cellH + 20;
         root.appPositions = newPos;
     }
     
@@ -556,352 +547,21 @@ FocusScope {
             anchors.margins: 16
             spacing: 24
 
-            // --- Top Header ---
-            Item {
-                visible: !root.dockedInOverview
-                Layout.fillWidth: true
-                Layout.preferredHeight: root.dockedInOverview ? 0 : 32
-
-                StyledText {
-                    anchors.centerIn: parent
-                    text: root.searchText ? "Search Results" : (root.currentCategory === "All" ? "All Applications" : root.currentCategory)
-                    font.pixelSize: 16
-                    font.weight: Font.Normal
-                    color: Appearance.colors.colOnLayer0
-                }
-
-                RippleButton {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 32
-                    height: 32
-                    padding: 0
-                    buttonRadius: 16
-                    colBackground: "transparent"
-                    colBackgroundHover: Appearance.colors.colLayer1Hover
-
-                    contentItem: MaterialSymbol {
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        text: "close"
-                        iconSize: 20
-                        color: Appearance.colors.colOnLayer0
-                    }
-
-                    onClicked: {
-                        root.closeRequested();
-                        GlobalStates.appDrawerOpen = false;
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                spacing: 0
-
-            // --- Sidebar ---
-            Item {
-                id: navRailWrapper
-                visible: !root.dockedInOverview
-                Layout.fillHeight: true
-                implicitWidth: root.dockedInOverview ? 0 : (categoryNavRail.expanded ? 220 : 80)
-
-                Behavior on implicitWidth {
-                    NumberAnimation {
-                        duration: Appearance.animation.elementResize.duration
-                        easing.type: Appearance.animation.elementResize.type
-                        easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                    }
-                }
-
-                NavigationRail {
-                    id: categoryNavRail
-                    anchors.fill: parent
-                    expanded: true
-                    spacing: 8
-
-                    NavigationRailExpandButton {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 10
-                    }
-
-                    StyledText {
-                        text: Translation.tr("Categories")
-                        font.pixelSize: 16
-                        font.weight: Font.Bold
-                        color: Appearance.colors.colOnLayer0
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 14
-                        Layout.bottomMargin: categoryNavRail.expanded ? 8 : 0
-                        opacity: categoryNavRail.expanded ? 1 : 0
-                        Layout.preferredHeight: categoryNavRail.expanded ? implicitHeight : 0
-
-                        Behavior on opacity { 
-                            NumberAnimation { 
-                                duration: Appearance.animation.elementMoveFast.duration
-                                easing.type: Appearance.animation.elementMoveFast.type
-                                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                            } 
-                        }
-                        Behavior on Layout.preferredHeight { 
-                            NumberAnimation { 
-                                duration: Appearance.animation.elementResize.duration
-                                easing.type: Appearance.animation.elementResize.type
-                                easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                            } 
-                        }
-                        Behavior on Layout.bottomMargin { 
-                            NumberAnimation { 
-                                duration: Appearance.animation.elementResize.duration
-                                easing.type: Appearance.animation.elementResize.type
-                                easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                            } 
-                        }
-                    }
-
-                    ScrollView {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        contentWidth: availableWidth
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                        ColumnLayout {
-                            width: parent.width
-                            spacing: 4
-
-                            Repeater {
-                                model: root.categories
-
-                                Item {
-                                    id: categoryItem
-                                    required property int index
-                                    required property string modelData
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 44
-
-                                    property bool isActive: modelData === root.currentCategory
-                                    property color fgColor: isActive ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
-                                    property int appCount: root.getCategoryAppCount(modelData)
-
-                                    property string catIcon: {
-                                        switch (modelData) {
-                                            case "All": return "widgets";
-                                            case "Multimedia": return "movie";
-                                            case "Development": return "laptop_mac";
-                                            case "Education": return "school";
-                                            case "Games": return "sports_esports";
-                                            case "Graphics": return "palette";
-                                            case "Internet": return "explore";
-                                            case "Office": return "description";
-                                            case "Settings": return "settings";
-                                            case "System": return "desktop_windows";
-                                            case "Utilities": return "home_repair_service";
-                                            default: return "category";
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        id: buttonBg
-                                        anchors.left: parent.left
-                                        anchors.leftMargin: 10
-                                        width: categoryNavRail.expanded ? parent.width - 20 : 44
-                                        height: parent.height
-                                        radius: categoryNavRail.expanded ? 12 : 22
-                                        color: categoryItem.isActive ? Appearance.m3colors.m3secondaryContainer : "transparent"
-
-                                        Behavior on width { 
-                                            NumberAnimation { 
-                                                duration: Appearance.animation.elementResize.duration
-                                                easing.type: Appearance.animation.elementResize.type
-                                                easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                                            } 
-                                        }
-                                        Behavior on radius { 
-                                            NumberAnimation { 
-                                                duration: Appearance.animation.elementResize.duration
-                                                easing.type: Appearance.animation.elementResize.type
-                                                easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                                            } 
-                                        }
-                                        Behavior on color { 
-                                            ColorAnimation { 
-                                                duration: Appearance.animation.elementMoveFast.duration
-                                                easing.type: Appearance.animation.elementMoveFast.type
-                                                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                            } 
-                                        }
-
-                                        transform: Scale {
-                                            id: squishScale
-                                            origin.x: buttonBg.width / 2
-                                            origin.y: buttonBg.height / 2
-                                            yScale: 1.0
-                                            xScale: 1.0
-                                        }
-
-                                        Connections {
-                                            target: categoryItem
-                                            function onIsActiveChanged() {
-                                                if (categoryItem.isActive) {
-                                                    selectAnim.restart();
-                                                }
-                                            }
-                                        }
-
-                                        SequentialAnimation {
-                                            id: selectAnim
-                                            ParallelAnimation {
-                                                NumberAnimation { 
-                                                    target: squishScale; 
-                                                    property: "yScale"; 
-                                                    to: 0.75; 
-                                                    duration: Appearance.animation.elementMoveFast.duration
-                                                    easing.type: Appearance.animation.elementMoveFast.type
-                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                                }
-                                                NumberAnimation { 
-                                                    target: squishScale; 
-                                                    property: "xScale"; 
-                                                    to: 1.08; 
-                                                    duration: Appearance.animation.elementMoveFast.duration
-                                                    easing.type: Appearance.animation.elementMoveFast.type
-                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                                }
-                                            }
-                                            ParallelAnimation {
-                                                NumberAnimation { 
-                                                    target: squishScale; 
-                                                    property: "yScale"; 
-                                                    to: 1.0; 
-                                                    duration: Appearance.animation.elementMoveFast.duration
-                                                    easing.type: Appearance.animation.elementMoveFast.type
-                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                                }
-                                                NumberAnimation { 
-                                                    target: squishScale; 
-                                                    property: "xScale"; 
-                                                    to: 1.0; 
-                                                    duration: Appearance.animation.elementMoveFast.duration
-                                                    easing.type: Appearance.animation.elementMoveFast.type
-                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                                }
-                                            }
-                                        }
-
-                                        RippleButton {
-                                            anchors.fill: parent
-                                            buttonRadius: parent.radius
-                                            onClicked: {
-                                                root.currentCategory = modelData;
-                                                root.searchText = "";
-                                                searchField.text = "";
-                                                appGrid.model.values = root.getFilteredApps();
-                                            }
-
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                spacing: 0
-
-                                                Item {
-                                                    Layout.preferredWidth: 44
-                                                    Layout.fillHeight: true
-
-                                                    MaterialSymbol {
-                                                        anchors.centerIn: parent
-                                                        text: catIcon
-                                                        iconSize: 20
-                                                        fill: categoryItem.isActive ? 1 : 0
-                                                        font.weight: categoryItem.isActive ? Font.DemiBold : Font.Normal
-                                                        color: fgColor
-                                                    }
-                                                }
-
-                                                Item {
-                                                    Layout.fillWidth: true
-                                                    Layout.fillHeight: true
-                                                    clip: true
-                                                    visible: categoryNavRail.expanded
-
-                                                    RowLayout {
-                                                        anchors.fill: parent
-                                                        spacing: 10
-                                                        anchors.leftMargin: 8
-                                                        anchors.rightMargin: 8
-
-                                                        StyledText {
-                                                            text: modelData
-                                                            font.pixelSize: 14
-                                                            font.weight: categoryItem.isActive ? Font.DemiBold : Font.Normal
-                                                            color: fgColor
-                                                            Layout.fillWidth: true
-                                                            elide: Text.ElideRight
-                                                            opacity: categoryNavRail.expanded ? 1.0 : 0.0
-                                                            Behavior on opacity { 
-                                                                NumberAnimation { 
-                                                                    duration: Appearance.animation.elementMoveFast.duration
-                                                                    easing.type: Appearance.animation.elementMoveFast.type
-                                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                                                } 
-                                                            }
-                                                        }
-
-                                                        Rectangle {
-                                                            Layout.alignment: Qt.AlignVCenter
-                                                            Layout.preferredWidth: countText.implicitWidth + 14
-                                                            Layout.preferredHeight: 22
-                                                            radius: 11
-                                                            color: categoryItem.isActive
-                                                                ? ColorUtils.applyAlpha(Appearance.colors.colOnSecondaryContainer, 0.18)
-                                                                : ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.10)
-                                                            opacity: categoryNavRail.expanded ? 1.0 : 0.0
-                                                            Behavior on opacity { 
-                                                                NumberAnimation { 
-                                                                    duration: Appearance.animation.elementMoveFast.duration
-                                                                    easing.type: Appearance.animation.elementMoveFast.type
-                                                                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                                                                } 
-                                                            }
-
-                                                            StyledText {
-                                                                id: countText
-                                                                anchors.centerIn: parent
-                                                                text: appCount
-                                                                font.pixelSize: 11
-                                                                font.weight: Font.DemiBold
-                                                                color: fgColor
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // --- Main Content ---
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.leftMargin: root.dockedInOverview ? 0 : 8
-                color: root.dockedInOverview ? "transparent" : Appearance.colors.colLayer1
+                
+                color: "transparent"
                 radius: Appearance.rounding.large
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: root.dockedInOverview ? 4 : 16
-                    spacing: root.dockedInOverview ? 4 : 20
+                    anchors.margins: 16
+                    spacing: 16
 
                     // Header & Search
                 RowLayout {
-                    visible: !root.dockedInOverview
+                    visible: true
                     Layout.fillWidth: true
                     
                     RowLayout {
@@ -1016,7 +676,7 @@ FocusScope {
                     StyledFlickable {
                         id: appGrid
                         anchors.fill: parent
-                        anchors.margins: root.dockedInOverview ? 8 : 24
+                        anchors.margins: 12
                         clip: true
                         interactive: !root._isDraggingApp
 
@@ -1127,8 +787,8 @@ FocusScope {
                                         property bool isKeyboardSelected: root.currentFocusArea === ApplicationDrawer.FocusArea.Grid && pos && root.selectedGridIndex === pos.index
 
                                         anchors.centerIn: parent
-                                        width: root.dockedInOverview ? Math.min(parent.width - 6, 96) : (parent.width - 12)
-                                        height: root.dockedInOverview ? (parent.height - 6) : (parent.height - 12)
+                                        width: parent.width - 8
+                                        height: parent.height - 8
 
                                         scale: itemDragArea.containsMouse ? 1.05 : 1.0
                                         y: itemDragArea.containsMouse ? -2 : 0
@@ -1145,7 +805,7 @@ FocusScope {
                                             radius: Appearance.rounding.verylarge
                                             color: appButton.isKeyboardSelected
                                                 ? (itemDragArea.containsMouse ? ColorUtils.mix(Appearance.colors.colSecondaryContainer, Appearance.colors.colOnSecondaryContainer, 0.08) : Appearance.colors.colSecondaryContainer)
-                                                : (itemDragArea.containsMouse ? Appearance.colors.colLayer2 : Appearance.colors.colLayer1)
+                                                : (itemDragArea.containsMouse ? Appearance.colors.colLayer3 : Appearance.colors.colLayer2)
 
                                             Behavior on color {
                                                 animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -1272,7 +932,6 @@ FocusScope {
                     }
                 }
             }
-        }
     }
 }
 
@@ -1439,8 +1098,6 @@ FocusScope {
             width: Math.min(parent.width - 40, 420)
             radius: Appearance.rounding.large
             color: Appearance.m3colors.m3surfaceContainerHigh
-            border.width: 1
-            border.color: Appearance.colors.colOutlineVariant
             implicitHeight: uninstallCardCol.implicitHeight + 40
 
             MouseArea {

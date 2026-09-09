@@ -15,7 +15,7 @@ change_wallpaper() {
     local random_img
     random_img="$(pick_random_wallpaper)" || return 0
     if [ -n "$random_img" ] && [ -x "$THEME_SCRIPT" ]; then
-        "$THEME_SCRIPT" --image "$random_img" --mode "dark" > /dev/null 2>&1
+        "$THEME_SCRIPT" --image "$random_img" --mode "dark" --keep-slideshow > /dev/null 2>&1
     fi
 }
 

@@ -101,30 +101,84 @@ Item {
     property color pillContentColor: mediaContext.pillContentColor
     property color backgroundColor: mediaContext.backgroundColor
 
+    // Linked Timeline Player (for players like ytkew that delegate audio to mpv)
+    readonly property MprisPlayer timelinePlayer: {
+        const isYtkew = (activePlayer?.identity || "").toLowerCase().includes("ytkew");
+        if (isYtkew) {
+            for (let i = 0; i < availablePlayers.length; ++i) {
+                const p = availablePlayers[i];
+                const id = (p?.identity || "").toLowerCase();
+                if (id.includes("mpv") && (p.isPlaying || p.trackTitle === activePlayer?.trackTitle)) {
+                    return p;
+                }
+            }
+        }
+        return activePlayer;
+    }
+
     // Interpolated Position Logic
     property real currentPosition: 0
+    readonly property string activeTrackTitle: activePlayer?.trackTitle ?? ""
     
+    onActiveTrackTitleChanged: {
+        root.currentPosition = timelinePlayer ? timelinePlayer.position : 0
+    }
+
+    onTimelinePlayerChanged: {
+        if (timelinePlayer) {
+            root.currentPosition = timelinePlayer.position
+        }
+    }
+
     Connections {
-        target: activePlayer || null
+        target: timelinePlayer || null
         ignoreUnknownSignals: true
         function onPositionChanged() {
-            var diff = Math.abs(root.currentPosition - activePlayer.position)
-            if (diff > 1.5 || !(activePlayer && activePlayer.isPlaying)) {
-                root.currentPosition = activePlayer.position
+            var diff = Math.abs(root.currentPosition - timelinePlayer.position)
+            if (diff > 1.5 || !(timelinePlayer && timelinePlayer.isPlaying)) {
+                root.currentPosition = timelinePlayer.position
+            }
+        }
+        function onPlaybackStateChanged() {
+            if (timelinePlayer) {
+                root.currentPosition = timelinePlayer.position
+            }
+        }
+        function onTrackTitleChanged() {
+            if (timelinePlayer) {
+                root.currentPosition = timelinePlayer.position
+            }
+        }
+        function onMetadataChanged() {
+            if (timelinePlayer) {
+                root.currentPosition = timelinePlayer.position
             }
         }
     }
     
     Timer {
-        running: activePlayer && activePlayer.isPlaying
+        running: timelinePlayer && timelinePlayer.isPlaying
         interval: 20
         repeat: true
-        onTriggered: root.currentPosition += 0.02
+        property int tickCount: 0
+        onTriggered: {
+            root.currentPosition += 0.02
+            tickCount++
+            if (tickCount >= 50) {
+                tickCount = 0
+                if (timelinePlayer) {
+                    timelinePlayer.positionChanged()
+                    if (Math.abs(root.currentPosition - timelinePlayer.position) > 1.0) {
+                        root.currentPosition = timelinePlayer.position
+                    }
+                }
+            }
+        }
     }
 
     Component.onCompleted: {
-        if (activePlayer) {
-            root.currentPosition = activePlayer.position
+        if (timelinePlayer) {
+            root.currentPosition = timelinePlayer.position
         }
     }
 
@@ -444,18 +498,21 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 16
                 
-                configuration: (activePlayer && activePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
+                configuration: (timelinePlayer && timelinePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
                 highlightColor: root.pillColor
                 trackColor: ColorUtils.applyAlpha(root.contentColor, 0.25)
                 handleColor: root.pillColor
                 value: {
-                    return (activePlayer && activePlayer.length > 0) ? root.currentPosition / activePlayer.length : 0;
+                    const dur = timelinePlayer?.length || activePlayer?.length || 0;
+                    if (dur <= 0) return 0;
+                    return Math.min(1.0, Math.max(0.0, root.currentPosition / dur));
                 }
                 
                 onMoved: {
-                    if (activePlayer && activePlayer.length > 0) {
-                        activePlayer.position = value * activePlayer.length;
-                        root.currentPosition = activePlayer.position;
+                    const target = (timelinePlayer && timelinePlayer.length > 0) ? timelinePlayer : activePlayer;
+                    if (target && target.length > 0) {
+                        target.position = value * target.length;
+                        root.currentPosition = target.position;
                     }
                 }
             }
@@ -476,7 +533,7 @@ Item {
                 Item { Layout.fillWidth: true }
 
                 StyledText {
-                    text: root.formatTime(activePlayer?.length || 0)
+                    text: root.formatTime(timelinePlayer?.length || activePlayer?.length || 0)
                     font.pixelSize: 12
                     font.weight: Font.Medium
                     color: root.secondaryContentColor

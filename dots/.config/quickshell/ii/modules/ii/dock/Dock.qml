@@ -27,7 +27,7 @@ Scope { // Scope
             screen: modelData
             visible: !GlobalStates.screenLocked
 
-            property bool reveal: root.pinned || (Config.options?.dock.hoverToReveal && dockMouseArea.containsMouse) || dockApps.requestDockShow || (!ToplevelManager.activeToplevel?.activated)
+            property bool reveal: root.pinned || GlobalStates.appDrawerOpen || (Config.options?.dock.hoverToReveal && dockMouseArea.containsMouse) || dockApps.requestDockShow || (!ToplevelManager.activeToplevel?.activated)
 
             anchors {
                 bottom: true
@@ -42,6 +42,13 @@ Scope { // Scope
             color: "transparent"
 
             implicitHeight: (Config.options?.dock.height ?? 70) + Appearance.sizes.elevationMargin + Appearance.sizes.hyprlandGapsOut
+
+            Component.onCompleted: {
+                GlobalFocusGrab.addPersistent(dockRoot);
+            }
+            Component.onDestruction: {
+                GlobalFocusGrab.removePersistent(dockRoot);
+            }
 
             mask: Region {
                 item: dockMouseArea
@@ -127,8 +134,39 @@ Scope { // Scope
                             }
                             DockSeparator {}
                             DockButton {
+                                id: dockAppDrawerButton
                                 Layout.fillHeight: true
-                                onClicked: GlobalStates.overviewOpen = !GlobalStates.overviewOpen
+                                property real lastCloseTime: 0
+
+                                Connections {
+                                    target: GlobalStates
+                                    function onAppDrawerOpenChanged() {
+                                        if (!GlobalStates.appDrawerOpen) {
+                                            dockAppDrawerButton.lastCloseTime = Date.now();
+                                        }
+                                    }
+                                }
+
+                                downAction: () => {
+                                    if (GlobalStates.overviewOpen) {
+                                        GlobalStates.overviewOpen = false;
+                                    }
+                                    if (GlobalStates.appDrawerOpen) {
+                                        GlobalStates.appDrawerOpen = false;
+                                        dockAppDrawerButton.lastCloseTime = Date.now();
+                                    }
+                                }
+
+                                onClicked: {
+                                    if (GlobalStates.overviewOpen) {
+                                        GlobalStates.overviewOpen = false;
+                                    }
+                                    const now = Date.now();
+                                    if (now - lastCloseTime < 400) {
+                                        return;
+                                    }
+                                    GlobalStates.appDrawerOpen = !GlobalStates.appDrawerOpen;
+                                }
                                 topInset: Appearance.sizes.hyprlandGapsOut + dockRow.padding
                                 bottomInset: Appearance.sizes.hyprlandGapsOut + dockRow.padding
                                 contentItem: MaterialSymbol {

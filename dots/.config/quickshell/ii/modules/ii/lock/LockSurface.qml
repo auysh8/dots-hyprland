@@ -18,6 +18,7 @@ MouseArea {
     property bool active: false
     property bool showInputField: active || context.currentText.length > 0
     readonly property bool requirePasswordToPower: Config.options.lock.security.requirePasswordToPower
+    readonly property bool hasUnlockError: GlobalStates.screenUnlockFailed || root.context.fingerScanFailed
 
     // Force focus on entry
     function forceFieldFocus() {
@@ -121,6 +122,26 @@ MouseArea {
         implicitWidth: pillBg.implicitWidth
         implicitHeight: pillBg.implicitHeight
 
+        // Shake animation when unlock attempt fails (wrong password or fingerprint mismatch)
+        SequentialAnimation {
+            id: pillShakeAnim
+            NumberAnimation { target: lockedPill; property: "anchors.horizontalCenterOffset"; to: -10; duration: 40; easing.type: Easing.Linear }
+            NumberAnimation { target: lockedPill; property: "anchors.horizontalCenterOffset"; to: 10; duration: 40; easing.type: Easing.Linear }
+            NumberAnimation { target: lockedPill; property: "anchors.horizontalCenterOffset"; to: -6; duration: 40; easing.type: Easing.Linear }
+            NumberAnimation { target: lockedPill; property: "anchors.horizontalCenterOffset"; to: 6; duration: 40; easing.type: Easing.Linear }
+            NumberAnimation { target: lockedPill; property: "anchors.horizontalCenterOffset"; to: -3; duration: 30; easing.type: Easing.Linear }
+            NumberAnimation { target: lockedPill; property: "anchors.horizontalCenterOffset"; to: 0; duration: 30; easing.type: Easing.Linear }
+        }
+
+        Connections {
+            target: root
+            function onHasUnlockErrorChanged() {
+                if (root.hasUnlockError) {
+                    pillShakeAnim.restart();
+                }
+            }
+        }
+
         StyledRectangularShadow {
             target: pillBg
             anchors.fill: undefined
@@ -134,6 +155,10 @@ MouseArea {
             radius: height / 2
             color: Appearance.m3colors.m3surfaceContainer
 
+            Behavior on implicitWidth {
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+            }
+
             Row {
                 id: pillRow
                 anchors.centerIn: parent
@@ -142,17 +167,33 @@ MouseArea {
                 MaterialSymbol {
                     anchors.verticalCenter: parent.verticalCenter
                     iconSize: Appearance.font.pixelSize.larger
-                    text: "lock"
-                    color: Appearance.colors.colPrimary
+                    text: root.hasUnlockError ? "error" : "lock"
+                    color: root.hasUnlockError ? Appearance.colors.colError : Appearance.colors.colPrimary
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Appearance.animationCurves.expressiveEffectsDuration
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Appearance.animationCurves.expressiveEffects
+                        }
+                    }
                 }
 
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Translation.tr("Locked")
-                    color: Appearance.colors.colOnSurfaceVariant
+                    text: root.hasUnlockError ? Translation.tr("Try again") : Translation.tr("Locked")
+                    color: root.hasUnlockError ? Appearance.colors.colError : Appearance.colors.colOnSurfaceVariant
                     font {
                         pixelSize: Appearance.font.pixelSize.normal
                         weight: Font.Medium
+                    }
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Appearance.animationCurves.expressiveEffectsDuration
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Appearance.animationCurves.expressiveEffects
+                        }
                     }
                 }
             }
@@ -176,6 +217,7 @@ MouseArea {
 
         // Fingerprint
         Loader {
+            id: fingerprintLoader
             Layout.leftMargin: 10
             Layout.rightMargin: 6
             Layout.alignment: Qt.AlignVCenter

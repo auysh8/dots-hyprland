@@ -1,3 +1,4 @@
+import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.functions
@@ -148,6 +149,9 @@ DockButton {
 
     onClicked: {
         launchAnims.play(Config.options.dock.launchAnimation);
+        if (GlobalStates.appDrawerOpen) {
+            GlobalStates.appDrawerOpen = false;
+        }
         if (appToplevel.toplevels.length === 0) {
             root.desktopEntry?.execute();
             return;
@@ -176,6 +180,9 @@ DockButton {
     }
 
     middleClickAction: () => {
+        if (GlobalStates.appDrawerOpen) {
+            GlobalStates.appDrawerOpen = false;
+        }
         root.desktopEntry?.execute();
     }
 

@@ -565,9 +565,9 @@ main() {
     # A picture chosen on purpose is the end of a rotation. Kept apart from the
     # accent rule above so the rotation's own ticks, which do want the accent
     # cleared when they regenerate the palette, are not caught by it.
-    if [[ -n "$imgpath" && -z "$noswitch_flag" && -z "$picture_only_flag" && -z "$keep_slideshow_flag" ]]; then
-        stop_slideshow=1
-    fi
+    # if [[ -n "$imgpath" && -z "$noswitch_flag" && -z "$picture_only_flag" && -z "$keep_slideshow_flag" ]]; then
+    #     stop_slideshow=1
+    # fi
 
     # If mode_flag is dark or light, try to find a variant with that mode suffix
     if [[ "$mode_flag" == "dark" || "$mode_flag" == "light" ]]; then

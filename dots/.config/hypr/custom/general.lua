@@ -82,7 +82,7 @@ if hl.plugin and hl.plugin.hyprglass then
 
     -- ── Non-quickshell layers ─────────────────────────────────────────
     -- hg.layer("system-monitor",                     {preset = "glass", mask_threshold = 0.3 })  -- sys monitor
-    -- hg.layer("app-drawer",                         {preset = "glass", mask_threshold = 0.3 })  -- app drawer
+    hg.layer("quickshell:app-drawer",              {preset = "glass", mask_threshold = 0.7 })  -- app drawer
     hg.layer("kde-connect-drawer",                 {preset = "glass", mask_threshold = 0.7 })  -- KDE Connect
     -- hg.layer("kde-connect-drawer-drag-trigger",    {preset = "glass", mask_threshold = 0.5 })  -- KDE drag zone
 

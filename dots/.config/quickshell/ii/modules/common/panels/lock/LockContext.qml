@@ -20,6 +20,8 @@ Scope {
     property bool unlockInProgress: false
     property bool showFailure: false
     property bool fingerprintsConfigured: false
+    property bool fingerScanFailed: false
+    readonly property bool fingerActive: fingerPam.active
     property var targetAction: LockContext.ActionEnum.Unlock
     property bool alsoInhibitIdle: false
 
@@ -39,6 +41,7 @@ Scope {
         root.resetTargetAction();
         root.clearText();
         root.unlockInProgress = false;
+        root.fingerScanFailed = false;
         stopFingerPam();
     }
 
@@ -50,9 +53,18 @@ Scope {
         }
     }
 
+    Timer {
+        id: fingerFailResetTimer
+        interval: 2500
+        onTriggered: {
+            root.fingerScanFailed = false;
+        }
+    }
+
     onCurrentTextChanged: {
         if (currentText.length > 0) {
             showFailure = false;
+            fingerScanFailed = false;
             GlobalStates.screenUnlockFailed = false;
         }
         GlobalStates.screenLockContainsCharacters = currentText.length > 0;
@@ -66,7 +78,10 @@ Scope {
     }
 
     function tryFingerUnlock() {
-        if (root.fingerprintsConfigured) {
+        if (!root.fingerprintsConfigured && !fingerprintCheckProc.running) {
+            fingerprintCheckProc.running = true;
+        }
+        if (root.fingerprintsConfigured && !fingerPam.active) {
             fingerPam.start();
         }
     }
@@ -129,9 +144,19 @@ Scope {
             if (result == PamResult.Success) {
                 root.unlocked(root.targetAction);
                 stopFingerPam();
-            } else if (result == PamResult.Error) { // if timeout or etc..
-                tryFingerUnlock()
+            } else if (result == PamResult.Failed) {
+                root.fingerScanFailed = true;
+                fingerFailResetTimer.restart();
+                tryFingerUnlock();
+            } else if (result == PamResult.Error) {
+                tryFingerUnlock();
             }
+        }
+    }
+
+    onFingerprintsConfiguredChanged: {
+        if (fingerprintsConfigured && GlobalStates.screenLocked && !fingerPam.active) {
+            fingerPam.start();
         }
     }
 }
