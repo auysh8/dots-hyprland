@@ -8,43 +8,42 @@ import qs.modules.ii.bar as Bar
 Item {
     id: root
     property bool borderless: Config.options.bar.borderless
-    implicitHeight: column.implicitHeight
+    implicitHeight: clockPill.implicitHeight
     implicitWidth: Appearance.sizes.verticalBarWidth
 
     readonly property string dateTimeString: DateTime.time
-    readonly property bool hasAmPm: dateTimeString.toLowerCase().includes("am") || dateTimeString.toLowerCase().includes("pm")
 
-    Column {
-        id: column
+    MaterialPill { // Stacked hr/min pill — compact, no date
+        id: clockPill
         anchors.centerIn: parent
-        spacing: root.hasAmPm ? 6 : 0
+        vertical: true
+        bgColor: Appearance.colors.colTertiaryContainer
+        // Match right sidebar button pill: iconSize(19) + 6*2 padding ≈ 31px
+        crossAxisSize: Appearance.font.pixelSize.larger + 12
+        mainAxisPadding: 8
+        contentSpacing: 0
+        contentTopMargin: 0
 
         Column {
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: -4
+            id: timeColumn
+            Layout.alignment: Qt.AlignHCenter
+            // Fixed width = pill interior so numbers always center properly
+            width: clockPill.crossAxisSize - 8
+            spacing: -2
 
             Repeater {
-                model: root.dateTimeString.split(/[: ]/)
+                model: root.dateTimeString.split(/[: ]/).filter(s => !s.match(/am|pm/i))
                 delegate: StyledText {
                     required property string modelData
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    font.pixelSize: {
-                        if (modelData.match(/am|pm/i))
-                            return Appearance.font.pixelSize.smaller;
-                        else
-                            // Smaller "am"/"pm" text
-                            return Appearance.font.pixelSize.large;
-                    }
-                    color: Appearance.colors.colOnLayer1
+                    width: timeColumn.width
+                    horizontalAlignment: Text.AlignHCenter
+                    font.family: Appearance.font.family.numbers
+                    font.pixelSize: Appearance.font.pixelSize.large
+                    font.weight: Font.Bold
+                    color: Appearance.colors.colOnTertiaryContainer
                     text: modelData.padStart(2, "0")
                 }
             }
-        }
-        StyledText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            font.pixelSize: Appearance.font.pixelSize.smallest
-            color: Appearance.colors.colOnLayer1
-            text: DateTime.shortDate
         }
     }
 

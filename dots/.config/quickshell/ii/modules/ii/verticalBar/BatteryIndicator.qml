@@ -21,8 +21,8 @@ MouseArea {
         id: batteryProgress
         anchors.centerIn: parent
         vertical: true
-        valueBarWidth: 20
-        valueBarHeight: 36
+        valueBarWidth: Appearance.font.pixelSize.larger + 12  // match clock pill width
+        valueBarHeight: 52
         value: percentage
         // value: 1
         // Filled-accent mapping mirroring BatteryPopup: the color doubles as the fill
@@ -42,32 +42,12 @@ MouseArea {
             width: batteryProgress.valueBarWidth
             height: batteryProgress.valueBarHeight
 
-            Column {
+            StyledText {
                 anchors.centerIn: parent
-                spacing: -4
-
-                MaterialSymbol {
-                    id: boltIcon
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    fill: 1
-                    text: {
-                        if (batteryProgress.value == 1) {
-                            return "check";
-                        } else if (root.isCharging) {
-                            return "bolt";
-                        } else {
-                            return Icons.getBatteryIcon(Battery.percentage * 100);
-                        }
-                    }
-                    iconSize: Appearance.font.pixelSize.normal
-                    animateChange: true
-                }
-                StyledText {
-                    visible: text.length <= 2
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    font: batteryProgress.font
-                    text: batteryProgress.text
-                }
+                font.family: Appearance.font.family.numbers
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.Bold
+                text: `${Math.round(root.percentage * 100)}`
             }
         }
     }

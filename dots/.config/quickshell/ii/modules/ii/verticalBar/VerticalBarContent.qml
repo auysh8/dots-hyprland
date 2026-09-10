@@ -16,14 +16,6 @@ Item { // Bar content region
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
 
-    component HorizontalBarSeparator: Rectangle {
-        Layout.leftMargin: Appearance.sizes.baseBarHeight / 3
-        Layout.rightMargin: Appearance.sizes.baseBarHeight / 3
-        Layout.fillWidth: true
-        implicitHeight: 1
-        color: Appearance.colors.colOutlineVariant
-    }
-
     // Background shadow
     Loader {
         active: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1
@@ -70,7 +62,8 @@ Item { // Bar content region
             Bar.LeftSidebarButton { // Left sidebar button
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: (Appearance.sizes.baseVerticalBarWidth - implicitWidth) / 2 + Appearance.sizes.hyprlandGapsOut
-                colBackground: barTopSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+                colBackground: barTopSectionMouseArea.hovered ? Appearance.colors.colLayer3Base : Appearance.colors.colLayer2Base
+                colBackgroundHover: barTopSectionMouseArea.hovered ? Appearance.colors.colLayer3Base : Appearance.colors.colLayer2Base
             }
 
             Item {
@@ -83,7 +76,7 @@ Item { // Bar content region
     Column { // Middle section
         id: middleSection
         anchors.centerIn: parent
-        spacing: 4
+        spacing: 10 // Sections divided by spacing alone — no separator lines (M3 expressive)
 
         Bar.BarGroup {
             vertical: true
@@ -94,10 +87,6 @@ Item { // Bar content region
             }
             
 
-        }
-
-        HorizontalBarSeparator {
-            visible: Config.options?.bar.borderless
         }
 
         Bar.BarGroup {
@@ -123,29 +112,21 @@ Item { // Bar content region
             }
         }
 
-        HorizontalBarSeparator {
-            visible: Config.options?.bar.borderless
-        }
-
         Bar.BarGroup {
             vertical: true
             padding: 8
-            
+
             VerticalClockWidget {
                 Layout.fillWidth: true
                 Layout.fillHeight: false
-            }
-
-            HorizontalBarSeparator {
-                visible: Battery.available
             }
 
             BatteryIndicator {
                 visible: Battery.available
                 Layout.fillWidth: true
                 Layout.fillHeight: false
+                Layout.topMargin: 6 // A bit of extra air below the clock pill
             }
-            
         }
     }
 
@@ -197,8 +178,8 @@ Item { // Bar content region
                 implicitWidth: indicatorsColumnLayout.implicitWidth + 6 * 2
 
                 buttonRadius: Appearance.rounding.full
-                colBackground: barBottomSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-                colBackgroundHover: Appearance.colors.colLayer1Hover
+                colBackground: barBottomSectionMouseArea.hovered ? Appearance.colors.colLayer3Base : Appearance.colors.colLayer2Base
+                colBackgroundHover: barBottomSectionMouseArea.hovered ? Appearance.colors.colLayer3Base : Appearance.colors.colLayer2Base
                 colRipple: Appearance.colors.colLayer1Active
                 colBackgroundToggled: Appearance.colors.colSecondaryContainer
                 colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover

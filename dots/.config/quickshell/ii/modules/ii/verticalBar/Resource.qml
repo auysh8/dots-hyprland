@@ -8,6 +8,8 @@ Item {
     required property string iconName
     required property double percentage
     property int warningThreshold: 100
+    // M3 triad accent — each ring gets its own hue so metrics are distinguishable
+    property color accentColor: Appearance.colors.colOnSecondaryContainer
     implicitHeight: resourceProgress.implicitHeight
     implicitWidth: Appearance.sizes.verticalBarWidth
 
@@ -17,8 +19,8 @@ Item {
         id: resourceProgress
         anchors.centerIn: parent
         value: percentage
-        enableAnimation: false
-        colPrimary: root.warning ? Appearance.colors.colError : Appearance.colors.colOnSecondaryContainer
+        enableAnimation: true // Smooth 800ms OutCubic sweep as the value changes
+        colPrimary: root.warning ? Appearance.colors.colError : root.accentColor
         accountForLightBleeding: !root.warning
 
         MaterialSymbol {
@@ -26,7 +28,7 @@ Item {
             fill: 1
             text: root.iconName
             iconSize: 13
-            color: Appearance.colors.colOnSecondaryContainer
+            color: root.warning ? Appearance.colors.colError : root.accentColor
         }
     }
 

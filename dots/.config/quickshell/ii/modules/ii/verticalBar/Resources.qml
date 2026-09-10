@@ -21,6 +21,7 @@ MouseArea {
             iconName: "memory"
             percentage: ResourceUsage.memoryUsedPercentage
             warningThreshold: Config.options.bar.resources.memoryWarningThreshold
+            accentColor: Appearance.colors.colPrimary // M3 triad: memory = primary
         }
 
         Resource {
@@ -28,6 +29,7 @@ MouseArea {
             iconName: "swap_horiz"
             percentage: ResourceUsage.swapUsedPercentage
             warningThreshold: Config.options.bar.resources.swapWarningThreshold
+            accentColor: Appearance.colors.colSecondary // M3 triad: swap = secondary
         }
 
         Resource {
@@ -35,6 +37,7 @@ MouseArea {
             iconName: "planner_review"
             percentage: ResourceUsage.cpuUsage
             warningThreshold: Config.options.bar.resources.cpuWarningThreshold
+            accentColor: Appearance.colors.colTertiary // M3 triad: CPU = tertiary
         }
 
         Resource {
@@ -43,6 +46,7 @@ MouseArea {
             iconName: "developer_board"
             percentage: ResourceUsage.gpuUsage
             warningThreshold: 90
+            accentColor: Appearance.colors.colPrimary // M3 triad cycle: GPU = primary again
         }
     }
 
