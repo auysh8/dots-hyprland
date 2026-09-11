@@ -7,6 +7,7 @@ Item {
 
     property color backgroundColor: Appearance.colors.colPrimary
     property color handColor:       Appearance.colors.colOnPrimary
+    property color minuteHandColor: root.handColor
     property color centerDotColor:  Appearance.colors.colOnPrimary
     property string label:          ""
     property color labelColor:      Qt.rgba(
@@ -79,7 +80,7 @@ Item {
             ctx.restore()
 
             ctx.save()
-            ctx.strokeStyle = root.handColor.toString()
+            ctx.strokeStyle = root.minuteHandColor.toString()
             ctx.lineWidth   = Math.max(2, r * 0.045)
             ctx.lineCap     = "round"
             ctx.beginPath()
@@ -112,7 +113,8 @@ Item {
             function onHourAngleChanged()      { clockCanvas.requestPaint() }
             function onMinuteAngleChanged()    { clockCanvas.requestPaint() }
             function onLabelChanged()          { clockCanvas.requestPaint() }
-            function onHandColorChanged()      { clockCanvas.requestPaint() }
+            function onHandColorChanged()          { clockCanvas.requestPaint() }
+            function onMinuteHandColorChanged()    { clockCanvas.requestPaint() }
             function onCenterDotColorChanged() { clockCanvas.requestPaint() }
             function onLabelColorChanged()     { clockCanvas.requestPaint() }
         }

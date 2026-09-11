@@ -13,110 +13,116 @@ Item {
     id: root
     anchors.fill: parent
 
-    // Properties
+    // Properties & Theming
     readonly property bool isRunning: TimerService.stopwatchRunning
+    readonly property bool hasElapsed: TimerService.stopwatchTime > 0
+    readonly property color containerColor: Appearance.colors.colTertiaryContainer
+    readonly property color onContainerColor: Appearance.colors.colOnTertiaryContainer
     readonly property color accentColor: Appearance.colors.colTertiary
     readonly property color onAccentColor: Appearance.colors.colOnTertiary
 
-    implicitHeight: Math.max(infoLayout.implicitHeight + 32, 112)
+    implicitHeight: Math.max(mainRow.implicitHeight + 16, 100)
 
-    // Background
-    Rectangle {
-        anchors.fill: parent
-        color: Appearance.colors.colLayer0
-        radius: Appearance.rounding.normal
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-    }
-
-    Item {
-        id: mainContainer
-
-        anchors.fill: parent
+    RowLayout {
+        id: mainRow
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: 16
         anchors.rightMargin: 16
+        spacing: 14
 
-        // 1. Right: Play/Pause Button (Centered Vertically)
+        // 1. Left Side: Material Shape Hero Container (76x76px Puffy / Cookie)
         Item {
-            id: playContainer
+            id: heroContainer
+            Layout.preferredWidth: 76
+            Layout.preferredHeight: 76
+            implicitWidth: 76
+            implicitHeight: 76
+            Layout.alignment: Qt.AlignVCenter
 
-            width: 80
-            height: 80
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            MaterialShape {
+                id: shapeBackground
+                anchors.fill: parent
+                implicitSize: 76
+                color: root.containerColor
+                shape: root.isRunning ? MaterialShape.Shape.Sunny : MaterialShape.Shape.Cookie4Sided
+                animation: NumberAnimation {
+                    duration: 250
+                    easing.type: Easing.OutCubic
+                }
 
-            // Main Play Button
-            RippleButton {
+                Behavior on color {
+                    ColorAnimation { duration: 250 }
+                }
+            }
+
+            MaterialSymbol {
+                id: heroSymbol
                 anchors.centerIn: parent
-                implicitWidth: 56
-                implicitHeight: 56
-                buttonRadius: 28
-                colBackground: root.isRunning ? Appearance.colors.colSecondaryContainer : root.accentColor
-                colRipple: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
-                onClicked: TimerService.toggleStopwatch()
+                text: "timer"
+                iconSize: 32
+                fill: 1
+                color: root.onContainerColor
 
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: root.isRunning ? "pause" : "play_arrow"
-                    iconSize: 32
-                    fill: 1
-                    color: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
+                Behavior on color {
+                    ColorAnimation { duration: 250 }
                 }
             }
         }
 
-        // Left Side: Time & Info
+        // 2. Right Side: Time Digits, Lap Chip, and Tactile ButtonGroup
         ColumnLayout {
-            id: infoLayout
+            id: detailsCol
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 8
 
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: buttonsRow.left
-            anchors.rightMargin: 16
-            spacing: 6
-
-            // Time Display Group
-            ColumnLayout {
-                spacing: 0
+            // Header Row: Time digits on left, Lap context pill on right
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
 
                 Row {
                     spacing: 2
+                    Layout.alignment: Qt.AlignBaseline
 
                     StyledText {
                         id: mainTime
-
                         text: {
                             let t = Math.floor(TimerService.stopwatchTime / 100);
                             let m = Math.floor(t / 60).toString().padStart(2, '0');
                             let s = Math.floor(t % 60).toString().padStart(2, '0');
                             return m + ":" + s;
                         }
-                        font.pixelSize: 48
+                        font.pixelSize: 32
                         font.weight: Font.Bold
-                        color: root.accentColor
+                        color: Appearance.colors.colOnSurface
                     }
 
                     StyledText {
                         anchors.baseline: mainTime.baseline
                         text: "." + Math.floor((TimerService.stopwatchTime % 100)).toString().padStart(2, '0')
-                        font.pixelSize: 24
+                        font.pixelSize: 18
                         font.weight: Font.DemiBold
                         color: root.accentColor
-                        opacity: 0.6
+                        opacity: 0.9
                     }
                 }
 
+                Item {
+                    Layout.fillWidth: true
+                }
+
                 // Lap Capsule Pill
-                Pill {
-                    id: lapPill
-                    visible: root.isRunning || TimerService.stopwatchTime > 0
+                Rectangle {
                     implicitHeight: 24
-                    implicitWidth: lapContent.width + 16
-                    color: ColorUtils.applyAlpha(root.accentColor, 0.20)
-                    Layout.topMargin: 4
+                    implicitWidth: lapRow.implicitWidth + 14
+                    radius: 12
+                    color: Appearance.colors.colSurfaceContainerHigh
 
                     Row {
-                        id: lapContent
+                        id: lapRow
                         anchors.centerIn: parent
                         spacing: 5
 
@@ -130,81 +136,128 @@ Item {
 
                         StyledText {
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.verticalCenterOffset: 1
                             text: "Lap " + (TimerService.stopwatchLaps ? (TimerService.stopwatchLaps.length + 1) : 1)
-                            font.pixelSize: 12
-                            font.weight: Font.Bold
-                            color: root.accentColor
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            color: Appearance.colors.colOnSurfaceVariant
                         }
                     }
                 }
             }
-        }
 
-        // Secondary Buttons Row (Reset & Lap with Animated Reveal/Slide)
-        RowLayout {
-            id: buttonsRow
+            // Controls Row (M3 ButtonGroup with KDEDrawer tactile feedback)
+            ButtonGroup {
+                id: stopwatchButtonGroup
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+                spacing: 6
+                padding: 0
 
-            anchors.verticalCenter: playContainer.verticalCenter
-            anchors.right: playContainer.left
-            anchors.rightMargin: 12
-            spacing: (resetRevealer.reveal && lapRevealer.reveal) ? 8 : 0
+                // Main Play / Pause / Resume Pill Button
+                GroupButton {
+                    id: playActionBtn
+                    Layout.fillWidth: true
+                    baseWidth: Math.floor((parent.width - 12) * 0.52)
+                    baseHeight: 32
+                    clickedWidth: baseWidth + 10
+                    buttonRadius: 16
+                    buttonRadiusPressed: 11
+                    bounce: true
 
-            Behavior on spacing {
-                animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-            }
+                    colBackground: root.isRunning ? Appearance.colors.colSecondaryContainer : root.accentColor
+                    colBackgroundHover: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.88)
+                    colBackgroundActive: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.72)
 
-            // Reset Button (Reveals when time > 0, smoothly slides to play button when lap hides)
-            Revealer {
-                id: resetRevealer
-                reveal: TimerService.stopwatchTime > 0
-                Layout.alignment: Qt.AlignVCenter
+                    onClicked: TimerService.toggleStopwatch()
 
-                RippleButton {
-                    id: resetButton
-                    implicitWidth: 40
-                    implicitHeight: 40
-                    buttonRadius: 20
-                    colBackground: Appearance.colors.colSecondaryContainer
-                    colRipple: Appearance.colors.colOnSecondaryContainer
-                    onClicked: TimerService.stopwatchReset()
-
-                    MaterialSymbol {
+                    contentItem: Row {
                         anchors.centerIn: parent
-                        text: "restart_alt"
-                        iconSize: 18
-                        fill: 1
-                        color: Appearance.colors.colOnSecondaryContainer
+                        spacing: 6
+
+                        MaterialSymbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.isRunning ? "pause" : "play_arrow"
+                            iconSize: 17
+                            fill: 1
+                            color: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
+                        }
+
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.isRunning ? "Pause" : (root.hasElapsed ? "Resume" : "Start")
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                            color: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
+                        }
                     }
                 }
-            }
 
-            // Lap Button (Reveals while running)
-            Revealer {
-                id: lapRevealer
-                reveal: root.isRunning
-                Layout.alignment: Qt.AlignVCenter
+                // Lap Button (Always present in layout, disabled/dimmed when paused)
+                GroupButton {
+                    id: lapBtn
+                    Layout.fillWidth: true
+                    baseWidth: Math.floor((parent.width - 12) * 0.24)
+                    baseHeight: 32
+                    clickedWidth: baseWidth + 10
+                    buttonRadius: 16
+                    buttonRadiusPressed: 11
+                    bounce: true
+                    enabled: root.isRunning
+                    opacity: root.isRunning ? 1.0 : 0.45
 
-                RippleButton {
-                    id: lapButton
-                    implicitWidth: 40
-                    implicitHeight: 40
-                    buttonRadius: 20
+                    Behavior on opacity {
+                        NumberAnimation { duration: 180 }
+                    }
+
                     colBackground: Appearance.colors.colSecondaryContainer
-                    colRipple: Appearance.colors.colOnSecondaryContainer
+                    colBackgroundHover: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.88)
+                    colBackgroundActive: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.72)
+
                     onClicked: TimerService.stopwatchRecordLap()
 
-                    MaterialSymbol {
-                        anchors.centerIn: parent
+                    contentItem: MaterialSymbol {
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                         text: "flag"
-                        iconSize: 18
+                        iconSize: 16
+                        fill: 1
+                        color: Appearance.colors.colOnSecondaryContainer
+                    }
+                }
+
+                // Reset Button (Enabled when elapsed)
+                GroupButton {
+                    id: resetBtn
+                    Layout.fillWidth: true
+                    baseWidth: Math.floor((parent.width - 12) * 0.24)
+                    baseHeight: 32
+                    clickedWidth: baseWidth + 10
+                    buttonRadius: 16
+                    buttonRadiusPressed: 11
+                    bounce: true
+                    enabled: root.hasElapsed
+                    opacity: root.hasElapsed ? 1.0 : 0.45
+
+                    Behavior on opacity {
+                        NumberAnimation { duration: 180 }
+                    }
+
+                    colBackground: Appearance.colors.colSecondaryContainer
+                    colBackgroundHover: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.88)
+                    colBackgroundActive: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.72)
+
+                    onClicked: TimerService.stopwatchReset()
+
+                    contentItem: MaterialSymbol {
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: "restart_alt"
+                        iconSize: 16
                         fill: 1
                         color: Appearance.colors.colOnSecondaryContainer
                     }
                 }
             }
         }
-
     }
-
 }

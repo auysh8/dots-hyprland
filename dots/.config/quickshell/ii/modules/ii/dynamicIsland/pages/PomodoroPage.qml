@@ -16,9 +16,13 @@ Item {
     // Color Logic
     readonly property bool isBreak: TimerService.pomodoroBreak
     readonly property bool isRunning: TimerService.pomodoroRunning
-    // Accent Color based on state
-    readonly property color accentColor: isBreak ? Appearance.colors.colSecondaryContainer : Appearance.colors.colErrorContainer
-    readonly property color onAccentColor: isBreak ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnErrorContainer
+
+    // M3 Color Pairs (Tonal Container + OnContainer)
+    readonly property color containerColor: isBreak ? Appearance.colors.colSecondaryContainer : Appearance.colors.colErrorContainer
+    readonly property color onContainerColor: isBreak ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnErrorContainer
+    readonly property color accentColor: isBreak ? Appearance.colors.colSecondary : Appearance.colors.colError
+    readonly property color onAccentColor: isBreak ? Appearance.colors.colOnSecondary : Appearance.colors.colOnError
+
     // Constants
     readonly property int focusDuration: 25 * 60
     readonly property int shortBreakDuration: 5 * 60
@@ -35,176 +39,228 @@ Item {
     // 1.0 -> 0.0 (Depletes)
     property real progress: TimerService.pomodoroSecondsLeft / currentMaxDuration
 
-    implicitHeight: mainLayout.implicitHeight + 32
+    implicitHeight: Math.max(mainRow.implicitHeight + 10, 100)
 
-    // Background (Dark)
-    Rectangle {
-        anchors.fill: parent
-        color: Appearance.colors.colLayer0
-        radius: Appearance.rounding.normal
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-    }
+    RowLayout {
+        id: mainRow
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.leftMargin: 12
+        anchors.rightMargin: 12
+        spacing: 12
 
-    Item {
-        id: mainLayout
+        // 1. Left Side: Material Shape Hero Container (Clover4Leaf)
+        Item {
+            id: heroContainer
+            Layout.preferredWidth: 78
+            Layout.preferredHeight: 78
+            implicitWidth: 78
+            implicitHeight: 78
+            Layout.alignment: Qt.AlignVCenter
 
-        anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        implicitHeight: Math.max(infoLayout.implicitHeight, playContainer.height)
+            MaterialShape {
+                id: shapeBackground
+                anchors.fill: parent
+                implicitSize: 78
+                color: root.containerColor
+                shape: root.isBreak ? MaterialShape.Shape.Cookie4Sided : MaterialShape.Shape.Clover4Leaf
 
-        // Left Side: Info & Status
+                Behavior on color {
+                    ColorAnimation { duration: 250 }
+                }
+            }
+
+            MaterialSymbol {
+                id: heroSymbol
+                anchors.centerIn: parent
+                text: root.isBreak ? "coffee" : "local_fire_department"
+                iconSize: 30
+                fill: 1
+                color: root.isBreak ? Appearance.colors.colOnSurface : root.onContainerColor
+
+                Behavior on color {
+                    ColorAnimation { duration: 250 }
+                }
+            }
+        }
+
+        // 2. Right Side: Digits, Header Pill, and M3 ButtonGroup Controls
         ColumnLayout {
-            id: infoLayout
+            id: detailsCol
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 8
 
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: resetButton.left
-            anchors.rightMargin: 16
-            spacing: 6
-
-            // Timer + Status Group
-            ColumnLayout {
-                id: timerGroup
-                spacing: 0
+            // Header Row: Timer digits on left, Round context pill on right
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
 
                 StyledText {
                     id: timeText
-
                     text: {
                         let m = Math.floor(TimerService.pomodoroSecondsLeft / 60).toString().padStart(2, '0');
                         let s = Math.floor(TimerService.pomodoroSecondsLeft % 60).toString().padStart(2, '0');
                         return m + ":" + s;
                     }
-                    font.pixelSize: 48
+                    font.pixelSize: 30
                     font.weight: Font.Bold
-                    font.family: "monospace" // Prevents number jitter natively
-                    color: root.accentColor
-                    horizontalAlignment: Text.AlignLeft
+                    color: Appearance.colors.colOnSurface
                 }
 
-                StyledText {
-                    text: {
-                        if (TimerService.pomodoroLongBreak)
-                            return "Long Break";
-
-                        if (TimerService.pomodoroBreak)
-                            return "Short Break";
-
-                        return "Focus Session";
-                    }
-                    font.pixelSize: 13
-                    font.weight: Font.Bold
-                    font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 2
-                    color: Appearance.colors.colOnLayer0
-                    opacity: 0.85
+                Item {
+                    Layout.fillWidth: true
                 }
-            }
 
-            // Cycle Dashes (Stadium Pills)
-            Row {
-                spacing: 5
+                // Subtitle Chip (M3 Capsule Pill aligned top-right)
+                Rectangle {
+                    implicitHeight: 24
+                    implicitWidth: subtitleRow.implicitWidth + 14
+                    radius: 12
+                    color: Appearance.colors.colSurfaceContainerHigh
 
-                Repeater {
-                    model: 4
+                    Row {
+                        id: subtitleRow
+                        anchors.centerIn: parent
+                        spacing: 5
 
-                    Rectangle {
-                        readonly property bool completed: TimerService.pomodoroCycle > index
-                        readonly property bool current: TimerService.pomodoroCycle == index
+                        MaterialSymbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.isBreak ? "free_breakfast" : "self_improvement"
+                            iconSize: 13
+                            fill: 1
+                            color: root.isBreak ? Appearance.colors.colSecondary : root.accentColor
+                        }
 
-                        width: 16
-                        height: 4
-                        radius: 2
-                        color: (completed || current) ? root.accentColor : ColorUtils.applyAlpha(Appearance.colors.colOnLayer0, 0.18)
-                        opacity: current ? 1.0 : (completed ? 0.9 : 0.6)
-
-                        // Current dash pulse animation when running
-                        SequentialAnimation on opacity {
-                            running: current && root.isRunning
-                            loops: Animation.Infinite
-
-                            NumberAnimation {
-                                to: 0.45
-                                duration: 800
-                                easing.type: Easing.InOutQuad
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: {
+                                if (TimerService.pomodoroLongBreak)
+                                    return "Long Break • " + Math.floor(root.longBreakDuration / 60) + "m";
+                                if (TimerService.pomodoroBreak)
+                                    return "Short Break • " + Math.floor(root.shortBreakDuration / 60) + "m";
+                                let cycle = (TimerService.pomodoroCycle || 0) + 1;
+                                let total = TimerService.cyclesBeforeLongBreak || 4;
+                                return "Round " + cycle + " of " + total + " • " + Math.floor(root.focusDuration / 60) + "m";
                             }
-
-                            NumberAnimation {
-                                to: 1.0
-                                duration: 800
-                                easing.type: Easing.InOutQuad
-                            }
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            color: Appearance.colors.colOnSurfaceVariant
                         }
                     }
                 }
             }
-        }
 
-        // Secondary Button (Reset)
-        RippleButton {
-            id: resetButton
+            // Controls Row (M3 ButtonGroup with responsive bounciness & tactile feedback like KDEDrawer)
+            ButtonGroup {
+                id: pomodoroButtonGroup
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+                spacing: 6
+                padding: 0
 
-            anchors.verticalCenter: playContainer.verticalCenter
-            anchors.right: playContainer.left
-            anchors.rightMargin: 12
-            implicitWidth: 42
-            implicitHeight: 42
-            buttonRadius: 21
-            colBackground: Appearance.colors.colSecondaryContainer
-            colRipple: Appearance.colors.colOnSecondaryContainer
-            onClicked: TimerService.resetPomodoro()
+                // Main Play / Pause / Resume Action Pill (Dynamic Focus/Break Accent)
+                GroupButton {
+                    id: playActionBtn
+                    Layout.fillWidth: true
+                    baseWidth: Math.floor((parent.width - 12) * 0.52)
+                    baseHeight: 32
+                    clickedWidth: baseWidth + 14
+                    buttonRadius: 16
+                    buttonRadiusPressed: 11
+                    bounce: true
 
-            MaterialSymbol {
-                anchors.centerIn: parent
-                text: "restart_alt"
-                iconSize: 20
-                fill: 1
-                color: Appearance.colors.colOnSecondaryContainer
-            }
-        }
+                    colBackground: root.accentColor
+                    colBackgroundHover: ColorUtils.mix(root.accentColor, root.isBreak ? Appearance.colors.colOnSecondary : root.onAccentColor, 0.88)
+                    colBackgroundActive: ColorUtils.mix(root.accentColor, root.isBreak ? Appearance.colors.colOnSecondary : root.onAccentColor, 0.72)
 
-        // Right Side: Circular Progress + Play Button
-        Item {
-            id: playContainer
+                    onClicked: TimerService.togglePomodoro()
 
-            width: 80
-            height: 80
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+                    contentItem: Item {
+                        anchors.fill: parent
 
-            // 2. Circular Progress Ring (Reuse Component)
-            CircularProgress {
-                anchors.centerIn: parent
-                implicitSize: 80
-                lineWidth: 6
-                value: root.progress
-                colPrimary: root.accentColor
-                colSecondary: ColorUtils.applyAlpha(root.accentColor, 0.2)
-                enableAnimation: true
-            }
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 5
 
-            // 3. Play/Pause Button (Center)
-            RippleButton {
-                anchors.centerIn: parent
-                implicitWidth: 56
-                implicitHeight: 56
-                buttonRadius: 28
-                colBackground: "transparent"
-                colRipple: root.accentColor
-                onClicked: TimerService.togglePomodoro()
+                            MaterialSymbol {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: root.isRunning ? "pause" : "play_arrow"
+                                iconSize: 16
+                                fill: 1
+                                color: root.isBreak ? Appearance.colors.colOnSecondary : root.onAccentColor
+                            }
 
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: root.isRunning ? "pause" : "play_arrow"
-                    iconSize: 32
-                    fill: 1
-                    color: root.accentColor
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: root.isRunning ? "Pause" : (TimerService.pomodoroSecondsLeft < root.currentMaxDuration ? "Resume" : "Start")
+                                font.pixelSize: 11
+                                font.weight: Font.SemiBold
+                                color: root.isBreak ? Appearance.colors.colOnSecondary : root.onAccentColor
+                            }
+                        }
+                    }
+                }
+
+                // Reset Button (Dynamic Tonal Container)
+                GroupButton {
+                    id: resetBtn
+                    Layout.fillWidth: true
+                    baseWidth: Math.floor((parent.width - 12) * 0.24)
+                    baseHeight: 32
+                    clickedWidth: baseWidth + 10
+                    buttonRadius: 16
+                    buttonRadiusPressed: 11
+                    bounce: true
+
+                    colBackground: root.containerColor
+                    colBackgroundHover: ColorUtils.mix(root.containerColor, Appearance.colors.colOnSurface, 0.88)
+                    colBackgroundActive: ColorUtils.mix(root.containerColor, Appearance.colors.colOnSurface, 0.72)
+
+                    onClicked: TimerService.resetPomodoro()
+
+                    contentItem: MaterialSymbol {
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: "restart_alt"
+                        iconSize: 16
+                        fill: 1
+                        color: root.isBreak ? Appearance.colors.colOnSurface : root.onContainerColor
+                    }
+                }
+
+                // Skip / Advance Button (Dynamic Tonal Container)
+                GroupButton {
+                    id: skipBtn
+                    Layout.fillWidth: true
+                    baseWidth: Math.floor((parent.width - 12) * 0.24)
+                    baseHeight: 32
+                    clickedWidth: baseWidth + 10
+                    buttonRadius: 16
+                    buttonRadiusPressed: 11
+                    bounce: true
+
+                    colBackground: root.containerColor
+                    colBackgroundHover: ColorUtils.mix(root.containerColor, Appearance.colors.colOnSurface, 0.88)
+                    colBackgroundActive: ColorUtils.mix(root.containerColor, Appearance.colors.colOnSurface, 0.72)
+
+                    onClicked: {
+                        Persistent.states.timer.pomodoro.isBreak = !Persistent.states.timer.pomodoro.isBreak;
+                        Persistent.states.timer.pomodoro.start = TimerService.getCurrentTimeInSeconds();
+                        TimerService.refreshPomodoro();
+                    }
+
+                    contentItem: MaterialSymbol {
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: "skip_next"
+                        iconSize: 16
+                        fill: 1
+                        color: root.isBreak ? Appearance.colors.colOnSurface : root.onContainerColor
+                    }
                 }
             }
         }
-
     }
-
 }

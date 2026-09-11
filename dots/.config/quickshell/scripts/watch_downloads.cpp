@@ -13,10 +13,11 @@ namespace fs = std::filesystem;
 
 static const char* LOG_FILE = "/tmp/qs_popup.log";
 
-static void log_popup(const std::string& type, const std::string& title, const std::string& message) {
+static void log_popup(const std::string& type, const std::string& title, const std::string& message,
+                      const std::string& category = "download", const std::string& action = "complete") {
     std::ofstream f(LOG_FILE, std::ios::app);
     if (f.is_open()) {
-        f << type << "|" << title << "|" << message << "\n";
+        f << type << "|" << title << "|" << message << "|" << category << "|" << action << "\n";
         f.flush();
     }
 }
@@ -80,7 +81,7 @@ int main() {
                 if ((event->mask & (IN_CLOSE_WRITE | IN_MOVED_TO)) && !(event->mask & IN_ISDIR)) {
                     if (!should_ignore(filename)) {
                         std::cout << "New download: " << filename << std::endl;
-                        log_popup("good", "Download", "Completed: " + filename + "|download|complete");
+                        log_popup("good", "Download", "Completed: " + filename, "download", "complete");
                     }
                 }
             }

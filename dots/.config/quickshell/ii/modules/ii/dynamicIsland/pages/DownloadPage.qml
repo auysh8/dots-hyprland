@@ -11,155 +11,190 @@ import qs.services
 
 Item {
     id: root
+    anchors.fill: parent
 
-    // Accent Color
-    readonly property color accentColor: Appearance.colors.colPrimaryContainer
-    readonly property color onAccentColor: Appearance.colors.colOnPrimaryContainer
+    // M3 Color Mapping (Secondary Tonal Container paired with OnSecondaryContainer)
+    readonly property color containerColor: Appearance.colors.colSecondaryContainer
+    readonly property color onContainerColor: Appearance.colors.colOnSecondaryContainer
+    readonly property color accentColor: Appearance.colors.colSecondary
+
     // Progress (0.0 -> 1.0)
     readonly property real progress: DownloadService.progress || 0
-    // Shortened filename for display
+    readonly property bool isCompleted: DownloadService.status === "completed"
+    readonly property bool isInterrupted: DownloadService.status === "interrupted"
+    readonly property bool isPaused: !DownloadService.active && !isCompleted
+
+    // Filename for display
     readonly property string displayFilename: {
         let name = DownloadService.filename || "No active download";
-        // Remove common URL encoding and clean up
-        name = decodeURIComponent(name);
-        // Truncate if too long
-        if (name.length > 35) {
-            let ext = name.lastIndexOf('.') > name.length - 8 ? name.slice(name.lastIndexOf('.')) : "";
-            return name.slice(0, 32 - ext.length) + "..." + ext;
-        }
-        return name;
+        return decodeURIComponent(name);
     }
 
-    implicitHeight: mainLayout.implicitHeight + 32
+    implicitHeight: Math.max(mainRow.implicitHeight + 20, 100)
 
-    // Background (Dark)
-    Rectangle {
+    RowLayout {
+        id: mainRow
         anchors.fill: parent
-        color: Appearance.colors.colLayer0
-        radius: Appearance.rounding.normal
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-    }
+        anchors.leftMargin: 12
+        anchors.rightMargin: 12
+        spacing: 14
 
-    Item {
-        id: mainLayout
+        // 1. Left Side: Material Shape Hero Container with Percentage & Status Symbol
+        Item {
+            id: heroContainer
+            Layout.preferredWidth: 84
+            Layout.preferredHeight: 84
+            implicitWidth: 84
+            implicitHeight: 84
+            Layout.alignment: Qt.AlignVCenter
 
-        anchors.fill: parent
-        anchors.margins: 16
-        implicitHeight: Math.max(infoLayout.implicitHeight, progressContainer.height)
-
-        // Left Side: Info
-        ColumnLayout {
-            id: infoLayout
-
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.right: progressContainer.left
-            anchors.rightMargin: 16
-            spacing: 4
-
-            // Large Percentage Display
-            ColumnLayout {
-                spacing: 0
-
-                StyledText {
-                    id: percentText
-
-                    text: Math.round(root.progress * 100) + "%"
-                    font.pixelSize: 48
-                    font.weight: Font.Bold
-                    font.family: "monospace" // Prevents number jitter natively
-                    color: root.accentColor
-                    horizontalAlignment: Text.AlignLeft
+            MaterialShape {
+                id: shapeBackground
+                anchors.fill: parent
+                implicitSize: 84
+                color: root.containerColor
+                shape: {
+                    if (root.isCompleted) return MaterialShape.Shape.VerySunny;
+                    if (root.isInterrupted) return MaterialShape.Shape.Boom;
+                    return MaterialShape.Shape.Cookie4Sided;
                 }
 
-                // Filename
-                StyledText {
-                    Layout.fillWidth: true
-                    text: root.displayFilename
-                    font.pixelSize: 14 // Increased from 12
-                    font.weight: Font.Medium
-                    color: Appearance.colors.colSubtext
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
+                Behavior on color {
+                    ColorAnimation { duration: 250 }
                 }
-
             }
 
-            // Status Row
-            Row {
-                spacing: 6
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: 2
+
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: root.isCompleted ? "100%" : Math.round(root.progress * 100) + "%"
+                    font.pixelSize: 22
+                    font.weight: Font.Bold
+                    font.family: Appearance.font.family.main
+                    color: Appearance.colors.colOnSecondaryContainer
+
+                    Behavior on color {
+                        ColorAnimation { duration: 250 }
+                    }
+                }
+
+                MaterialSymbol {
+                    id: heroSymbol
+                    Layout.alignment: Qt.AlignHCenter
+                    text: {
+                        if (root.isCompleted) return "check_circle";
+                        if (root.isInterrupted) return "error";
+                        if (root.isPaused) return "pause";
+                        return "downloading";
+                    }
+                    iconSize: 18
+                    fill: 1
+                    color: Appearance.colors.colOnSecondaryContainer
+
+                    Behavior on color {
+                        ColorAnimation { duration: 250 }
+                    }
+                }
+            }
+        }
+
+        // 2. Right Side: Metadata Stack & M3 Expressive Progress Bar
+        ColumnLayout {
+            id: detailsCol
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 6
+
+            // File Name
+            StyledText {
+                Layout.fillWidth: true
+                text: root.displayFilename
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                color: Appearance.colors.colOnSurface
+                elide: Text.ElideRight
+                maximumLineCount: 1
+            }
+
+            // Status Capsule Pill + Counter
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Rectangle {
+                    implicitHeight: 24
+                    implicitWidth: statusRow.implicitWidth + 16
+                    radius: 12
+                    color: Appearance.colors.colSurfaceContainerHigh
+
+                    Row {
+                        id: statusRow
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        MaterialSymbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: {
+                                if (root.isCompleted) return "check";
+                                if (root.isInterrupted) return "warning";
+                                if (root.isPaused) return "pause";
+                                return "bolt";
+                            }
+                            iconSize: 13
+                            fill: 1
+                            color: root.accentColor
+                        }
+
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: {
+                                if (root.isCompleted) return "Completed";
+                                if (root.isInterrupted) return "Interrupted";
+                                if (root.isPaused) return "Paused";
+                                if (DownloadService.speed && DownloadService.speed !== "Unknown")
+                                    return DownloadService.speed;
+                                return "Downloading";
+                            }
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.weight: Font.Medium
+                            color: Appearance.colors.colOnSurfaceVariant
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
 
                 StyledText {
                     text: {
-                        if (DownloadService.status === "completed")
-                            return "COMPLETED";
-
-                        if (DownloadService.status === "interrupted")
-                            return "INTERRUPTED";
-
-                        if (!DownloadService.active)
-                            return "PAUSED";
-
-                        if (DownloadService.speed && DownloadService.speed !== "Unknown")
-                            return DownloadService.speed;
-
-                        return "DOWNLOADING";
+                        if (DownloadService.count > 1) {
+                            return DownloadService.count + " active";
+                        }
+                        return root.isCompleted ? "Finished" : "1 active";
                     }
-                    font.pixelSize: 13 // Increased from 11
-                    font.weight: Font.Bold // Bolder for readability
-                    font.capitalization: Font.AllUppercase
-                    font.letterSpacing: 1.2
-                    color: Appearance.colors.colSubtext
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.Medium
+                    color: Appearance.colors.colOnSurfaceVariant
+                    Layout.alignment: Qt.AlignRight
                 }
-
             }
 
-            Item {
-                Layout.fillHeight: true
-            }
-
-        }
-
-        // Right Side: Circular Progress + Icon
-        Item {
-            id: progressContainer
-
-            width: 80
-            height: 80
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-
-            // Circular Progress Ring
-            CircularProgress {
-                anchors.centerIn: parent
-                implicitSize: 80
-                lineWidth: 6
+            // Material 3 Styled Progress Bar
+            StyledProgressBar {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 6
+                valueBarHeight: 6
+                valueBarWidth: 160
                 value: root.progress
-                colPrimary: root.accentColor
-                colSecondary: ColorUtils.applyAlpha(root.accentColor, 0.2)
-                enableAnimation: true
+                highlightColor: root.accentColor
+                trackColor: Appearance.colors.colSurfaceContainerHighest
+                wavy: DownloadService.active && !root.isCompleted
+                animateWave: wavy
             }
-
-            // Download Icon (Center)
-            Item {
-                anchors.centerIn: parent
-                width: 56
-                height: 56
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "download"
-                    iconSize: 32
-                    fill: 1
-                    color: root.accentColor
-                }
-
-            }
-
         }
-
     }
-
 }

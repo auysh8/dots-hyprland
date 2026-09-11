@@ -7,20 +7,29 @@ import qs.services
 Item {
     id: root
     
-    // Properties to expose data
-    property string popupType: "neutral"
-    property string popupTitle: ""
-    property string popupMessage: ""
-    property bool hasPopup: false
+    // Atomic Popup State (Ensures all visual properties update on the exact same frame)
+    property var currentPopup: null
+    property var popupQueue: []
 
-    // Structured popup metadata
-    property string popupCategory: "generic"
-    property string popupAction: ""
-    
+    // Backward-compatible properties bound directly to currentPopup
+    readonly property string popupType: currentPopup ? currentPopup.type : "neutral"
+    readonly property string popupTitle: currentPopup ? currentPopup.title : ""
+    readonly property string popupMessage: currentPopup ? currentPopup.message : ""
+    readonly property string popupCategory: currentPopup ? currentPopup.category : "generic"
+    readonly property string popupAction: currentPopup ? currentPopup.action : ""
+    readonly property bool hasPopup: currentPopup !== null
+
+    // Allowed categories whitelist
+    readonly property var validCategories: [
+        "screenshot", "download", "clipboard", "media", "microphone", "volume",
+        "wifi", "bluetooth", "battery", "pomodoro", "brightness", "notification",
+        "message", "mail", "update", "storage", "keyboard", "generic"
+    ]
+
     // Spam Prevention
     property var lastPopupTime: 0
     property string lastPopupContent: ""
-    
+
     // Startup Protection
     property bool ignoreClipboard: true
     Timer {
@@ -35,16 +44,101 @@ Item {
             message.includes("storage") || message.includes("disk")
     }
 
+    function clearQueue() {
+        root.popupQueue = [];
+        root.currentPopup = null;
+        popupTimer.stop();
+    }
+
+    // Atomic Queue Dispatcher
+    function enqueuePopup(type, title, message, category, action) {
+        // Normalize and canonicalize category
+        var safeCat = (category || "").toLowerCase().trim();
+        if (!validCategories.includes(safeCat)) {
+            safeCat = "generic";
+        }
+
+        var safeType = (type || "neutral").toLowerCase().trim();
+        if (safeType !== "good" && safeType !== "bad" && safeType !== "toggle") {
+            safeType = "neutral";
+        }
+
+        var popupItem = {
+            "type": safeType,
+            "title": title || "",
+            "message": message || "",
+            "category": safeCat,
+            "action": (action || "").toLowerCase().trim(),
+            "timestamp": new Date().getTime()
+        };
+
+        // Interactive/Hardware categories that represent real-time state toggles
+        var isInteractive = (safeCat === "microphone" || safeCat === "volume" || safeCat === "brightness" || safeCat === "keyboard");
+
+        // If idle, show immediately
+        if (root.currentPopup === null) {
+            root._displayPopup(popupItem);
+        } else if (isInteractive) {
+            // Interactive toggles (mic, volume, brightness, keys) MUST provide instant real-time feedback:
+            // 1. If currently showing the SAME interactive category, update it in-place and reset timer (no queue lag).
+            // 2. If currently showing a passive popup (like clipboard or download), immediately preempt it and push the passive one back into the queue.
+            if (root.currentPopup.category === safeCat) {
+                root._displayPopup(popupItem);
+            } else {
+                var q = [...root.popupQueue];
+                // Purge any stale entries of this same interactive category from the queue
+                q = q.filter(item => item.category !== safeCat);
+                // Save current passive popup back to the queue so it isn't lost
+                q.unshift(root.currentPopup);
+                root.popupQueue = q;
+                root._displayPopup(popupItem);
+            }
+        } else if (safeType === "bad" && root.currentPopup.type !== "bad") {
+            // Urgent preemption (e.g. storage critical, battery warning)
+            var q = [...root.popupQueue];
+            q.unshift(root.currentPopup);
+            root.popupQueue = q;
+            root._displayPopup(popupItem);
+        } else {
+            // Passive informational popup: queue if busy
+            var q = [...root.popupQueue];
+            if (q.length < 10) {
+                q.push(popupItem);
+                root.popupQueue = q;
+            }
+        }
+    }
+
+    function _displayPopup(item) {
+        root.currentPopup = item;
+        root.lastPopupContent = item.title + item.message;
+        root.lastPopupTime = new Date().getTime();
+
+        var isInteractive = (item.category === "microphone" || item.category === "volume" || item.category === "brightness" || item.category === "keyboard");
+        if (isInteractive) {
+            popupTimer.interval = 1800;
+        } else if (item.type === "bad") {
+            popupTimer.interval = 5000;
+        } else {
+            popupTimer.interval = 3000;
+        }
+        popupTimer.restart();
+    }
+
+    function _advanceQueue() {
+        if (root.popupQueue.length > 0) {
+            var q = [...root.popupQueue];
+            var nextItem = q.shift();
+            root.popupQueue = q;
+            root._displayPopup(nextItem);
+        } else {
+            root.currentPopup = null;
+        }
+    }
+
+    // Direct caller compatible with legacy showPopup
     function showPopup(type, title, message, category, action) {
-        root.popupType = type
-        root.popupTitle = title
-        root.popupMessage = message
-        root.popupCategory = category
-        root.popupAction = action
-        root.hasPopup = true
-        root.lastPopupContent = title + message
-        root.lastPopupTime = new Date().getTime()
-        popupTimer.restart()
+        root.enqueuePopup(type, title, message, category, action);
     }
     
     // -------------------------------------------------------------------------
@@ -69,25 +163,8 @@ Connections {
         var newArtist = MprisController.activeTrack.artist;
         if (newTitle !== "" && newTitle !== root.lastTrackTitle) {
             root.lastTrackTitle = newTitle;
-            
-            // Build message
             let msg = newTitle + (newArtist ? " • " + newArtist : "");
-            
-            // IMPORTANT: Set category BEFORE setting other properties
-            root.popupCategory = "media";
-            root.popupAction = "playing";
-            
-            // Then set the rest
-            root.popupType = "neutral";
-            root.popupTitle = "Now Playing";
-            root.popupMessage = msg;
-            root.hasPopup = true;
-            
-            // Update spam prevention to match
-            root.lastPopupContent = "Now Playing" + msg;
-            root.lastPopupTime = new Date().getTime();
-            
-            popupTimer.restart();
+            root.showPopup("neutral", "Now Playing", msg, "media", "playing");
         }
     }
 }
@@ -177,10 +254,16 @@ Connections {
                     // Startup protection for Clipboard (wl-paste triggers on init)
                     if (t.includes("clipboard") && root.ignoreClipboard) return;
                     
-                    // Spam Check
+                    // Parse structured metadata if present
+                    var cat = parts.length >= 4 ? parts[3].trim().toLowerCase() : "generic";
+                    var act = parts.length >= 5 ? parts[4].trim().toLowerCase() : "";
+
+                    var isInteractive = (cat === "microphone" || cat === "volume" || cat === "brightness" || cat === "keyboard");
+
+                    // Spam Check (Allow interactive rapid toggles through; suppress duplicate passive popups)
                     var contentHash = parts[1] + parts[2];
                     var now = new Date().getTime();
-                    if (contentHash === root.lastPopupContent && (now - root.lastPopupTime) < 4000) {
+                    if (!isInteractive && contentHash === root.lastPopupContent && (now - root.lastPopupTime) < 4000) {
                         return; // Ignore duplicate
                     }
 
@@ -192,10 +275,6 @@ Connections {
 
                     root.lastPopupContent = contentHash;
                     root.lastPopupTime = now;
-
-                    // Parse structured metadata if present
-                    var cat = parts.length >= 4 ? parts[3].trim().toLowerCase() : "generic";
-                    var act = parts.length >= 5 ? parts[4].trim().toLowerCase() : "";
 
                     if (root.isStoragePopup(t, m, cat) && ResourceUsage.diskUsedPercentage < 0.95)
                         return;
@@ -233,16 +312,9 @@ Connections {
                         }
                     }
 
-                    // Apply structured metadata first to prevent icon flicker
-                    root.popupCategory = cat;
-                    root.popupAction = act;
+                    // Dispatch atomically to queue
+                    root.enqueuePopup(incomingType, parts[1], parts[2], cat, act);
 
-                    // Then apply display content
-                    root.popupType = incomingType;
-                    root.popupTitle = parts[1];
-                    root.popupMessage = parts[2];
-                    root.hasPopup = true;
-                    
                     // Bluetooth Connection Sequence (Preserve specialized logic)
                     if (cat === "bluetooth" && act === "connected" && !t.includes("battery")) {
                         // Extract device name: "Connected: AirPods" -> "AirPods"
@@ -257,8 +329,6 @@ Connections {
                         
                         btBatteryTriggerTimer.restart();
                     }
-                    
-                    popupTimer.restart();
                 }
             }
         }
@@ -266,11 +336,11 @@ Connections {
     
     Timer {
         id: popupTimer
-        interval: root.popupType === "bad" ? 5000 : 3000
+        interval: 3000
+        repeat: false
+        running: false
         onTriggered: {
-            root.hasPopup = false
-            root.popupCategory = "generic"
-            root.popupAction = ""
+            root._advanceQueue();
         }
     }
 
@@ -368,39 +438,33 @@ Connections {
     property int _btTempBatt: -1
     property var _lowBattWarned: ({}) // Map to track warned devices
     
+    function rescanBluetooth() {
+        root.bluetoothDevices = [];
+        btWatcher.running = false;
+        btWatcher.running = true;
+    }
+
     Timer {
         id: btListCleanup
-        interval: 10000 
+        interval: 60000 // Background safety sweep every 60s instead of aggressive 10s
         running: true
         repeat: true
         onTriggered: {
              // Check for Low Battery on existing devices
-             for(let i=0; i<root.bluetoothDevices.length; i++) {
+             for (let i = 0; i < root.bluetoothDevices.length; i++) {
                  let dev = root.bluetoothDevices[i];
                  if (dev.battery >= 0 && dev.battery <= 20) {
-                     // Check if already warned recently (e.g., in last hour)
                      let lastWarn = root._lowBattWarned[dev.name] || 0;
                      let now = new Date().getTime();
-                     if (now - lastWarn > 3600000) { // 1 hour
-                         // Trigger Low Battery Popup via log injection (easiest way to loop back)
-                         // Or use internal method? Internal is cleaner.
-                         root.popupType = "bad";
-                         root.popupTitle = "Battery";
-                         root.popupMessage = "Low Battery: " + dev.name + " (" + dev.battery + "%)";
-                         root.popupCategory = "battery"
-                         root.popupAction = "low"
-                         root.hasPopup = true;
-                         popupTimer.restart();
-                         
+                     if (now - lastWarn > 3600000) { // 1 hour cooldown
+                         root.showPopup("bad", "Battery", "Low Battery: " + dev.name + " (" + dev.battery + "%)", "battery", "low");
                          root._lowBattWarned[dev.name] = now;
                      }
                  }
              }
         
-             // Clear list and restart scan to handle disconnections
-             root.bluetoothDevices = []; 
-             btWatcher.running = false;
-             btWatcher.running = true;
+             // Only restart scan if devices exist or to clear disconnected devices
+             root.rescanBluetooth();
         }
     }
 }

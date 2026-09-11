@@ -5,9 +5,9 @@ import sys
 DOWNLOADS_DIR = os.path.expanduser("~/Downloads")
 LOG_FILE = "/tmp/qs_popup.log"
 
-def log_popup(type, title, message):
+def log_popup(type, title, message, category="download", action="complete"):
     with open(LOG_FILE, "a") as f:
-        f.write(f"{type}|{title}|{message}\n")
+        f.write(f"{type}|{title}|{message}|{category}|{action}\n")
 
 def main():
     if not os.path.exists(DOWNLOADS_DIR):
@@ -31,7 +31,7 @@ def main():
                     continue
                 
                 print(f"New download: {f}")
-                log_popup("good", "Download", f"Completed: {f}|download|complete")
+                log_popup("good", "Download", f"Completed: {f}", "download", "complete")
                 
         before = after
 
