@@ -108,6 +108,8 @@ RippleButton {
     // M3 Expressive: extra-large rounded corners (28px)
     buttonRadius: 28
 
+    clip: true
+
     // M3 Expressive surface hierarchy
     colBackground: root.notePinned
         ? root.pinnedFill
@@ -128,6 +130,7 @@ RippleButton {
 
     contentItem: Item {
         anchors.fill: parent
+        clip: true
 
         ColumnLayout {
             id: cardLayout
@@ -135,13 +138,13 @@ RippleButton {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.margins: 20
-            anchors.rightMargin: 84
-            spacing: 10
+            anchors.margins: 18
+            spacing: 8
 
-            // Title row with M3 titleMedium typography
+            // Title row with space reserved on the right for action buttons
             RowLayout {
                 Layout.fillWidth: true
+                Layout.rightMargin: 72
                 spacing: 8
 
                 StyledText {
@@ -157,25 +160,29 @@ RippleButton {
                 }
             }
 
-            // Content preview — plain text, M3 bodySmall
+            // Content preview — markdown text with WrapAnywhere and code-fence filtering
             StyledText {
                 Layout.fillWidth: true
+                Layout.preferredWidth: cardLayout.width
                 text: {
                     const content = root.noteContent || "";
-                    const lines = content.split("\n").filter((l) => {
-                        return l.trim().length > 0;
-                    });
-                    return lines.slice(0, 6).join("\n") || "Empty note...";
+                    // Filter out code block fences so Qt doesn't emit non-wrapping <pre> blocks
+                    const lines = content.split("\n")
+                        .filter(l => !l.trim().startsWith("```"))
+                        .filter(l => l.trim().length > 0);
+                    return lines.slice(0, 6).join("  \n") || "Empty note...";
                 }
-                textFormat: Text.PlainText
+                textFormat: Text.MarkdownText
+                font.hintingPreference: Font.PreferNoHinting // Prevent weird bold text
                 font.family: Appearance.font.family.reading
                 font.pixelSize: Appearance.font.pixelSize.small
                 font.weight: Font.Normal
                 color: root.notePinned ? root.pinnedContentColor : Appearance.colors.colOnSurfaceVariant
-                wrapMode: Text.Wrap
+                wrapMode: Text.WrapAnywhere
                 verticalAlignment: Text.AlignTop
                 maximumLineCount: 6
                 elide: Text.ElideRight
+                clip: true
             }
         }
 

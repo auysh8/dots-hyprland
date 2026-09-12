@@ -201,13 +201,13 @@ Item {
     signal addClicked()
     signal noteClicked(string noteId)
 
-    function cardMenuLabel(item) {
-        if (item.id === "divider")
+    function cardMenuLabel(item): string {
+        if (!item || item.id === "divider")
             return "";
         const note = NotesService.getNote(root.cardMenuNoteId);
         if (item.id === "pin")
-            return note && note.pinned ? "Unpin note" : "Pin note";
-        return item.label;
+            return (note && note.pinned) ? "Unpin note" : "Pin note";
+        return item.label || "";
     }
 
     function openCardMenu(noteId, card) {

@@ -20,7 +20,7 @@ Item {
     property var segmentLang: "txt"
     property var messageData: {}
     property bool isCommandRequest: segmentLang === "command"
-    property var displayLang: (isCommandRequest ? "bash" : segmentLang)
+    property var displayLang: (isCommandRequest ? "bash" : ((segmentLang && segmentLang !== "txt" && segmentLang !== "text") ? segmentLang : StringUtils.detectLanguage(segmentContent)))
     property ListView chatListView
 
     property real codeBlockBackgroundRounding: Appearance.rounding.small

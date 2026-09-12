@@ -308,4 +308,190 @@ Singleton {
             }
         );
     }
+
+    /**
+     * High-accuracy weighted code language sniffer.
+     * Analyzes signatures, syntax tokens, and negative discriminators to determine the programming language.
+     * Returns a valid KSyntaxHighlighting definition name or "plaintext".
+     *
+     * @param { string } code
+     * @returns { string }
+     */
+    function detectLanguage(code) {
+        if (!code || typeof code !== "string")
+            return "plaintext";
+        const trimmed = code.trim();
+        if (trimmed.length === 0)
+            return "plaintext";
+
+        // 1. JSON check (fast and exact)
+        if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+            try {
+                JSON.parse(trimmed);
+                if (trimmed.includes(":") && trimmed.includes('"')) {
+                    return "json";
+                }
+            } catch (e) {}
+        }
+
+        const scores = {
+            python: 0,
+            javascript: 0,
+            bash: 0,
+            c: 0,
+            cpp: 0,
+            rust: 0,
+            go: 0,
+            java: 0,
+            kotlin: 0,
+            ruby: 0,
+            swift: 0,
+            cs: 0,
+            lua: 0,
+            html: 0,
+            css: 0,
+            sql: 0,
+            qml: 0
+        };
+
+        // Go signatures
+        if (/^\s*package\s+\w+/m.test(code)) scores.go += 8;
+        if (/^\s*import\s+(?:\([^\)]+\)|"[^"]+")/m.test(code)) scores.go += 6;
+        if (/\bfunc\s+(?:\(\s*\w+\s+\*?\w+\s*\)\s*)?\w+\s*\(/.test(code)) scores.go += 8;
+        if (/:=/.test(code)) scores.go += 5;
+        if (/\bfmt\.(?:Println|Printf|Sprintf|Print|Errorf)\s*\(/.test(code)) scores.go += 8;
+        if (/\b(?:chan|defer|go)\s+\w+/.test(code)) scores.go += 5;
+        // Go penalties
+        if (/\b(?:class|function)\b/.test(code)) scores.go -= 8;
+
+        // Python signatures
+        if (/^\s*def\s+\w+\s*\(.*\)\s*:/m.test(code)) scores.python += 5;
+        if (/^\s*elif\s+.*:/m.test(code)) scores.python += 4;
+        if (/if\s+__name__\s*==\s*['"]__main__['"]\s*:/.test(code)) scores.python += 6;
+        if (/\bself\.\w+/.test(code)) scores.python += 3;
+        if (/\b(None|True|False)\b/.test(code)) scores.python += 2;
+        if (/^\s*import\s+[\w\.]+(?:\s+as\s+\w+)?\s*$/m.test(code)) scores.python += 3;
+        if (/^\s*from\s+[\w\.]+\s+import\s+/m.test(code) && !/from\s+['"]/.test(code)) scores.python += 4;
+        if (/\bprint\s*\(/.test(code)) scores.python += 2;
+        if (/^\s*except\s+(?:\w+\s+as\s+\w+|\w+)\s*:/m.test(code)) scores.python += 4;
+        if (/f['"][^"']*\{[^"']+\}[^"']*['"]/.test(code)) scores.python += 4;
+        // Python penalties
+        if (/\b(const|let|var|function)\b/.test(code)) scores.python -= 8;
+        if (/===|!==|=>|:=/.test(code)) scores.python -= 8;
+        if (/\}\s*$/m.test(code)) scores.python -= 3;
+
+        // JavaScript / TypeScript signatures
+        if (/\b(const|let|var)\s+\w+\s*=/.test(code)) scores.javascript += 4;
+        if (/\bconsole\.(log|error|warn|info|debug)\s*\(/.test(code)) scores.javascript += 5;
+        if (/=>/.test(code)) scores.javascript += 3;
+        if (/\bfunction\s*\w*\s*\(.*\)\s*\{/.test(code)) scores.javascript += 4;
+        if (/===|!==/.test(code)) scores.javascript += 4;
+        if (/import\s+.*from\s+['"]/.test(code)) scores.javascript += 5;
+        if (/export\s+(?:default|const|function|class)/.test(code)) scores.javascript += 4;
+        if (/\b(null|undefined)\b/.test(code)) scores.javascript += 2;
+        if (/\b(document\.|window\.|process\.env)/.test(code)) scores.javascript += 4;
+        // JS penalties
+        if (/^\s*def\s+\w+/m.test(code)) scores.javascript -= 8;
+        if (/^\s*elif\s+/m.test(code)) scores.javascript -= 8;
+
+        // Bash / Shell signatures
+        if (/^#!\s*\/(?:usr\/)?bin\/(?:env\s+)?(?:bash|sh|zsh)/m.test(code)) scores.bash += 8;
+        if (/\b(sudo|apt|pacman|dnf|chmod|chown|mkdir|touch|curl|wget|systemctl|grep|cat|echo)\s+/.test(code)) scores.bash += 3;
+        if (/\$\([^\)]+\)|\$\{[^\}]+\}/.test(code)) scores.bash += 3;
+        if (/\b(fi|done|esac)\s*$/m.test(code)) scores.bash += 5;
+        if (/\|\s*(?:grep|awk|sed|xargs|cut|sort|uniq|head|tail)\b/.test(code)) scores.bash += 4;
+        if (/2>&1|>>\s*\/dev\/null/.test(code)) scores.bash += 4;
+
+        // Rust signatures
+        if (/\bfn\s+\w+\s*\(.*\)/.test(code)) scores.rust += 4;
+        if (/\blet\s+mut\s+\w+/.test(code)) scores.rust += 5;
+        if (/\b(println!|format!|vec!|panic!|eprintln!)\s*\(/.test(code)) scores.rust += 5;
+        if (/\bimpl\s+(?:\w+\s+for\s+)?\w+/.test(code)) scores.rust += 4;
+        if (/\bpub\s+(?:fn|struct|enum|trait|mod)\b/.test(code)) scores.rust += 4;
+        if (/->\s*(?:Result|Option|Self|\w+<.*>)\s*\{/.test(code)) scores.rust += 4;
+
+        // Java signatures
+        if (/\bpublic\s+(?:static\s+)?(?:void|class|interface)\b/.test(code)) scores.java += 7;
+        if (/\bSystem\.(?:out|err)\.(?:print|println)\s*\(/.test(code)) scores.java += 8;
+        if (/^\s*package\s+[\w\.]+;/m.test(code)) scores.java += 7;
+        if (/\bpublic\s+static\s+void\s+main\s*\(/.test(code)) scores.java += 10;
+
+        // Kotlin signatures
+        if (/\bfun\s+\w+\s*\(.*\)/.test(code)) scores.kotlin += 8;
+        if (/\bval\s+\w+\s*[:=]|\bvar\s+\w+\s*[:=]/.test(code)) scores.kotlin += 5;
+        if (/\bcompanion\s+object\b|\bdata\s+class\b/.test(code)) scores.kotlin += 7;
+
+        // C# signatures
+        if (/\busing\s+System(?:\.[\w\.]+)?;/.test(code)) scores.cs += 9;
+        if (/\bConsole\.(?:WriteLine|Write)\s*\(/.test(code)) scores.cs += 8;
+
+        // Swift signatures
+        if (/\bfunc\s+\w+\s*\(.*\)\s*->/.test(code)) scores.swift += 8;
+        if (/\bimport\s+(?:UIKit|Foundation|SwiftUI)\b/.test(code)) scores.swift += 9;
+        if (/\bguard\s+let\b/.test(code)) scores.swift += 8;
+
+        // Ruby signatures
+        if (/\bdef\s+\w+[!\?]?\s*(?:\([^\)]*\)|\s|$)/.test(code)) scores.ruby += 4;
+        if (/\b(?:attr_accessor|attr_reader)\b/.test(code)) scores.ruby += 8;
+
+        // Lua signatures
+        if (/\blocal\s+\w+\s*=/.test(code)) scores.lua += 6;
+        if (/~=/.test(code)) scores.lua += 5;
+
+        // C / C++ signatures
+        let isCpp = false;
+        if (/#include\s*<iostream>|std::|\b(?:cout|cin|cerr)\s*<<|\bnullptr\b|\bclass\s+\w+\s*\{|\btemplate\s*<|namespace\s+\w+/.test(code)) {
+            scores.cpp += 8;
+            isCpp = true;
+        }
+        if (/#include\s*<[\w\.\/]+>/.test(code)) {
+            if (/#include\s*<stdio|stdlib|string\.h|math\.h|unistd\.h|time\.h>/.test(code)) {
+                scores.c += 7;
+            } else if (!isCpp) {
+                scores.c += 4;
+                scores.cpp += 4;
+            }
+        }
+        if (/\bint\s+main\s*\(\s*(?:void|int\s+argc|\))/.test(code)) {
+            if (isCpp) scores.cpp += 5;
+            else scores.c += 5;
+        }
+        if (/\b(?:printf|scanf)\s*\(/.test(code)) {
+            scores.c += 6;
+        }
+        if (/#pragma\s+once/.test(code)) {
+            if (isCpp) scores.cpp += 4;
+            else scores.c += 4;
+        }
+
+        // HTML / XML signatures
+        if (/<!DOCTYPE\s+html>/i.test(code)) scores.html += 7;
+        if (/<\/?(?:html|head|body|div|span|p|a|input|button|table|tr|td|ul|li|form|h[1-6])[\s>]/i.test(code)) scores.html += 5;
+        if (/<\/\w+>/.test(code)) scores.html += 3;
+
+        // CSS signatures
+        if (/[\.\#\w\-]+\s*\{[\s\S]*?(?:color|margin|padding|background|display|flex|font-size|border)\s*:/.test(code)) scores.css += 5;
+        if (/@media\s*\(/.test(code)) scores.css += 5;
+
+        // SQL signatures
+        if (/\bSELECT\s+[\s\S]+?\s+FROM\b/i.test(code)) scores.sql += 5;
+        if (/\b(?:INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b/i.test(code)) scores.sql += 5;
+        if (/\b(?:CREATE|ALTER|DROP)\s+TABLE\b/i.test(code)) scores.sql += 5;
+
+        // QML signatures
+        if (/import\s+QtQuick/.test(code)) scores.qml += 6;
+        if (/property\s+(?:int|string|bool|real|var|color)\s+\w+/.test(code)) scores.qml += 5;
+
+        let bestLang = "";
+        let bestScore = 0;
+        for (const lang in scores) {
+            if (scores[lang] > bestScore) {
+                bestScore = scores[lang];
+                bestLang = lang;
+            }
+        }
+
+        // Require confidence score of at least 3 to classify as code
+        return (bestScore >= 3) ? bestLang : "plaintext";
+    }
 }

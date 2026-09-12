@@ -64,7 +64,7 @@ Singleton {
         save()
     }
 
-    function getNote(id: string) {
+    function getNote(id: string): var {
         return notes.find(n => n.id === id) || null
     }
 
