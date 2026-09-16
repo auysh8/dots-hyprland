@@ -341,14 +341,15 @@ Scope {
                     }
 
                     // Horizontal Scrollable Cards Area
-                    Flickable {
+                    StyledFlickable {
                         id: flick
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        flickableDirection: Flickable.HorizontalFlick
+                        invertWheelToHorizontal: true
                         contentWidth: cardRow.implicitWidth
                         contentHeight: flick.height
                         clip: true
-                        boundsBehavior: Flickable.StopAtBounds
 
                         RowLayout {
                             id: cardRow

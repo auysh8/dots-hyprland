@@ -122,6 +122,8 @@ Singleton {
         readonly property int _trigger: root.colorChangeTrigger
         
         property color colSubtext: (_trigger, m3colors.m3outline)
+        property color colOnImage: Qt.rgba(1.0, 1.0, 1.0, 0.96)
+        property color colOnImageMuted: Qt.rgba(1.0, 1.0, 1.0, 0.82)
         // Layer 0 - Surface Container Low (Sidebar/Panel Backgrounds)
         property color colLayer0Base: (_trigger, m3colors.m3surfaceContainerLow)
         property color colLayer0: ColorUtils.transparentize(colLayer0Base, root.backgroundTransparency)

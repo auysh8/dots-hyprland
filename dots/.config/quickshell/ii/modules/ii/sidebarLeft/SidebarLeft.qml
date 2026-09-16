@@ -12,6 +12,8 @@ Scope { // Scope
     id: root
     property bool detach: false
     property bool pin: false
+    property bool extend: false
+    property bool isResizing: false
     property Component contentComponent: SidebarLeftContent {}
     property Item sidebarContent
 
@@ -88,8 +90,7 @@ Scope { // Scope
             id: panelWindow
             visible: GlobalStates.sidebarLeftOpen
             
-            property bool extend: false
-            property real sidebarWidth: panelWindow.extend ? Appearance.sizes.sidebarWidthExtended : Appearance.sizes.sidebarWidth
+            property real sidebarWidth: root.extend ? Appearance.sizes.sidebarWidthExtended : Appearance.sizes.sidebarWidth
             property var contentParent: sidebarLeftBackground
 
             function hide() {
@@ -110,8 +111,20 @@ Scope { // Scope
                 bottom: true
             }
 
+            Item {
+                id: maskTarget
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.topMargin: Appearance.sizes.hyprlandGapsOut
+                anchors.leftMargin: Appearance.sizes.hyprlandGapsOut
+                height: parent.height - Appearance.sizes.hyprlandGapsOut * 2
+                width: (root.extend || root.isResizing)
+                    ? (Appearance.sizes.sidebarWidthExtended - Appearance.sizes.hyprlandGapsOut - Appearance.sizes.elevationMargin)
+                    : sidebarLeftBackground.width
+            }
+
             mask: Region {
-                item: sidebarLeftBackground
+                item: maskTarget
             }
 
             onVisibleChanged: {
@@ -132,6 +145,10 @@ Scope { // Scope
             StyledRectangularShadow {
                 target: sidebarLeftBackground
                 radius: sidebarLeftBackground.radius
+                opacity: root.isResizing ? 0.0 : 1.0
+                Behavior on opacity {
+                    NumberAnimation { duration: 150 }
+                }
             }
             Rectangle {
                 id: sidebarLeftBackground
@@ -145,9 +162,18 @@ Scope { // Scope
                 border.width: 1
                 border.color: Appearance.colors.colLayer0Border
                 radius: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
+                clip: true
 
                 Behavior on width {
-                    animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+                    NumberAnimation {
+                        id: widthAnim
+                        duration: Appearance.animation.elementMove.duration
+                        easing.type: Appearance.animation.elementMove.type
+                        easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+                        onRunningChanged: {
+                            root.isResizing = running;
+                        }
+                    }
                 }
 
                 Keys.onPressed: (event) => {
@@ -156,7 +182,7 @@ Scope { // Scope
                     }
                     if (event.modifiers === Qt.ControlModifier) {
                         if (event.key === Qt.Key_O) {
-                            panelWindow.extend = !panelWindow.extend;
+                            root.extend = !root.extend;
                         } else if (event.key === Qt.Key_D) {
                             root.toggleDetach();
                         } else if (event.key === Qt.Key_P) {
@@ -213,6 +239,10 @@ Scope { // Scope
 
         function open(): void {
             GlobalStates.sidebarLeftOpen = true
+        }
+
+        function toggleExtend(): void {
+            root.extend = !root.extend;
         }
     }
 

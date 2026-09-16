@@ -344,7 +344,6 @@ Item {
                 contentHeight: mainContainer.implicitHeight + 100
                 topMargin: Appearance.rounding.verylarge
                 flickableDirection: Flickable.VerticalFlick
-                boundsBehavior: Flickable.StopAtBounds
 
 
 

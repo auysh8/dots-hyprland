@@ -1,6 +1,7 @@
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.ii.sidebarLeft.weather
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -12,11 +13,13 @@ Item {
     required property var scopeRoot
     property int sidebarPadding: 10
     anchors.fill: parent
+    property bool weatherEnabled: true
     property bool aiChatEnabled: Config.options.policies.ai !== 0
     property bool translatorEnabled: Config.options.sidebar.translator.enable
     property bool animeEnabled: Config.options.policies.weeb !== 0
     property bool animeCloset: Config.options.policies.weeb === 2
     property var tabButtonList: [
+        ...(root.weatherEnabled ? [{"icon": "cloud", "name": Translation.tr("Weather")}] : []),
         ...(root.aiChatEnabled ? [{"icon": "neurology", "name": Translation.tr("Intelligence")}] : []),
         ...(root.translatorEnabled ? [{"icon": "translate", "name": Translation.tr("Translator")}] : []),
         ...((root.animeEnabled && !root.animeCloset) ? [{"icon": "bookmark_heart", "name": Translation.tr("Anime")}] : [])
@@ -72,6 +75,7 @@ Item {
                 anchors.fill: parent
                 spacing: 10
                 currentIndex: tabBar.currentIndex
+                interactive: false
 
                 clip: true
 
@@ -104,14 +108,23 @@ Item {
                 }
 
                 contentChildren: [
+                    ...(root.weatherEnabled ? [weatherView.createObject()] : []),
                     ...(root.aiChatEnabled ? [aiChat.createObject()] : []),
                     ...(root.translatorEnabled ? [translator.createObject()] : []),
-                    ...((root.tabButtonList.length === 0 || (!root.aiChatEnabled && !root.translatorEnabled && root.animeCloset)) ? [placeholder.createObject()] : []),
+                    ...((root.tabButtonList.length === 0 || (!root.weatherEnabled && !root.aiChatEnabled && !root.translatorEnabled && root.animeCloset)) ? [placeholder.createObject()] : []),
                     ...(root.animeEnabled && !root.animeCloset ? [anime.createObject()] : []),
                 ]
             }
         }
 
+        Component {
+            id: weatherView
+            WeatherView {
+                presentationActive: GlobalStates.sidebarLeftOpen && (swipeView.currentIndex === 0)
+                isExtended: root.scopeRoot?.extend ?? false
+                isResizing: root.scopeRoot?.isResizing ?? false
+            }
+        }
         Component {
             id: aiChat
             AiChat {}

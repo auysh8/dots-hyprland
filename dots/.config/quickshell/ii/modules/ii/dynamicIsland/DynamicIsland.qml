@@ -460,8 +460,8 @@ Scope {
                     // Media (Album Art on left, Visualizer on right): 140
                     property real dynamicMediaWidth: 140
                     
-                    // Clock only: Icon (15) + spacing (7) + clockMetrics + padding (32) = clockMetrics + 54
-                    property real dynamicIdleWidth: Math.max(clockMetrics.advanceWidth + 54, 115)
+                    // Idle Time only: clockMetrics + padding (32)
+                    property real dynamicIdleWidth: Math.max(clockMetrics.advanceWidth + 32, 80)
                     
                     property real collapsedWidth: islandContainer.hasMedia ? dynamicMediaWidth : dynamicIdleWidth
                     property real collapsedHeight: 36
@@ -837,32 +837,18 @@ Scope {
                                     }
                                 }
 
-                                // Idle Row (Clock Icon + Time)
-                                RowLayout {
-                                    id: idleRow
+                                // Idle Time Display (Time only)
+                                StyledText {
+                                    id: idleTime
                                     anchors.centerIn: parent
                                     visible: !islandContainer.hasMedia
-                                    spacing: 7
-
-                                    MaterialSymbol {
-                                        Layout.alignment: Qt.AlignVCenter
-                                        text: "schedule"
-                                        iconSize: 15
-                                        fill: 1
-                                        color: Appearance.colors.colPrimary
-                                        opacity: 0.9
-                                    }
-
-                                    StyledText {
-                                        Layout.alignment: Qt.AlignVCenter
-                                        transform: Translate { y: 1 }
-                                        text: islandContainer.currentTime
-                                        font.family: Appearance.font.family.numbers
-                                        font.features: { "tnum": 1 }
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                        font.weight: Font.DemiBold
-                                        color: Appearance.colors.colOnLayer0
-                                    }
+                                    transform: Translate { y: 1 }
+                                    text: islandContainer.currentTime
+                                    font.family: Appearance.font.family.numbers
+                                    font.features: { "tnum": 1 }
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: Font.DemiBold
+                                    color: Appearance.colors.colOnLayer0
                                 }
                             }
 
