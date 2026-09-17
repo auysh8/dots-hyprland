@@ -15,6 +15,9 @@ Rectangle {
     property int maxItems: 25
     property int currentTab: 0
     property bool foreground: false
+    property bool resizeActive: false
+    property bool graphEnabled: true
+    property bool forecastItemsEnabled: true
     property var displayTemperatureDomain: [0, 1]
     readonly property int normalMonth: new Date().getMonth() + 1
     readonly property real normalDaytimeC: normalTemperature(true)
@@ -71,7 +74,7 @@ Rectangle {
         root.displayTemperatureDomain = WeatherChartMath.temperatureDomain(root.forecastTemperatures(),
                                                                            root.normalDaytimeC,
                                                                            root.normalNighttimeC);
-        if (root.foreground)
+        if (root.foreground && !root.resizeActive)
             trendCanvas.requestPaint();
     }
 
@@ -115,27 +118,43 @@ Rectangle {
 
     onSourceModelChanged: updateTemperatureDomain()
     onCurrentTabChanged: {
-        if (root.currentTab === 0)
+        if (root.currentTab === 0 && !root.resizeActive)
             trendCanvas.requestPaint();
     }
     onForegroundChanged: {
-        if (root.foreground)
+        if (root.foreground && !root.resizeActive)
             trendCanvas.requestPaint();
     }
     Timer {
         id: repaintDebounceTimer
         interval: 60
         repeat: false
-        onTriggered: trendCanvas.requestPaint()
+        onTriggered: {
+            if (!root.resizeActive)
+                trendCanvas.requestPaint()
+        }
     }
 
-    onWidthChanged: repaintDebounceTimer.restart()
-    onHeightChanged: repaintDebounceTimer.restart()
+    onWidthChanged: {
+        if (!root.resizeActive)
+            repaintDebounceTimer.restart()
+    }
+    onHeightChanged: {
+        if (!root.resizeActive)
+            repaintDebounceTimer.restart()
+    }
+    onResizeActiveChanged: {
+        if (root.resizeActive)
+            repaintDebounceTimer.stop()
+        else if (root.foreground)
+            repaintDebounceTimer.restart()
+    }
     Component.onCompleted: updateTemperatureDomain()
 
     Connections {
         function onUseUSCSChanged() {
-            trendCanvas.requestPaint();
+            if (!root.resizeActive)
+                trendCanvas.requestPaint();
         }
         target: Weather
     }
@@ -275,6 +294,8 @@ Rectangle {
                     Canvas {
                         id: trendCanvas
 
+                        visible: root.graphEnabled
+
                         property color primaryColor: Appearance.colors.colPrimary
                         property color pointInnerColor: Appearance.colors.colLayer4 ?? "#38363d"
                         property color textColor: Appearance.colors.colOnSurface
@@ -386,7 +407,7 @@ Rectangle {
                     }
 
                     Repeater {
-                        model: root.modelCount()
+                        model: root.forecastItemsEnabled ? root.modelCount() : 0
 
                         delegate: Item {
                             property var hourItem: root.itemAt(index)
@@ -477,74 +498,34 @@ Rectangle {
                 labelColor: Appearance.colors.colOnSurfaceVariant ?? Appearance.m3colors.m3onSurfaceVariant
             }
 
-            Item {
+            Loader {
                 anchors.fill: parent
-                visible: root.currentTab === 1
-
-                HourlyAirQualityTrendPane {
-                    anchors.fill: parent
-                    sourceModel: root.sourceModel
+                active: root.currentTab !== 0
+                sourceComponent: {
+                    switch (root.currentTab) {
+                    case 1: return aqiPaneComp;
+                    case 2: return windPaneComp;
+                    case 3: return uvPaneComp;
+                    case 4: return precipPaneComp;
+                    case 5: return feelsPaneComp;
+                    case 6: return humidityPaneComp;
+                    case 7: return pressurePaneComp;
+                    case 8: return cloudPaneComp;
+                    case 9: return visibilityPaneComp;
+                    default: return null;
+                    }
                 }
             }
 
-            Item {
-                anchors.fill: parent
-                visible: root.currentTab === 2
-
-                HourlyWindTrendPane {
-                    anchors.fill: parent
-                    sourceModel: root.sourceModel
-                }
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 3
-                sourceModel: root.sourceModel
-                metric: "uv"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 4
-                sourceModel: root.sourceModel
-                metric: "precipitation"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 5
-                sourceModel: root.sourceModel
-                metric: "feels"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 6
-                sourceModel: root.sourceModel
-                metric: "humidity"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 7
-                sourceModel: root.sourceModel
-                metric: "pressure"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 8
-                sourceModel: root.sourceModel
-                metric: "cloud"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 9
-                sourceModel: root.sourceModel
-                metric: "visibility"
-            }
+            Component { id: aqiPaneComp; HourlyAirQualityTrendPane { anchors.fill: parent; sourceModel: root.sourceModel } }
+            Component { id: windPaneComp; HourlyWindTrendPane { anchors.fill: parent; sourceModel: root.sourceModel } }
+            Component { id: uvPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; metric: "uv" } }
+            Component { id: precipPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; metric: "precipitation" } }
+            Component { id: feelsPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; metric: "feels" } }
+            Component { id: humidityPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; metric: "humidity" } }
+            Component { id: pressurePaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; metric: "pressure" } }
+            Component { id: cloudPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; metric: "cloud" } }
+            Component { id: visibilityPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; metric: "visibility" } }
         }
     }
 

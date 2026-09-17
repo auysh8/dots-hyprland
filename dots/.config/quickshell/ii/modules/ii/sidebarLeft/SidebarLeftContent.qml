@@ -1,3 +1,4 @@
+import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -108,21 +109,58 @@ Item {
                 }
 
                 contentChildren: [
-                    ...(root.weatherEnabled ? [weatherView.createObject()] : []),
-                    ...(root.aiChatEnabled ? [aiChat.createObject()] : []),
-                    ...(root.translatorEnabled ? [translator.createObject()] : []),
+                    ...(root.weatherEnabled ? [weatherPage.createObject()] : []),
+                    ...(root.aiChatEnabled ? [aiChatPage.createObject()] : []),
+                    ...(root.translatorEnabled ? [translatorPage.createObject()] : []),
                     ...((root.tabButtonList.length === 0 || (!root.weatherEnabled && !root.aiChatEnabled && !root.translatorEnabled && root.animeCloset)) ? [placeholder.createObject()] : []),
-                    ...(root.animeEnabled && !root.animeCloset ? [anime.createObject()] : []),
+                    ...(root.animeEnabled && !root.animeCloset ? [animePage.createObject()] : []),
                 ]
             }
+        }
+
+        component LazySwipePage: Item {
+            id: pageRoot
+            property Component pageComponent
+            property bool visited: false
+
+            Loader {
+                id: pageLoader
+                anchors.fill: parent
+                active: pageRoot.visited || pageRoot.SwipeView.isCurrentItem
+                sourceComponent: pageRoot.pageComponent
+                onLoaded: pageRoot.visited = true
+            }
+
+            onActiveFocusChanged: {
+                if (activeFocus && pageLoader.item) {
+                    pageLoader.item.forceActiveFocus();
+                }
+            }
+        }
+
+        Component {
+            id: weatherPage
+            LazySwipePage { pageComponent: weatherView }
+        }
+        Component {
+            id: aiChatPage
+            LazySwipePage { pageComponent: aiChat }
+        }
+        Component {
+            id: translatorPage
+            LazySwipePage { pageComponent: translator }
+        }
+        Component {
+            id: animePage
+            LazySwipePage { pageComponent: anime }
         }
 
         Component {
             id: weatherView
             WeatherView {
                 presentationActive: GlobalStates.sidebarLeftOpen && (swipeView.currentIndex === 0)
-                isExtended: root.scopeRoot?.extend ?? false
-                isResizing: root.scopeRoot?.isResizing ?? false
+                isExtended: root.scopeRoot ? root.scopeRoot.extend : false
+                isResizing: root.scopeRoot ? root.scopeRoot.isResizing : false
             }
         }
         Component {

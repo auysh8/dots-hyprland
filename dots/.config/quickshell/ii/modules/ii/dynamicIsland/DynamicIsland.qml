@@ -120,8 +120,8 @@ Scope {
                 // Prevent startup triggers and hide island for 1s
                 property bool initialized: false
                 property bool manualExpanded: false
-                readonly property bool islandHovered: triggerArea.containsMouse || islandHoverTracker.hovered || (islandSatellite && islandSatellite.hovered)
-                property bool islandVisible: !GlobalStates.overviewOpen && (islandHovered || hoverExitTimer.running || manualExpanded || (!suppressAutomaticModes && (mode !== 0 || (!hasOpenWindow) || (hasOpenWindow && idleMon.isIdle))))
+                readonly property bool islandHovered: triggerArea.containsMouse || islandHoverTracker.hovered || (islandSatellite && islandSatellite.hovered) || (islandPrivacySatellite && islandPrivacySatellite.hovered)
+                property bool islandVisible: !GlobalStates.overviewOpen && (islandHovered || hoverExitTimer.running || taskRevealTimer.running || manualExpanded || (!suppressAutomaticModes && (mode !== 0 || (!hasOpenWindow) || (hasOpenWindow && idleMon.isIdle))))
                 property bool expanded: manualExpanded && mode === 0 && !effectiveHasPopup
                 property bool storageWarningActive: false
                 // Keep the island visually separate from the screen edge.
@@ -187,7 +187,7 @@ Scope {
                 // Height is just island height (since no gap now)
                 // Fixed max surface size to prevent Wayland resize jitter
                 implicitHeight: 320
-                implicitWidth: 500
+                implicitWidth: 600
                 opacity: initialized ? 1 : 0
 
                 // Dynamic Input Mask Target
@@ -196,10 +196,12 @@ Scope {
 
                     anchors.top: parent.top
                     anchors.horizontalCenter: parent.horizontalCenter
-                    // When hidden, only mask the trigger area (10px height). When visible, cover both pill and satellite.
+                    // When hidden, only mask the trigger area (10px height). When visible, cover pill and both satellites.
                     readonly property real rightExtent: (islandPill.width / 2) + ((islandSatellite && islandSatellite.visible) ? (islandSatellite.anchors.leftMargin + islandSatellite.width) : 0)
-                    width: islandContainer.islandVisible ? Math.max(triggerArea.width, rightExtent * 2 * islandPill.targetScale) : triggerArea.width
-                    height: islandContainer.islandVisible ? islandContainer.floatingTopMargin + Math.max(islandPill.height, (islandSatellite ? islandSatellite.height : 0)) * islandPill.targetScale + 10 : triggerArea.height
+                    readonly property real leftExtent: (islandPill.width / 2) + ((islandPrivacySatellite && islandPrivacySatellite.visible) ? (islandPrivacySatellite.anchors.rightMargin + islandPrivacySatellite.width) : 0)
+                    readonly property real maxExtent: Math.max(rightExtent, leftExtent)
+                    width: islandContainer.islandVisible ? Math.max(triggerArea.width, maxExtent * 2 * islandPill.targetScale) : triggerArea.width
+                    height: islandContainer.islandVisible ? islandContainer.floatingTopMargin + Math.max(islandPill.height, Math.max((islandSatellite ? islandSatellite.height : 0), (islandPrivacySatellite ? islandPrivacySatellite.height : 0))) * islandPill.targetScale + 10 : triggerArea.height
                 }
 
                 // Trigger area at the top (Thin strip)
@@ -211,7 +213,10 @@ Scope {
                     width: 300
                     height: 10
                     hoverEnabled: true // Always valid for hover
-                    onEntered: hoverExitTimer.stop()
+                    onEntered: {
+                        taskRevealTimer.stop();
+                        hoverExitTimer.stop();
+                    }
                     onExited: hoverExitTimer.restart()
                 }
 
@@ -430,6 +435,49 @@ Scope {
                     onTriggered: islandContainer.manualExpanded = false
                 }
 
+                Timer {
+                    id: taskRevealTimer
+
+                    interval: 4000
+                    repeat: false
+                }
+
+                // Liquid Morph Surface for satellite detachment
+                PillMorphSurface {
+                    id: islandMorphSurface
+                    anchors.fill: parent
+                    visible: islandSatellite && islandSatellite.morphProgress > 0.001 && islandSatellite.morphProgress < 0.999
+                    opacity: visible ? 1.0 : 0.0
+                    surfaceColor: (typeof islandBackground !== "undefined" && islandBackground) ? islandBackground.bgColor : Appearance.colors.colLayer0
+
+                    mainCenter: Qt.vector2d(islandPill.x + islandPill.width / 2, islandPill.y + islandPill.height / 2)
+                    mainSize: Qt.vector2d(islandPill.width, islandPill.height)
+                    mainRadius: (typeof islandBackground !== "undefined" && islandBackground) ? islandBackground.cornerRadius : islandPill.height / 2
+
+                    satelliteCenter: Qt.vector2d(islandSatellite.x + islandSatellite.width / 2, islandSatellite.y + islandSatellite.height / 2)
+                    satelliteSize: Qt.vector2d(islandSatellite.width, islandSatellite.height)
+                    satelliteRadius: islandSatellite.height / 2
+                    blendRadius: islandSatellite.currentBlendRadius
+                }
+
+                // Liquid Morph Surface for Left Privacy Satellite detachment
+                PillMorphSurface {
+                    id: islandLeftMorphSurface
+                    anchors.fill: parent
+                    visible: islandPrivacySatellite && islandPrivacySatellite.morphProgress > 0.001 && islandPrivacySatellite.morphProgress < 0.999
+                    opacity: visible ? 1.0 : 0.0
+                    surfaceColor: (typeof islandBackground !== "undefined" && islandBackground) ? islandBackground.bgColor : Appearance.colors.colLayer0
+
+                    mainCenter: Qt.vector2d(islandPill.x + islandPill.width / 2, islandPill.y + islandPill.height / 2)
+                    mainSize: Qt.vector2d(islandPill.width, islandPill.height)
+                    mainRadius: (typeof islandBackground !== "undefined" && islandBackground) ? islandBackground.cornerRadius : islandPill.height / 2
+
+                    satelliteCenter: Qt.vector2d(islandPrivacySatellite.x + islandPrivacySatellite.width / 2, islandPrivacySatellite.y + islandPrivacySatellite.height / 2)
+                    satelliteSize: Qt.vector2d(islandPrivacySatellite.width, islandPrivacySatellite.height)
+                    satelliteRadius: islandPrivacySatellite.height / 2
+                    blendRadius: islandPrivacySatellite.currentBlendRadius
+                }
+
                 // The Island Pill
                 Item {
                     // Scale Logic
@@ -501,11 +549,74 @@ Scope {
                     enabled: renderActive
                     scale: targetScale
                     transformOrigin: Item.Top
-                    width: (islandContainer.expanded || islandPill.renderMode !== 0) ? expandedWidth : collapsedWidth
-                    height: (islandContainer.expanded || islandPill.renderMode !== 0) ? expandedHeight : collapsedHeight
-                    clip: true
-                    // Shadow
-                    layer.enabled: true
+                    property real recoilWidthDelta: 0.0
+
+                    width: {
+                        if (islandContainer.expanded || islandPill.renderMode !== 0)
+                            return expandedWidth;
+                        const pRight = (islandSatellite && islandSatellite.visible) ? islandSatellite.morphProgress : 0;
+                        const pLeft = (islandPrivacySatellite && islandPrivacySatellite.visible) ? islandPrivacySatellite.morphProgress : 0;
+                        let baseW = collapsedWidth;
+                        if (pRight > 0.001 && pRight < 0.999)
+                            baseW = islandSatellite.morphValue(collapsedWidth, collapsedWidth + 26, collapsedWidth + 12, collapsedWidth + 4, collapsedWidth, pRight);
+                        else if (pLeft > 0.001 && pLeft < 0.999)
+                            baseW = islandPrivacySatellite.morphValue(collapsedWidth, collapsedWidth + 26, collapsedWidth + 12, collapsedWidth + 4, collapsedWidth, pLeft);
+                        return baseW + recoilWidthDelta;
+                    }
+                    height: {
+                        if (islandContainer.expanded || islandPill.renderMode !== 0)
+                            return expandedHeight;
+                        const pRight = (islandSatellite && islandSatellite.visible) ? islandSatellite.morphProgress : 0;
+                        const pLeft = (islandPrivacySatellite && islandPrivacySatellite.visible) ? islandPrivacySatellite.morphProgress : 0;
+                        if (pRight > 0.001 && pRight < 0.999)
+                            return islandSatellite.morphValue(collapsedHeight, collapsedHeight + 9, collapsedHeight + 4, collapsedHeight + 1, collapsedHeight, pRight);
+                        if (pLeft > 0.001 && pLeft < 0.999)
+                            return islandPrivacySatellite.morphValue(collapsedHeight, collapsedHeight + 9, collapsedHeight + 4, collapsedHeight + 1, collapsedHeight, pLeft);
+                        return collapsedHeight;
+                    }
+
+                    property bool openedFromSatellite: false
+                    property bool openedFromLeftSatellite: false
+
+                    function triggerDetachRecoil() {
+                        if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
+                            detachRecoilAnim.stop();
+                            attachRecoilAnim.stop();
+                            leftDetachRecoilAnim.stop();
+                            leftAttachRecoilAnim.stop();
+                            detachRecoilAnim.restart();
+                        }
+                    }
+
+                    function triggerAttachRecoil() {
+                        if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
+                            detachRecoilAnim.stop();
+                            attachRecoilAnim.stop();
+                            leftDetachRecoilAnim.stop();
+                            leftAttachRecoilAnim.stop();
+                            attachRecoilAnim.restart();
+                        }
+                    }
+
+                    function triggerLeftDetachRecoil() {
+                        if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
+                            detachRecoilAnim.stop();
+                            attachRecoilAnim.stop();
+                            leftDetachRecoilAnim.stop();
+                            leftAttachRecoilAnim.stop();
+                            leftDetachRecoilAnim.restart();
+                        }
+                    }
+
+                    function triggerLeftAttachRecoil() {
+                        if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
+                            detachRecoilAnim.stop();
+                            attachRecoilAnim.stop();
+                            leftDetachRecoilAnim.stop();
+                            leftAttachRecoilAnim.stop();
+                            leftAttachRecoilAnim.restart();
+                        }
+                    }
 
                     Connections {
                         function onModeChanged() {
@@ -521,7 +632,270 @@ Scope {
 
                         }
 
+                        function onExpandedChanged() {
+                            if (!islandContainer.expanded) {
+                                expandFromSatelliteAnim.stop();
+                                expandFromLeftSatelliteAnim.stop();
+                                detachRecoilAnim.stop();
+                                attachRecoilAnim.stop();
+                                leftDetachRecoilAnim.stop();
+                                leftAttachRecoilAnim.stop();
+                                islandPill.recoilWidthDelta = 0;
+                                islandPill.anchors.horizontalCenterOffset = 0;
+                                islandPill.openedFromSatellite = false;
+                                islandPill.openedFromLeftSatellite = false;
+                            }
+                        }
+
                         target: islandContainer
+                    }
+
+                    ParallelAnimation {
+                        id: detachRecoilAnim
+
+                        SequentialAnimation {
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: 0
+                                to: -4
+                                duration: 70
+                                easing.type: Easing.OutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: -4
+                                to: 1.5
+                                duration: 110
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: 1.5
+                                to: 0
+                                duration: 120
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        SequentialAnimation {
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: 0
+                                to: -5
+                                duration: 70
+                                easing.type: Easing.OutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: -5
+                                to: 2
+                                duration: 110
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: 2
+                                to: 0
+                                duration: 120
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+
+                    ParallelAnimation {
+                        id: attachRecoilAnim
+
+                        SequentialAnimation {
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: 0
+                                to: 2
+                                duration: 70
+                                easing.type: Easing.OutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: 2
+                                to: -1
+                                duration: 100
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: -1
+                                to: 0
+                                duration: 110
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        SequentialAnimation {
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: 0
+                                to: 4
+                                duration: 70
+                                easing.type: Easing.OutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: 4
+                                to: -1.5
+                                duration: 100
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: -1.5
+                                to: 0
+                                duration: 110
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+
+                    NumberAnimation {
+                        id: expandFromSatelliteAnim
+                        target: islandPill
+                        property: "anchors.horizontalCenterOffset"
+                        duration: 380
+                        easing.type: Easing.OutCubic
+                    }
+
+                    NumberAnimation {
+                        id: expandFromLeftSatelliteAnim
+                        target: islandPill
+                        property: "anchors.horizontalCenterOffset"
+                        duration: 380
+                        easing.type: Easing.OutCubic
+                    }
+
+                    ParallelAnimation {
+                        id: leftDetachRecoilAnim
+
+                        SequentialAnimation {
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: 0
+                                to: 4
+                                duration: 70
+                                easing.type: Easing.OutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: 4
+                                to: -1.5
+                                duration: 110
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: -1.5
+                                to: 0
+                                duration: 120
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        SequentialAnimation {
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: 0
+                                to: -5
+                                duration: 70
+                                easing.type: Easing.OutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: -5
+                                to: 2
+                                duration: 110
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: 2
+                                to: 0
+                                duration: 120
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+                    }
+
+                    ParallelAnimation {
+                        id: leftAttachRecoilAnim
+
+                        SequentialAnimation {
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: 0
+                                to: -2
+                                duration: 70
+                                easing.type: Easing.OutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: -2
+                                to: 1
+                                duration: 100
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "anchors.horizontalCenterOffset"
+                                from: 1
+                                to: 0
+                                duration: 110
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        SequentialAnimation {
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: 0
+                                to: 4
+                                duration: 70
+                                easing.type: Easing.OutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: 4
+                                to: -1.5
+                                duration: 100
+                                easing.type: Easing.InOutQuad
+                            }
+                            NumberAnimation {
+                                target: islandPill
+                                property: "recoilWidthDelta"
+                                from: -1.5
+                                to: 0
+                                duration: 110
+                                easing.type: Easing.OutCubic
+                            }
+                        }
                     }
 
                     SequentialAnimation {
@@ -641,8 +1015,13 @@ Scope {
                         anchors.fill: parent
                         radius: cornerRadius
                         color: bgColor
+                        opacity: (islandSatellite && islandSatellite.morphProgress > 0.001 && islandSatellite.morphProgress < 0.999) ? 0.0 : 1.0
                         border.width: 1
-                        border.color: isBadPopup ? ColorUtils.applyAlpha(Appearance.colors.colError, 0.25) : Appearance.colors.colLayer0Border
+                        border.color: isBadPopup
+                            ? ColorUtils.applyAlpha(Appearance.colors.colError, 0.25)
+                            : (islandSatellite && islandSatellite.morphProgress > 0.001 && islandSatellite.morphProgress < 0.999)
+                                ? "transparent"
+                                : Appearance.colors.colLayer0Border
 
                         Behavior on bgColor {
                             ColorAnimation {
@@ -650,6 +1029,7 @@ Scope {
                             }
 
                         }
+
 
                         // Full-bleed album art ambient background across the entire island
                         Item {
@@ -701,8 +1081,14 @@ Scope {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            if (islandContainer.mode === 0 && !islandContainer.effectiveHasPopup)
+                            if (islandContainer.mode === 0 && !islandContainer.effectiveHasPopup) {
+                                islandPill.openedFromSatellite = false;
+                                islandPill.openedFromLeftSatellite = false;
+                                expandFromSatelliteAnim.stop();
+                                expandFromLeftSatelliteAnim.stop();
+                                islandPill.anchors.horizontalCenterOffset = 0;
                                 islandContainer.manualExpanded = true;
+                            }
                         }
                     }
 
@@ -1154,6 +1540,12 @@ Scope {
                                     "component": downloadPage
                                 });
 
+                                if (Privacy.privacyActive)
+                                    pages.push({
+                                    "key": "privacy",
+                                    "component": privacyPage
+                                });
+
                                 return pages;
                             }
 
@@ -1188,6 +1580,14 @@ Scope {
                             onActivePagesChanged: Qt.callLater(syncSwipeToSavedPage)
 
                             // Page Components
+                            Component {
+                                id: privacyPage
+
+                                PrivacyPage {
+                                }
+
+                            }
+
                             Component {
                                 id: mediaPage
 
@@ -1245,6 +1645,7 @@ Scope {
                                     if (key === "pomodoro") return "hourglass_top";
                                     if (key === "stopwatch") return "timer";
                                     if (key === "download") return "download";
+                                    if (key === "privacy") return Privacy.camActive ? "videocam" : "mic";
                                     return "circle";
                                 }
 
@@ -1254,6 +1655,7 @@ Scope {
                                     if (key === "pomodoro") return "Focus";
                                     if (key === "stopwatch") return "Stopwatch";
                                     if (key === "download") return "Downloads";
+                                    if (key === "privacy") return "Privacy";
                                     return "";
                                 }
 
@@ -1263,6 +1665,7 @@ Scope {
                                     if (key === "pomodoro") return TimerService.pomodoroBreak ? Appearance.colors.colSecondaryContainer : Appearance.colors.colErrorContainer;
                                     if (key === "stopwatch") return Appearance.colors.colTertiaryContainer;
                                     if (key === "download") return Appearance.colors.colSecondaryContainer;
+                                    if (key === "privacy") return Privacy.camActive ? Appearance.m3colors.m3successContainer : Appearance.colors.colTertiaryContainer;
                                     return Appearance.colors.colPrimaryContainer;
                                 }
 
@@ -1272,6 +1675,7 @@ Scope {
                                     if (key === "pomodoro") return TimerService.pomodoroBreak ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnErrorContainer;
                                     if (key === "stopwatch") return Appearance.colors.colOnTertiaryContainer;
                                     if (key === "download") return Appearance.colors.colOnSecondaryContainer;
+                                    if (key === "privacy") return Privacy.camActive ? Appearance.m3colors.m3onSuccessContainer : Appearance.colors.colOnTertiaryContainer;
                                     return Appearance.colors.colOnPrimaryContainer;
                                 }
 
@@ -1392,9 +1796,9 @@ Scope {
                                         id: pageLoader
 
                                         sourceComponent: modelData.component
-                                        active: true
-                                        visible: true
-                                        opacity: 1
+                                        active: Math.abs(contentSwipe.currentIndex - index) <= 1
+                                        visible: active
+                                        opacity: active ? 1 : 0
                                         scale: 1
                                     }
 
@@ -1704,6 +2108,7 @@ Scope {
                         blocking: false
                         onHoveredChanged: {
                             if (hovered) {
+                                taskRevealTimer.stop();
                                 hoverExitTimer.stop();
                                 islandContainer.isHovered = true;
                             } else {
@@ -1726,6 +2131,10 @@ Scope {
                     }
 
                     Behavior on width {
+                        enabled: (!islandSatellite || !islandSatellite.morphRunning)
+                            && (!islandPrivacySatellite || !islandPrivacySatellite.morphRunning)
+                            && !detachRecoilAnim.running && !attachRecoilAnim.running
+                            && !leftDetachRecoilAnim.running && !leftAttachRecoilAnim.running
                         SpringAnimation {
                             id: pillWidthAnim
 
@@ -1738,6 +2147,8 @@ Scope {
                     }
 
                     Behavior on height {
+                        enabled: (!islandSatellite || !islandSatellite.morphRunning)
+                            && (!islandPrivacySatellite || !islandPrivacySatellite.morphRunning)
                         SpringAnimation {
                             id: pillHeightAnim
 
@@ -1749,9 +2160,6 @@ Scope {
 
                     }
 
-                    layer.effect: StyledDropShadow {
-                        target: islandPill
-                    }
 
                 }
 
@@ -1779,12 +2187,14 @@ Scope {
                         }
                     }
 
-                    readonly property bool satelliteActive: islandContainer.mode === 0
+                    readonly property bool hasSatelliteTask: activeSatellitePages.length > 0
+
+                    readonly property bool satelliteActive: hasSatelliteTask
+                        && islandContainer.mode === 0
                         && !islandContainer.expanded
                         && islandContainer.islandVisible
-                        && activeSatellitePages.length > 0
 
-                    readonly property string displayedPage: satelliteActive ? currentSatellitePage : lastActivePage
+                    readonly property string displayedPage: currentSatellitePage !== "none" ? currentSatellitePage : lastActivePage
 
                     function syncLayoutStates() {
                         var cur = displayedPage;
@@ -1808,9 +2218,103 @@ Scope {
                         }
                     }
 
-                    onSatelliteActiveChanged: {
-                        if (satelliteActive) {
+                    property real morphProgress: 0.0
+                    readonly property bool morphRunning: morphAnim.running
+                    property bool detachRecoilFired: false
+                    property bool attachRecoilFired: false
+
+                    onMorphProgressChanged: {
+                        if (morphAnim.running) {
+                            // Detachment pinch-off (bridge separates around p = 0.80)
+                            if (morphAnim.to > 0.5 && morphProgress >= 0.79 && !detachRecoilFired) {
+                                detachRecoilFired = true;
+                                islandPill.triggerDetachRecoil();
+                            }
+                            // Attachment absorption (droplet touches and merges at p <= 0.05)
+                            else if (morphAnim.to < 0.5 && morphProgress <= 0.05 && !attachRecoilFired) {
+                                attachRecoilFired = true;
+                                islandPill.triggerAttachRecoil();
+                            }
+                        }
+                    }
+
+                    function smoothStep(val) {
+                        const c = Math.max(0, Math.min(1, val));
+                        return c * c * (3 - 2 * c);
+                    }
+
+                    function interpolate(from, to, val) {
+                        return from + (to - from) * smoothStep(val);
+                    }
+
+                    function morphValue(idle, peak, neck, split, settled, p) {
+                        if (p <= 0.58)
+                            return interpolate(idle, peak, p / 0.58);
+                        if (p <= 0.76)
+                            return interpolate(peak, neck, (p - 0.58) / 0.18);
+                        if (p <= 0.80)
+                            return interpolate(neck, split, (p - 0.76) / 0.04);
+                        return interpolate(split, settled, (p - 0.80) / 0.20);
+                    }
+
+                    function satelliteMorphValue(idle, peak, neck, split, settled, p) {
+                        if (p <= 0.32)
+                            return idle;
+                        if (p <= 0.58)
+                            return interpolate(idle, peak, (p - 0.32) / 0.26);
+                        if (p <= 0.76)
+                            return interpolate(peak, neck, (p - 0.58) / 0.18);
+                        if (p <= 0.80)
+                            return interpolate(neck, split, (p - 0.76) / 0.04);
+                        return interpolate(split, settled, (p - 0.80) / 0.20);
+                    }
+
+                    readonly property real currentBlendRadius: satelliteMorphValue(0, 50, 28, 18, 0, morphProgress)
+                    readonly property real currentMargin: satelliteMorphValue(-height, 14, 11, 8, 8, morphProgress)
+
+                    readonly property real capsuleOpacity: (morphProgress >= 0.999) ? 1.0 : 0.0
+
+                    readonly property real contentOpacity: {
+                        const p = morphProgress;
+                        if (p < 0.80) return 0.0;
+                        return smoothStep((p - 0.80) / 0.20);
+                    }
+
+                    property int detachDuration: 1200
+                    property int attachDuration: 960
+
+                    onHasSatelliteTaskChanged: {
+                        detachRecoilFired = false;
+                        attachRecoilFired = false;
+                        if (islandContainer.hasOpenWindow && islandContainer.mode === 0) {
+                            taskRevealTimer.restart();
+                        }
+                        if (hasSatelliteTask) {
                             syncLayoutStates();
+                            if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
+                                morphAnim.stop();
+                                morphProgress = 0.0;
+                                morphAnim.from = 0.0;
+                                morphAnim.to = 1.0;
+                                morphAnim.duration = detachDuration;
+                                morphAnim.easing.type = Easing.Linear;
+                                morphAnim.restart();
+                            } else {
+                                morphAnim.stop();
+                                morphProgress = 1.0;
+                            }
+                        } else {
+                            if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
+                                morphAnim.stop();
+                                morphAnim.from = morphProgress;
+                                morphAnim.to = 0.0;
+                                morphAnim.duration = Math.max(280, Math.round(attachDuration * morphProgress));
+                                morphAnim.easing.type = Easing.Linear;
+                                morphAnim.restart();
+                            } else {
+                                morphAnim.stop();
+                                morphProgress = 0.0;
+                            }
                         }
                     }
 
@@ -1818,7 +2322,12 @@ Scope {
                         if (flipIndex >= activeSatellitePages.length) {
                             flipIndex = 0;
                         }
-                        if (satelliteActive) {
+                        syncLayoutStates();
+                    }
+
+                    Component.onCompleted: {
+                        if (hasSatelliteTask) {
+                            morphProgress = 1.0;
                             syncLayoutStates();
                         }
                     }
@@ -1840,97 +2349,52 @@ Scope {
 
                     readonly property bool hovered: satelliteArea.containsMouse
 
-                    anchors.verticalCenter: islandPill.verticalCenter
+                    transformOrigin: Item.Top
+                    anchors.top: islandPill.top
                     anchors.left: islandPill.right
-                    height: 36
-                    visible: false
-
-                    Behavior on width {
-                        NumberAnimation {
-                            duration: 280
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 1.1
-                        }
+                    anchors.leftMargin: currentMargin
+                    height: (morphProgress > 0.001 && morphProgress < 0.999) ? islandPill.height : 36
+                    width: {
+                        const p = morphProgress;
+                        const baseDiameter = height;
+                        if (p <= 0.78)
+                            return baseDiameter;
+                        return interpolate(baseDiameter, activeWidth, (p - 0.78) / 0.22);
                     }
+                    readonly property real targetScale: (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0)
+                        ? (hovered && morphProgress > 0.95 ? 1.06 : 1.0)
+                        : 0.0
+                    scale: (morphProgress > 0.001 && morphProgress < 0.999) ? 1.0 : targetScale
+                    opacity: morphProgress > 0.01 ? 1.0 : 0.0
+                    visible: !islandContainer.expanded && hasSatelliteTask && (scale > 0.01 || satelliteScaleAnim.running || morphProgress > 0.001 || morphRunning)
 
                     Behavior on scale {
+                        enabled: !islandSatellite.morphRunning
                         NumberAnimation {
                             id: satelliteScaleAnim
-                            duration: 300
+                            duration: 400
                             easing.type: Easing.OutBack
-                            easing.overshoot: 1.1
+                            easing.overshoot: 0.8
                         }
                     }
 
-                    states: [
-                        State {
-                            name: "active"
-                            when: islandSatellite.satelliteActive
-                            PropertyChanges {
-                                target: islandSatellite
-                                width: islandSatellite.activeWidth
-                                scale: islandSatellite.hovered ? 1.08 : 1.0
-                                opacity: 1.0
-                                anchors.leftMargin: 8
-                                visible: true
-                            }
-                        },
-                        State {
-                            name: "inactive"
-                            when: !islandSatellite.satelliteActive
-                            PropertyChanges {
-                                target: islandSatellite
-                                width: 0
-                                scale: 0.8
-                                opacity: 0.0
-                                anchors.leftMargin: 0
-                                visible: false
-                            }
-                        }
-                    ]
-
-                    transitions: [
-                        Transition {
-                            from: "active"; to: "inactive"
-                            SequentialAnimation {
-                                PropertyAction { target: islandSatellite; property: "visible"; value: true }
-                                ParallelAnimation {
-                                    NumberAnimation { target: islandSatellite; property: "width"; duration: 320; easing.type: Easing.InOutCubic }
-                                    NumberAnimation { target: islandSatellite; property: "anchors.leftMargin"; duration: 300; easing.type: Easing.InOutCubic }
-                                    NumberAnimation { target: islandSatellite; property: "scale"; duration: 320; easing.type: Easing.InCubic }
-                                    SequentialAnimation {
-                                        PauseAnimation { duration: 120 }
-                                        NumberAnimation { target: islandSatellite; property: "opacity"; duration: 200; easing.type: Easing.OutQuad }
-                                    }
-                                }
-                                PropertyAction { target: islandSatellite; property: "visible"; value: false }
-                            }
-                        },
-                        Transition {
-                            from: "inactive"; to: "active"
-                            SequentialAnimation {
-                                ScriptAction { script: islandSatellite.syncLayoutStates() }
-                                PropertyAction { target: islandSatellite; property: "visible"; value: true }
-                                ParallelAnimation {
-                                    NumberAnimation { target: islandSatellite; property: "width"; duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
-                                    NumberAnimation { target: islandSatellite; property: "anchors.leftMargin"; duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
-                                    NumberAnimation { target: islandSatellite; property: "scale"; duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
-                                    NumberAnimation { target: islandSatellite; property: "opacity"; duration: 240; easing.type: Easing.OutCubic }
-                                }
-                            }
-                        }
-                    ]
+                    NumberAnimation {
+                        id: morphAnim
+                        target: islandSatellite
+                        property: "morphProgress"
+                    }
 
                     // Background glass capsule
                     Rectangle {
                         id: satelliteBackground
                         anchors.fill: parent
                         radius: height / 2
-                        color: ColorUtils.applyAlpha(Appearance.colors.colLayer0, 0.88)
+                        color: (typeof islandBackground !== "undefined" && islandBackground) ? islandBackground.bgColor : Appearance.colors.colLayer0
+                        opacity: islandSatellite.capsuleOpacity
                         border.width: 1
                         border.color: islandSatellite.hovered
                             ? ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.35)
-                            : ColorUtils.applyAlpha(Appearance.colors.colOutline, 0.15)
+                            : Appearance.colors.colLayer0Border
 
                         Behavior on border.color {
                             ColorAnimation { duration: 220; easing.type: Easing.OutCubic }
@@ -1941,6 +2405,7 @@ Scope {
                     Item {
                         anchors.fill: parent
                         clip: true
+                        opacity: islandSatellite.contentOpacity
 
                         // 1. Pomodoro
                         RowLayout {
@@ -2193,16 +2658,25 @@ Scope {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
+                            var satOffset = (islandPill.collapsedWidth / 2) + islandSatellite.currentMargin + (islandSatellite.width / 2);
+                            islandPill.openedFromSatellite = true;
+                            expandFromSatelliteAnim.stop();
+                            islandPill.anchors.horizontalCenterOffset = satOffset;
+
                             if (islandSatellite.currentSatellitePage === "pomodoro") {
                                 islandContainer.expandedPageKey = "pomodoro";
-                                islandContainer.manualExpanded = true;
                             } else if (islandSatellite.currentSatellitePage === "stopwatch") {
                                 islandContainer.expandedPageKey = "stopwatch";
-                                islandContainer.manualExpanded = true;
                             } else if (islandSatellite.currentSatellitePage === "download") {
                                 islandContainer.expandedPageKey = "download";
-                                islandContainer.manualExpanded = true;
                             }
+                            islandContainer.manualExpanded = true;
+
+                            expandFromSatelliteAnim.from = satOffset;
+                            expandFromSatelliteAnim.to = 0;
+                            expandFromSatelliteAnim.duration = 380;
+                            expandFromSatelliteAnim.easing.type = Easing.OutCubic;
+                            expandFromSatelliteAnim.restart();
                         }
                         onWheel: (wheel) => {
                             if (islandSatellite.activeSatellitePages.length > 1) {
@@ -2213,13 +2687,418 @@ Scope {
                                 }
                             }
                         }
-                        onEntered: hoverExitTimer.stop()
+                        onEntered: {
+                            taskRevealTimer.stop();
+                            hoverExitTimer.stop();
+                        }
                         onExited: hoverExitTimer.restart()
                     }
+                }
 
-                    layer.enabled: true
-                    layer.effect: StyledDropShadow {
-                        target: islandSatellite
+                // Island Privacy Satellite (Left Wing: Camera & Microphone Privacy Hub)
+                Item {
+                    id: islandPrivacySatellite
+
+                    readonly property bool privacyActive: Privacy.privacyActive
+                    readonly property bool satelliteActive: privacyActive
+                        && islandContainer.mode === 0
+                        && !islandContainer.expanded
+                        && islandContainer.islandVisible
+
+                    property real morphProgress: 0.0
+                    readonly property bool morphRunning: morphAnimPrivacy.running
+                    property bool detachRecoilFired: false
+                    property bool attachRecoilFired: false
+
+                    onMorphProgressChanged: {
+                        if (morphAnimPrivacy.running) {
+                            // Detachment pinch-off (bridge separates around p = 0.80)
+                            if (morphAnimPrivacy.to > 0.5 && morphProgress >= 0.79 && !detachRecoilFired) {
+                                detachRecoilFired = true;
+                                islandPill.triggerLeftDetachRecoil();
+                            }
+                            // Attachment absorption (droplet touches and merges at p <= 0.05)
+                            else if (morphAnimPrivacy.to < 0.5 && morphProgress <= 0.05 && !attachRecoilFired) {
+                                attachRecoilFired = true;
+                                islandPill.triggerLeftAttachRecoil();
+                            }
+                        }
+                    }
+
+                    function smoothStep(val) {
+                        const c = Math.max(0, Math.min(1, val));
+                        return c * c * (3 - 2 * c);
+                    }
+
+                    function interpolate(from, to, val) {
+                        return from + (to - from) * smoothStep(val);
+                    }
+
+                    function morphValue(idle, peak, neck, split, settled, p) {
+                        if (p <= 0.58)
+                            return interpolate(idle, peak, p / 0.58);
+                        if (p <= 0.76)
+                            return interpolate(peak, neck, (p - 0.58) / 0.18);
+                        if (p <= 0.80)
+                            return interpolate(neck, split, (p - 0.76) / 0.04);
+                        return interpolate(split, settled, (p - 0.80) / 0.20);
+                    }
+
+                    function satelliteMorphValue(idle, peak, neck, split, settled, p) {
+                        if (p <= 0.32)
+                            return idle;
+                        if (p <= 0.58)
+                            return interpolate(idle, peak, (p - 0.32) / 0.26);
+                        if (p <= 0.76)
+                            return interpolate(peak, neck, (p - 0.58) / 0.18);
+                        if (p <= 0.80)
+                            return interpolate(neck, split, (p - 0.76) / 0.04);
+                        return interpolate(split, settled, (p - 0.80) / 0.20);
+                    }
+
+                    readonly property real currentBlendRadius: satelliteMorphValue(0, 50, 28, 18, 0, morphProgress)
+                    readonly property real currentMargin: satelliteMorphValue(-height, 14, 11, 8, 8, morphProgress)
+
+                    readonly property real capsuleOpacity: (morphProgress >= 0.999) ? 1.0 : 0.0
+
+                    readonly property real contentOpacity: {
+                        const p = morphProgress;
+                        if (p < 0.80) return 0.0;
+                        return smoothStep((p - 0.80) / 0.20);
+                    }
+
+                    property int detachDuration: 1200
+                    property int attachDuration: 960
+
+                    onPrivacyActiveChanged: {
+                        detachRecoilFired = false;
+                        attachRecoilFired = false;
+                        if (islandContainer.hasOpenWindow && islandContainer.mode === 0) {
+                            taskRevealTimer.restart();
+                        }
+                        if (privacyActive) {
+                            if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
+                                morphAnimPrivacy.stop();
+                                morphProgress = 0.0;
+                                morphAnimPrivacy.from = 0.0;
+                                morphAnimPrivacy.to = 1.0;
+                                morphAnimPrivacy.duration = detachDuration;
+                                morphAnimPrivacy.easing.type = Easing.Linear;
+                                morphAnimPrivacy.restart();
+                            } else {
+                                morphAnimPrivacy.stop();
+                                morphProgress = 1.0;
+                            }
+                        } else {
+                            if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
+                                morphAnimPrivacy.stop();
+                                morphAnimPrivacy.from = morphProgress;
+                                morphAnimPrivacy.to = 0.0;
+                                morphAnimPrivacy.duration = Math.max(280, Math.round(attachDuration * morphProgress));
+                                morphAnimPrivacy.easing.type = Easing.Linear;
+                                morphAnimPrivacy.restart();
+                            } else {
+                                morphAnimPrivacy.stop();
+                                morphProgress = 0.0;
+                            }
+                        }
+                    }
+
+                    Component.onCompleted: {
+                        if (privacyActive) {
+                            morphProgress = 1.0;
+                        }
+                    }
+
+                    readonly property real activeWidth: {
+                        if (Privacy.camActive && Privacy.micActive) return 96;
+                        if (Privacy.micActive) return 58;
+                        return 54;
+                    }
+
+                    readonly property bool hovered: privacySatelliteArea.containsMouse
+
+                    transformOrigin: Item.Top
+                    anchors.top: islandPill.top
+                    anchors.right: islandPill.left
+                    anchors.rightMargin: currentMargin
+                    height: (morphProgress > 0.001 && morphProgress < 0.999) ? islandPill.height : 36
+                    width: {
+                        const p = morphProgress;
+                        const baseDiameter = height;
+                        if (p <= 0.78)
+                            return baseDiameter;
+                        return interpolate(baseDiameter, activeWidth, (p - 0.78) / 0.22);
+                    }
+                    readonly property real targetScale: (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0)
+                        ? (hovered && morphProgress > 0.95 ? 1.06 : 1.0)
+                        : 0.0
+                    scale: (morphProgress > 0.001 && morphProgress < 0.999) ? 1.0 : targetScale
+                    opacity: morphProgress > 0.01 ? 1.0 : 0.0
+                    visible: !islandContainer.expanded && privacyActive && (scale > 0.01 || privacyScaleAnim.running || morphProgress > 0.001 || islandPrivacySatellite.morphRunning)
+
+                    Behavior on scale {
+                        enabled: !islandPrivacySatellite.morphRunning
+                        NumberAnimation {
+                            id: privacyScaleAnim
+                            duration: 400
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 0.8
+                        }
+                    }
+
+                    NumberAnimation {
+                        id: morphAnimPrivacy
+                        target: islandPrivacySatellite
+                        property: "morphProgress"
+                    }
+
+                    // Background glass capsule
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: Appearance.colors.colLayer0
+                        opacity: islandPrivacySatellite.capsuleOpacity
+                    }
+
+                    // Contents container
+                    Item {
+                        anchors.fill: parent
+                        opacity: islandPrivacySatellite.contentOpacity
+
+                        // Case 1: DUAL ACTIVE (Camera + Mic) -> Segmented Expressive Dual Capsule
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 5
+                            visible: Privacy.camActive && Privacy.micActive
+
+                            // Left Chip (Camera)
+                            Rectangle {
+                                Layout.alignment: Qt.AlignVCenter
+                                implicitWidth: 42
+                                implicitHeight: 26
+                                radius: height / 2
+                                color: ColorUtils.applyAlpha(Appearance.m3colors.m3successContainer, 0.45)
+
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 3
+
+                                    MaterialSymbol {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        text: "videocam"
+                                        iconSize: 13
+                                        fill: 1
+                                        color: Appearance.m3colors.m3success
+                                    }
+
+                                    Item {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        width: 9
+                                        height: 9
+
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 5
+                                            height: 5
+                                            radius: 2.5
+                                            color: Appearance.m3colors.m3success
+                                        }
+
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 9
+                                            height: 9
+                                            radius: 4.5
+                                            color: ColorUtils.applyAlpha(Appearance.m3colors.m3success, 0.4)
+
+                                            SequentialAnimation on scale {
+                                                loops: Animation.Infinite
+                                                running: Privacy.camActive && islandPrivacySatellite.visible
+                                                NumberAnimation { from: 0.7; to: 1.4; duration: 1000; easing.type: Easing.InOutSine }
+                                                NumberAnimation { from: 1.4; to: 0.7; duration: 1000; easing.type: Easing.InOutSine }
+                                            }
+
+                                            SequentialAnimation on opacity {
+                                                loops: Animation.Infinite
+                                                running: Privacy.camActive && islandPrivacySatellite.visible
+                                                NumberAnimation { from: 0.7; to: 0.0; duration: 1000; easing.type: Easing.InOutSine }
+                                                NumberAnimation { from: 0.0; to: 0.7; duration: 1000; easing.type: Easing.InOutSine }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Right Chip (Microphone)
+                            Rectangle {
+                                Layout.alignment: Qt.AlignVCenter
+                                implicitWidth: 42
+                                implicitHeight: 26
+                                radius: height / 2
+                                color: ColorUtils.applyAlpha(Appearance.colors.colTertiaryContainer, 0.45)
+
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 3
+
+                                    MaterialSymbol {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        text: "mic"
+                                        iconSize: 13
+                                        fill: 1
+                                        color: Appearance.colors.colTertiary
+                                    }
+
+                                    Row {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        spacing: 1.5
+
+                                        Repeater {
+                                            model: 3
+                                            Rectangle {
+                                                width: 2.2
+                                                readonly property real minH: index === 1 ? 5 : 3.5
+                                                readonly property real maxH: index === 1 ? 14 : 9.5
+                                                readonly property real level: (Privacy.micLevels.length > index ? Privacy.micLevels[index] : 0) / 100.0
+                                                height: minH + level * (maxH - minH)
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                radius: 1.1
+                                                color: Appearance.colors.colTertiary
+
+                                                Behavior on height {
+                                                    NumberAnimation {
+                                                        duration: 65
+                                                        easing.type: Easing.OutCubic
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Case 2: SINGLE ACTIVE (Camera Only)
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 5
+                            visible: Privacy.camActive && !Privacy.micActive
+
+                            MaterialSymbol {
+                                Layout.alignment: Qt.AlignVCenter
+                                text: "videocam"
+                                iconSize: 15
+                                fill: 1
+                                color: Appearance.m3colors.m3success
+                            }
+
+                            Item {
+                                Layout.alignment: Qt.AlignVCenter
+                                width: 10
+                                height: 10
+
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 5
+                                    height: 5
+                                    radius: 2.5
+                                    color: Appearance.m3colors.m3success
+                                }
+
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 10
+                                    height: 10
+                                    radius: 5
+                                    color: ColorUtils.applyAlpha(Appearance.m3colors.m3success, 0.4)
+
+                                    SequentialAnimation on scale {
+                                        loops: Animation.Infinite
+                                        running: Privacy.camActive && islandPrivacySatellite.visible
+                                        NumberAnimation { from: 0.7; to: 1.4; duration: 1000; easing.type: Easing.InOutSine }
+                                        NumberAnimation { from: 1.4; to: 0.7; duration: 1000; easing.type: Easing.InOutSine }
+                                    }
+
+                                    SequentialAnimation on opacity {
+                                        loops: Animation.Infinite
+                                        running: Privacy.camActive && islandPrivacySatellite.visible
+                                        NumberAnimation { from: 0.7; to: 0.0; duration: 1000; easing.type: Easing.InOutSine }
+                                        NumberAnimation { from: 0.0; to: 0.7; duration: 1000; easing.type: Easing.InOutSine }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Case 3: SINGLE ACTIVE (Microphone Only)
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 5
+                            visible: Privacy.micActive && !Privacy.camActive
+
+                            MaterialSymbol {
+                                Layout.alignment: Qt.AlignVCenter
+                                text: "mic"
+                                iconSize: 15
+                                fill: 1
+                                color: Appearance.colors.colTertiary
+                            }
+
+                            Row {
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: 2
+
+                                Repeater {
+                                    model: 3
+                                    Rectangle {
+                                        width: 2.5
+                                        readonly property real minH: index === 1 ? 6 : 4
+                                        readonly property real maxH: index === 1 ? 15 : 10.5
+                                        readonly property real level: (Privacy.micLevels.length > index ? Privacy.micLevels[index] : 0) / 100.0
+                                        height: minH + level * (maxH - minH)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        radius: 1.25
+                                        color: Appearance.colors.colTertiary
+
+                                        Behavior on height {
+                                            NumberAnimation {
+                                                duration: 65
+                                                easing.type: Easing.OutCubic
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Mouse Area for Privacy Satellite interactions
+                    MouseArea {
+                        id: privacySatelliteArea
+                        anchors.fill: parent
+                        enabled: islandPrivacySatellite.satelliteActive
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            var satOffset = (islandPill.collapsedWidth / 2) + islandPrivacySatellite.currentMargin + (islandPrivacySatellite.width / 2);
+                            islandPill.openedFromLeftSatellite = true;
+                            expandFromLeftSatelliteAnim.stop();
+                            islandPill.anchors.horizontalCenterOffset = -satOffset;
+
+                            islandContainer.expandedPageKey = "privacy";
+                            islandContainer.manualExpanded = true;
+
+                            expandFromLeftSatelliteAnim.from = -satOffset;
+                            expandFromLeftSatelliteAnim.to = 0;
+                            expandFromLeftSatelliteAnim.duration = 380;
+                            expandFromLeftSatelliteAnim.easing.type = Easing.OutCubic;
+                            expandFromLeftSatelliteAnim.restart();
+                        }
+                        onEntered: {
+                            taskRevealTimer.stop();
+                            hoverExitTimer.stop();
+                        }
+                        onExited: hoverExitTimer.restart()
                     }
                 }
 

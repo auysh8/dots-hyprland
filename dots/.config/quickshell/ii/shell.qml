@@ -56,6 +56,7 @@ ShellRoot {
         Updates.load()
         DownloadService.load()
         CavaService.load()
+        Privacy.load()
         WallpaperSlideshow.load()
         WallpaperSlideshow._rotationEnabled = true
     }

@@ -15,6 +15,8 @@ Rectangle {
     property int maxItems: 16
     property int currentTab: 0
     property bool foreground: false
+    property bool resizeActive: false
+    property bool graphEnabled: true
     readonly property bool hasExtraTabs: true
     property var displayTemperatureDomain: [0, 1]
     readonly property int normalMonth: new Date().getMonth() + 1
@@ -74,7 +76,7 @@ Rectangle {
         root.displayTemperatureDomain = WeatherChartMath.temperatureDomain(root.forecastTemperatures(),
                                                                            root.normalDaytimeC,
                                                                            root.normalNighttimeC);
-        if (root.foreground)
+        if (root.foreground && !root.resizeActive)
             trendCanvas.requestPaint();
     }
 
@@ -138,27 +140,43 @@ Rectangle {
         updateTemperatureDomain();
     }
     onCurrentTabChanged: {
-        if (root.currentTab === 0)
+        if (root.currentTab === 0 && !root.resizeActive)
             trendCanvas.requestPaint();
     }
     onForegroundChanged: {
-        if (root.foreground)
+        if (root.foreground && !root.resizeActive)
             trendCanvas.requestPaint();
     }
     Timer {
         id: repaintDebounceTimer
         interval: 60
         repeat: false
-        onTriggered: trendCanvas.requestPaint()
+        onTriggered: {
+            if (!root.resizeActive)
+                trendCanvas.requestPaint()
+        }
     }
 
-    onWidthChanged: repaintDebounceTimer.restart()
-    onHeightChanged: repaintDebounceTimer.restart()
+    onWidthChanged: {
+        if (!root.resizeActive)
+            repaintDebounceTimer.restart()
+    }
+    onHeightChanged: {
+        if (!root.resizeActive)
+            repaintDebounceTimer.restart()
+    }
+    onResizeActiveChanged: {
+        if (root.resizeActive)
+            repaintDebounceTimer.stop()
+        else if (root.foreground)
+            repaintDebounceTimer.restart()
+    }
     Component.onCompleted: updateTemperatureDomain()
 
     Connections {
         function onUseUSCSChanged() {
-            trendCanvas.requestPaint();
+            if (!root.resizeActive)
+                trendCanvas.requestPaint();
         }
         target: Weather
     }
@@ -312,6 +330,8 @@ Rectangle {
 
                     Canvas {
                         id: trendCanvas
+
+                        visible: root.graphEnabled
 
                         property color primaryColor: Appearance.colors.colPrimary
                         property color secondaryColor: Appearance.colors.colSecondary ?? "#a08cb5"
@@ -586,57 +606,28 @@ Rectangle {
                 labelColor: Appearance.colors.colOnSurfaceVariant ?? Appearance.m3colors.m3onSurfaceVariant
             }
 
-            Item {
+            Loader {
                 anchors.fill: parent
-                visible: root.currentTab === 1
-
-                DailyAirQualityTrendPane {
-                    anchors.fill: parent
-                    sourceModel: root.sourceModel
+                active: root.currentTab !== 0
+                sourceComponent: {
+                    switch (root.currentTab) {
+                    case 1: return dailyAqiPaneComp;
+                    case 2: return dailyWindPaneComp;
+                    case 3: return dailyUvPaneComp;
+                    case 4: return dailyPrecipPaneComp;
+                    case 5: return dailySunshinePaneComp;
+                    case 6: return dailyFeelsPaneComp;
+                    default: return null;
+                    }
                 }
             }
 
-            Item {
-                anchors.fill: parent
-                visible: root.currentTab === 2
-
-                DailyWindTrendPane {
-                    anchors.fill: parent
-                    sourceModel: root.sourceModel
-                }
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 3
-                sourceModel: root.sourceModel
-                daily: true
-                metric: "uv"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 4
-                sourceModel: root.sourceModel
-                daily: true
-                metric: "precipitation"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 5
-                sourceModel: root.sourceModel
-                daily: true
-                metric: "sunshine"
-            }
-
-            WeatherMetricTrendPane {
-                anchors.fill: parent
-                visible: root.currentTab === 6
-                sourceModel: root.sourceModel
-                daily: true
-                metric: "feels"
-            }
+            Component { id: dailyAqiPaneComp; DailyAirQualityTrendPane { anchors.fill: parent; sourceModel: root.sourceModel } }
+            Component { id: dailyWindPaneComp; DailyWindTrendPane { anchors.fill: parent; sourceModel: root.sourceModel } }
+            Component { id: dailyUvPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; daily: true; metric: "uv" } }
+            Component { id: dailyPrecipPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; daily: true; metric: "precipitation" } }
+            Component { id: dailySunshinePaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; daily: true; metric: "sunshine" } }
+            Component { id: dailyFeelsPaneComp; WeatherMetricTrendPane { anchors.fill: parent; sourceModel: root.sourceModel; daily: true; metric: "feels" } }
         }
     }
 

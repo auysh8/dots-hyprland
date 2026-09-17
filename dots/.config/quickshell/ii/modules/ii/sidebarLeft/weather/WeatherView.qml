@@ -13,6 +13,8 @@ Item {
     property bool presentationActive: true
     property bool isExtended: false
     property bool isResizing: false
+    property bool dailyForecastPanelEnabled: true
+    property bool hourlyForecastPanelEnabled: true
     readonly property var weatherSource: Weather
 
     property int contentMargin: 16
@@ -280,9 +282,10 @@ Item {
                 windSpeedMs: root.weatherSource.currentWindSpeedMs
                 windGustsMs: root.weatherSource.currentWindGustsMs
                 night: root.currentIsNight()
-                rainBounceY: flick.y + dailyForecastCard.y - flick.contentY
+                rainBounceY: flick.y + dailyForecastLoader.y - flick.contentY
                 scrollProgress: Math.max(0, Math.min(1, flick.contentY / 340))
-                animate: root.presentationActive
+                animate: root.presentationActive && !root.isResizing
+                suspended: root.isResizing
             }
 
             layer.effect: OpacityMask {
@@ -505,22 +508,36 @@ Item {
                     }
                 }
 
-                DailyForecastTrendCard {
-                    id: dailyForecastCard
+                Loader {
+                    id: dailyForecastLoader
                     width: parent.width
-                    height: 452
-                    sourceModel: root.weatherSource.dailyTrendForecast
-                    normalsSource: root.weatherSource
-                    foreground: root.presentationActive && dailyForecastCard.y + dailyForecastCard.height >= flick.contentY && dailyForecastCard.y <= flick.contentY + flick.height
+                    height: active ? 452 : 0
+                    active: root.dailyForecastPanelEnabled
+                    sourceComponent: Component {
+                        DailyForecastTrendCard {
+                            anchors.fill: parent
+                            sourceModel: root.weatherSource.dailyTrendForecast
+                            normalsSource: root.weatherSource
+                            foreground: root.presentationActive && dailyForecastLoader.y + dailyForecastLoader.height >= flick.contentY && dailyForecastLoader.y <= flick.contentY + flick.height
+                            resizeActive: root.isResizing
+                        }
+                    }
                 }
 
-                HourlyForecastTrendCard {
-                    id: hourlyForecastCard
+                Loader {
+                    id: hourlyForecastLoader
                     width: parent.width
-                    height: 340
-                    sourceModel: root.weatherSource.hourlyForecast
-                    normalsSource: root.weatherSource
-                    foreground: root.presentationActive && hourlyForecastCard.y + hourlyForecastCard.height >= flick.contentY && hourlyForecastCard.y <= flick.contentY + flick.height
+                    height: active ? 340 : 0
+                    active: root.hourlyForecastPanelEnabled
+                    sourceComponent: Component {
+                        HourlyForecastTrendCard {
+                            anchors.fill: parent
+                            sourceModel: root.weatherSource.hourlyForecast
+                            normalsSource: root.weatherSource
+                            foreground: root.presentationActive && hourlyForecastLoader.y + hourlyForecastLoader.height >= flick.contentY && hourlyForecastLoader.y <= flick.contentY + flick.height
+                            resizeActive: root.isResizing
+                        }
+                    }
                 }
 
                 Item {

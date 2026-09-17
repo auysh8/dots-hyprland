@@ -60,11 +60,33 @@ Scope { // Scope
         else root.pin = !root.pin;
     }
 
+    function ensureSidebarContent() {
+        if (!root.sidebarContent) {
+            root.sidebarContent = contentComponent.createObject(null, {
+                "scopeRoot": root,
+            });
+            const targetParent = root.detach
+                ? (detachedSidebarLoader.item ? detachedSidebarLoader.item.contentParent : null)
+                : (sidebarLoader.item ? sidebarLoader.item.contentParent : null);
+            if (targetParent) {
+                targetParent.children = [root.sidebarContent];
+            }
+        }
+    }
+
+    Connections {
+        target: GlobalStates
+        function onSidebarLeftOpenChanged() {
+            if (GlobalStates.sidebarLeftOpen) {
+                root.ensureSidebarContent();
+            }
+        }
+    }
+
     Component.onCompleted: {
-        root.sidebarContent = contentComponent.createObject(null, {
-            "scopeRoot": root,
-        });
-        sidebarLoader.item.contentParent.children = [root.sidebarContent];
+        if (GlobalStates.sidebarLeftOpen) {
+            root.ensureSidebarContent();
+        }
     }
 
     onDetachChanged: {
@@ -99,7 +121,9 @@ Scope { // Scope
 
             exclusionMode: ExclusionMode.Normal
             exclusiveZone: root.pin ? sidebarWidth : 0
-            implicitWidth: Appearance.sizes.sidebarWidthExtended + Appearance.sizes.elevationMargin
+            implicitWidth: (root.extend || root.isResizing)
+                ? (Appearance.sizes.sidebarWidthExtended + Appearance.sizes.elevationMargin)
+                : (Appearance.sizes.sidebarWidth + Appearance.sizes.elevationMargin)
             WlrLayershell.namespace: "quickshell:sidebarLeft"
             // Hyprland 0.49: OnDemand is Exclusive, Exclusive just breaks click-outside-to-close
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
@@ -111,20 +135,8 @@ Scope { // Scope
                 bottom: true
             }
 
-            Item {
-                id: maskTarget
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.topMargin: Appearance.sizes.hyprlandGapsOut
-                anchors.leftMargin: Appearance.sizes.hyprlandGapsOut
-                height: parent.height - Appearance.sizes.hyprlandGapsOut * 2
-                width: (root.extend || root.isResizing)
-                    ? (Appearance.sizes.sidebarWidthExtended - Appearance.sizes.hyprlandGapsOut - Appearance.sizes.elevationMargin)
-                    : sidebarLeftBackground.width
-            }
-
             mask: Region {
-                item: maskTarget
+                item: sidebarLeftBackground
             }
 
             onVisibleChanged: {
@@ -132,6 +144,7 @@ Scope { // Scope
                     GlobalFocusGrab.addDismissable(panelWindow);
                 } else {
                     GlobalFocusGrab.removeDismissable(panelWindow);
+                    root.isResizing = false;
                 }
             }
             Connections {
@@ -145,10 +158,7 @@ Scope { // Scope
             StyledRectangularShadow {
                 target: sidebarLeftBackground
                 radius: sidebarLeftBackground.radius
-                opacity: root.isResizing ? 0.0 : 1.0
-                Behavior on opacity {
-                    NumberAnimation { duration: 150 }
-                }
+                visible: false
             }
             Rectangle {
                 id: sidebarLeftBackground
@@ -163,13 +173,14 @@ Scope { // Scope
                 border.color: Appearance.colors.colLayer0Border
                 radius: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
                 clip: true
+                focus: true
+                Component.onCompleted: forceActiveFocus()
 
                 Behavior on width {
                     NumberAnimation {
                         id: widthAnim
-                        duration: Appearance.animation.elementMove.duration
-                        easing.type: Appearance.animation.elementMove.type
-                        easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+                        duration: 350
+                        easing.type: Easing.OutCubic
                         onRunningChanged: {
                             root.isResizing = running;
                         }

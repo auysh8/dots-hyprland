@@ -1,0 +1,18 @@
+[general]
+bars = 3
+framerate = 30
+autosens = 1
+
+[input]
+method = pulse
+source = @DEFAULT_SOURCE@
+
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = 100
+channels = mono
+
+[smoothing]
+noise_reduction = 40

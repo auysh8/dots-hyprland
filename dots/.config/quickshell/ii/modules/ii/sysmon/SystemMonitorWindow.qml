@@ -73,30 +73,23 @@ Scope {
                 anchors.fill: parent
                 z: 1
                 onClicked: (mouse) => {
-                    const monitorBounds = monitor.mapToItem(backgroundClickArea, 0, 0, monitor.width, monitor.height);
+                    const monitorBounds = monitorLoader.mapToItem(backgroundClickArea, 0, 0, monitorLoader.width, monitorLoader.height);
                     const clickInMonitor = mouse.x >= monitorBounds.x && mouse.x <= monitorBounds.x + monitorBounds.width &&
                                           mouse.y >= monitorBounds.y && mouse.y <= monitorBounds.y + monitorBounds.height;
                     if (!clickInMonitor) root.closeWindow();
                 }
             }
 
-            SystemMonitor {
-                id: monitor
+            Loader {
+                id: monitorLoader
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: root.showMonitor ? (parent.height - height) / 2 : -height
                 z: 2
-                
+
                 width: Math.min(parent.width * 0.92, 1560)
                 height: parent.height * 0.85
-                
-                onCloseRequested: root.closeWindow()
-                
-                onActiveFocusChanged: {
-                    if (!activeFocus && root.showMonitor && !root.closing) {
-                        root.closeWindow();
-                    }
-                }
-                
+                active: root.showMonitor || root.closing
+
                 Behavior on y {
                     NumberAnimation {
                         id: slideAnim
@@ -110,9 +103,28 @@ Scope {
                         }
                     }
                 }
+
+                sourceComponent: SystemMonitor {
+                    id: monitor
+                    anchors.fill: parent
+
+                    onCloseRequested: root.closeWindow()
+
+                    onActiveFocusChanged: {
+                        if (!activeFocus && root.showMonitor && !root.closing) {
+                            root.closeWindow();
+                        }
+                    }
+                }
+
+                onLoaded: {
+                    if (window.visible && item) {
+                        item.forceActiveFocus();
+                    }
+                }
             }
-            
-            onVisibleChanged: { if (visible) monitor.forceActiveFocus(); }
+
+            onVisibleChanged: { if (visible && monitorLoader.item) monitorLoader.item.forceActiveFocus(); }
         }
     }
 

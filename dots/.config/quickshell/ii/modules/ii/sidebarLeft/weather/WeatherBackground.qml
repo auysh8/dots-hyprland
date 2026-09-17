@@ -10,6 +10,7 @@ Item {
     property real windGustsMs: 0
     property real scrollProgress: 0
     property bool animate: visible
+    property bool suspended: false
     property bool fullCardParticleBounds: false
     property string weatherType: "overcast"
     property bool windy: false
@@ -551,7 +552,9 @@ Item {
     }
 
     function rainStrokeColor() {
-        return weatherType === "storm" ? "#d7deec" : "#0000ff"
+        if (weatherType === "storm")
+            return night ? "#a4bcd6" : "#5d7896"
+        return night ? "#88aed4" : "#4a7298"
     }
 
     function rainTargetCount() {
@@ -670,9 +673,12 @@ Item {
     }
 
     function makeRainDrop() {
-        const lineWidth = Math.random() * 3
-        const lineLength = weatherType === "storm" ? 35 : 14
-        const layerIndex = Math.max(0, Math.min(2, 2 - Math.floor(lineWidth)))
+        const minWidth = 1.6
+        const maxWidth = 3.8
+        const lineWidth = minWidth + Math.random() * (maxWidth - minWidth)
+        const lineLength = weatherType === "storm" ? 44 : 22
+        const depth = (lineWidth - minWidth) / (maxWidth - minWidth)
+        const layerIndex = Math.max(0, Math.min(2, 2 - Math.floor(depth * 3)))
         rainLayers[layerIndex].push({
             x: 20 + Math.random() * Math.max(1, width - 40),
             width: lineWidth,
@@ -710,7 +716,7 @@ Item {
                 const drop = layer[i]
                 drop.age += dt
                 if (drop.age >= drop.delay + drop.duration) {
-                    if (drop.width > 2)
+                    if (drop.width > 2.8)
                         makeSplash(drop.x, rainStrokeColor())
                     layer.splice(i, 1)
                 }
@@ -894,8 +900,8 @@ Item {
     function drawRainLayer(ctx, fade, layerIndex) {
         const layer = rainLayers[layerIndex]
         const bounceY = Math.max(0, Math.min(height, rainBounceY))
-        ctx.lineCap = "butt"
-        ctx.strokeStyle = alphaColor(rainStrokeColor(), fade)
+        ctx.lineCap = "round"
+        ctx.strokeStyle = alphaColor(rainStrokeColor(), fade * 0.85)
         for (let i = 0; i < layer.length; ++i) {
             const drop = layer[i]
             if (drop.age < drop.delay)
@@ -923,7 +929,7 @@ Item {
             // Approximate Snap's animated dash by drawing only the visible curve segment.
             const startPoint = sampleAtLength(splash.samples, startLength)
             const endPoint = sampleAtLength(splash.samples, endLength)
-            ctx.strokeStyle = alphaColor(splash.color, fade)
+            ctx.strokeStyle = alphaColor(splash.color, fade * 0.85)
             ctx.lineWidth = strokeWidth
             ctx.beginPath()
             ctx.moveTo(splash.x + startPoint.x, splash.y + startPoint.y)
@@ -1125,7 +1131,7 @@ Item {
         id: sceneTimer
 
         interval: root.sceneFrameInterval
-        running: root.animate && root.hasCanvasScene
+        running: root.animate && !root.suspended && root.hasCanvasScene
         repeat: true
 
         property double lastTickMs: 0
@@ -1188,8 +1194,22 @@ Item {
         }
     }
 
-    onWidthChanged: sceneResizeDebounceTimer.restart()
-    onHeightChanged: sceneResizeDebounceTimer.restart()
+    onWidthChanged: {
+        if (!root.suspended)
+            sceneResizeDebounceTimer.restart()
+    }
+    onHeightChanged: {
+        if (!root.suspended)
+            sceneResizeDebounceTimer.restart()
+    }
+    onSuspendedChanged: {
+        if (root.suspended) {
+            sceneResizeDebounceTimer.stop()
+            leafSpawnTimer.stop()
+        } else {
+            root.resetVisualScenes()
+        }
+    }
     onWeatherCodeChanged: updateWeatherClassification()
     onIconNameChanged: updateWeatherClassification()
     onWindSpeedMsChanged: updateWeatherClassification()
