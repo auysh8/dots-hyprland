@@ -138,14 +138,36 @@ Item {
                     Item {
                         id: progressBarContainer
                         Layout.fillWidth: true
-                        implicitHeight: Math.max(sliderLoader.implicitHeight, progressBarLoader.implicitHeight)
+                        implicitHeight: Math.max(fluidProgressLoader.implicitHeight, Math.max(sliderLoader.implicitHeight, progressBarLoader.implicitHeight)) || 28
+
+                        Loader {
+                            id: fluidProgressLoader
+                            anchors.fill: parent
+                            active: ((Config.options?.media?.progressBarStyle ?? "fluid") === "fluid") && (root.player?.canSeek ?? false)
+                            sourceComponent: WaveProgressBar {
+                                anchors.fill: parent
+                                progress: (root.player?.length > 0) ? (root.player.position / root.player.length) : 0
+                                waveColor: root.blendedColors.colPrimary
+                                trackColor: root.blendedColors.colSecondaryContainer
+                                isPlaying: root.player?.isPlaying ?? false
+                                waveAmplitude: 4.5
+                                waveFrequency: 0.12
+                                trackHeight: 6
+                                progressGap: 8
+                                onSeekRequested: position => {
+                                    root.player.position = position * root.player.length;
+                                }
+                            }
+                        }
 
                         Loader {
                             id: sliderLoader
                             anchors.fill: parent
-                            active: root.player?.canSeek ?? false
+                            active: ((Config.options?.media?.progressBarStyle ?? "fluid") !== "fluid") && (root.player?.canSeek ?? false)
                             sourceComponent: StyledSlider {
-                                configuration: StyledSlider.Configuration.Wavy
+                                configuration: (Config.options?.media?.progressBarStyle ?? "wavy") === "linear" 
+                                    ? StyledSlider.Configuration.Sleek 
+                                    : StyledSlider.Configuration.Wavy
                                 highlightColor: root.blendedColors.colPrimary
                                 trackColor: root.blendedColors.colSecondaryContainer
                                 handleColor: root.blendedColors.colPrimary
@@ -163,7 +185,7 @@ Item {
                             }
                             active: !(root.player?.canSeek ?? false)
                             sourceComponent: StyledProgressBar {
-                                wavy: root.player?.isPlaying
+                                wavy: (Config.options?.media?.progressBarStyle ?? "wavy") !== "linear" && (root.player?.isPlaying ?? false)
                                 highlightColor: root.blendedColors.colPrimary
                                 trackColor: root.blendedColors.colSecondaryContainer
                                 value: root.player?.position / root.player?.length

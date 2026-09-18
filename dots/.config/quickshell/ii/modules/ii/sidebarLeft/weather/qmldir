@@ -28,3 +28,4 @@ WeatherPressureCard 1.0 WeatherPressureCard.qml
 WeatherPrecipitationCard 1.0 WeatherPrecipitationCard.qml
 WeatherVisibilityCard 1.0 WeatherVisibilityCard.qml
 WeatherView 1.0 WeatherView.qml
+WeatherRadarCard 1.0 WeatherRadarCard.qml

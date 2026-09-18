@@ -336,6 +336,10 @@ ContentPage {
                         { displayName: Translation.tr("Glitch"), icon: "bug_report", value: "glitch" },
                         { displayName: Translation.tr("Ripple"), icon: "water", value: "ripple" },
                         { displayName: Translation.tr("Shatter"), icon: "broken_image", value: "shatter" },
+                        { displayName: Translation.tr("Iris Bloom"), icon: "lens", value: "wp_iris_bloom" },
+                        { displayName: Translation.tr("Portal"), icon: "cyclone", value: "wp_portal" },
+                        { displayName: Translation.tr("Disc"), icon: "radio_button_checked", value: "wp_disc" },
+                        { displayName: Translation.tr("Wipe"), icon: "swipe", value: "wp_wipe" },
                         { displayName: Translation.tr("Random"), icon: "shuffle", value: "random" },
                     ]
                     currentValue: Config.options.background.wallpaperAnimation
@@ -349,6 +353,68 @@ ContentPage {
                 target: Config.options.background
                 function onLockWallChanged() {
                     syncWallpaperSwitch.checked = Qt.binding(() => Config.options.background.lockWall === "")
+                }
+            }
+
+            ContentSubsection {
+                title: Translation.tr("Transition animation tweaker")
+                Layout.fillWidth: true
+
+                GroupedList {
+                    ConfigSlider {
+                        Layout.fillWidth: true
+                        buttonIcon: "speed"
+                        text: Translation.tr("Transition duration")
+                        textWidth: 170
+                        usePercentTooltip: false
+                        tooltipContent: `${Math.round(value)} ms`
+                        from: 200
+                        to: 5000
+                        stepSize: 50
+                        value: Config.options.background.transitionDurationMs ?? 1200
+                        onValueChanged: {
+                            Config.options.background.transitionDurationMs = Math.round(value);
+                        }
+                    }
+
+                    ConfigComboBox {
+                        Layout.fillWidth: true
+                        buttonIcon: "timeline"
+                        text: Translation.tr("Easing curve")
+                        fieldWidth: 150
+                        model: [
+                            { displayName: Translation.tr("Custom Bézier"), icon: "gesture", value: "customBezier" },
+                            { displayName: Translation.tr("Linear"), icon: "linear_scale", value: "linear" },
+                            { displayName: Translation.tr("Quadratic"), icon: "timeline", value: "quad" },
+                            { displayName: Translation.tr("Cubic"), icon: "timeline", value: "cubic" },
+                            { displayName: Translation.tr("Quartic"), icon: "timeline", value: "quart" },
+                            { displayName: Translation.tr("Quintic"), icon: "timeline", value: "quint" },
+                            { displayName: Translation.tr("Sine"), icon: "waves", value: "sine" },
+                            { displayName: Translation.tr("Exponential"), icon: "bolt", value: "expo" },
+                            { displayName: Translation.tr("Circular"), icon: "change_history", value: "circ" },
+                        ]
+                        currentValue: Config.options.background.transitionEasingMode ?? "customBezier"
+                        onSelected: newValue => {
+                            Config.options.background.transitionEasingMode = newValue;
+                        }
+                    }
+                }
+
+                BezierCurveEditor {
+                    id: bezierEditor
+                    Layout.fillWidth: true
+                    Layout.topMargin: 6
+                    Layout.bottomMargin: 6
+                    chartSize: 280
+                    curve: Config.options.background.transitionBezierCurve ?? [0.43, 1.19, 1.0, 0.4, 1.0, 1.0]
+                    easingMode: Config.options.background.transitionEasingMode ?? "customBezier"
+                    playDurationMs: Config.options.background.transitionDurationMs ?? 1200
+                    onControlsEdited: nextCurve => {
+                        Config.options.background.transitionBezierCurve = nextCurve;
+                    }
+                    onEditRequested: {
+                        bezierWorkbench.openWithCurve(Config.options.background.transitionBezierCurve ?? [0.43, 1.19, 1.0, 0.4, 1.0, 1.0], Config.options.background.transitionDurationMs ?? 1200);
+                    }
                 }
             }
         
@@ -1349,6 +1415,13 @@ ContentPage {
                     }
                 }
             }
+        }
+    }
+
+    BezierCurveLayerEditor {
+        id: bezierWorkbench
+        onCurveEdited: nextCurve => {
+            Config.options.background.transitionBezierCurve = nextCurve;
         }
     }
 }

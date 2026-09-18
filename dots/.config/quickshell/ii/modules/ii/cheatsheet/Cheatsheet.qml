@@ -33,18 +33,15 @@ Scope { // Scope
             visible: cheatsheetLoader.active
 
             anchors {
-                top: true
-                bottom: true
-                left: true
-                right: true
             }
 
             function hide() {
                 cheatsheetLoader.active = false;
             }
+            exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
-            implicitWidth: cheatsheetBackground.width + Appearance.sizes.elevationMargin * 2
-            implicitHeight: cheatsheetBackground.height + Appearance.sizes.elevationMargin * 2
+            implicitWidth: cheatsheetBackground.implicitWidth + Appearance.sizes.elevationMargin * 2
+            implicitHeight: cheatsheetBackground.implicitHeight + Appearance.sizes.elevationMargin * 2
             WlrLayershell.namespace: "quickshell:cheatsheet"
             // Setting this value makes it take its sweet time to open
             // WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
@@ -81,6 +78,8 @@ Scope { // Scope
                 property real padding: 20
                 implicitWidth: cheatsheetColumnLayout.implicitWidth + padding * 2
                 implicitHeight: cheatsheetColumnLayout.implicitHeight + padding * 2
+                width: implicitWidth
+                height: implicitHeight
 
                 Keys.onPressed: event => { // Esc to close
                     if (event.key === Qt.Key_Escape) {

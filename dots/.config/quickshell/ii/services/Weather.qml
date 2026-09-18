@@ -18,22 +18,53 @@ Singleton {
 
     readonly property bool gps: Config.options.bar.weather.enableGPS
     readonly property string pinnedCity: Config.options.bar.weather.city.trim()
+    readonly property real configLat: Config.options.bar.weather.latitude || 0
+    readonly property real configLon: Config.options.bar.weather.longitude || 0
 
-    // A typed city is what this follows when the lookup is switched off. Off
-    // with nothing typed has named no place at all, so the looked up one still
-    // stands rather than leaving the weather with nowhere to be.
-    readonly property bool usePinned: !root.gps && root.pinnedCity.length > 0
+    // A typed city or pinned coordinates is what this follows when the lookup is switched off.
+    readonly property bool usePinned: !root.gps && (root.pinnedCity.length > 0 || root.configLat !== 0 || root.configLon !== 0)
 
-    property real pinnedLat: 0
-    property real pinnedLon: 0
-    property string pinnedName: ""
+    property real pinnedLat: root.configLat
+    property real pinnedLon: root.configLon
+    property string pinnedName: Config.options.bar.weather.city || ""
     property string pinnedCountry: ""
-    property bool pinnedValid: false
+    property bool pinnedValid: (!root.gps && (root.pinnedLat !== 0 || root.pinnedLon !== 0))
+
+    onConfigLatChanged: {
+        if (root.configLat !== 0) {
+            root.pinnedLat = root.configLat;
+            root.pinnedValid = true;
+            root.getData();
+        }
+    }
+    onConfigLonChanged: {
+        if (root.configLon !== 0) {
+            root.pinnedLon = root.configLon;
+            root.pinnedValid = true;
+            root.getData();
+        }
+    }
+    onGpsChanged: {
+        root.getData();
+    }
+
+    Connections {
+        target: Location
+        function onLatitudeChanged() {
+            if (!root.usePinned) root.getData();
+        }
+        function onLongitudeChanged() {
+            if (!root.usePinned) root.getData();
+        }
+        function onCityChanged() {
+            if (!root.usePinned) root.getData();
+        }
+    }
 
     readonly property bool locationValid: root.usePinned ? root.pinnedValid : Location.known
-    readonly property real latitude: root.usePinned ? root.pinnedLat : Location.latitude
-    readonly property real longitude: root.usePinned ? root.pinnedLon : Location.longitude
-    readonly property string cityName: root.usePinned ? root.pinnedName : Location.city
+    readonly property real latitude: root.usePinned ? (root.pinnedLat !== 0 ? root.pinnedLat : (root.configLat !== 0 ? root.configLat : Location.latitude)) : Location.latitude
+    readonly property real longitude: root.usePinned ? (root.pinnedLon !== 0 ? root.pinnedLon : (root.configLon !== 0 ? root.configLon : Location.longitude)) : Location.longitude
+    readonly property string cityName: root.usePinned ? (root.pinnedCity.length > 0 ? root.pinnedCity : (root.pinnedName.length > 0 ? root.pinnedName : Location.city)) : Location.city
     readonly property string countryCode: root.usePinned ? root.pinnedCountry : Location.countryCode
 
     // The reply that produced what is on screen, kept so that a change of unit
@@ -133,12 +164,16 @@ Singleton {
         root.pinnedCountry = "";
         root.pinnedValid = true;
         Config.options.bar.weather.enableGPS = false;
+        Config.options.bar.weather.latitude = Number(lat);
+        Config.options.bar.weather.longitude = Number(lon);
         Config.options.bar.weather.city = root.pinnedName;
         root.getData();
     }
 
     function clearManualLocation() {
         Config.options.bar.weather.enableGPS = true;
+        Config.options.bar.weather.latitude = 0;
+        Config.options.bar.weather.longitude = 0;
         root.pinnedValid = false;
         root.pinnedLat = 0;
         root.pinnedLon = 0;
@@ -722,11 +757,17 @@ Singleton {
                     // weather somewhere the user has stopped naming.
                     const found = JSON.parse(text)?.results?.[0];
                     if (!found) {
-                        root.pinnedValid = false;
+                        if (root.configLat === 0 && root.configLon === 0) {
+                            root.pinnedValid = false;
+                        }
                         return;
                     }
-                    root.pinnedLat = found.latitude;
-                    root.pinnedLon = found.longitude;
+                    if (root.configLat === 0 && root.configLon === 0) {
+                        root.pinnedLat = found.latitude;
+                        root.pinnedLon = found.longitude;
+                        Config.options.bar.weather.latitude = Number(found.latitude);
+                        Config.options.bar.weather.longitude = Number(found.longitude);
+                    }
                     root.pinnedName = found.name ?? asked;
                     root.pinnedCountry = found.country_code ?? "";
                     root.pinnedValid = true;
@@ -744,23 +785,28 @@ Singleton {
         id: pinnedDebounce
         interval: 700
         repeat: false
-        onTriggered: if (root.usePinned)
+        onTriggered: if (root.usePinned && root.configLat === 0 && root.configLon === 0)
             geocoder.fetch(root.pinnedCity)
     }
     onPinnedCityChanged: {
-        root.pinnedValid = false;
-        if (root.usePinned)
-            pinnedDebounce.restart();
-        else
-            pinnedDebounce.stop();
+        root.pinnedName = root.pinnedCity;
+        if (root.configLat === 0 && root.configLon === 0) {
+            root.pinnedValid = false;
+            if (root.usePinned)
+                pinnedDebounce.restart();
+            else
+                pinnedDebounce.stop();
+        } else if (root.locationValid) {
+            root.getData();
+        }
     }
-    onUsePinnedChanged: if (root.usePinned && !root.pinnedValid)
+    onUsePinnedChanged: if (root.usePinned && !root.pinnedValid && root.configLat === 0 && root.configLon === 0)
         pinnedDebounce.restart()
 
     Process {
         id: weatherFetcher
         function fetch() {
-            if (running) return;
+            if (running) running = false;
             if (!root.locationValid) return;
             const currentFields = "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,dew_point_2m,cloud_cover";
             const hourlyFields = "temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,is_day,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,visibility";
@@ -795,7 +841,8 @@ Singleton {
         id: aqiFetcher
         running: false
         function fetch() {
-            if (!root.locationValid || running) return;
+            if (!root.locationValid) return;
+            if (running) running = false;
             const fields = "pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,us_aqi,european_aqi";
             const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${root.latitude}&longitude=${root.longitude}&current=${fields}&hourly=${fields}&timezone=auto&timeformat=unixtime&forecast_days=7`;
             command = ["curl", "-s", "--connect-timeout", "3", "--max-time", "6", url];

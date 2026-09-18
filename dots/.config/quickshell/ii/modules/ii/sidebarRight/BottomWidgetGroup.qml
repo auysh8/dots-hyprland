@@ -6,6 +6,7 @@ import qs.modules.ii.sidebarRight.calendar
 import qs.modules.ii.sidebarRight.todo
 import qs.modules.ii.sidebarRight.pomodoro
 import QtQuick
+import Quickshell
 import QtQuick.Layouts
 
 Rectangle {
@@ -15,7 +16,7 @@ Rectangle {
     clip: true
     property real collapsedHeight: 50
     implicitHeight: collapsed ? root.collapsedHeight : 350
-    property int selectedTab: Persistent.states.sidebar.bottomGroup.tab
+    property int selectedTab: Math.max(0, Math.min(Persistent.states.sidebar.bottomGroup.tab, root.tabs.length - 1))
     property int previousIndex: -1
     property bool collapsed: Persistent.states.sidebar.bottomGroup.collapsed
     property var tabs: [

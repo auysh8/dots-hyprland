@@ -6,3 +6,5 @@ MapAttribution 1.0 MapAttribution.qml
 MapFallback 1.0 MapFallback.qml
 LocationPicker 1.0 LocationPicker.qml
 LocationPickerModal 1.0 LocationPickerModal.qml
+PhoneGpsSetupDialog 1.0 PhoneGpsSetupDialog.qml
+MapLibreWeatherMap 1.0 MapLibreWeatherMap.qml

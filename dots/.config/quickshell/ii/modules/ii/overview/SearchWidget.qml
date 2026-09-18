@@ -1,4 +1,3 @@
-pragma ComponentBehavior: Bound
 
 import Qt.labs.synchronizer
 import Qt5Compat.GraphicalEffects
@@ -12,17 +11,17 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 
-Item { // Wrapper
+Item {
     id: root
 
     readonly property string xdgConfigHome: Directories.config
     readonly property int typingDebounceInterval: 200
-    readonly property int typingResultLimit: 15 // Should be enough to cover the whole view
+    readonly property int typingResultLimit: 15
 
     property string searchingText: LauncherSearch.query
     property bool showResults: searchingText != ""
     implicitWidth: searchWidgetContent.implicitWidth + Appearance.sizes.elevationMargin * 2
-    implicitHeight: searchWidgetContent.implicitHeight + searchBar.verticalPadding * 2 + Appearance.sizes.elevationMargin * 2
+    implicitHeight: searchWidgetContent.implicitHeight + Appearance.sizes.elevationMargin * 2
 
     function focusFirstItem() {
         appResults.currentIndex = 0;
@@ -37,7 +36,7 @@ Item { // Wrapper
     }
 
     function cancelSearch() {
-        searchBar.searchInput.selectAll();
+        searchBar.searchInput.text = "";
         LauncherSearch.query = "";
         searchBar.animateWidth = true;
     }
@@ -48,20 +47,16 @@ Item { // Wrapper
     }
 
     Keys.onPressed: event => {
-        // Prevent Esc and Backspace from registering
         if (event.key === Qt.Key_Escape)
             return;
 
-        // Handle Backspace: focus and delete character if not focused
         if (event.key === Qt.Key_Backspace) {
             if (!searchBar.searchInput.activeFocus) {
                 root.focusSearchInput();
                 if (event.modifiers & Qt.ControlModifier) {
-                    // Delete word before cursor
                     let text = searchBar.searchInput.text;
                     let pos = searchBar.searchInput.cursorPosition;
                     if (pos > 0) {
-                        // Find the start of the previous word
                         let left = text.slice(0, pos);
                         let match = left.match(/(\s*\S+)\s*$/);
                         let deleteLen = match ? match[0].length : 1;
@@ -69,26 +64,20 @@ Item { // Wrapper
                         searchBar.searchInput.cursorPosition = pos - deleteLen;
                     }
                 } else {
-                    // Delete character before cursor if any
                     if (searchBar.searchInput.cursorPosition > 0) {
                         searchBar.searchInput.text = searchBar.searchInput.text.slice(0, searchBar.searchInput.cursorPosition - 1) + searchBar.searchInput.text.slice(searchBar.searchInput.cursorPosition);
                         searchBar.searchInput.cursorPosition -= 1;
                     }
                 }
-                // Always move cursor to end after programmatic edit
                 searchBar.searchInput.cursorPosition = searchBar.searchInput.text.length;
                 event.accepted = true;
             }
-            // If already focused, let TextField handle it
             return;
         }
 
-        // Only handle visible printable characters (ignore control chars, arrows, etc.)
-        if (event.text && event.text.length === 1 && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Return && event.key !== Qt.Key_Delete && event.text.charCodeAt(0) >= 0x20) // ignore control chars like Backspace, Tab, etc.
-        {
+        if (event.text && event.text.length === 1 && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Return && event.key !== Qt.Key_Delete && event.text.charCodeAt(0) >= 0x20) {
             if (!searchBar.searchInput.activeFocus) {
                 root.focusSearchInput();
-                // Insert the character at the cursor position
                 searchBar.searchInput.text = searchBar.searchInput.text.slice(0, searchBar.searchInput.cursorPosition) + event.text + searchBar.searchInput.text.slice(searchBar.searchInput.cursorPosition);
                 searchBar.searchInput.cursorPosition += 1;
                 event.accepted = true;
@@ -97,132 +86,134 @@ Item { // Wrapper
         }
     }
 
-    StyledRectangularShadow {
-        target: searchWidgetContent
-    }
-    Rectangle { // Background
+    Item {
         id: searchWidgetContent
         anchors {
             top: parent.top
             horizontalCenter: parent.horizontalCenter
             topMargin: Appearance.sizes.elevationMargin
         }
-        clip: true
-        implicitWidth: columnLayout.implicitWidth
-        implicitHeight: columnLayout.implicitHeight
-        radius: searchBar.height / 2 + searchBar.verticalPadding
-        color: Appearance.colors.colBackgroundSurfaceContainer
+        implicitWidth: searchBar.totalWidth
+        implicitHeight: unifiedCard.implicitHeight
 
-        Behavior on implicitHeight {
-            id: searchHeightBehavior
-            enabled: GlobalStates.overviewOpen && root.showResults
-            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+        StyledRectangularShadow {
+            target: unifiedCard
+            visible: root.showResults
         }
 
-        ColumnLayout {
-            id: columnLayout
-            anchors {
-                top: parent.top
-                horizontalCenter: parent.horizontalCenter
-            }
-            spacing: 0
+        Rectangle {
+            id: unifiedCard
+            anchors.top: parent.top
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: searchBar.totalWidth
+            implicitHeight: root.showResults ? (searchBar.height + resultsContainer.implicitHeight) : searchBar.height
+            height: implicitHeight
+            radius: 20
+            color: root.showResults ? Appearance.colors.colBackgroundSurfaceContainer : "transparent"
+            clip: root.showResults
 
-            // clip: true
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: Rectangle {
-                    width: searchWidgetContent.width
-                    height: searchWidgetContent.width
-                    radius: searchWidgetContent.radius
-                }
-            }
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
 
-            SearchBar {
-                id: searchBar
-                property real verticalPadding: 4
-                Layout.fillWidth: true
-                Layout.leftMargin: 10
-                Layout.rightMargin: 4
-                Layout.topMargin: verticalPadding
-                Layout.bottomMargin: verticalPadding
-                Synchronizer on searchingText {
-                    property alias source: root.searchingText
-                }
-            }
-
-            Rectangle {
-                // Separator
-                visible: root.showResults
-                Layout.fillWidth: true
-                height: 1
-                color: Appearance.colors.colOutlineVariant
-            }
-
-            ListView { // App results
-                id: appResults
-                visible: root.showResults
-                Layout.fillWidth: true
-                implicitHeight: Math.min(600, appResults.contentHeight + topMargin + bottomMargin)
-                clip: true
-                topMargin: 10
-                bottomMargin: 10
-                spacing: 2
-                KeyNavigation.up: searchBar
-                highlightMoveDuration: 100
-
-                onFocusChanged: {
-                    if (focus)
-                        appResults.currentIndex = 1;
-                }
-
-                Connections {
-                    target: root
-                    function onSearchingTextChanged() {
-                        if (appResults.count > 0)
-                            appResults.currentIndex = 0;
+                SearchBar {
+                    id: searchBar
+                    Layout.alignment: Qt.AlignHCenter
+                    Synchronizer on searchingText {
+                        property alias source: root.searchingText
+                    }
+                    onAccepted: {
+                        if (appResults.count > 0) {
+                            let firstItem = appResults.itemAtIndex(0);
+                            if (firstItem && firstItem.clicked) {
+                                firstItem.clicked();
+                            }
+                        }
                     }
                 }
 
-                Timer {
-                    id: debounceTimer
-                    interval: root.typingDebounceInterval
-                    onTriggered: {
-                        resultModel.values = LauncherSearch.results ?? [];
-                    }
-                }
+                Item {
+                    id: resultsContainer
+                    visible: root.showResults
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    implicitHeight: root.showResults ? Math.min(520, appResults.contentHeight + 16) : 0
+                    Layout.preferredHeight: implicitHeight
 
-                Connections {
-                    target: LauncherSearch
-                    function onResultsChanged() {
-                        resultModel.values = LauncherSearch.results.slice(0, root.typingResultLimit);
-                        root.focusFirstItem();
-                        debounceTimer.restart();
-                    }
-                }
+                    ListView {
+                        id: appResults
+                        anchors.fill: parent
+                        anchors.topMargin: 4
+                        anchors.bottomMargin: 8
+                        anchors.leftMargin: 4
+                        anchors.rightMargin: 4
+                        clip: true
+                        spacing: 2
+                        KeyNavigation.up: searchBar
+                        highlightMoveDuration: 100
 
-                model: ScriptModel {
-                    id: resultModel
-                    objectProp: "key"
-                }
+                        onFocusChanged: {
+                            if (focus)
+                                appResults.currentIndex = 1;
+                        }
 
-                delegate: SearchItem {
-                    id: searchItem
-                    // The selectable item for each search result
-                    required property var modelData
-                    anchors.left: parent?.left
-                    anchors.right: parent?.right
-                    entry: modelData
-                    query: StringUtils.cleanOnePrefix(root.searchingText, [Config.options.search.prefix.action, Config.options.search.prefix.app, Config.options.search.prefix.clipboard, Config.options.search.prefix.emojis, Config.options.search.prefix.math, Config.options.search.prefix.shellCommand, Config.options.search.prefix.webSearch])
+                        Connections {
+                            target: root
+                            function onSearchingTextChanged() {
+                                if (appResults.count > 0)
+                                    appResults.currentIndex = 0;
+                            }
+                        }
 
-                    Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Tab) {
-                            if (LauncherSearch.results.length === 0)
-                                return;
-                            const tabbedText = searchItem.modelData.name;
-                            LauncherSearch.query = tabbedText;
-                            searchBar.searchInput.text = tabbedText;
-                            event.accepted = true;
-                            root.focusSearchInput();
+                        Timer {
+                            id: debounceTimer
+                            interval: root.typingDebounceInterval
+                            onTriggered: {
+                                resultModel.values = LauncherSearch.results ?? [];
+                            }
+                        }
+
+                        Connections {
+                            target: LauncherSearch
+                            function onResultsChanged() {
+                                resultModel.values = LauncherSearch.results.slice(0, root.typingResultLimit);
+                                root.focusFirstItem();
+                                debounceTimer.restart();
+                            }
+                        }
+
+                        model: ScriptModel {
+                            id: resultModel
+                            objectProp: "key"
+                        }
+
+                        delegate: SearchItem {
+                            id: searchItem
+                            required property var modelData
+                            anchors.left: parent ? parent.left : undefined
+                            anchors.right: parent ? parent.right : undefined
+                            entry: modelData
+                            query: StringUtils.cleanOnePrefix(root.searchingText, [
+                                Config.options.search.prefix.action,
+                                Config.options.search.prefix.app,
+                                Config.options.search.prefix.clipboard,
+                                Config.options.search.prefix.emojis,
+                                Config.options.search.prefix.math,
+                                Config.options.search.prefix.shellCommand,
+                                Config.options.search.prefix.webSearch
+                            ])
+
+                            Keys.onPressed: event => {
+                                if (event.key === Qt.Key_Tab) {
+                                    if (LauncherSearch.results.length === 0)
+                                        return;
+                                    const tabbedText = searchItem.modelData.name;
+                                    LauncherSearch.query = tabbedText;
+                                    searchBar.searchInput.text = tabbedText;
+                                    event.accepted = true;
+                                    root.focusSearchInput();
+                                }
+                            }
                         }
                     }
                 }

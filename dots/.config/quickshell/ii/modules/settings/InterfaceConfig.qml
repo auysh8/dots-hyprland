@@ -585,6 +585,23 @@ ContentPage {
         }
 
         ContentSubsection {
+            title: Translation.tr("Media Playback")
+            tooltip: Translation.tr("Configure media player progress bar style across the shell")
+
+            ConfigSelectionArray {
+                currentValue: Config.options.media.progressBarStyle ?? "fluid"
+                onSelected: newValue => {
+                    Config.options.media.progressBarStyle = newValue;
+                }
+                options: [
+                    { value: "fluid", text: Translation.tr("Fluid Ribbon (Clavis)"), icon: "water" },
+                    { value: "wavy", text: Translation.tr("Wavy (Material)"), icon: "waves" },
+                    { value: "linear", text: Translation.tr("Linear (Sleek)"), icon: "linear_scale" },
+                ]
+            }
+        }
+
+        ContentSubsection {
             title: Translation.tr("Corner open")
             tooltip: Translation.tr("Allows you to open sidebars by clicking or hovering screen corners regardless of bar position")
             ConfigRow {

@@ -105,6 +105,7 @@ RippleButton {
 
     onClicked: {
         GlobalStates.overviewOpen = false
+        GlobalStates.spotlightOpen = false
         root.itemExecute()
     }
     Keys.onPressed: (event) => {

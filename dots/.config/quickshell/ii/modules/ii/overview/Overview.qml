@@ -14,43 +14,37 @@ import Quickshell.Hyprland
 
 Scope {
     id: overviewScope
-    property bool dontAutoCancelSearch: false
 
     PanelWindow {
         id: panelWindow
-        property string searchingText: ""
         readonly property HyprlandMonitor monitor: Hyprland.monitorFor(panelWindow.screen)
         property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
         visible: GlobalStates.overviewOpen
 
+        exclusionMode: ExclusionMode.Ignore
+        exclusiveZone: 0
         WlrLayershell.namespace: "quickshell:overview"
         WlrLayershell.layer: WlrLayer.Top
         WlrLayershell.keyboardFocus: GlobalStates.overviewOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         color: "transparent"
 
         mask: Region {
-            item: GlobalStates.overviewOpen ? columnLayout : null
+            item: GlobalStates.overviewOpen ? overviewContainer : null
         }
 
         anchors {
             top: true
-            bottom: true
-            left: true
-            right: true
+        }
+        margins {
+            top: 70
         }
 
         Connections {
             target: GlobalStates
             function onOverviewOpenChanged() {
                 if (!GlobalStates.overviewOpen) {
-                    searchWidget.disableExpandAnimation();
-                    overviewScope.dontAutoCancelSearch = false;
                     GlobalFocusGrab.dismiss();
-                    panelWindow.searchingText = "";
                 } else {
-                    if (!overviewScope.dontAutoCancelSearch) {
-                        searchWidget.cancelSearch();
-                    }
                     GlobalFocusGrab.addDismissable(panelWindow);
                 }
             }
@@ -62,22 +56,18 @@ Scope {
                 GlobalStates.overviewOpen = false;
             }
         }
-        implicitWidth: columnLayout.implicitWidth
-        implicitHeight: columnLayout.implicitHeight
 
-        function setSearchingText(text) {
-            searchWidget.setSearchingText(text);
-            searchWidget.focusFirstItem();
-        }
+        implicitWidth: overviewContainer.implicitWidth
+        implicitHeight: overviewContainer.implicitHeight
 
-        Column {
-            id: columnLayout
+        Item {
+            id: overviewContainer
             visible: GlobalStates.overviewOpen
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-                top: parent.top
-            }
-            spacing: 8
+            anchors.centerIn: parent
+            implicitWidth: overviewLoader.width
+            implicitHeight: overviewLoader.height
+            width: implicitWidth
+            height: implicitHeight
 
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape) {
@@ -85,44 +75,35 @@ Scope {
                 }
             }
 
-            SearchWidget {
-                id: searchWidget
-                anchors.horizontalCenter: parent.horizontalCenter
-                Synchronizer on searchingText {
-                    property alias source: panelWindow.searchingText
-                }
-            }
-
             Loader {
                 id: overviewLoader
-                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.centerIn: parent
+                width: item ? item.implicitWidth : 0
+                height: item ? item.implicitHeight : 0
                 active: GlobalStates.overviewOpen && (Config?.options.overview.enable ?? true)
                 sourceComponent: OverviewWidget {
                     screen: panelWindow.screen
-                    visible: (panelWindow.searchingText == "")
+                    visible: true
                 }
             }
         }
     }
 
-    function toggleClipboard() {
-        if (GlobalStates.overviewOpen && overviewScope.dontAutoCancelSearch) {
-            GlobalStates.overviewOpen = false;
-            return;
-        }
-        overviewScope.dontAutoCancelSearch = true;
-        panelWindow.setSearchingText(Config.options.search.prefix.clipboard);
-        GlobalStates.overviewOpen = true;
-    }
+    IpcHandler {
+        target: "overview"
 
-    function toggleEmojis() {
-        if (GlobalStates.overviewOpen && overviewScope.dontAutoCancelSearch) {
-            GlobalStates.overviewOpen = false;
-            return;
+        function toggle() {
+            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
         }
-        overviewScope.dontAutoCancelSearch = true;
-        panelWindow.setSearchingText(Config.options.search.prefix.emojis);
-        GlobalStates.overviewOpen = true;
+        function workspacesToggle() {
+            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+        }
+        function close() {
+            GlobalStates.overviewOpen = false;
+        }
+        function open() {
+            GlobalStates.overviewOpen = true;
+        }
     }
 
     IpcHandler {
@@ -143,14 +124,11 @@ Scope {
         function toggleReleaseInterrupt() {
             GlobalStates.superReleaseMightTrigger = false;
         }
-        function clipboardToggle() {
-            overviewScope.toggleClipboard();
-        }
     }
 
     GlobalShortcut {
         name: "searchToggle"
-        description: "Toggles search on press"
+        description: "Toggles overview on press"
 
         onPressed: {
             GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
@@ -174,7 +152,7 @@ Scope {
     }
     GlobalShortcut {
         name: "searchToggleRelease"
-        description: "Toggles search on release"
+        description: "Toggles overview on release"
 
         onPressed: {
             GlobalStates.superReleaseMightTrigger = true;
@@ -190,27 +168,10 @@ Scope {
     }
     GlobalShortcut {
         name: "searchToggleReleaseInterrupt"
-        description: "Interrupts possibility of search being toggled on release. " + "This is necessary because GlobalShortcut.onReleased in quickshell triggers whether or not you press something else while holding the key. " + "To make sure this works consistently, use binditn = MODKEYS, catchall in an automatically triggered submap that includes everything."
+        description: "Interrupts possibility of overview being toggled on release."
 
         onPressed: {
             GlobalStates.superReleaseMightTrigger = false;
-        }
-    }
-    GlobalShortcut {
-        name: "overviewClipboardToggle"
-        description: "Toggle clipboard query on overview widget"
-
-        onPressed: {
-            overviewScope.toggleClipboard();
-        }
-    }
-
-    GlobalShortcut {
-        name: "overviewEmojiToggle"
-        description: "Toggle emoji query on overview widget"
-
-        onPressed: {
-            overviewScope.toggleEmojis();
         }
     }
 }

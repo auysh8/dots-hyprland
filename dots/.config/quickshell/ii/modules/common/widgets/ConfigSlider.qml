@@ -15,6 +15,8 @@ RowLayout {
     property bool showLabel: true
     property alias value: slider.value
     property alias stopIndicatorValues: slider.stopIndicatorValues
+    property alias stepSize: slider.stepSize
+    property alias tooltipContent: slider.tooltipContent
     property bool usePercentTooltip: true
     property real from: slider.from
     property real to: slider.to
@@ -34,6 +36,7 @@ RowLayout {
             id: labelWidget
             Layout.preferredWidth: root.textWidth
             text: root.text
+            elide: Text.ElideRight
             color: Appearance.colors.colOnSecondaryContainer
         }
     }

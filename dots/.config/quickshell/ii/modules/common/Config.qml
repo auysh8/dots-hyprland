@@ -316,6 +316,9 @@ Singleton {
                 property string thumbnailPath: ""
                 property string lockWall: ""
                 property string wallpaperAnimation: "magic"
+                property int transitionDurationMs: 1200
+                property string transitionEasingMode: "customBezier"
+                property list<real> transitionBezierCurve: [0.43, 1.19, 1.0, 0.4, 1.0, 1.0]
                 property bool centeredWallpaper: false
                 property string centeredWallpaperShape: "Cookie7Sided"
                 property int centeredWallpaperSize: 400
@@ -391,6 +394,8 @@ Singleton {
                     property bool enable: false
                     property bool enableGPS: true // gps based location
                     property string city: "" // When 'enableGPS' is false
+                    property real latitude: 0 // When 'enableGPS' is false
+                    property real longitude: 0 // When 'enableGPS' is false
                     property bool useUSCS: false // Instead of metric (SI) units
                     property int fetchInterval: 10 // minutes
                 }
@@ -519,6 +524,7 @@ Singleton {
                 // Attempt to remove dupes (the aggregator playerctl one and browsers' native ones when there's plasma browser integration)
                 property bool filterDuplicatePlayers: true
                 property string preferredPlayer: ""
+                property string progressBarStyle: "fluid"
             }
 
             property JsonObject networking: JsonObject {

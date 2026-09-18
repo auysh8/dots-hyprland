@@ -130,6 +130,64 @@ Singleton {
         onLoaded: root.adopt(cache.text())
     }
 
+    function reverseGeocodeAndApply(lat, lon) {
+        const xhr = new XMLHttpRequest();
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
+        xhr.open("GET", url);
+        xhr.setRequestHeader("User-Agent", "QuickShellLocationService/1.0");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            let cityName = "";
+            let countryCode = "";
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    const addr = data.address || {};
+                    const local = addr.neighbourhood || addr.suburb || addr.residential || addr.quarter || addr.road || addr.village || addr.hamlet || "";
+                    const city = addr.city || addr.town || addr.municipality || addr.county || addr.state_district || "";
+                    cityName = (local && city && local.toLowerCase() !== city.toLowerCase()) ? `${local}, ${city}` : (local || city || data.name || "");
+                    countryCode = (addr.country_code || "").toUpperCase();
+                } catch (e) {
+                    console.log("[Location] reverse geocode parse error: " + e);
+                }
+            }
+            const offset = -new Date().getTimezoneOffset() * 60;
+            root.apply(lat, lon, cityName, countryCode, offset);
+            root.resolvedThisSession = true;
+            root.store();
+        };
+        xhr.send();
+    }
+
+    Process {
+        id: phoneLocator
+        running: false
+        command: [
+            "bash", "-c",
+            'dev_id=$(qdbus org.kde.kdeconnect /modules/kdeconnect org.kde.kdeconnect.daemon.devices 2>/dev/null | head -n 1); ' +
+            'phone_ip=$(qdbus org.kde.kdeconnect /modules/kdeconnect/devices/$dev_id org.kde.kdeconnect.device.reachableAddresses 2>/dev/null | head -n 1); ' +
+            '[ -z "$phone_ip" ] && phone_ip="192.168.31.183"; ' +
+            'curl -s --max-time 3 "http://$phone_ip:8080/"'
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length > 0) {
+                    try {
+                        const data = JSON.parse(text);
+                        if (typeof data.latitude === "number" && typeof data.longitude === "number") {
+                            root.reverseGeocodeAndApply(data.latitude, data.longitude);
+                            return;
+                        }
+                    } catch (e) {
+                        console.log("[Location] phone GPS parse error: " + e);
+                    }
+                }
+                // Fallback to IP-based lookup if phone is offline/unreachable
+                locator.running = true;
+            }
+        }
+    }
+
     // `fields` is explicit so the offset and the country are actually in the
     // reply. The time limit matters more than it looks: a blackholed route
     // otherwise holds the process for curl's own five minutes, and every retry
@@ -157,11 +215,17 @@ Singleton {
         }
     }
 
+    function syncFromPhone() {
+        if (!phoneLocator.running) {
+            phoneLocator.running = true;
+        }
+    }
+
     function refresh() {
-        if (!root.lookupEnabled || locator.running)
+        if (!root.lookupEnabled || phoneLocator.running || locator.running)
             return;
         root.attempts++;
-        locator.running = true;
+        phoneLocator.running = true;
     }
 
     onLookupEnabledChanged: if (root.lookupEnabled)

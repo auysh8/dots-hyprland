@@ -1,0 +1,12 @@
+[Unit]
+Description=OmniRoute AI Gateway Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /home/auysh/.bun/install/global/node_modules/omniroute/bin/omniroute.mjs serve --no-open
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

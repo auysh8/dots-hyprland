@@ -1,7 +1,9 @@
 # This file contains fish universal variable definitions.
 # VERSION: 3.0
+SETUVAR --export BUN_INSTALL:/home/auysh/\x2ebun
+SETUVAR --export OMNIROUTE_API_KEY:sk\x2d04c5793fe1f8456f\x2da4d3bf\x2d57096550
 SETUVAR __fish_initialized:4300
 SETUVAR _fisher_jorgebucaran_2F_fisher_files:\x7e/\x2econfig/fish/functions/fisher\x2efish\x1e\x7e/\x2econfig/fish/completions/fisher\x2efish
 SETUVAR _fisher_plugins:jorgebucaran/fisher
 SETUVAR _fisher_upgraded_to_4_4:\x1d
-SETUVAR fish_user_paths:/home/auysh/\x2espicetify\x1e/home/auysh/\x2elocal/bin
+SETUVAR fish_user_paths:/home/auysh/\x2ecargo/bin\x1e/home/auysh/\x2ebun/bin\x1e/home/auysh/\x2enpm\x2dglobal/bin\x1e/home/auysh/google\x2dcloud\x2dsdk/bin\x1e/home/auysh/\x2espicetify\x1e/home/auysh/\x2elocal/bin

@@ -1,0 +1,8 @@
+[Unit]
+Description=ProspectFlow Dashboard Socket Activation Listener (Port 5050)
+
+[Socket]
+ListenStream=5050
+
+[Install]
+WantedBy=sockets.target

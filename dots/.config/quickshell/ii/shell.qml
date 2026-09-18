@@ -25,6 +25,7 @@ ShellRoot {
     // Stuff for every panel family
     ReloadPopup {}
     AppDrawerWindow {}
+    SpotlightWindow {}
     OtherPopup {}
     NotesWindow {}
     KDEDrawer {}

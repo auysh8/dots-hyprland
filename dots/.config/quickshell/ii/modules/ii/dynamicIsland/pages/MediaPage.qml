@@ -449,26 +449,65 @@ Item {
                 Layout.fillWidth: true
                 spacing: 2
 
-                StyledSlider {
-                    id: mediaSlider
+                Loader {
+                    id: progressLoader
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 14
+                    Layout.preferredHeight: ((Config.options?.media?.progressBarStyle ?? "fluid") === "fluid") ? 28 : 14
 
-                    configuration: (timelinePlayer && timelinePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek
-                    highlightColor: root.pillColor
-                    trackColor: ColorUtils.applyAlpha(root.contentColor, 0.25)
-                    handleColor: root.pillColor
-                    value: {
-                        const dur = timelinePlayer?.length || activePlayer?.length || 0;
-                        if (dur <= 0) return 0;
-                        return Math.min(1.0, Math.max(0.0, root.currentPosition / dur));
+                    sourceComponent: ((Config.options?.media?.progressBarStyle ?? "fluid") === "fluid") ? fluidWaveComp : sliderComp
+                }
+
+                Component {
+                    id: fluidWaveComp
+
+                    WaveProgressBar {
+                        anchors.fill: parent
+                        progress: {
+                            const dur = timelinePlayer?.length || activePlayer?.length || 0;
+                            if (dur <= 0) return 0;
+                            return Math.min(1.0, Math.max(0.0, root.currentPosition / dur));
+                        }
+                        waveColor: root.pillColor
+                        trackColor: ColorUtils.applyAlpha(root.contentColor, 0.25)
+                        isPlaying: (timelinePlayer && timelinePlayer.isPlaying) || (activePlayer && activePlayer.isPlaying)
+                        waveAmplitude: 5.0
+                        waveFrequency: 0.12
+                        trackHeight: 6
+                        progressGap: 10
+
+                        onSeekRequested: position => {
+                            const target = (timelinePlayer && timelinePlayer.length > 0) ? timelinePlayer : activePlayer;
+                            if (target && target.length > 0) {
+                                target.position = position * target.length;
+                                root.currentPosition = target.position;
+                            }
+                        }
                     }
+                }
 
-                    onMoved: {
-                        const target = (timelinePlayer && timelinePlayer.length > 0) ? timelinePlayer : activePlayer;
-                        if (target && target.length > 0) {
-                            target.position = value * target.length;
-                            root.currentPosition = target.position;
+                Component {
+                    id: sliderComp
+
+                    StyledSlider {
+                        anchors.fill: parent
+                        configuration: (Config.options?.media?.progressBarStyle === "linear")
+                            ? StyledSlider.Configuration.Sleek
+                            : ((timelinePlayer && timelinePlayer.isPlaying) ? StyledSlider.Configuration.Wavy : StyledSlider.Configuration.Sleek)
+                        highlightColor: root.pillColor
+                        trackColor: ColorUtils.applyAlpha(root.contentColor, 0.25)
+                        handleColor: root.pillColor
+                        value: {
+                            const dur = timelinePlayer?.length || activePlayer?.length || 0;
+                            if (dur <= 0) return 0;
+                            return Math.min(1.0, Math.max(0.0, root.currentPosition / dur));
+                        }
+
+                        onMoved: {
+                            const target = (timelinePlayer && timelinePlayer.length > 0) ? timelinePlayer : activePlayer;
+                            if (target && target.length > 0) {
+                                target.position = value * target.length;
+                                root.currentPosition = target.position;
+                            }
                         }
                     }
                 }

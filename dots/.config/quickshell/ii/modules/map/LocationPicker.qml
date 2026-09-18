@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Qt5Compat.GraphicalEffects
+import Quickshell.Io
 import qs.services
 import qs.modules.common
 import qs.modules.common.functions
@@ -11,8 +12,40 @@ import qs.modules.map
 ColumnLayout {
     id: root
 
-    property real candidateLatitude: Weather.latitude || 28.6139
-    property real candidateLongitude: Weather.longitude || 77.2090
+    function getSavedLatitude() {
+        if (!Config.options.bar.weather.enableGPS && Config.options.bar.weather.latitude && Config.options.bar.weather.latitude !== 0) {
+            return Number(Config.options.bar.weather.latitude);
+        }
+        if (!Config.options.bar.weather.enableGPS && Weather.pinnedLat !== 0) {
+            return Number(Weather.pinnedLat);
+        }
+        if (Weather.hasManualLocation && Weather.latitude !== 0) {
+            return Number(Weather.latitude);
+        }
+        if (Location.known && Location.latitude !== 0) {
+            return Number(Location.latitude);
+        }
+        return Number(Weather.latitude || 28.6139);
+    }
+
+    function getSavedLongitude() {
+        if (!Config.options.bar.weather.enableGPS && Config.options.bar.weather.longitude && Config.options.bar.weather.longitude !== 0) {
+            return Number(Config.options.bar.weather.longitude);
+        }
+        if (!Config.options.bar.weather.enableGPS && Weather.pinnedLon !== 0) {
+            return Number(Weather.pinnedLon);
+        }
+        if (Weather.hasManualLocation && Weather.longitude !== 0) {
+            return Number(Weather.longitude);
+        }
+        if (Location.known && Location.longitude !== 0) {
+            return Number(Location.longitude);
+        }
+        return Number(Weather.longitude || 77.2090);
+    }
+
+    property real candidateLatitude: getSavedLatitude()
+    property real candidateLongitude: getSavedLongitude()
     property real cameraLatitude: candidateLatitude
     property real cameraLongitude: candidateLongitude
     property string candidateCity: Config.options.bar.weather.city || Weather.cityName || ""
@@ -33,6 +66,55 @@ ColumnLayout {
     property real mapTilt: initialTilt
     property string coordinateError: ""
     property bool geocoding: false
+    property bool syncingPhone: phoneSyncProcess.running
+
+    Process {
+        id: phoneSyncProcess
+        running: false
+        command: [
+            "bash", "-c",
+            'dev_id=$(qdbus org.kde.kdeconnect /modules/kdeconnect org.kde.kdeconnect.daemon.devices 2>/dev/null | head -n 1); ' +
+            'phone_ip=$(qdbus org.kde.kdeconnect /modules/kdeconnect/devices/$dev_id org.kde.kdeconnect.device.reachableAddresses 2>/dev/null | head -n 1); ' +
+            '[ -z "$phone_ip" ] && phone_ip="192.168.31.183"; ' +
+            'curl -s --max-time 3 "http://$phone_ip:8080/"'
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length === 0) {
+                    root.coordinateError = Translation.tr("Phone unreachable or GPS server not running");
+                    phoneSetupDialog.show = true;
+                    return;
+                }
+                try {
+                    const data = JSON.parse(text);
+                    if (typeof data.latitude === "number" && typeof data.longitude === "number") {
+                        root.setCandidate(data.latitude, data.longitude, true);
+                        root.cameraLatitude = data.latitude;
+                        root.cameraLongitude = data.longitude;
+                        root.mapZoom = root.focusedZoom;
+                        embeddedMap.recenter(data.latitude, data.longitude, root.focusedZoom);
+                        if (pickerModal.show) {
+                            pickerModal.recenter(data.latitude, data.longitude, root.focusedZoom, 0, 0);
+                        }
+                        root.coordinateError = "";
+                        phoneSetupDialog.show = false;
+                        return;
+                    }
+                } catch (e) {
+                    console.log("[LocationPicker] phone GPS parse error: " + e);
+                }
+                root.coordinateError = Translation.tr("Failed to read location from phone");
+                phoneSetupDialog.show = true;
+            }
+        }
+    }
+
+    function syncFromPhone() {
+        if (!phoneSyncProcess.running) {
+            root.coordinateError = "";
+            phoneSyncProcess.running = true;
+        }
+    }
 
     function coordinateText(lat, lon) {
         return Number(lat).toFixed(6) + ", " + Number(lon).toFixed(6);
@@ -49,18 +131,36 @@ ColumnLayout {
         }
     }
 
+    function formatAddress(data) {
+        if (!data) return "";
+        const addr = data.address || {};
+        const local = addr.neighbourhood || addr.suburb || addr.residential || addr.quarter || addr.road || addr.village || addr.hamlet || "";
+        const city = addr.city || addr.town || addr.municipality || addr.county || addr.state_district || "";
+        if (local && city && local.toLowerCase() !== city.toLowerCase()) {
+            return `${local}, ${city}`;
+        }
+        if (local) return local;
+        if (city) return city;
+        if (data.name) return data.name;
+        if (data.display_name) {
+            return data.display_name.split(",").slice(0, 2).map(s => s.trim()).join(", ");
+        }
+        return "";
+    }
+
     function reverseGeocode(lat, lon) {
         root.geocoding = true;
         const xhr = new XMLHttpRequest();
-        const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
         xhr.open("GET", url);
+        xhr.setRequestHeader("User-Agent", "QuickShellWeather/1.0");
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE) return;
             root.geocoding = false;
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
                     const data = JSON.parse(xhr.responseText);
-                    const foundName = data.locality || data.city || data.principalSubdivision || data.countryName || "";
+                    const foundName = root.formatAddress(data);
                     if (foundName.length > 0) {
                         root.candidateCity = foundName;
                         cityField.text = foundName;
@@ -73,9 +173,7 @@ ColumnLayout {
         xhr.send();
     }
 
-    function searchCity(query) {
-        if (!query || query.trim().length === 0) return;
-        root.geocoding = true;
+    function searchCityFallback(query) {
         const xhr = new XMLHttpRequest();
         const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=1`;
         xhr.open("GET", url);
@@ -92,13 +190,50 @@ ColumnLayout {
                         root.cameraLongitude = result.longitude;
                         root.candidateCity = result.name;
                         cityField.text = result.name;
-                        embeddedMap.recenter(result.latitude, result.longitude, root.mapZoom);
+                        embeddedMap.recenter(result.latitude, result.longitude, root.focusedZoom);
                     } else {
-                        root.coordinateError = Translation.tr("City not found");
+                        root.coordinateError = Translation.tr("Location not found");
                     }
                 } catch (e) {
-                    console.log("[LocationPicker] city search parse error: " + e);
+                    console.log("[LocationPicker] fallback search error: " + e);
                 }
+            }
+        };
+        xhr.send();
+    }
+
+    function searchCity(query) {
+        if (!query || query.trim().length === 0) return;
+        root.geocoding = true;
+        const xhr = new XMLHttpRequest();
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.trim())}&format=json&limit=1&addressdetails=1`;
+        xhr.open("GET", url);
+        xhr.setRequestHeader("User-Agent", "QuickShellWeather/1.0");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    const result = (data && data.length > 0) ? data[0] : null;
+                    if (result && !isNaN(result.lat) && !isNaN(result.lon)) {
+                        root.geocoding = false;
+                        const lat = Number(result.lat);
+                        const lon = Number(result.lon);
+                        const foundName = root.formatAddress(result) || result.name || query.trim();
+                        root.setCandidate(lat, lon, false);
+                        root.cameraLatitude = lat;
+                        root.cameraLongitude = lon;
+                        root.candidateCity = foundName;
+                        cityField.text = foundName;
+                        embeddedMap.recenter(lat, lon, root.focusedZoom);
+                    } else {
+                        root.searchCityFallback(query);
+                    }
+                } catch (e) {
+                    root.searchCityFallback(query);
+                }
+            } else {
+                root.searchCityFallback(query);
             }
         };
         xhr.send();
@@ -127,8 +262,8 @@ ColumnLayout {
     }
 
     function returnToSavedLocation() {
-        const lat = Number(Weather.latitude || 28.6139);
-        const lon = Number(Weather.longitude || 77.2090);
+        const lat = root.getSavedLatitude();
+        const lon = root.getSavedLongitude();
         root.setCandidate(lat, lon, false);
         root.candidateCity = Config.options.bar.weather.city || Weather.cityName || "";
         cityField.text = root.candidateCity;
@@ -146,6 +281,8 @@ ColumnLayout {
             return;
 
         Config.options.bar.weather.enableGPS = false;
+        Config.options.bar.weather.latitude = Number(root.candidateLatitude);
+        Config.options.bar.weather.longitude = Number(root.candidateLongitude);
         const cityName = root.candidateCity.length > 0 ? root.candidateCity : root.coordinateText(root.candidateLatitude, root.candidateLongitude);
         Config.options.bar.weather.city = cityName;
 
@@ -156,6 +293,8 @@ ColumnLayout {
 
     function useAutomaticLocation() {
         Config.options.bar.weather.enableGPS = true;
+        Config.options.bar.weather.latitude = 0;
+        Config.options.bar.weather.longitude = 0;
         if (typeof Weather.clearManualLocation === "function") {
             Weather.clearManualLocation();
         }
@@ -333,6 +472,23 @@ ColumnLayout {
                     buttonRadius: 16
                     colBackground: "transparent"
                     colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.12)
+                    onClicked: root.syncFromPhone()
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "smartphone"
+                        iconSize: 18
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    StyledToolTip { text: Translation.tr("Sync from phone GPS") }
+                }
+
+                RippleButton {
+                    implicitWidth: 32
+                    implicitHeight: 32
+                    buttonRadius: 16
+                    colBackground: "transparent"
+                    colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.12)
                     onClicked: root.returnToSavedLocation()
 
                     MaterialSymbol {
@@ -382,12 +538,38 @@ ColumnLayout {
         spacing: 12
 
         MaterialLoadingIndicator {
-            visible: root.geocoding || Weather.loading
+            visible: root.geocoding || Weather.loading || root.syncingPhone
             loading: visible
             implicitSize: 32
         }
 
         Item { Layout.fillWidth: true }
+
+        RippleButtonWithIcon {
+            mainText: Translation.tr("Sync Phone GPS")
+            materialIcon: "smartphone"
+            colBackground: Appearance.colors.colLayer2
+            iconColor: Appearance.colors.colOnSecondaryContainer
+            textColor: Appearance.colors.colOnSecondaryContainer
+            onClicked: root.syncFromPhone()
+        }
+
+        RippleButton {
+            implicitWidth: 36
+            implicitHeight: 36
+            buttonRadius: 18
+            colBackground: Appearance.colors.colLayer2
+            colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.12)
+            onClicked: phoneSetupDialog.show = true
+
+            MaterialSymbol {
+                anchors.centerIn: parent
+                text: "help_outline"
+                iconSize: 20
+                color: Appearance.colors.colOnSecondaryContainer
+            }
+            StyledToolTip { text: Translation.tr("Phone GPS setup guide") }
+        }
 
         RippleButtonWithIcon {
             mainText: Translation.tr("Save Location")
@@ -426,6 +608,8 @@ ColumnLayout {
         styleName: root.mapStyles[root.currentStyleIndex].name
 
         onCycleStyleRequested: root.cycleStyle()
+        onSyncFromPhoneRequested: root.syncFromPhone()
+        onShowPhoneGuideRequested: phoneSetupDialog.show = true
 
         onCameraChanged: (lat, lon, zoom, bearingVal, tiltVal) => {
             root.mapZoom = zoom;
@@ -443,6 +627,13 @@ ColumnLayout {
         onRestoreRequested: root.returnToSavedLocation()
     }
 
+    // Modal overlay for Phone GPS Setup Guide
+    PhoneGpsSetupDialog {
+        id: phoneSetupDialog
+        show: false
+        onTestRequested: root.syncFromPhone()
+    }
+
     Component.onCompleted: {
         root.returnToSavedLocation();
     }
@@ -450,6 +641,9 @@ ColumnLayout {
     Component.onDestruction: {
         if (pickerModal) {
             pickerModal.destroy();
+        }
+        if (phoneSetupDialog) {
+            phoneSetupDialog.destroy();
         }
     }
 }

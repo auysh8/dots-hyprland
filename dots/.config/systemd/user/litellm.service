@@ -1,0 +1,13 @@
+[Unit]
+Description=LiteLLM Proxy for Claude Code
+After=network.target
+
+[Service]
+Type=simple
+Environment="MISTRAL_API_KEY=your_actual_mistral_api_key_here"
+ExecStart=/home/auysh/.local/bin/litellm --config /home/auysh/.config/litellm_config.yaml --port 4000
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

@@ -12,6 +12,7 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
+import Qt5Compat.GraphicalEffects
 
 Scope {
     id: root
@@ -91,7 +92,7 @@ Scope {
     readonly property real menuGap: 8
 
     readonly property real defaultSubmenuHeight: 820
-    readonly property real maxMenuHeight: defaultSubmenuHeight
+    readonly property real maxMenuHeight: Math.min(defaultSubmenuHeight, screenHeight - 16)
 
     // Stable anchor coordinates (never oscillate with layout passes)
     readonly property real baseMenuX: Math.min(Math.max(GlobalStates.desktopMenuX - menuCardWidth / 2, 8), screenWidth - menuCardWidth - 8)
@@ -102,11 +103,17 @@ Scope {
 
     property string activeSubmenu: ""
     readonly property bool hasSubmenu: activeSubmenu !== ""
+    onActiveSubmenuChanged: {
+        if (submenuFlickable) {
+            submenuFlickable.contentY = 0
+            submenuFlickable.scrollTargetY = 0
+        }
+    }
 
     readonly property real windowX: submenuFitsOnRight ? baseMenuX : leftMenuX
     readonly property real windowY: baseMenuY
     readonly property real windowWidth: menuCardWidth + menuGap + submenuWidth
-    readonly property real windowHeight: defaultSubmenuHeight
+    readonly property real windowHeight: maxMenuHeight
 
     readonly property real cardX: submenuFitsOnRight ? 0 : (submenuWidth + menuGap)
     readonly property real subX: submenuFitsOnRight ? (menuCardWidth + menuGap) : 0
@@ -211,9 +218,17 @@ Scope {
             function onDesktopMenuOpenChanged() {
                 if (GlobalStates.desktopMenuOpen) {
                     focusGrabTimer.restart()
+                    if (submenuFlickable) {
+                        submenuFlickable.contentY = 0
+                        submenuFlickable.scrollTargetY = 0
+                    }
                 } else {
                     focusGrab.active = false
                     root.activeSubmenu = ""
+                    if (submenuFlickable) {
+                        submenuFlickable.contentY = 0
+                        submenuFlickable.scrollTargetY = 0
+                    }
                 }
             }
         }
@@ -249,10 +264,18 @@ Scope {
                 transformOrigin: Item.Center
 
                 Behavior on scale {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: GlobalStates.desktopMenuOpen ? Appearance.animation.elementMoveEnter.duration : Appearance.animation.elementMoveExit.duration
+                        easing.type: GlobalStates.desktopMenuOpen ? Appearance.animation.elementMoveEnter.type : Appearance.animation.elementMoveExit.type
+                        easing.bezierCurve: GlobalStates.desktopMenuOpen ? Appearance.animation.elementMoveEnter.bezierCurve : Appearance.animation.elementMoveExit.bezierCurve
+                    }
                 }
                 Behavior on opacity {
-                    NumberAnimation { duration: 120 }
+                    NumberAnimation {
+                        duration: GlobalStates.desktopMenuOpen ? Appearance.animation.elementMoveEnter.duration : Appearance.animation.elementMoveExit.duration
+                        easing.type: GlobalStates.desktopMenuOpen ? Appearance.animation.elementMoveEnter.type : Appearance.animation.elementMoveExit.type
+                        easing.bezierCurve: GlobalStates.desktopMenuOpen ? Appearance.animation.elementMoveEnter.bezierCurve : Appearance.animation.elementMoveExit.bezierCurve
+                    }
                 }
 
                 // Absorb clicks inside menuCard so they don't dismiss the menu
@@ -357,16 +380,24 @@ Scope {
                 y: 0
                 width: root.submenuWidth
                 height: menuWindow.implicitHeight
-                visible: root.hasSubmenu
+                visible: root.hasSubmenu || opacity > 0.0
                 opacity: root.hasSubmenu ? 1.0 : 0.0
                 scale: root.hasSubmenu ? 1.0 : 0.95
-                transformOrigin: Item.Center
+                transformOrigin: root.submenuFitsOnRight ? Item.Left : Item.Right
 
                 Behavior on scale {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    NumberAnimation {
+                        duration: root.hasSubmenu ? Appearance.animation.elementMoveEnter.duration : Appearance.animation.elementMoveExit.duration
+                        easing.type: root.hasSubmenu ? Appearance.animation.elementMoveEnter.type : Appearance.animation.elementMoveExit.type
+                        easing.bezierCurve: root.hasSubmenu ? Appearance.animation.elementMoveEnter.bezierCurve : Appearance.animation.elementMoveExit.bezierCurve
+                    }
                 }
                 Behavior on opacity {
-                    NumberAnimation { duration: 120 }
+                    NumberAnimation {
+                        duration: root.hasSubmenu ? Appearance.animation.elementMoveEnter.duration : Appearance.animation.elementMoveExit.duration
+                        easing.type: root.hasSubmenu ? Appearance.animation.elementMoveEnter.type : Appearance.animation.elementMoveExit.type
+                        easing.bezierCurve: root.hasSubmenu ? Appearance.animation.elementMoveEnter.bezierCurve : Appearance.animation.elementMoveExit.bezierCurve
+                    }
                 }
 
                 // Absorb clicks inside submenuContainer so they don't dismiss the menu
@@ -375,18 +406,54 @@ Scope {
                     acceptedButtons: Qt.AllButtons
                 }
 
-                WallpaperSubmenu {
-                    id: wallpaperSubmenuItem
-                    anchors { left: parent.left; right: parent.right; top: parent.top }
-                    height: implicitHeight
-                    visible: root.activeSubmenu === "wallpaper"
-                }
+                StyledFlickable {
+                    id: submenuFlickable
+                    anchors.fill: parent
+                    contentWidth: width
+                    contentHeight: root.activeSubmenu === "wallpaper"
+                        ? wallpaperSubmenuItem.implicitHeight
+                        : (root.activeSubmenu === "widgets" ? widgetsSubmenuItem.implicitHeight : 0)
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
 
-                WidgetsSubmenu {
-                    id: widgetsSubmenuItem
-                    anchors { left: parent.left; right: parent.right; top: parent.top }
-                    height: implicitHeight
-                    visible: root.activeSubmenu === "widgets"
+                    layer.enabled: true
+                    layer.effect: OpacityMask {
+                        maskSource: Rectangle {
+                            width: submenuContainer.width
+                            height: submenuContainer.height
+                            radius: Appearance.rounding.verylarge
+                        }
+                    }
+
+                    WallpaperSubmenu {
+                        id: wallpaperSubmenuItem
+                        width: submenuFlickable.width
+                        height: implicitHeight
+                        visible: opacity > 0.0
+                        opacity: root.activeSubmenu === "wallpaper" ? 1.0 : 0.0
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Appearance.animation.elementMoveFast.duration
+                                easing.type: Appearance.animation.elementMoveFast.type
+                                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                            }
+                        }
+                    }
+
+                    WidgetsSubmenu {
+                        id: widgetsSubmenuItem
+                        width: submenuFlickable.width
+                        height: implicitHeight
+                        visible: opacity > 0.0
+                        opacity: root.activeSubmenu === "widgets" ? 1.0 : 0.0
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Appearance.animation.elementMoveFast.duration
+                                easing.type: Appearance.animation.elementMoveFast.type
+                                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                            }
+                        }
+                    }
                 }
 
                 HoverHandler {

@@ -212,9 +212,12 @@ Variants {
         property string currentWallpaperSource: Config.options.background.wallpaperPath
         property string previousWallpaperSource: Config.options.background.wallpaperPath
         property real transitionProgress: 1.0
-        property var shaderList: ["circlePit", "circleSelect", "magic", "Doom", "Peel", "transition", "pixelate", "stripes", "crt", "dissolve", "glitch", "ripple", "shatter"]
+        property var shaderList: ["circlePit", "circleSelect", "magic", "Doom", "Peel", "transition", "pixelate", "stripes", "crt", "dissolve", "glitch", "ripple", "shatter", "wp_iris_bloom", "wp_portal", "wp_disc", "wp_wipe"]
         property string currentShader: "magic"
         property string wallpaperAnimation: Config.options.background.wallpaperAnimation ?? "random"
+        property real transitionCenterX: 0.5
+        property real transitionCenterY: 0.5
+        property real transitionDirection: 0.0
 
         Component.onCompleted: {
             // Publish screen dimensions to Wallpapers service for crop cache generation
@@ -271,6 +274,19 @@ Variants {
             } else {
                 bgRoot.currentShader = bgRoot.wallpaperAnimation
             }
+
+            // Clavis-style transition origin:
+            // If right-clicked on desktop, expand outwards from that click point.
+            // Otherwise, pick a random position anywhere across the wallpaper!
+            if (GlobalStates.desktopMenuOpen && GlobalStates.desktopMenuScreen === bgRoot.screen) {
+                bgRoot.transitionCenterX = Math.max(0.05, Math.min(0.95, GlobalStates.desktopMenuX / Math.max(1, bgRoot.width)));
+                bgRoot.transitionCenterY = Math.max(0.05, Math.min(0.95, GlobalStates.desktopMenuY / Math.max(1, bgRoot.height)));
+            } else {
+                bgRoot.transitionCenterX = Math.random();
+                bgRoot.transitionCenterY = Math.random();
+            }
+            bgRoot.transitionDirection = Math.floor(Math.random() * 4.0);
+
             bgRoot.transitionProgress = 0.0
         }
 
@@ -312,14 +328,33 @@ Variants {
             }
         }
 
+        function getEasingType(mode) {
+            switch (mode) {
+            case "linear": return Easing.Linear;
+            case "quad": return Easing.InOutQuad;
+            case "cubic": return Easing.InOutCubic;
+            case "quart": return Easing.InOutQuart;
+            case "quint": return Easing.InOutQuint;
+            case "sine": return Easing.InOutSine;
+            case "expo": return Easing.InOutExpo;
+            case "circ": return Easing.InOutCirc;
+            case "customBezier":
+            default:
+                return Easing.BezierSpline;
+            }
+        }
+
         NumberAnimation {
             id: transitionAnim
             target: bgRoot
             property: "transitionProgress"
             from: 0.0
             to: 1.0
-            duration: 1200
-            easing.type: Easing.InOutCubic
+            duration: Config.options.background.transitionDurationMs ?? 1200
+            easing.type: bgRoot.getEasingType(Config.options.background.transitionEasingMode ?? "customBezier")
+            easing.bezierCurve: (Config.options.background.transitionEasingMode ?? "customBezier") === "customBezier"
+                ? (Config.options.background.transitionBezierCurve ?? [0.43, 1.19, 1.0, 0.4, 1.0, 1.0])
+                : [0, 0, 1, 1, 1, 1]
             onFinished: {
                 previousWallpaper.source = ""
                 bgRoot.previousWallpaperSource = ""
@@ -536,7 +571,21 @@ Variants {
                 property real aspectX: width / height
                 property real aspectY: 1.0
                 property vector2d aspectRatio: Qt.vector2d(aspectX, aspectY)
-                property vector2d origin: Qt.vector2d(0.5, 0.5)
+                property vector2d origin: (bgRoot.centeredWallpaperFaceTracking && bgRoot.hasSubject && bgRoot.currentShader === "magic")
+                    ? Qt.vector2d(bgRoot.focalX, bgRoot.focalY)
+                    : Qt.vector2d(bgRoot.transitionCenterX, bgRoot.transitionCenterY)
+                property real smoothness: 0.08
+                property real centerX: origin.x
+                property real centerY: origin.y
+                property real direction: bgRoot.transitionDirection
+                property real fillMode: 0.0
+                property real screenWidth: width
+                property real screenHeight: height
+                property real imageWidth1: width
+                property real imageHeight1: height
+                property real imageWidth2: width
+                property real imageHeight2: height
+                property vector4d fillColor: Qt.vector4d(0, 0, 0, 1)
 
                 fragmentShader: bgRoot.wallpaperAnimation !== ""
                     ? Qt.resolvedUrl(`shaders/${bgRoot.currentShader}.frag.qsb`)

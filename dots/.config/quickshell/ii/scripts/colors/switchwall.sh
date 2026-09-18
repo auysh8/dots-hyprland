@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELL_CONFIG_FILE="$XDG_CONFIG_HOME/illogical-impulse/config.json"
 MATUGEN_DIR="$XDG_CONFIG_HOME/matugen"
 terminalscheme="$SCRIPT_DIR/terminal/scheme-base.json"
+ILLOGICAL_IMPULSE_VIRTUAL_ENV="${ILLOGICAL_IMPULSE_VIRTUAL_ENV:-$HOME/.local/state/quickshell/.venv}"
 
 load_shell_config() {
     if [ -f "$SHELL_CONFIG_FILE" ]; then
@@ -462,6 +463,8 @@ main() {
     picture_only_flag=""
     keep_slideshow_flag=""
     stop_slideshow=""
+    color_explicit=""
+    image_explicit=""
 
     load_shell_config
 
@@ -477,18 +480,27 @@ main() {
                 shift 2
                 ;;
             --color)
+                color_explicit="1"
                 if [[ "$2" =~ ^#?[A-Fa-f0-9]{6}$ ]]; then
                     set_accent_color "$2"
+                    color_flag="1"
+                    color="$2"
                     shift 2
                 elif [[ "$2" == "clear" ]]; then
                     set_accent_color ""
+                    color_flag=""
+                    color=""
                     shift 2
                 else
-                    set_accent_color $(hyprpicker --no-fancy)
+                    picked=$(hyprpicker --no-fancy)
+                    set_accent_color "$picked"
+                    color_flag="1"
+                    color="$picked"
                     shift
                 fi
                 ;;
             --image)
+                image_explicit="1"
                 imgpath="$2"
                 shift 2
                 ;;
@@ -508,6 +520,7 @@ main() {
             *)
                 if [[ -z "$imgpath" ]]; then
                     imgpath="$1"
+                    image_explicit="1"
                 fi
                 shift
                 ;;
@@ -522,13 +535,6 @@ main() {
     if [[ -n "$picture_only_flag" ]]; then
         color_flag=""
         color=""
-    fi
-
-    # If accentColor is set in config, use it
-    config_color="$(get_accent_color_from_config)"
-    if [[ "$config_color" =~ ^#?[A-Fa-f0-9]{6}$ ]]; then
-        color_flag="1"
-        color="$config_color"
     fi
 
     # If type_flag is not set, get it from config
@@ -554,6 +560,25 @@ main() {
     if [[ -z "$imgpath" && -z "$color_flag" && -z "$noswitch_flag" && -z "$picture_only_flag" ]]; then
         cd "$(xdg-user-dir PICTURES)/Wallpapers/showcase" 2>/dev/null || cd "$(xdg-user-dir PICTURES)/Wallpapers" 2>/dev/null || cd "$(xdg-user-dir PICTURES)" || return 1
         imgpath="$(kdialog --getopenfilename . --title 'Choose wallpaper')"
+        if [[ -n "$imgpath" ]]; then
+            image_explicit="1"
+        fi
+    fi
+
+    # If an image was explicitly specified/chosen without an explicit --color,
+    # clear any stale accent color override in config so the new wallpaper's colors take effect.
+    if [[ -n "$image_explicit" && -z "$color_explicit" ]]; then
+        set_accent_color ""
+        color_flag=""
+        color=""
+    elif [[ -z "$color_explicit" && -z "$image_explicit" ]]; then
+        # If no explicit image or color was given (e.g. --noswitch mode change),
+        # use existing accentColor from config if configured
+        config_color="$(get_accent_color_from_config)"
+        if [[ "$config_color" =~ ^#?[A-Fa-f0-9]{6}$ ]]; then
+            color_flag="1"
+            color="$config_color"
+        fi
     fi
 
     # If type_flag is 'auto', we will detect it inside switch (in background) to avoid blocking

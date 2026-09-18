@@ -41,13 +41,16 @@ Singleton {
         && !GlobalStates.screenLocked
         && !GlobalStates.overviewOpen
 
-    // Any visualizer consumer visible
-    readonly property bool anyConsumerActive: dynamicIslandActive || mediaControlsActive || backgroundWidgetEnabled
+    // Active wave progress bars
+    property int activeWaveBars: 0
+    readonly property bool waveBarActive: activeWaveBars > 0
 
-    // Master execution condition: Only run if config is ready, an MPRIS player is playing, and at least one visualizer needs data
+    // Any visualizer consumer visible
+    readonly property bool anyConsumerActive: dynamicIslandActive || mediaControlsActive || backgroundWidgetEnabled || waveBarActive
+
+    // Master execution condition: Run if config is ready and an MPRIS player is playing
     readonly property bool shouldRun: Config.ready
         && MprisController.isPlaying
-        && anyConsumerActive
 
     property list<real> points: []
 

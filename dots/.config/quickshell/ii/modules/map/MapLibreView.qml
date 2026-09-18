@@ -17,6 +17,9 @@ Item {
     property bool copyrightsVisible: false
     property bool markerVisible: true
     property bool markerDraggable: false
+    property string overlayTileUrl: ""
+    property real overlayOpacity: 0.72
+    property real overlayMaximumDisplayZoom: -1
     property string mapState: "inactive"
     property string errorMessage: ""
     property var styleRequest: null
@@ -65,7 +68,15 @@ Item {
                 "markerDraggable": root.markerDraggable
             };
 
-            mapLoader.setSource(Qt.resolvedUrl("MapLibreMap.qml"), properties);
+            let renderer = "MapLibreMap.qml";
+            if (root.overlayTileUrl !== "") {
+                renderer = "MapLibreWeatherMap.qml";
+                properties.overlayTileUrl = root.overlayTileUrl;
+                properties.overlayOpacity = root.overlayOpacity;
+                properties.overlayMaximumDisplayZoom = root.overlayMaximumDisplayZoom;
+            }
+
+            mapLoader.setSource(Qt.resolvedUrl(renderer), properties);
             mapLoader.active = true;
         };
         request.open("GET", root.styleUrl);

@@ -17,6 +17,12 @@ Item {
     property bool hourlyForecastPanelEnabled: true
     readonly property var weatherSource: Weather
 
+    onPresentationActiveChanged: {
+        if (root.presentationActive && !root.weatherSource.loading && (root.weatherSource.status === "stale" || root.weatherSource.status === "idle" || root.weatherSource.status === "error")) {
+            root.weatherSource.refresh();
+        }
+    }
+
     property int contentMargin: 16
     property int headerHeight: 62
     property bool lightHeaderPalette: currentIsNight() || (Appearance.m3colors.darkmode ?? true)
@@ -538,6 +544,11 @@ Item {
                             resizeActive: root.isResizing
                         }
                     }
+                }
+
+                WeatherRadarCard {
+                    width: parent.width
+                    presentationActive: root.presentationActive
                 }
 
                 Item {

@@ -77,12 +77,18 @@ Scope {
             WlrLayershell.keyboardFocus: (root.showDrawer && !root.closing) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             color: "transparent"
 
+            exclusionMode: ExclusionMode.Ignore
+            exclusiveZone: 0
+
             anchors {
-                top: true
                 bottom: true
-                left: true
-                right: true
             }
+            margins {
+                bottom: (Config.options?.dock.height ?? 70) + Appearance.sizes.elevationMargin + Appearance.sizes.hyprlandGapsOut + 14
+            }
+
+            implicitWidth: Math.min((window.screen?.width ?? 1920) * 0.9, 740)
+            implicitHeight: Math.min((window.screen?.height ?? 1080) * 0.72, 640)
 
             mask: Region {
                 item: (root.showDrawer || root.closing) ? drawerContainer : null
@@ -129,11 +135,9 @@ Scope {
 
             Item {
                 id: drawerContainer
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: (Config.options?.dock.height ?? 70) + Appearance.sizes.elevationMargin + Appearance.sizes.hyprlandGapsOut + 14
-                width: Math.min(window.width * 0.9, 740)
-                height: Math.min(window.height * 0.72, 640)
+                anchors.fill: parent
+                width: parent.width
+                height: parent.height
 
                 opacity: root.showDrawer ? 1 : 0
                 scale: root.showDrawer ? 1 : 0.97

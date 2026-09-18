@@ -25,7 +25,7 @@ if status is-interactive
     alias pamcan pacman
     alias q 'qs -c ii'
     if test "$TERM" != "linux"
-        alias ls 'eza --icons=auto'
+        alias ls 'eza --icons'
     end
     if test "$TERM" = "xterm-kitty"
         alias ssh 'kitten ssh'
@@ -38,3 +38,13 @@ if test -f "/home/auysh/.openclaw/completions/openclaw.fish"
 end
 
 fish_add_path /home/auysh/.spicetify
+
+# Qwen API & Goose AI Agent exports
+set -gx OPENAI_API_BASE "https://qwen.aikit.club/v1"
+set -gx OPENAI_BASE_URL "https://qwen.aikit.club/v1"
+set -gx OPENAI_API_KEY "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjYzNGRlODlhLTM2NGYtNDM5MC04MjM3LWNkNTFlOWM3Yzk3MiIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzUwNjYwODczLCJleHAiOjE3ODkxODU0MDZ9.WHxTZDkuetw0czcWhvD1Ite8w9amFZykXZuUaCRU6Aw"
+set -gx GOOSE_PROVIDER "openai"
+set -gx GOOSE_MODEL "qwen3.8-max"
+
+
+

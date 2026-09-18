@@ -11,7 +11,7 @@ import QtQuick.Layouts
 
 Item {
     id: root
-    implicitHeight: col.implicitHeight
+    implicitHeight: col.implicitHeight + 8
 
     readonly property var shapeOptions: [
         "Circle", "Square", "Cookie12Sided", "Clover4Leaf", "Pill", "Heart"
@@ -19,7 +19,7 @@ Item {
 
     ColumnLayout {
         id: col
-        width: root.width
+        anchors { left: parent.left; right: parent.right; top: parent.top }
         spacing: 8
 
         // Scheme
@@ -189,6 +189,7 @@ Item {
         // Transitions
         Rectangle {
             Layout.fillWidth: true
+            Layout.bottomMargin: 8
             implicitHeight: transCol.implicitHeight + 16
             radius: Appearance.rounding.verylarge
             color: Appearance.colors.colLayer0
@@ -207,6 +208,10 @@ Item {
                         { displayName: Translation.tr("Pixelate"),   icon: "grid_view",     value: "pixelate" },
                         { displayName: Translation.tr("Stripes"),    icon: "texture_minus", value: "stripes" },
                         { displayName: Translation.tr("Glitch"),     icon: "electrical_services", value: "glitch" },
+                        { displayName: Translation.tr("Iris Bloom"), icon: "lens",          value: "wp_iris_bloom" },
+                        { displayName: Translation.tr("Portal"),     icon: "cyclone",       value: "wp_portal" },
+                        { displayName: Translation.tr("Disc"),       icon: "radio_button_checked", value: "wp_disc" },
+                        { displayName: Translation.tr("Wipe"),       icon: "swipe",         value: "wp_wipe" },
                     ]
                     delegate: RippleButton {
                         id: transRow

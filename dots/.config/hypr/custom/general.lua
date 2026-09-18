@@ -74,6 +74,8 @@ if hl.plugin and hl.plugin.hyprglass then
 
     -- ── Fullscreen / Special ──────────────────────────────────────────
     hg.layer("quickshell:overview",           {preset = "glass", mask_threshold = 0.7 })  -- window overview
+    hg.layer("quickshell:spotlight",           {preset = "glass", mask_threshold = 0.7 })  -- window overview
+
     -- hg.layer("quickshell:session",            {preset = "glass", mask_threshold = 0.3 })  -- session/logout
     -- hg.layer("quickshell:polkit",             {preset = "glass", mask_threshold = 0.3 })  -- auth dialog
     hg.layer("quickshell:wallpaperSelector",  {preset = "glass", mask_threshold = 0.7 })  -- wallpaper picker

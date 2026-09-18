@@ -36,6 +36,8 @@ Item {
     signal cameraChanged(real latitude, real longitude, real zoom, real bearing, real tilt)
     signal markerChanged(real latitude, real longitude)
     signal cycleStyleRequested()
+    signal syncFromPhoneRequested()
+    signal showPhoneGuideRequested()
     signal restoreRequested
     signal saveRequested
     signal closed
@@ -252,6 +254,40 @@ Item {
                                 color: Appearance.colors.colOnLayer1
                             }
                             StyledToolTip { text: Translation.tr("Center marker") }
+                        }
+
+                        RippleButton {
+                            implicitWidth: 32
+                            implicitHeight: 32
+                            buttonRadius: 16
+                            colBackground: "transparent"
+                            colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.12)
+                            onClicked: root.syncFromPhoneRequested()
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "smartphone"
+                                iconSize: 20
+                                color: Appearance.colors.colOnLayer1
+                            }
+                            StyledToolTip { text: Translation.tr("Sync from phone GPS") }
+                        }
+
+                        RippleButton {
+                            implicitWidth: 32
+                            implicitHeight: 32
+                            buttonRadius: 16
+                            colBackground: "transparent"
+                            colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnLayer1, 0.12)
+                            onClicked: root.showPhoneGuideRequested()
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "help_outline"
+                                iconSize: 20
+                                color: Appearance.colors.colOnLayer1
+                            }
+                            StyledToolTip { text: Translation.tr("Phone GPS setup guide") }
                         }
 
                         RippleButton {
