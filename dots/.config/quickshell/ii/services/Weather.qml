@@ -126,6 +126,27 @@ Singleton {
         root.getData();
     }
 
+    function setManualLocation(lat, lon, cityName) {
+        root.pinnedLat = Number(lat);
+        root.pinnedLon = Number(lon);
+        root.pinnedName = cityName || `${Number(lat).toFixed(4)}, ${Number(lon).toFixed(4)}`;
+        root.pinnedCountry = "";
+        root.pinnedValid = true;
+        Config.options.bar.weather.enableGPS = false;
+        Config.options.bar.weather.city = root.pinnedName;
+        root.getData();
+    }
+
+    function clearManualLocation() {
+        Config.options.bar.weather.enableGPS = true;
+        root.pinnedValid = false;
+        root.pinnedLat = 0;
+        root.pinnedLon = 0;
+        root.pinnedName = "";
+        root.pinnedCountry = "";
+        root.getData();
+    }
+
     function makeModel(arr) {
         if (!arr) arr = [];
         Object.defineProperty(arr, "count", {

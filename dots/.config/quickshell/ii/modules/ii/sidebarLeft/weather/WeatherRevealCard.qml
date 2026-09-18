@@ -83,36 +83,32 @@ Item {
     Behavior on x {
         enabled: root.slideAnimationEnabled && root.revealStarted
         NumberAnimation {
-            duration: Appearance.animation.elementMove.duration
-            easing.type: Appearance.animation.elementMove.type
-            easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+            duration: 350
+            easing.type: Easing.OutCubic
         }
     }
 
     Behavior on y {
         enabled: root.slideAnimationEnabled && root.revealStarted
         NumberAnimation {
-            duration: Appearance.animation.elementMove.duration
-            easing.type: Appearance.animation.elementMove.type
-            easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+            duration: 350
+            easing.type: Easing.OutCubic
         }
     }
 
     Behavior on width {
         enabled: root.slideAnimationEnabled && root.revealStarted
         NumberAnimation {
-            duration: Appearance.animation.elementMove.duration
-            easing.type: Appearance.animation.elementMove.type
-            easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+            duration: 350
+            easing.type: Easing.OutCubic
         }
     }
 
     Behavior on height {
         enabled: root.slideAnimationEnabled && root.revealStarted
         NumberAnimation {
-            duration: Appearance.animation.elementMove.duration
-            easing.type: Appearance.animation.elementMove.type
-            easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+            duration: 350
+            easing.type: Easing.OutCubic
         }
     }
 

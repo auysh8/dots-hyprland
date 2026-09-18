@@ -9,6 +9,10 @@ RippleButton {
     property string materialIcon
     property bool materialIconFill: true
     property string mainText: "Button text"
+    property color textColor: Qt.colorEqual(buttonWithIconRoot.colBackground, Appearance.colors.colPrimary)
+        ? Appearance.colors.colOnPrimary
+        : Appearance.colors.colOnSecondaryContainer
+    property color iconColor: textColor
     // A button narrower than its label used to paint the overflow outside its
     // own background, so the tail of a word sat loose on whatever was behind.
     // Only reachable when something constrains the width — a button given room
@@ -18,7 +22,7 @@ RippleButton {
             visible: text !== ""
             text: buttonWithIconRoot.mainText
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colOnSecondaryContainer
+            color: buttonWithIconRoot.textColor
             elide: Text.ElideRight
         }
     }
@@ -63,7 +67,7 @@ RippleButton {
                     sourceComponent: MaterialSymbol {
                         text: buttonWithIconRoot.materialIcon
                         iconSize: Appearance.font.pixelSize.larger
-                        color: Appearance.colors.colOnSecondaryContainer
+                        color: buttonWithIconRoot.iconColor
                         fill: buttonWithIconRoot.materialIconFill ? 1 : 0
                     }
                 }
@@ -75,7 +79,7 @@ RippleButton {
                         text: buttonWithIconRoot.nerdIcon
                         font.pixelSize: Appearance.font.pixelSize.larger
                         font.family: Appearance.font.family.iconNerd
-                        color: Appearance.colors.colOnSecondaryContainer
+                        color: buttonWithIconRoot.iconColor
                     }
                 }
             }

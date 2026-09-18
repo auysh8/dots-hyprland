@@ -3,6 +3,8 @@ import QtQuick.Layouts
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.map
+import "."
 
 ContentPage {
     forceWidth: true
@@ -265,15 +267,8 @@ ContentPage {
             }
         }
         
-        MaterialTextArea {
+        LocationPicker {
             Layout.fillWidth: true
-            enabled: !Config.options.bar.weather.enableGPS
-            placeholderText: Translation.tr("City name")
-            text: Config.options.bar.weather.city
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Config.options.bar.weather.city = text;
-            }
         }
         ConfigSpinBox {
             icon: "av_timer"

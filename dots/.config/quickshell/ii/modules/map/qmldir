@@ -1,0 +1,8 @@
+module qs.modules.map
+MapLibreView 1.0 MapLibreView.qml
+MapLibreMap 1.0 MapLibreMap.qml
+MapCoordinateMarker 1.0 MapCoordinateMarker.qml
+MapAttribution 1.0 MapAttribution.qml
+MapFallback 1.0 MapFallback.qml
+LocationPicker 1.0 LocationPicker.qml
+LocationPickerModal 1.0 LocationPickerModal.qml

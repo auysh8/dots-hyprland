@@ -548,8 +548,6 @@ Item {
                     readonly property int targetColumns: root.isExtended ? 3 : 2
                     readonly property real spacing: 10
                     readonly property real availableWidth: {
-                        if (!root.isResizing && width > 0)
-                            return width;
                         const margins = Appearance.sizes.hyprlandGapsOut + Appearance.sizes.elevationMargin + (root.contentMargin * 2) + 20;
                         return root.isExtended 
                             ? (Appearance.sizes.sidebarWidthExtended - margins)
@@ -575,9 +573,8 @@ Item {
 
                     Behavior on implicitHeight {
                         NumberAnimation {
-                            duration: Appearance.animation.elementMove.duration
-                            easing.type: Appearance.animation.elementMove.type
-                            easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+                            duration: 350
+                            easing.type: Easing.OutCubic
                         }
                     }
 
