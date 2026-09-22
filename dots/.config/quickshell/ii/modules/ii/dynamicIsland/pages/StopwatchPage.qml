@@ -17,7 +17,11 @@ Item {
     readonly property bool isRunning: TimerService.stopwatchRunning
     readonly property bool hasElapsed: TimerService.stopwatchTime > 0
     readonly property color containerColor: Appearance.colors.colTertiaryContainer
-    readonly property color onContainerColor: Appearance.colors.colOnTertiaryContainer
+    // The hero glyph sits alone on the tone-60 tertiary slab. Its paired
+    // colOnTertiaryContainer is pure black (#000000) and colOnTertiary resolves to a
+    // near-black olive, so use the tone-30 warm brown: it reads as brown rather than
+    // black while holding ~3.0:1 on the slab, the floor for a large 32px glyph.
+    readonly property color onContainerColor: Appearance.m3colors.m3onTertiaryFixedVariant
     readonly property color accentColor: Appearance.colors.colTertiary
     readonly property color onAccentColor: Appearance.colors.colOnTertiary
 

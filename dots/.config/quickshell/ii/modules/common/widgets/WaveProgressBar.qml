@@ -60,6 +60,7 @@ Item {
     }
     Component.onCompleted: {
         if (needsCava) CavaService.activeWaveBars++;
+        Qt.callLater(() => { root._ready = true; });
     }
     Component.onDestruction: {
         if (needsCava) CavaService.activeWaveBars = Math.max(0, CavaService.activeWaveBars - 1);
@@ -118,22 +119,27 @@ Item {
     implicitHeight: 36
 
     // --- 内部状态 ---
-    property real _targetX: root.progress * root.width
-    property real _activeX: seekMa.pressed ? Math.max(0, Math.min(seekMa.mouseX, root.width)) : _targetX
-    property real _visualX: _activeX
+    // Smooth in normalized (0–1) space so layout width changes don't trigger
+    // the animation (fixes the catch-up slide when the island expands).
+    property bool _ready: false
+    property real _smoothedProgress: seekMa.pressed
+        ? Math.max(0, Math.min(seekMa.mouseX / Math.max(1, root.width), 1.0))
+        : root.progress
+
+    Behavior on _smoothedProgress {
+        enabled: root._ready && root.visible && !seekMa.pressed
+        SmoothedAnimation {
+            velocity: 1.8   // ~0.56s to traverse the full 0–1 range
+            duration: root.smoothingDuration
+        }
+    }
+
+    property real _visualX: _smoothedProgress * root.width
     readonly property bool _hasProgressSplit: _visualX > 0 && _visualX < width
     readonly property real _playedEndX: _hasProgressSplit ? Math.max(0, _visualX - progressGap / 2) : Math.max(
                                                                 0, Math.min(_visualX, width))
     readonly property real _remainingStartX: _hasProgressSplit ? Math.min(width, _visualX + progressGap / 2) :
                                                                  Math.max(0, Math.min(_visualX, width))
-
-    Behavior on _visualX {
-        enabled: root.visible && !seekMa.pressed
-        SmoothedAnimation {
-            velocity: root.smoothingVelocity
-            duration: root.smoothingDuration
-        }
-    }
 
     // --- 未播放轨道：从缺口右侧开始，左端保持半圆形 ---
     Rectangle {

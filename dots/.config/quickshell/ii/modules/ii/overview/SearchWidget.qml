@@ -19,9 +19,26 @@ Item {
     readonly property int typingResultLimit: 15
 
     property string searchingText: LauncherSearch.query
-    property bool showResults: searchingText != ""
+    readonly property bool hasQuery: searchingText !== ""
+    property bool resultsOpen: false
+
+    // Only allow results to open when there is a query and the pills have fully attached
+    readonly property bool shouldOpenResults: hasQuery && searchBar.dropletsAttached && !searchBar.isAnimatingDroplets
+
+    onShouldOpenResultsChanged: {
+        if (shouldOpenResults) {
+            resultsOpen = true;
+        } else if (!hasQuery) {
+            // Hold droplet sprouting until results collapse animation completes
+            searchBar.holdSprout = true;
+            resultsOpen = false;
+        }
+    }
+
+    readonly property Item inputTarget: unifiedCard
+    property bool showResults: (unifiedCard.height > (searchBar.height + 1) || resultsOpen)
     implicitWidth: searchWidgetContent.implicitWidth + Appearance.sizes.elevationMargin * 2
-    implicitHeight: searchWidgetContent.implicitHeight + Appearance.sizes.elevationMargin * 2
+    implicitHeight: Math.min(640, Math.round((Screen.height ?? 1080) * 0.65))
 
     function focusFirstItem() {
         appResults.currentIndex = 0;
@@ -35,8 +52,16 @@ Item {
         searchBar.animateWidth = false;
     }
 
+    readonly property bool hasActiveDroplets: searchBar.hasActiveDroplets
+
+    function retractDroplets() {
+        searchBar.retractDroplets();
+    }
+
     function cancelSearch() {
-        searchBar.searchInput.text = "";
+        resultsOpen = false;
+        unifiedCard.height = searchBar.height;
+        searchBar.resetState();
         LauncherSearch.query = "";
         searchBar.animateWidth = true;
     }
@@ -94,11 +119,11 @@ Item {
             topMargin: Appearance.sizes.elevationMargin
         }
         implicitWidth: searchBar.totalWidth
-        implicitHeight: unifiedCard.implicitHeight
+        implicitHeight: unifiedCard.height
 
         StyledRectangularShadow {
             target: unifiedCard
-            visible: root.showResults
+            visible: false
         }
 
         Rectangle {
@@ -106,39 +131,52 @@ Item {
             anchors.top: parent.top
             anchors.horizontalCenter: parent.horizontalCenter
             width: searchBar.totalWidth
-            implicitHeight: root.showResults ? (searchBar.height + resultsContainer.implicitHeight) : searchBar.height
-            height: implicitHeight
+            readonly property real targetResultsHeight: root.resultsOpen ? Math.min(520, appResults.contentHeight + 16) : 0
+            height: searchBar.height + targetResultsHeight
             radius: 20
-            color: root.showResults ? Appearance.colors.colBackgroundSurfaceContainer : "transparent"
+            color: (height > searchBar.height + 2 || (searchBar.dropletsAttached && root.hasQuery)) ? Appearance.colors.colBackgroundSurfaceContainer : "transparent"
             clip: root.showResults
 
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: 0
-
-                SearchBar {
-                    id: searchBar
-                    Layout.alignment: Qt.AlignHCenter
-                    Synchronizer on searchingText {
-                        property alias source: root.searchingText
-                    }
-                    onAccepted: {
-                        if (appResults.count > 0) {
-                            let firstItem = appResults.itemAtIndex(0);
-                            if (firstItem && firstItem.clicked) {
-                                firstItem.clicked();
-                            }
+            Behavior on height {
+                NumberAnimation {
+                    duration: 350
+                    easing.type: Easing.OutCubic
+                    onRunningChanged: {
+                        if (!running && unifiedCard.height <= (searchBar.height + 1) && !root.hasQuery) {
+                            // Collapse finished — release the hold so targetProgress binding sprouts droplets
+                            searchBar.holdSprout = false;
                         }
                     }
                 }
+            }
 
-                Item {
-                    id: resultsContainer
-                    visible: root.showResults
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    implicitHeight: root.showResults ? Math.min(520, appResults.contentHeight + 16) : 0
-                    Layout.preferredHeight: implicitHeight
+            SearchBar {
+                id: searchBar
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                suppressSurface: unifiedCard.height > searchBar.height + 2
+                Synchronizer on searchingText {
+                    property alias source: root.searchingText
+                }
+                onAccepted: {
+                    if (appResults.count > 0) {
+                        let firstItem = appResults.itemAtIndex(0);
+                        if (firstItem && firstItem.clicked) {
+                            firstItem.clicked();
+                        }
+                    }
+                }
+            }
+
+            Item {
+                id: resultsContainer
+                anchors.top: searchBar.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                visible: unifiedCard.height > (searchBar.height + 2)
+                opacity: Math.max(0, Math.min(1, (unifiedCard.height - searchBar.height) / 40))
+                clip: true
 
                     ListView {
                         id: appResults
@@ -220,4 +258,3 @@ Item {
             }
         }
     }
-}

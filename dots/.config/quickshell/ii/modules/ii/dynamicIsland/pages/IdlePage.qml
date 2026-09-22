@@ -154,6 +154,9 @@ Item {
                     anchors.centerIn: parent
                     spacing: 5
 
+                    // Dark mode gives colTertiaryContainer a tone-60 surface whose paired
+                    // colOnTertiaryContainer is pure black (#000000); colOnTertiary keeps the
+                    // content readable while staying in the tertiary hue family.
                     MaterialSymbol {
                         Layout.alignment: Qt.AlignVCenter
                         text: {
@@ -163,7 +166,7 @@ Item {
                         }
                         iconSize: 16
                         fill: 1
-                        color: Appearance.colors.colOnTertiaryContainer
+                        color: Appearance.colors.colOnTertiary
                     }
 
                     StyledText {
@@ -171,7 +174,7 @@ Item {
                         text: Math.round(Battery.percentage * 100) + "%"
                         font.pixelSize: 12
                         font.weight: Font.Bold
-                        color: Appearance.colors.colOnTertiaryContainer
+                        color: Appearance.colors.colOnTertiary
                     }
                 }
             }

@@ -12,6 +12,7 @@ import "panelFamilies"
 import "kdeConnect"
 import "modules/ii/overview"
 import "notesLayer"
+import "modules/settings"
 
 import QtQuick
 import QtQuick.Window
@@ -29,6 +30,7 @@ ShellRoot {
     OtherPopup {}
     NotesWindow {}
     KDEDrawer {}
+    SettingsWindow {}
 
     // Shake-to-locate cursor helper: runs only while enabled, and resets the
     // cursor zoom if it's killed mid-magnify.

@@ -31,6 +31,10 @@ Scope {
             bottom: true
         }
 
+        mask: Region {
+            item: sidebarContentLoader
+        }
+
         onVisibleChanged: {
             if (visible) {
                 GlobalFocusGrab.addDismissable(panelWindow);
@@ -38,10 +42,17 @@ Scope {
                 GlobalFocusGrab.removeDismissable(panelWindow);
             }
         }
+
+        Component.onDestruction: {
+            GlobalFocusGrab.removeDismissable(panelWindow);
+        }
+
         Connections {
             target: GlobalFocusGrab
             function onDismissed() {
-                panelWindow.hide();
+                if (panelWindow.visible) {
+                    panelWindow.hide();
+                }
             }
         }
 

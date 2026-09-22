@@ -345,7 +345,11 @@ Item {
                 topMargin: Appearance.rounding.verylarge
                 flickableDirection: Flickable.VerticalFlick
 
-
+                onWidthChanged: {
+                    if (width > 100) {
+                        relayoutTimer.restart();
+                    }
+                }
 
                 Item {
                     id: mainContainer

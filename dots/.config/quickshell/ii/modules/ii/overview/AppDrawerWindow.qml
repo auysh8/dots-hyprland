@@ -14,39 +14,15 @@ import Quickshell.Hyprland
 Scope {
     id: root
     property bool showDrawer: GlobalStates.appDrawerOpen
-    property bool closing: false
-
-    onShowDrawerChanged: {
-        if (!showDrawer) {
-            closing = true;
-            hideTimer.restart();
-        } else {
-            closing = false;
-            hideTimer.stop();
-        }
-    }
 
     function closeWindow() {
         if (GlobalStates.appDrawerOpen) {
-            closing = true;
             GlobalStates.appDrawerOpen = false;
-            hideTimer.restart();
         }
     }
 
     function toggleWindow() {
-        if (GlobalStates.appDrawerOpen) {
-            closeWindow();
-        } else if (!closing) {
-            GlobalStates.appDrawerOpen = true;
-        }
-    }
-
-    Timer {
-        id: hideTimer
-        interval: 300
-        repeat: false
-        onTriggered: root.closing = false
+        GlobalStates.appDrawerOpen = !GlobalStates.appDrawerOpen;
     }
 
     IpcHandler {
@@ -71,10 +47,10 @@ Scope {
             required property var modelData
             screen: modelData
 
-            visible: root.showDrawer || root.closing
+            visible: root.showDrawer
             WlrLayershell.namespace: "quickshell:app-drawer"
             WlrLayershell.layer: WlrLayer.Top
-            WlrLayershell.keyboardFocus: (root.showDrawer && !root.closing) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: root.showDrawer ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             color: "transparent"
 
             exclusionMode: ExclusionMode.Ignore
@@ -91,17 +67,17 @@ Scope {
             implicitHeight: Math.min((window.screen?.height ?? 1080) * 0.72, 640)
 
             mask: Region {
-                item: (root.showDrawer || root.closing) ? drawerContainer : null
+                item: root.showDrawer ? drawerContainer : null
             }
 
-            property bool grabActive: root.showDrawer && !root.closing
+            property bool grabActive: root.showDrawer
 
             Timer {
                 id: delayedGrabTimer
                 interval: Appearance.animation.elementMoveFast.duration + 50
                 repeat: false
                 onTriggered: {
-                    if (root.showDrawer && !root.closing) {
+                    if (root.showDrawer) {
                         GlobalFocusGrab.addDismissable(window);
                     }
                 }
@@ -123,7 +99,9 @@ Scope {
             Connections {
                 target: GlobalFocusGrab
                 function onDismissed() {
-                    root.closeWindow();
+                    if (root.showDrawer) {
+                        root.closeWindow();
+                    }
                 }
             }
 
@@ -136,39 +114,6 @@ Scope {
             Item {
                 id: drawerContainer
                 anchors.fill: parent
-                width: parent.width
-                height: parent.height
-
-                opacity: root.showDrawer ? 1 : 0
-                scale: root.showDrawer ? 1 : 0.97
-                transformOrigin: Item.Bottom
-
-                transform: Translate {
-                    y: root.showDrawer ? 0 : 44
-                    Behavior on y {
-                        NumberAnimation { 
-                            duration: Appearance.animation.elementMoveFast.duration
-                            easing.type: Appearance.animation.elementMoveFast.type
-                            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                        }
-                    }
-                }
-
-                Behavior on opacity {
-                    NumberAnimation { 
-                        duration: Appearance.animation.elementMoveFast.duration
-                        easing.type: Appearance.animation.elementMoveFast.type
-                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                    }
-                }
-
-                Behavior on scale {
-                    NumberAnimation { 
-                        duration: Appearance.animation.elementMoveFast.duration
-                        easing.type: Appearance.animation.elementMoveFast.type
-                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                    }
-                }
 
                 ApplicationDrawer {
                     id: drawer

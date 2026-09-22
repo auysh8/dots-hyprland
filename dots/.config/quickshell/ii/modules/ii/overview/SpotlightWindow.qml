@@ -17,29 +17,51 @@ Scope {
     property bool showSpotlight: GlobalStates.spotlightOpen
     property bool closing: false
 
+    function cancelClosing() {
+        retractTimer.stop();
+        root.closing = false;
+    }
+
     onShowSpotlightChanged: {
         if (!showSpotlight) {
-            closing = true;
-            hideTimer.restart();
+            if (!closing) {
+                cancelClosing();
+            }
         } else {
-            closing = false;
-            hideTimer.stop();
+            cancelClosing();
         }
     }
 
     function closeWindow() {
         if (GlobalStates.spotlightOpen) {
-            closing = true;
-            GlobalStates.spotlightOpen = false;
-            hideTimer.restart();
+            if ((LauncherSearch.query ?? "").trim() === "") {
+                // Retract the liquid buttons first (600ms)
+                closing = true;
+                GlobalStates.spotlightOpen = false;
+                retractTimer.restart();
+            } else {
+                // Results are visible: close immediately so Hyprland fades it out
+                closing = false;
+                GlobalStates.spotlightOpen = false;
+            }
         }
     }
 
     function toggleWindow() {
         if (GlobalStates.spotlightOpen) {
             closeWindow();
-        } else if (!closing) {
+        } else {
+            cancelClosing();
             GlobalStates.spotlightOpen = true;
+        }
+    }
+
+    Timer {
+        id: retractTimer
+        interval: 600
+        repeat: false
+        onTriggered: {
+            root.closing = false;
         }
     }
 
@@ -50,6 +72,7 @@ Scope {
             closeWindow();
             return;
         }
+        cancelClosing();
         initialSearchText = prefix;
         if (!GlobalStates.spotlightOpen) {
             GlobalStates.spotlightOpen = true;
@@ -57,13 +80,6 @@ Scope {
             // Already open, direct update
             LauncherSearch.query = prefix;
         }
-    }
-
-    Timer {
-        id: hideTimer
-        interval: 250
-        repeat: false
-        onTriggered: root.closing = false
     }
 
     IpcHandler {
@@ -117,10 +133,10 @@ Scope {
             }
 
             implicitWidth: searchWidget.implicitWidth
-            implicitHeight: searchWidget.implicitHeight
+            implicitHeight: Math.min(640, Math.round((window.screen?.height ?? 1080) * 0.65))
 
             mask: Region {
-                item: (root.showSpotlight || root.closing) ? spotlightContainer : null
+                item: (root.showSpotlight || root.closing) ? searchWidget.inputTarget : null
             }
 
             property bool grabActive: root.showSpotlight && !root.closing
@@ -130,7 +146,7 @@ Scope {
                 interval: Appearance.animation.elementMoveFast.duration + 50
                 repeat: false
                 onTriggered: {
-                    if (root.showSpotlight && !root.closing) {
+                    if (root.showSpotlight) {
                         GlobalFocusGrab.addDismissable(window);
                     }
                 }
@@ -149,6 +165,11 @@ Scope {
                 } else {
                     delayedGrabTimer.stop();
                     GlobalFocusGrab.removeDismissable(window);
+                }
+            }
+
+            onVisibleChanged: {
+                if (!visible) {
                     searchWidget.cancelSearch();
                 }
             }
@@ -160,7 +181,9 @@ Scope {
             Connections {
                 target: GlobalFocusGrab
                 function onDismissed() {
-                    root.closeWindow();
+                    if (root.showSpotlight) {
+                        root.closeWindow();
+                    }
                 }
             }
 
@@ -173,24 +196,6 @@ Scope {
             Item {
                 id: spotlightContainer
                 anchors.fill: parent
-
-                opacity: root.showSpotlight ? 1 : 0
-                scale: root.showSpotlight ? 1 : 0.96
-                transformOrigin: Item.Top
-
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: Appearance.animation.elementMoveFast.duration
-                        easing.type: Easing.OutCubic
-                    }
-                }
-
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: Appearance.animation.elementMoveFast.duration
-                        easing.type: Easing.OutCubic
-                    }
-                }
 
                 SearchWidget {
                     id: searchWidget

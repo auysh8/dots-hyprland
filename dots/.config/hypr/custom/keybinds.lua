@@ -1,4 +1,6 @@
-hl.bind("SUPER + Escape", hl.dsp.exec_cmd("qs -p $HOME/.config/quickshell/ii/sysmon.qml"), { description = "App: System Monitor" })
+hl.bind("SUPER + Escape", hl.dsp.exec_cmd("qs -c ii ipc call system-monitor toggle"), { description = "Shell: Toggle system monitor" })
 hl.bind("SUPER + ALT + N", hl.dsp.global("quickshell:notesToggle"), { description = "Shell: Toggle notes" })
+hl.unbind("SUPER + I")
+hl.bind("SUPER + I", hl.dsp.exec_cmd("qs -c ii ipc call settings toggle"), { description = "Shell: Toggle settings" })
 hl.unbind("SUPER + M")
 hl.bind("SUPER + M", hl.dsp.exec_cmd("qs -p $HOME/.config/quickshell/ii/music.qml"), { description = "App: Music player" })

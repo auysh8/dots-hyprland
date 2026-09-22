@@ -16,8 +16,9 @@ Item {
     signal accepted()
 
     property bool opened: false
+    property bool holdSprout: false
     property real dropletProgress: 0.0
-    readonly property real targetProgress: (opened && searchInput.text === "") ? 1.0 : 0.0
+    readonly property real targetProgress: (opened && searchInput.text === "" && !holdSprout) ? 1.0 : 0.0
 
     Timer {
         id: openSequenceTimer
@@ -40,13 +41,38 @@ Item {
         dropletAnim.from = root.dropletProgress;
         dropletAnim.to = root.targetProgress;
         if (root.targetProgress === 0.0) {
-            dropletAnim.duration = Math.max(1, 280 * Math.abs(root.targetProgress - root.dropletProgress));
+            dropletAnim.duration = Math.max(1, 600 * Math.abs(root.targetProgress - root.dropletProgress));
             dropletAnim.easing.type = Easing.OutQuad;
         } else {
-            dropletAnim.duration = Math.max(1, 620 * Math.abs(root.targetProgress - root.dropletProgress));
+            dropletAnim.duration = Math.max(1, 600 * Math.abs(root.targetProgress - root.dropletProgress));
             dropletAnim.easing.type = Easing.Linear;
         }
         dropletAnim.restart();
+    }
+
+    readonly property bool hasActiveDroplets: (searchInput.text === "" && dropletProgress > 0.05)
+    readonly property bool dropletsAttached: (dropletProgress <= 0.001)
+    readonly property bool isAnimatingDroplets: dropletAnim.running
+
+    function retractDroplets() {
+        openSequenceTimer.stop();
+        root.opened = false;
+    }
+
+    function sproutDroplets() {
+        if (searchInput.text === "") {
+            root.opened = false;
+            openSequenceTimer.restart();
+        }
+    }
+
+    function resetState() {
+        openSequenceTimer.stop();
+        dropletAnim.stop();
+        root.opened = false;
+        root.holdSprout = false;
+        root.dropletProgress = 0.0;
+        searchInput.text = "";
     }
 
     function handleActiveState(isOpen) {
@@ -56,10 +82,7 @@ Item {
             openSequenceTimer.restart();
         } else {
             openSequenceTimer.stop();
-            dropletAnim.stop();
             root.opened = false;
-            root.dropletProgress = 0.0;
-            searchInput.text = "";
         }
     }
 
@@ -116,6 +139,8 @@ Item {
     implicitWidth: totalWidth
     implicitHeight: searchBarHeight
 
+    property bool suppressSurface: false
+
     SearchDropletsSurface {
         id: dropletsSurface
         anchors.fill: parent
@@ -129,7 +154,7 @@ Item {
         buttonDiameter: root.dropletDiameter
         buttonGap: root.dropletGap
         surfaceColor: Appearance.colors.colBackgroundSurfaceContainer
-        visible: (searchInput.text === "" || root.dropletProgress > 0.001)
+        visible: (searchInput.text === "" || root.dropletProgress > 0.001) && !root.suppressSurface
     }
 
     Item {

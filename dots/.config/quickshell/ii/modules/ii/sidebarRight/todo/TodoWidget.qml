@@ -1,6 +1,7 @@
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -64,7 +65,7 @@ Item {
                 emptyPlaceholderIcon: "check_circle"
                 emptyPlaceholderText: Translation.tr("Nothing here!")
                 taskList: Todo.list
-                    .map(function(item, i) { return Object.assign({}, item, {originalIndex: i}); })
+                    .map(function(item, i) { return Object.assign({ id: item.id || ("task_" + i) }, item, {originalIndex: i}); })
                     .filter(function(item) { return !item.done; })
 
                 width: parent.width
@@ -83,7 +84,7 @@ Item {
                 emptyPlaceholderIcon: "checklist"
                 emptyPlaceholderText: Translation.tr("Finished tasks will go here")
                 taskList: Todo.list
-                    .map(function(item, i) { return Object.assign({}, item, {originalIndex: i}); })
+                    .map(function(item, i) { return Object.assign({ id: item.id || ("task_" + i) }, item, {originalIndex: i}); })
                     .filter(function(item) { return item.done; })
 
                 width: parent.width

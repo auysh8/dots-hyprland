@@ -363,7 +363,7 @@ Item {
                 buttonIcon: "settings"
                 onClicked: {
                     GlobalStates.sidebarRightOpen = false;
-                    Quickshell.execDetached(["qs", "-p", root.settingsQmlPath]);
+                    Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "settings", "toggle"]);
                 }
                 StyledToolTip { text: Translation.tr("Settings") }
             }

@@ -34,9 +34,9 @@
       "type": "auto"
     },
     "transparency": {
-      "automatic": true,
-      "backgroundTransparency": 0.7,
-      "contentTransparency": 0.7,
+      "automatic": false,
+      "backgroundTransparency": 0.4,
+      "contentTransparency": 0.9,
       "enable": true
     },
     "wallpaperTheming": {
@@ -159,7 +159,7 @@
         "quote": {
           "enable": true,
           "followClock": false,
-          "text": "Man is made by his belief. As he believes, so he is."
+          "text": "Knowledge is better than mere ritual."
         },
         "showOnlyWhenLocked": false,
         "style": "pixel",
@@ -223,7 +223,7 @@
         "enable": true,
         "placementStrategy": "free",
         "x": 1596,
-        "y": 588
+        "y": 720
       },
       "userCard": {
         "enable": false,

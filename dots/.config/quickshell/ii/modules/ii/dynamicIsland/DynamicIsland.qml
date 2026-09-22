@@ -1087,6 +1087,8 @@ Scope {
                                 expandFromSatelliteAnim.stop();
                                 expandFromLeftSatelliteAnim.stop();
                                 islandPill.anchors.horizontalCenterOffset = 0;
+                                // Open the page matching what the main pill is displaying
+                                islandContainer.expandedPageKey = islandContainer.hasMedia ? "media" : "idle";
                                 islandContainer.manualExpanded = true;
                             }
                         }
@@ -2470,7 +2472,7 @@ Scope {
                                 Layout.preferredWidth: 16
                                 Layout.preferredHeight: 16
                                 value: TimerService.pomodoroSecondsLeft / TimerService.pomodoroLapDuration
-                                colPrimary: TimerService.isPomodoroBreak ? Appearance.colors.colOnLayer0 : Appearance.colors.colError
+                                colPrimary: TimerService.pomodoroBreak ? Appearance.colors.colOnLayer0 : Appearance.colors.colError
                                 implicitSize: 16
                                 lineWidth: 2
                             }
@@ -2482,7 +2484,7 @@ Scope {
                                     let s = Math.floor(TimerService.pomodoroSecondsLeft % 60).toString().padStart(2, '0');
                                     return m + ":" + s;
                                 }
-                                color: TimerService.isPomodoroBreak ? Appearance.colors.colOnLayer0 : Appearance.colors.colError
+                                color: TimerService.pomodoroBreak ? Appearance.colors.colOnLayer0 : Appearance.colors.colError
                                 font.family: Appearance.font.family.monospace
                                 font.features: { "tnum": 1 }
                                 font.pixelSize: Appearance.font.pixelSize.small

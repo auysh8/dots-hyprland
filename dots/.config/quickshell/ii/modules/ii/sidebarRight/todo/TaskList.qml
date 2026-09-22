@@ -36,31 +36,58 @@ Item {
                     id: todoItem
                     required property int index
                     required property var modelData
-                    property bool isVisualDone: modelData.done
+                    property string currentItemId: ""
+                    property bool isVisualDone: modelData ? modelData.done : false
                     property bool isExiting: false
-                    property real targetHeight: todoItemRectangle.implicitHeight
-                    property real animatedHeight: targetHeight
+                    property bool isAnimatingHeight: false
+                    property real animHeight: 0
+                    property var exitCallback: null
 
                     width: taskColumn.width
-                    implicitHeight: isExiting ? 0 : animatedHeight
+                    implicitHeight: isAnimatingHeight ? animHeight : todoItemRectangle.implicitHeight
                     height: implicitHeight
                     clip: true
 
-                    Behavior on implicitHeight {
-                        NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
-                    }
+                    property bool isRecentlyAdded: (modelData && modelData.createdAt) ? ((Date.now() - modelData.createdAt) < 1500) : false
 
-                    Behavior on y {
-                        NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
-                    }
+                    function setupItem(isInitial) {
+                        if (!modelData) return;
+                        const newId = modelData.id || ("task_" + (modelData.originalIndex !== undefined ? modelData.originalIndex : index));
+                        if (currentItemId !== newId) {
+                            currentItemId = newId;
+                            exitAnim.stop();
+                            entryAnim.stop();
+                            entryTimer.stop();
+                            toggleDelayTimer.stop();
+                            exitCallback = null;
+                            isExiting = false;
+                            isAnimatingHeight = false;
+                            animHeight = 0;
+                            isVisualDone = modelData.done;
 
-                    property bool isRecentlyAdded: (Date.now() - (modelData.createdAt || 0)) < 1500
+                            if (isRecentlyAdded && index === 0 && !modelData.done) {
+                                isAnimatingHeight = true;
+                                animHeight = 0;
+                                todoItemRectangle.opacity = 0;
+                                todoItemRectangle.scale = 0.88;
+                                entryTimer.start();
+                            } else {
+                                todoItemRectangle.opacity = 1;
+                                todoItemRectangle.scale = 1;
+                            }
+                        } else {
+                            if (!toggleDelayTimer.running && !isExiting) {
+                                isVisualDone = modelData.done;
+                            }
+                        }
+                    }
 
                     Component.onCompleted: {
-                        if (isRecentlyAdded && index === 0 && !modelData.done) {
-                            animatedHeight = 0;
-                            entryTimer.start();
-                        }
+                        setupItem(true);
+                    }
+
+                    onModelDataChanged: {
+                        setupItem(false);
                     }
 
                     Timer {
@@ -68,37 +95,109 @@ Item {
                         interval: 16
                         repeat: false
                         onTriggered: {
-                            todoItem.animatedHeight = todoItem.targetHeight;
+                            entryHeightAnim.to = todoItemRectangle.implicitHeight;
                             entryAnim.start();
                         }
                     }
 
-                    function destroyWithAnimation(callback) {
-                        isExiting = true;
-                        exitTimer.callback = callback;
-                        exitTimer.start();
+                    ParallelAnimation {
+                        id: entryAnim
+                        NumberAnimation {
+                            id: entryHeightAnim
+                            target: todoItem
+                            property: "animHeight"
+                            from: 0
+                            to: todoItemRectangle.implicitHeight
+                            duration: 280
+                            easing.type: Easing.OutCubic
+                        }
+                        NumberAnimation {
+                            target: todoItemRectangle
+                            property: "opacity"
+                            from: 0
+                            to: 1
+                            duration: 250
+                            easing.type: Easing.OutCubic
+                        }
+                        NumberAnimation {
+                            target: todoItemRectangle
+                            property: "scale"
+                            from: 0.88
+                            to: 1.0
+                            duration: 300
+                            easing.type: Easing.OutBack
+                            easing.overshoot: 1.15
+                        }
+                        onFinished: {
+                            todoItem.isAnimatingHeight = false;
+                            todoItem.animHeight = 0;
+                        }
                     }
 
-                    Timer {
-                        id: exitTimer
-                        interval: 310
-                        repeat: false
-                        property var callback
-                        onTriggered: {
-                            if (callback) callback();
+                    ParallelAnimation {
+                        id: exitAnim
+                        NumberAnimation {
+                            target: todoItem
+                            property: "animHeight"
+                            to: -root.todoListItemSpacing
+                            duration: 280
+                            easing.type: Easing.OutCubic
                         }
+                        NumberAnimation {
+                            target: todoItemRectangle
+                            property: "opacity"
+                            to: 0
+                            duration: 220
+                            easing.type: Easing.OutQuad
+                        }
+                        NumberAnimation {
+                            target: todoItemRectangle
+                            property: "scale"
+                            to: 0.85
+                            duration: 220
+                            easing.type: Easing.OutQuad
+                        }
+                        onFinished: {
+                            if (todoItem.exitCallback) {
+                                const cb = todoItem.exitCallback;
+                                todoItem.exitCallback = null;
+                                cb();
+                            }
+                        }
+                    }
+
+                    function destroyWithAnimation(callback) {
+                        if (isExiting) return;
+                        isExiting = true;
+                        exitCallback = callback;
+                        animHeight = todoItemRectangle.implicitHeight;
+                        isAnimatingHeight = true;
+                        exitAnim.start();
                     }
 
                     Timer {
                         id: toggleDelayTimer
                         interval: 250
                         repeat: false
+                        property string targetId: ""
+                        property int origIdx: -1
+                        property bool wasDone: false
                         onTriggered: {
+                            const idToToggle = targetId;
+                            const idxToToggle = origIdx;
+                            const previousDone = wasDone;
                             todoItem.destroyWithAnimation(() => {
-                                if (!todoItem.modelData.done)
-                                    Todo.markDone(todoItem.modelData.originalIndex);
-                                else
-                                    Todo.markUnfinished(todoItem.modelData.originalIndex);
+                                if (idToToggle) {
+                                    if (!previousDone)
+                                        Todo.markDoneById(idToToggle);
+                                    else
+                                        Todo.markUnfinishedById(idToToggle);
+                                } else {
+                                    if (!previousDone)
+                                        Todo.markDone(idxToToggle);
+                                    else
+                                        Todo.markUnfinished(idxToToggle);
+                                }
                             });
                         }
                     }
@@ -106,158 +205,150 @@ Item {
                     Rectangle {
                         id: todoItemRectangle
                         width: parent.width
-                        implicitHeight: todoCardLayout.implicitHeight + 20
+                        implicitHeight: Math.max(52, todoContentText.implicitHeight + 20)
+                        height: implicitHeight
                         color: Appearance.colors.colLayer2
                         radius: Appearance.rounding.normal
 
-                        opacity: todoItem.isExiting ? 0 : 1
-                        scale: todoItem.isExiting ? 0.85 : 1
-
-                        Behavior on opacity {
-                            NumberAnimation { duration: 220; easing.type: Easing.OutQuad }
-                        }
-                        Behavior on scale {
-                            NumberAnimation { duration: 220; easing.type: Easing.OutQuad }
-                        }
-
-                        ParallelAnimation {
-                            id: entryAnim
-                            NumberAnimation { target: todoItemRectangle; property: "opacity"; from: 0; to: 1; duration: 250; easing.type: Easing.OutCubic }
-                            NumberAnimation { target: todoItemRectangle; property: "scale"; from: 0.88; to: 1.0; duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
-                        }
-
-                        RowLayout {
-                            id: todoCardLayout
-                            anchors.fill: parent
+                        // Left Checkbox Button
+                        Rectangle {
+                            id: checkContainer
+                            anchors.left: parent.left
                             anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            anchors.topMargin: 10
-                            anchors.bottomMargin: 10
-                            spacing: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 32
+                            height: 32
+                            radius: 16
+                            color: checkMouseArea.containsMouse 
+                                ? ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.15) 
+                                : "transparent"
+                            scale: checkMouseArea.containsMouse ? 1.08 : 1.0
 
-                            // Left Checkbox Button
+                            Behavior on color {
+                                ColorAnimation { duration: 150 }
+                            }
+                            Behavior on scale {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                            }
+
                             Rectangle {
-                                id: checkContainer
-                                Layout.alignment: Qt.AlignVCenter
-                                width: 32
-                                height: 32
-                                radius: 16
-                                color: checkMouseArea.containsMouse 
-                                    ? ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.15) 
+                                anchors.centerIn: parent
+                                width: 18
+                                height: 18
+                                radius: 4
+                                scale: checkMouseArea.pressed ? 0.88 : 1.0
+                                color: todoItem.isVisualDone 
+                                    ? Appearance.colors.colPrimary 
                                     : "transparent"
-                                scale: checkMouseArea.containsMouse ? 1.08 : 1.0
+                                border.width: todoItem.isVisualDone ? 0 : 2
+                                border.color: todoItem.isVisualDone 
+                                    ? Appearance.colors.colPrimary 
+                                    : (checkMouseArea.containsMouse ? Appearance.colors.colPrimary : Appearance.colors.colSubtext)
 
                                 Behavior on color {
+                                    ColorAnimation { duration: 150 }
+                                }
+                                Behavior on border.color {
                                     ColorAnimation { duration: 150 }
                                 }
                                 Behavior on scale {
-                                    NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                                }
-
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: 18
-                                    height: 18
-                                    radius: 4
-                                    scale: checkMouseArea.pressed ? 0.88 : 1.0
-                                    color: todoItem.isVisualDone 
-                                        ? Appearance.colors.colPrimary 
-                                        : "transparent"
-                                    border.width: todoItem.isVisualDone ? 0 : 2
-                                    border.color: todoItem.isVisualDone 
-                                        ? Appearance.colors.colPrimary 
-                                        : (checkMouseArea.containsMouse ? Appearance.colors.colPrimary : Appearance.colors.colSubtext)
-
-                                    Behavior on color {
-                                        ColorAnimation { duration: 150 }
-                                    }
-                                    Behavior on border.color {
-                                        ColorAnimation { duration: 150 }
-                                    }
-                                    Behavior on scale {
-                                        NumberAnimation { duration: 100 }
-                                    }
-
-                                    MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        visible: todoItem.isVisualDone
-                                        text: "check"
-                                        iconSize: 14
-                                        fill: 1
-                                        color: Appearance.colors.colOnPrimary
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: checkMouseArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (toggleDelayTimer.running) return;
-                                        todoItem.isVisualDone = !todoItem.isVisualDone;
-                                        toggleDelayTimer.start();
-                                    }
-                                }
-                            }
-
-                            // Task Content Text
-                            Text {
-                                id: todoContentText
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                text: todoItem.modelData.content
-                                wrapMode: Text.Wrap
-                                font.family: Appearance.font.family.main
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                font.weight: Font.Medium
-                                font.strikeout: todoItem.isVisualDone
-                                renderType: Text.QtRendering
-                                color: todoItem.isVisualDone 
-                                    ? Appearance.colors.colSubtext 
-                                    : Appearance.colors.colOnLayer0
-
-                                Behavior on color {
-                                    ColorAnimation { duration: 150 }
-                                }
-                            }
-
-                            // Right Delete Action
-                            Rectangle {
-                                id: deleteContainer
-                                Layout.alignment: Qt.AlignVCenter
-                                width: 30
-                                height: 30
-                                radius: 15
-                                color: deleteMouseArea.containsMouse 
-                                    ? ColorUtils.applyAlpha(Appearance.colors.colError, 0.15) 
-                                    : "transparent"
-
-                                Behavior on color {
-                                    ColorAnimation { duration: 150 }
+                                    NumberAnimation { duration: 100 }
                                 }
 
                                 MaterialSymbol {
                                     anchors.centerIn: parent
-                                    text: "delete"
-                                    iconSize: 18
+                                    visible: todoItem.isVisualDone
+                                    text: "check"
+                                    iconSize: 14
                                     fill: 1
-                                    color: deleteMouseArea.containsMouse 
-                                        ? Appearance.colors.colError 
-                                        : Appearance.colors.colSubtext
+                                    color: Appearance.colors.colOnPrimary
                                 }
+                            }
 
-                                MouseArea {
-                                    id: deleteMouseArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        todoItem.destroyWithAnimation(() => {
-                                            Todo.deleteItem(todoItem.modelData.originalIndex);
-                                        });
-                                    }
+                            MouseArea {
+                                id: checkMouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (toggleDelayTimer.running || todoItem.isExiting) return;
+                                    todoItem.isVisualDone = !todoItem.isVisualDone;
+                                    toggleDelayTimer.targetId = todoItem.modelData.id || "";
+                                    toggleDelayTimer.origIdx = todoItem.modelData.originalIndex !== undefined ? todoItem.modelData.originalIndex : todoItem.index;
+                                    toggleDelayTimer.wasDone = todoItem.modelData.done;
+                                    toggleDelayTimer.start();
                                 }
+                            }
+                        }
+
+                        // Right Delete Action
+                        Rectangle {
+                            id: deleteContainer
+                            anchors.right: parent.right
+                            anchors.rightMargin: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 30
+                            height: 30
+                            radius: 15
+                            color: deleteMouseArea.containsMouse 
+                                ? ColorUtils.applyAlpha(Appearance.colors.colError, 0.15) 
+                                : "transparent"
+
+                            Behavior on color {
+                                ColorAnimation { duration: 150 }
+                            }
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "delete"
+                                iconSize: 18
+                                fill: 1
+                                color: deleteMouseArea.containsMouse 
+                                    ? Appearance.colors.colError 
+                                    : Appearance.colors.colSubtext
+                            }
+
+                            MouseArea {
+                                id: deleteMouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (todoItem.isExiting) return;
+                                    const idToDelete = todoItem.modelData.id || "";
+                                    const idxToDelete = todoItem.modelData.originalIndex !== undefined ? todoItem.modelData.originalIndex : todoItem.index;
+                                    todoItem.destroyWithAnimation(() => {
+                                        if (idToDelete) {
+                                            Todo.deleteItemById(idToDelete);
+                                        } else {
+                                            Todo.deleteItem(idxToDelete);
+                                        }
+                                    });
+                                }
+                            }
+                        }
+
+                        // Task Content Text
+                        Text {
+                            id: todoContentText
+                            anchors.left: checkContainer.right
+                            anchors.leftMargin: 12
+                            anchors.right: deleteContainer.left
+                            anchors.rightMargin: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: (todoItem.modelData && todoItem.modelData.content) ? todoItem.modelData.content : ""
+                            wrapMode: Text.Wrap
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.Medium
+                            font.strikeout: todoItem.isVisualDone
+                            renderType: Text.QtRendering
+                            color: todoItem.isVisualDone 
+                                ? Appearance.colors.colSubtext 
+                                : Appearance.colors.colOnLayer0
+
+                            Behavior on color {
+                                ColorAnimation { duration: 150 }
                             }
                         }
                     }

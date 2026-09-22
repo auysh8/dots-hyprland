@@ -14,101 +14,99 @@ import Quickshell.Hyprland
 Scope {
     id: root
     property bool showNotes: NotesService.open
-    property bool closing: false
-
-    onShowNotesChanged: {
-        if (!showNotes) {
-            closing = true;
-            hideTimer.restart();
-        }
-    }
 
     function closeWindow() {
-        if (root.showNotes) {
-            closing = true
-            NotesService.open = false
-            hideTimer.restart()
-        }
+        NotesService.open = false;
     }
 
-    Timer {
-        id: hideTimer
-        interval: 300
-        repeat: false
-        onTriggered: root.closing = false
+    function toggleWindow() {
+        NotesService.toggle();
     }
 
     IpcHandler {
         target: "notes"
-        function toggle() {
-            NotesService.toggle()
-        }
-        function open() {
-            NotesService.open = true
-        }
-        function close() {
-            root.closeWindow()
-        }
+        function toggle() { root.toggleWindow(); }
+        function open() { NotesService.open = true; }
+        function close() { root.closeWindow(); }
     }
 
     GlobalShortcut {
         name: "notesToggle"
         description: "Toggle Notes layer"
-
-        onPressed: NotesService.toggle()
+        onPressed: root.toggleWindow()
     }
 
     Variants {
         model: Quickshell.screens
 
-        LayerManagedPanelWindow {
+        PanelWindow {
             id: window
             required property var modelData
             screen: modelData
-            
-            shown: root.showNotes
-            closing: root.closing
-            layerNamespace: "quickshell:notes"
-            keyboardFocusMode: WlrKeyboardFocus.OnDemand
-            
-            onCloseRequested: root.closeWindow()
 
-            // M3 Expressive: Deep tonal background (surfaceContainerLowest)
+            visible: root.showNotes
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "quickshell:notes"
+            WlrLayershell.keyboardFocus: root.showNotes ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            implicitWidth: Math.min((window.screen?.width ?? 1920) * 0.85, 1100)
+            implicitHeight: Math.min((window.screen?.height ?? 1080) * 0.85, 750)
+
+            mask: Region {
+                item: root.showNotes ? notesDialog : null
+            }
+
+            property bool grabActive: root.showNotes
+
+            Timer {
+                id: delayedGrabTimer
+                interval: Appearance.animation.elementMoveFast.duration + 50
+                repeat: false
+                onTriggered: {
+                    if (root.showNotes) {
+                        GlobalFocusGrab.addDismissable(window);
+                    }
+                }
+            }
+
+            onGrabActiveChanged: {
+                if (grabActive) {
+                    delayedGrabTimer.restart();
+                } else {
+                    delayedGrabTimer.stop();
+                    GlobalFocusGrab.removeDismissable(window);
+                }
+            }
+
+            Component.onDestruction: {
+                GlobalFocusGrab.removeDismissable(window);
+            }
+
+            Connections {
+                target: GlobalFocusGrab
+                function onDismissed() {
+                    if (root.showNotes) {
+                        root.closeWindow();
+                    }
+                }
+            }
+
+            Shortcut {
+                enabled: root.showNotes
+                sequence: "Escape"
+                onActivated: root.closeWindow()
+            }
+
             Rectangle {
                 id: notesDialog
-                width: Math.min(window.width * 0.85, 1100)
-                height: Math.min(window.height * 0.85, 750)
-                anchors.centerIn: parent
-                color: Appearance.colors.colLayer0Base // M3 surfaceContainerLowest
-                radius: Appearance.rounding.verylarge // 30px expressive shape
+                anchors.fill: parent
+                color: Appearance.colors.colLayer0
+                border.width: 1
+                border.color: Appearance.colors.colLayer0Border
+                radius: Appearance.rounding.verylarge
                 clip: true
-                
-                opacity: root.showNotes ? 1 : 0
-                scale: root.showNotes ? 1 : 0.95
-                transformOrigin: Item.Center
-                
-                Behavior on opacity {
-                    NumberAnimation { 
-                        duration: Appearance.animation.elementMoveFast.duration
-                        easing.type: Appearance.animation.elementMoveFast.type
-                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                    }
-                }
-                
-                Behavior on scale {
-                    NumberAnimation { 
-                        duration: Appearance.animation.elementMoveFast.duration
-                        easing.type: Appearance.animation.elementMoveFast.type
-                        easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                    }
-                }
-
-                // Prevent clicks on the panel from closing the window
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.AllButtons
-                    hoverEnabled: true
-                }
 
                 NotesPanel {
                     anchors.fill: parent

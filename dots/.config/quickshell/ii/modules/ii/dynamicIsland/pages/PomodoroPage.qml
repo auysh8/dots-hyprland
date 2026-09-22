@@ -63,7 +63,7 @@ Item {
                 id: shapeBackground
                 anchors.fill: parent
                 implicitSize: 78
-                color: root.containerColor
+                color: root.isBreak ? Appearance.colors.colSecondaryContainer : Appearance.colors.colErrorContainer
                 shape: root.isBreak ? MaterialShape.Shape.Cookie4Sided : MaterialShape.Shape.Clover4Leaf
 
                 Behavior on color {
@@ -77,7 +77,7 @@ Item {
                 text: root.isBreak ? "coffee" : "local_fire_department"
                 iconSize: 30
                 fill: 1
-                color: root.isBreak ? Appearance.colors.colOnSurface : root.onContainerColor
+                color: root.isBreak ? Appearance.colors.colOnSurface : Appearance.colors.colOnErrorContainer
 
                 Behavior on color {
                     ColorAnimation { duration: 250 }
@@ -226,7 +226,7 @@ Item {
                         text: "restart_alt"
                         iconSize: 16
                         fill: 1
-                        color: root.isBreak ? Appearance.colors.colOnSurface : root.onContainerColor
+                        color: Appearance.colors.colOnSurface
                     }
                 }
 
@@ -257,7 +257,7 @@ Item {
                         text: "skip_next"
                         iconSize: 16
                         fill: 1
-                        color: root.isBreak ? Appearance.colors.colOnSurface : root.onContainerColor
+                        color: Appearance.colors.colOnSurface
                     }
                 }
             }
