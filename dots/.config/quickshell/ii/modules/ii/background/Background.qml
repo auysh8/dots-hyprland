@@ -288,6 +288,11 @@ Variants {
             bgRoot.transitionDirection = Math.floor(Math.random() * 4.0);
 
             bgRoot.transitionProgress = 0.0
+            if (wallpaper.status === Image.Ready) {
+                transitionAnim.restart()
+            } else {
+                transitionSafetyTimer.restart()
+            }
         }
 
         Process {
@@ -359,6 +364,17 @@ Variants {
                 previousWallpaper.source = ""
                 bgRoot.previousWallpaperSource = ""
                 bgRoot.transitionProgress = 1.0
+            }
+        }
+
+        Timer {
+            id: transitionSafetyTimer
+            interval: 500
+            repeat: false
+            onTriggered: {
+                if (bgRoot.transitionProgress === 0.0) {
+                    transitionAnim.restart()
+                }
             }
         }
 
@@ -469,14 +485,15 @@ Variants {
                 asynchronous: true
                 onStatusChanged: {
                     if (status === Image.Ready) {
+                        transitionSafetyTimer.stop()
                         // Update portrait detection for vertical parallax using QML's intrinsic image size
                         bgRoot.wallpaperIsPortrait = (implicitHeight > implicitWidth)
                         if (bgRoot.transitionProgress === 0.0) {
                             transitionAnim.restart()
                         }
-                    } else if (status === Image.Error && source === _cropPath && _originalPath.length > 0) {
-                        // Crop not generated yet — fall back to original
-                        source = _originalPath
+                    } else if (status === Image.Error && !_cropFailed && source === _cropPath && _originalPath.length > 0) {
+                        // Crop not generated yet — fall back to original via binding
+                        _cropFailed = true
                     }
                 }
 
@@ -532,10 +549,12 @@ Variants {
 
                 // Use pre-cropped cache matching full scaled parallax resolution if available, fall back to original
                 property string _originalPath: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+                property bool _cropFailed: false
+                on_OriginalPathChanged: _cropFailed = false
                 property string _cropPath: _originalPath.length > 0
                     ? Wallpapers.getCachedCropPath(_originalPath, Math.ceil(bgRoot.scaledWallpaperWidth), Math.ceil(bgRoot.scaledWallpaperHeight))
                     : ""
-                source: _cropPath.length > 0 ? _cropPath : _originalPath
+                source: (!_cropFailed && _cropPath.length > 0) ? _cropPath : _originalPath
                 fillMode: Image.PreserveAspectCrop
                 Behavior on x {
                     NumberAnimation {

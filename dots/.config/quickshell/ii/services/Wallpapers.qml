@@ -57,9 +57,25 @@ Singleton {
         Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light"]);
     }
 
+    Timer {
+        id: confirmedPathClearTimer
+        interval: 8000
+        repeat: false
+        onTriggered: root.confirmedPath = ""
+    }
+
+    Connections {
+        target: Config.options?.background ?? null
+        function onWallpaperPathChanged() {
+            root.confirmedPath = "";
+            confirmedPathClearTimer.stop();
+        }
+    }
+
     function apply(path, darkMode = Appearance.m3colors.darkmode, keepSlideshow = false) {
         if (!path || path.length === 0) return;
         root.confirmedPath = path;
+        confirmedPathClearTimer.restart();
         const args = [Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light", "--image", path];
         if (keepSlideshow) args.push("--keep-slideshow");
         Quickshell.execDetached(args);

@@ -142,6 +142,7 @@ Singleton {
 
     function apply(path) {
         if (!path || path.length === 0) return
+        Wallpapers.confirmedPath = path
         // --keep-slideshow is what separates a tick from someone choosing a
         // single wallpaper; without it the script reads this as the user
         // picking one and turns the rotation off mid-run.

@@ -103,7 +103,7 @@ apply_anyterm() {
   (
     for file in /dev/pts/[0-9]*; do
       if [ -w "$file" ]; then
-        cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file" 2>/dev/null
+        timeout 0.1 cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file" 2>/dev/null || true
       fi
     done
   ) & disown || true
@@ -120,7 +120,7 @@ apply_term() {
     (
       for file in /dev/pts/[0-9]*; do
         if [ -w "$file" ]; then
-          cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file" 2>/dev/null
+          timeout 0.1 cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file" 2>/dev/null || true
         fi
       done
     ) & disown || true

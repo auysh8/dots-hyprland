@@ -113,7 +113,7 @@
     "transitionDurationMs": 1700,
     "transitionEasingMode": "customBezier",
     "wallpaperAnimation": "wp_disc",
-    "wallpaperPath": "/home/auysh/Pictures/Wallpapers/superman.png",
+    "wallpaperPath": "/home/auysh/Pictures/Wallpapers/shinchan.png",
     "widgets": {
       "calendar": {
         "enable": true,
@@ -159,7 +159,7 @@
         "quote": {
           "enable": true,
           "followClock": false,
-          "text": "The soul is never born and never dies."
+          "text": "Calmness is the cradle of power."
         },
         "showOnlyWhenLocked": false,
         "style": "pixel",

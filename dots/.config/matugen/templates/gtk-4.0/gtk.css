@@ -539,3 +539,33 @@ tooltip {
 .image-button.flat arrow {
   background: transparent;
 }
+
+/* Translucent Menus & Popovers */
+popover,
+popover.menu,
+popover.background,
+popover.menu.background {
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  border: none;
+}
+
+popover > arrow,
+popover arrow {
+  background: transparent;
+  background-color: transparent;
+  border: none;
+}
+
+popover contents,
+popover > contents,
+popover.menu > contents,
+popover.menu contents {
+  background: rgba(80, 78, 92, 0.35);
+  background-color: rgba(80, 78, 92, 0.35);
+  box-shadow: none;
+  border: none;
+  border-radius: 12px;
+}
+
