@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.models
@@ -10,7 +11,7 @@ import qs.modules.common.widgets
 import qs.services
 
 Item {
-    id: root
+    id: pomodoroPageRoot
     anchors.fill: parent
 
     // Color Logic
@@ -63,8 +64,14 @@ Item {
                 id: shapeBackground
                 anchors.fill: parent
                 implicitSize: 78
-                color: root.isBreak ? Appearance.colors.colSecondaryContainer : Appearance.colors.colErrorContainer
-                shape: root.isBreak ? MaterialShape.Shape.Cookie4Sided : MaterialShape.Shape.Clover4Leaf
+                color: pomodoroPageRoot.containerColor
+                shape: pomodoroPageRoot.isRunning
+                    ? MaterialShape.Shape.Sunny
+                    : (pomodoroPageRoot.isBreak ? MaterialShape.Shape.Cookie4Sided : MaterialShape.Shape.Clover4Leaf)
+                animation: NumberAnimation {
+                    duration: 250
+                    easing.type: Easing.OutCubic
+                }
 
                 Behavior on color {
                     ColorAnimation { duration: 250 }
@@ -74,14 +81,10 @@ Item {
             MaterialSymbol {
                 id: heroSymbol
                 anchors.centerIn: parent
-                text: root.isBreak ? "coffee" : "local_fire_department"
+                text: pomodoroPageRoot.isBreak ? "coffee" : "local_fire_department"
                 iconSize: 30
                 fill: 1
-                color: root.isBreak ? Appearance.colors.colOnSurface : Appearance.colors.colOnErrorContainer
-
-                Behavior on color {
-                    ColorAnimation { duration: 250 }
-                }
+                color: pomodoroPageRoot.isBreak ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnErrorContainer
             }
         }
 
@@ -115,36 +118,36 @@ Item {
 
                 // Subtitle Chip (M3 Capsule Pill aligned top-right)
                 Rectangle {
-                    implicitHeight: 24
-                    implicitWidth: subtitleRow.implicitWidth + 14
-                    radius: 12
+                    implicitHeight: 30
+                    implicitWidth: subtitleRow.implicitWidth + 20
+                    radius: 15
                     color: Appearance.colors.colSurfaceContainerHigh
 
                     Row {
                         id: subtitleRow
                         anchors.centerIn: parent
-                        spacing: 5
+                        spacing: 7
 
                         MaterialSymbol {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.isBreak ? "free_breakfast" : "self_improvement"
-                            iconSize: 13
+                            text: pomodoroPageRoot.isBreak ? "free_breakfast" : "self_improvement"
+                            iconSize: 15
                             fill: 1
-                            color: root.isBreak ? Appearance.colors.colSecondary : root.accentColor
+                            color: pomodoroPageRoot.isBreak ? Appearance.colors.colSecondary : Appearance.colors.colError
                         }
 
                         StyledText {
                             anchors.verticalCenter: parent.verticalCenter
                             text: {
                                 if (TimerService.pomodoroLongBreak)
-                                    return "Long Break • " + Math.floor(root.longBreakDuration / 60) + "m";
+                                    return "Long Break";
                                 if (TimerService.pomodoroBreak)
-                                    return "Short Break • " + Math.floor(root.shortBreakDuration / 60) + "m";
+                                    return "Short Break";
                                 let cycle = (TimerService.pomodoroCycle || 0) + 1;
                                 let total = TimerService.cyclesBeforeLongBreak || 4;
-                                return "Round " + cycle + " of " + total + " • " + Math.floor(root.focusDuration / 60) + "m";
+                                return "Round " + cycle + " of " + total;
                             }
-                            font.pixelSize: 11
+                            font.pixelSize: 14
                             font.weight: Font.DemiBold
                             color: Appearance.colors.colOnSurfaceVariant
                         }
@@ -160,7 +163,7 @@ Item {
                 spacing: 6
                 padding: 0
 
-                // Main Play / Pause / Resume Action Pill (Dynamic Focus/Break Accent)
+                // Main Play / Pause / Resume Action Pill
                 GroupButton {
                     id: playActionBtn
                     Layout.fillWidth: true
@@ -171,34 +174,36 @@ Item {
                     buttonRadiusPressed: 11
                     bounce: true
 
-                    colBackground: root.accentColor
-                    colBackgroundHover: ColorUtils.mix(root.accentColor, root.isBreak ? Appearance.colors.colOnSecondary : root.onAccentColor, 0.88)
-                    colBackgroundActive: ColorUtils.mix(root.accentColor, root.isBreak ? Appearance.colors.colOnSecondary : root.onAccentColor, 0.72)
+                    colBackground: pomodoroPageRoot.isRunning
+                        ? (pomodoroPageRoot.isBreak ? Appearance.colors.colSecondary : Appearance.colors.colError)
+                        : (pomodoroPageRoot.isBreak ? Appearance.colors.colSecondaryContainer : Appearance.colors.colErrorContainer)
+                    colBackgroundHover: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.88)
+                    colBackgroundActive: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.72)
 
                     onClicked: TimerService.togglePomodoro()
 
-                    contentItem: Item {
-                        anchors.fill: parent
+                    contentItem: Row {
+                        anchors.centerIn: parent
+                        spacing: 6
 
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 5
+                        MaterialSymbol {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: pomodoroPageRoot.isRunning ? "pause" : "play_arrow"
+                            iconSize: 17
+                            fill: 1
+                            color: pomodoroPageRoot.isRunning
+                                ? (pomodoroPageRoot.isBreak ? Appearance.colors.colOnSecondary : Appearance.colors.colOnError)
+                                : (pomodoroPageRoot.isBreak ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnErrorContainer)
+                        }
 
-                            MaterialSymbol {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: root.isRunning ? "pause" : "play_arrow"
-                                iconSize: 16
-                                fill: 1
-                                color: root.isBreak ? Appearance.colors.colOnSecondary : root.onAccentColor
-                            }
-
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: root.isRunning ? "Pause" : (TimerService.pomodoroSecondsLeft < root.currentMaxDuration ? "Resume" : "Start")
-                                font.pixelSize: 11
-                                font.weight: Font.SemiBold
-                                color: root.isBreak ? Appearance.colors.colOnSecondary : root.onAccentColor
-                            }
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: pomodoroPageRoot.isRunning ? "Pause" : (TimerService.pomodoroSecondsLeft < pomodoroPageRoot.currentMaxDuration ? "Resume" : "Start")
+                            font.pixelSize: 12
+                            font.weight: Font.Bold
+                            color: pomodoroPageRoot.isRunning
+                                ? (pomodoroPageRoot.isBreak ? Appearance.colors.colOnSecondary : Appearance.colors.colOnError)
+                                : (pomodoroPageRoot.isBreak ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnErrorContainer)
                         }
                     }
                 }
@@ -214,9 +219,9 @@ Item {
                     buttonRadiusPressed: 11
                     bounce: true
 
-                    colBackground: root.containerColor
-                    colBackgroundHover: ColorUtils.mix(root.containerColor, Appearance.colors.colOnSurface, 0.88)
-                    colBackgroundActive: ColorUtils.mix(root.containerColor, Appearance.colors.colOnSurface, 0.72)
+                    colBackground: pomodoroPageRoot.containerColor
+                    colBackgroundHover: ColorUtils.mix(pomodoroPageRoot.containerColor, Appearance.colors.colOnSurface, 0.88)
+                    colBackgroundActive: ColorUtils.mix(pomodoroPageRoot.containerColor, Appearance.colors.colOnSurface, 0.72)
 
                     onClicked: TimerService.resetPomodoro()
 
@@ -241,9 +246,9 @@ Item {
                     buttonRadiusPressed: 11
                     bounce: true
 
-                    colBackground: root.containerColor
-                    colBackgroundHover: ColorUtils.mix(root.containerColor, Appearance.colors.colOnSurface, 0.88)
-                    colBackgroundActive: ColorUtils.mix(root.containerColor, Appearance.colors.colOnSurface, 0.72)
+                    colBackground: pomodoroPageRoot.containerColor
+                    colBackgroundHover: ColorUtils.mix(pomodoroPageRoot.containerColor, Appearance.colors.colOnSurface, 0.88)
+                    colBackgroundActive: ColorUtils.mix(pomodoroPageRoot.containerColor, Appearance.colors.colOnSurface, 0.72)
 
                     onClicked: {
                         Persistent.states.timer.pomodoro.isBreak = !Persistent.states.timer.pomodoro.isBreak;

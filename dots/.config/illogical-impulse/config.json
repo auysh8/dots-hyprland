@@ -95,7 +95,7 @@
     "slideshow": {
       "enable": true,
       "folder": "",
-      "intervalMinutes": 15,
+      "intervalMinutes": 2,
       "recolor": true,
       "shuffle": true
     },
@@ -113,13 +113,13 @@
     "transitionDurationMs": 1700,
     "transitionEasingMode": "customBezier",
     "wallpaperAnimation": "wp_disc",
-    "wallpaperPath": "/home/auysh/Pictures/Wallpapers/cat.png",
+    "wallpaperPath": "/home/auysh/Pictures/Wallpapers/superman.png",
     "widgets": {
       "calendar": {
         "enable": true,
         "placementStrategy": "free",
         "sizeMode": "1x2",
-        "x": 96,
+        "x": 108,
         "y": 348
       },
       "clock": {
@@ -159,7 +159,7 @@
         "quote": {
           "enable": true,
           "followClock": false,
-          "text": "Knowledge is better than mere ritual."
+          "text": "The soul is never born and never dies."
         },
         "showOnlyWhenLocked": false,
         "style": "pixel",
@@ -209,7 +209,7 @@
         "enable": true,
         "placementStrategy": "free",
         "vertical": false,
-        "x": 84,
+        "x": 108,
         "y": 192
       },
       "timers": {
@@ -236,7 +236,7 @@
         "enable": true,
         "placementStrategy": "free",
         "x": 0,
-        "y": 0
+        "y": 840
       },
       "weather": {
         "enable": true,
@@ -366,7 +366,7 @@
     "hoverRegionHeight": 2,
     "hoverToReveal": true,
     "ignoredAppRegexes": [],
-    "launchAnimation": 2,
+    "launchAnimation": 1,
     "monochromeIcons": false,
     "pinnedApps": [
       "kitty",

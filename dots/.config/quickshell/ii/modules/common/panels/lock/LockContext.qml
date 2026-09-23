@@ -50,6 +50,11 @@ Scope {
         interval: 10000
         onTriggered: {
             root.reset();
+            // Restart fingerprint scanning after idle reset so it doesn't
+            // go dead for the rest of the lock session.
+            if (GlobalStates.screenLocked) {
+                root.tryFingerUnlock();
+            }
         }
     }
 
@@ -58,6 +63,10 @@ Scope {
         interval: 2500
         onTriggered: {
             root.fingerScanFailed = false;
+            // Retry after cooldown (covers both Failed and Error cases)
+            if (GlobalStates.screenLocked) {
+                root.tryFingerUnlock();
+            }
         }
     }
 
@@ -66,6 +75,11 @@ Scope {
             showFailure = false;
             fingerScanFailed = false;
             GlobalStates.screenUnlockFailed = false;
+            // Pause fingerprint while typing so they don't race each other
+            stopFingerPam();
+        } else {
+            // Text was cleared — resume fingerprint scanning
+            tryFingerUnlock();
         }
         GlobalStates.screenLockContainsCharacters = currentText.length > 0;
         passwordClearTimer.restart();
@@ -149,7 +163,8 @@ Scope {
                 fingerFailResetTimer.restart();
                 tryFingerUnlock();
             } else if (result == PamResult.Error) {
-                tryFingerUnlock();
+                // Wait before retrying on error to avoid an instant crash loop
+                fingerFailResetTimer.restart();
             }
         }
     }

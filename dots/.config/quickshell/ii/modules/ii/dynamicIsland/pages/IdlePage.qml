@@ -65,27 +65,27 @@ Item {
             }
 
             Rectangle {
-                implicitHeight: 24
-                implicitWidth: dateRow.implicitWidth + 14
-                radius: 12
+                implicitHeight: 30
+                implicitWidth: dateRow.implicitWidth + 20
+                radius: 15
                 color: Appearance.colors.colSurfaceContainerHigh
 
                 Row {
                     id: dateRow
                     anchors.centerIn: parent
-                    spacing: 5
+                    spacing: 7
 
                     MaterialSymbol {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "calendar_today"
-                        iconSize: 12
+                        iconSize: 15
                         color: Appearance.colors.colSecondary
                     }
 
                     StyledText {
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.date
-                        font.pixelSize: 11
+                        font.pixelSize: 14
                         font.weight: Font.Medium
                         color: Appearance.colors.colOnSurfaceVariant
                     }

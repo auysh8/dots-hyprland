@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.models
@@ -10,18 +11,14 @@ import qs.modules.common.widgets
 import qs.services
 
 Item {
-    id: root
+    id: stopwatchPageRoot
     anchors.fill: parent
 
     // Properties & Theming
     readonly property bool isRunning: TimerService.stopwatchRunning
     readonly property bool hasElapsed: TimerService.stopwatchTime > 0
     readonly property color containerColor: Appearance.colors.colTertiaryContainer
-    // The hero glyph sits alone on the tone-60 tertiary slab. Its paired
-    // colOnTertiaryContainer is pure black (#000000) and colOnTertiary resolves to a
-    // near-black olive, so use the tone-30 warm brown: it reads as brown rather than
-    // black while holding ~3.0:1 on the slab, the floor for a large 32px glyph.
-    readonly property color onContainerColor: Appearance.m3colors.m3onTertiaryFixedVariant
+    readonly property color onContainerColor: Appearance.colors.colOnTertiaryContainer
     readonly property color accentColor: Appearance.colors.colTertiary
     readonly property color onAccentColor: Appearance.colors.colOnTertiary
 
@@ -49,8 +46,8 @@ Item {
                 id: shapeBackground
                 anchors.fill: parent
                 implicitSize: 76
-                color: root.containerColor
-                shape: root.isRunning ? MaterialShape.Shape.Sunny : MaterialShape.Shape.Cookie4Sided
+                color: stopwatchPageRoot.containerColor
+                shape: stopwatchPageRoot.isRunning ? MaterialShape.Shape.Sunny : MaterialShape.Shape.Cookie4Sided
                 animation: NumberAnimation {
                     duration: 250
                     easing.type: Easing.OutCubic
@@ -67,11 +64,7 @@ Item {
                 text: "timer"
                 iconSize: 32
                 fill: 1
-                color: root.onContainerColor
-
-                Behavior on color {
-                    ColorAnimation { duration: 250 }
-                }
+                color: Appearance.colors.colOnTertiaryContainer
             }
         }
 
@@ -109,7 +102,7 @@ Item {
                         text: "." + Math.floor((TimerService.stopwatchTime % 100)).toString().padStart(2, '0')
                         font.pixelSize: 18
                         font.weight: Font.DemiBold
-                        color: root.accentColor
+                        color: stopwatchPageRoot.accentColor
                         opacity: 0.9
                     }
                 }
@@ -120,28 +113,28 @@ Item {
 
                 // Lap Capsule Pill
                 Rectangle {
-                    implicitHeight: 24
-                    implicitWidth: lapRow.implicitWidth + 14
-                    radius: 12
+                    implicitHeight: 30
+                    implicitWidth: lapRow.implicitWidth + 20
+                    radius: 15
                     color: Appearance.colors.colSurfaceContainerHigh
 
                     Row {
                         id: lapRow
                         anchors.centerIn: parent
-                        spacing: 5
+                        spacing: 7
 
                         MaterialSymbol {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "flag"
-                            iconSize: 13
+                            iconSize: 15
                             fill: 1
-                            color: root.accentColor
+                            color: stopwatchPageRoot.accentColor
                         }
 
                         StyledText {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "Lap " + (TimerService.stopwatchLaps ? (TimerService.stopwatchLaps.length + 1) : 1)
-                            font.pixelSize: 11
+                            font.pixelSize: 14
                             font.weight: Font.DemiBold
                             color: Appearance.colors.colOnSurfaceVariant
                         }
@@ -168,7 +161,7 @@ Item {
                     buttonRadiusPressed: 11
                     bounce: true
 
-                    colBackground: root.isRunning ? Appearance.colors.colSecondaryContainer : root.accentColor
+                    colBackground: stopwatchPageRoot.isRunning ? Appearance.colors.colSecondaryContainer : Appearance.colors.colTertiaryContainer
                     colBackgroundHover: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.88)
                     colBackgroundActive: ColorUtils.mix(colBackground, Appearance.colors.colOnSurface, 0.72)
 
@@ -180,18 +173,18 @@ Item {
 
                         MaterialSymbol {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.isRunning ? "pause" : "play_arrow"
+                            text: stopwatchPageRoot.isRunning ? "pause" : "play_arrow"
                             iconSize: 17
                             fill: 1
-                            color: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
+                            color: stopwatchPageRoot.isRunning ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnTertiaryContainer
                         }
 
                         StyledText {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.isRunning ? "Pause" : (root.hasElapsed ? "Resume" : "Start")
+                            text: stopwatchPageRoot.isRunning ? "Pause" : (stopwatchPageRoot.hasElapsed ? "Resume" : "Start")
                             font.pixelSize: 12
                             font.weight: Font.Bold
-                            color: root.isRunning ? Appearance.colors.colOnSecondaryContainer : root.onAccentColor
+                            color: stopwatchPageRoot.isRunning ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnTertiaryContainer
                         }
                     }
                 }
@@ -206,8 +199,8 @@ Item {
                     buttonRadius: 16
                     buttonRadiusPressed: 11
                     bounce: true
-                    enabled: root.isRunning
-                    opacity: root.isRunning ? 1.0 : 0.45
+                    enabled: stopwatchPageRoot.isRunning
+                    opacity: stopwatchPageRoot.isRunning ? 1.0 : 0.45
 
                     Behavior on opacity {
                         NumberAnimation { duration: 180 }
@@ -239,8 +232,8 @@ Item {
                     buttonRadius: 16
                     buttonRadiusPressed: 11
                     bounce: true
-                    enabled: root.hasElapsed
-                    opacity: root.hasElapsed ? 1.0 : 0.45
+                    enabled: stopwatchPageRoot.hasElapsed
+                    opacity: stopwatchPageRoot.hasElapsed ? 1.0 : 0.45
 
                     Behavior on opacity {
                         NumberAnimation { duration: 180 }

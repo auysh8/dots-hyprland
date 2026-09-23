@@ -50,7 +50,7 @@ Singleton {
 
     // Regenerating the palette costs a second of work plus a reload every
     // client feels, so it gets a floor a plain image swap doesn't need.
-    readonly property int minimumInterval: (root.opts?.recolor ?? false) ? 15 : 5
+    readonly property int minimumInterval: 2
     readonly property int intervalMinutes: Math.max(root.minimumInterval, root.opts?.intervalMinutes ?? 30)
 
     readonly property bool active: root._rotationEnabled

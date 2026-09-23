@@ -282,9 +282,9 @@ Item {
                     RippleButton {
                         id: playerBadge
                         Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-                        implicitHeight: 22
-                        implicitWidth: playerRow.implicitWidth + 14
-                        buttonRadius: 11
+                        implicitHeight: 30
+                        implicitWidth: playerRow.implicitWidth + 20
+                        buttonRadius: 15
                         pointingHandCursor: root.availablePlayers.length > 1
 
                         colBackground: ColorUtils.applyAlpha(root.contentColor, 0.10)
@@ -301,7 +301,7 @@ Item {
 
                         contentItem: Row {
                             id: playerRow
-                            spacing: 4
+                            spacing: 6
 
                             MaterialSymbol {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -312,7 +312,7 @@ Item {
                                     if (name.includes("vlc") || name.includes("mpv")) return "movie";
                                     return "headphones";
                                 }
-                                iconSize: 12
+                                iconSize: 15
                                 fill: 1
                                 color: root.secondaryContentColor
                             }
@@ -321,7 +321,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: activePlayer?.identity || "No Player"
                                 color: root.secondaryContentColor
-                                font.pixelSize: 10
+                                font.pixelSize: 13
                                 font.weight: Font.Medium
                                 elide: Text.ElideRight
                                 maximumLineCount: 1
@@ -330,7 +330,7 @@ Item {
                             MaterialSymbol {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: playerPickerPopup.opened ? "expand_less" : "expand_more"
-                                iconSize: 11
+                                iconSize: 14
                                 fill: 1
                                 color: root.secondaryContentColor
                                 visible: root.availablePlayers.length > 1

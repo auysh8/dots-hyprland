@@ -187,8 +187,22 @@ Singleton {
         property color colTertiaryContainer: (_trigger, m3colors.m3tertiaryContainer)
         property color colTertiaryContainerHover: ColorUtils.mix(m3colors.m3tertiaryContainer, m3colors.m3onTertiaryContainer, 0.90)
         property color colTertiaryContainerActive: ColorUtils.mix(m3colors.m3tertiaryContainer, colLayer1Active, 0.54)
-        property color colOnTertiary: (_trigger, m3colors.m3onTertiary)
-        property color colOnTertiaryContainer: (_trigger, m3colors.m3onTertiaryContainer)
+        property color colOnTertiary: {
+            _trigger;
+            const c = m3colors.m3onTertiary;
+            if (Qt.color(c).hslLightness < 0.05) {
+                return ColorUtils.mix(c, m3colors.m3tertiaryContainer, 0.72);
+            }
+            return c;
+        }
+        property color colOnTertiaryContainer: {
+            _trigger;
+            const c = m3colors.m3onTertiaryContainer;
+            if (Qt.color(c).hslLightness < 0.05) {
+                return ColorUtils.mix(c, m3colors.m3tertiaryContainer, 0.72);
+            }
+            return c;
+        }
         // Surface
         property color colBackgroundSurfaceContainer: ColorUtils.transparentize(m3colors.m3surfaceContainer, root.backgroundTransparency)
         property color colSurfaceContainerLow: ColorUtils.solveOverlayColor(m3colors.m3background, m3colors.m3surfaceContainerLow, 1 - root.contentTransparency)

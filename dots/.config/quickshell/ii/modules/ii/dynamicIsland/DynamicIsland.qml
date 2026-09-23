@@ -2220,20 +2220,40 @@ Scope {
                         }
                     }
 
-                    property real morphProgress: 0.0
+                    // rawProgress always animates 0→1 regardless of direction.
+                    // detaching=true  → spring curve (natural overshoot on the way out)
+                    // detaching=false → linear fade from attachStartMorphProgress down to 0
+                    property real rawProgress: 0.0
+                    property bool detaching: true
+                    property real attachStartMorphProgress: 1.0
                     readonly property bool morphRunning: morphAnim.running
                     property bool detachRecoilFired: false
                     property bool attachRecoilFired: false
 
+                    // Damped spring: decay=6.4, frequency=7.2 → fast rise, small overshoot, quick settle.
+                    function springResponse(p) {
+                        if (p <= 0.0) return 0.0;
+                        if (p >= 1.0) return 1.0;
+                        const decay = 6.4, freq = 7.2;
+                        const phase = decay / freq;
+                        const value = 1.0 - Math.exp(-decay * p) * (Math.cos(freq * p) + phase * Math.sin(freq * p));
+                        const terminal = 1.0 - Math.exp(-decay) * (Math.cos(freq) + phase * Math.sin(freq));
+                        return Math.max(0.0, value / terminal);
+                    }
+
+                    readonly property real morphProgress: detaching
+                        ? springResponse(rawProgress)
+                        : attachStartMorphProgress * Math.max(0.0, 1.0 - rawProgress)
+
                     onMorphProgressChanged: {
                         if (morphAnim.running) {
                             // Detachment pinch-off (bridge separates around p = 0.80)
-                            if (morphAnim.to > 0.5 && morphProgress >= 0.79 && !detachRecoilFired) {
+                            if (detaching && morphProgress >= 0.79 && !detachRecoilFired) {
                                 detachRecoilFired = true;
                                 islandPill.triggerDetachRecoil();
                             }
                             // Attachment absorption (droplet touches and merges at p <= 0.05)
-                            else if (morphAnim.to < 0.5 && morphProgress <= 0.05 && !attachRecoilFired) {
+                            else if (!detaching && morphProgress <= 0.05 && !attachRecoilFired) {
                                 attachRecoilFired = true;
                                 islandPill.triggerAttachRecoil();
                             }
@@ -2282,8 +2302,8 @@ Scope {
                         return smoothStep((p - 0.80) / 0.20);
                     }
 
-                    property int detachDuration: 1200
-                    property int attachDuration: 960
+                    property int detachDuration: 2600
+                    property int attachDuration: 1700
 
                     onHasSatelliteTaskChanged: {
                         detachRecoilFired = false;
@@ -2295,7 +2315,8 @@ Scope {
                             syncLayoutStates();
                             if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
                                 morphAnim.stop();
-                                morphProgress = 0.0;
+                                detaching = true;
+                                rawProgress = 0.0;
                                 morphAnim.from = 0.0;
                                 morphAnim.to = 1.0;
                                 morphAnim.duration = detachDuration;
@@ -2303,19 +2324,25 @@ Scope {
                                 morphAnim.restart();
                             } else {
                                 morphAnim.stop();
-                                morphProgress = 1.0;
+                                detaching = true;
+                                rawProgress = 1.0;
                             }
                         } else {
                             if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
                                 morphAnim.stop();
-                                morphAnim.from = morphProgress;
-                                morphAnim.to = 0.0;
+                                // Capture current visual position; attach fades linearly from here.
+                                attachStartMorphProgress = morphProgress;
+                                detaching = false;
+                                rawProgress = 0.0;
+                                morphAnim.from = 0.0;
+                                morphAnim.to = 1.0;
                                 morphAnim.duration = Math.max(280, Math.round(attachDuration * morphProgress));
                                 morphAnim.easing.type = Easing.Linear;
                                 morphAnim.restart();
                             } else {
                                 morphAnim.stop();
-                                morphProgress = 0.0;
+                                detaching = true;
+                                rawProgress = 0.0;
                             }
                         }
                     }
@@ -2329,7 +2356,8 @@ Scope {
 
                     Component.onCompleted: {
                         if (hasSatelliteTask) {
-                            morphProgress = 1.0;
+                            detaching = true;
+                            rawProgress = 1.0;
                             syncLayoutStates();
                         }
                     }
@@ -2383,7 +2411,7 @@ Scope {
                     NumberAnimation {
                         id: morphAnim
                         target: islandSatellite
-                        property: "morphProgress"
+                        property: "rawProgress"
                     }
 
                     // Background glass capsule
@@ -2707,20 +2735,40 @@ Scope {
                         && !islandContainer.expanded
                         && islandContainer.islandVisible
 
-                    property real morphProgress: 0.0
+                    // rawProgress always animates 0→1 regardless of direction.
+                    // detaching=true  → spring curve (natural overshoot on the way out)
+                    // detaching=false → linear fade from attachStartMorphProgress down to 0
+                    property real rawProgress: 0.0
+                    property bool detaching: true
+                    property real attachStartMorphProgress: 1.0
                     readonly property bool morphRunning: morphAnimPrivacy.running
                     property bool detachRecoilFired: false
                     property bool attachRecoilFired: false
 
+                    // Damped spring: decay=6.4, frequency=7.2 → fast rise, small overshoot, quick settle.
+                    function springResponse(p) {
+                        if (p <= 0.0) return 0.0;
+                        if (p >= 1.0) return 1.0;
+                        const decay = 6.4, freq = 7.2;
+                        const phase = decay / freq;
+                        const value = 1.0 - Math.exp(-decay * p) * (Math.cos(freq * p) + phase * Math.sin(freq * p));
+                        const terminal = 1.0 - Math.exp(-decay) * (Math.cos(freq) + phase * Math.sin(freq));
+                        return Math.max(0.0, value / terminal);
+                    }
+
+                    readonly property real morphProgress: detaching
+                        ? springResponse(rawProgress)
+                        : attachStartMorphProgress * Math.max(0.0, 1.0 - rawProgress)
+
                     onMorphProgressChanged: {
                         if (morphAnimPrivacy.running) {
                             // Detachment pinch-off (bridge separates around p = 0.80)
-                            if (morphAnimPrivacy.to > 0.5 && morphProgress >= 0.79 && !detachRecoilFired) {
+                            if (detaching && morphProgress >= 0.79 && !detachRecoilFired) {
                                 detachRecoilFired = true;
                                 islandPill.triggerLeftDetachRecoil();
                             }
                             // Attachment absorption (droplet touches and merges at p <= 0.05)
-                            else if (morphAnimPrivacy.to < 0.5 && morphProgress <= 0.05 && !attachRecoilFired) {
+                            else if (!detaching && morphProgress <= 0.05 && !attachRecoilFired) {
                                 attachRecoilFired = true;
                                 islandPill.triggerLeftAttachRecoil();
                             }
@@ -2769,8 +2817,8 @@ Scope {
                         return smoothStep((p - 0.80) / 0.20);
                     }
 
-                    property int detachDuration: 1200
-                    property int attachDuration: 960
+                    property int detachDuration: 2600
+                    property int attachDuration: 1700
 
                     onPrivacyActiveChanged: {
                         detachRecoilFired = false;
@@ -2781,7 +2829,8 @@ Scope {
                         if (privacyActive) {
                             if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
                                 morphAnimPrivacy.stop();
-                                morphProgress = 0.0;
+                                detaching = true;
+                                rawProgress = 0.0;
                                 morphAnimPrivacy.from = 0.0;
                                 morphAnimPrivacy.to = 1.0;
                                 morphAnimPrivacy.duration = detachDuration;
@@ -2789,26 +2838,33 @@ Scope {
                                 morphAnimPrivacy.restart();
                             } else {
                                 morphAnimPrivacy.stop();
-                                morphProgress = 1.0;
+                                detaching = true;
+                                rawProgress = 1.0;
                             }
                         } else {
                             if (islandContainer.islandVisible && !islandContainer.expanded && islandContainer.mode === 0) {
                                 morphAnimPrivacy.stop();
-                                morphAnimPrivacy.from = morphProgress;
-                                morphAnimPrivacy.to = 0.0;
+                                // Capture current visual position; attach fades linearly from here.
+                                attachStartMorphProgress = morphProgress;
+                                detaching = false;
+                                rawProgress = 0.0;
+                                morphAnimPrivacy.from = 0.0;
+                                morphAnimPrivacy.to = 1.0;
                                 morphAnimPrivacy.duration = Math.max(280, Math.round(attachDuration * morphProgress));
                                 morphAnimPrivacy.easing.type = Easing.Linear;
                                 morphAnimPrivacy.restart();
                             } else {
                                 morphAnimPrivacy.stop();
-                                morphProgress = 0.0;
+                                detaching = true;
+                                rawProgress = 0.0;
                             }
                         }
                     }
 
                     Component.onCompleted: {
                         if (privacyActive) {
-                            morphProgress = 1.0;
+                            detaching = true;
+                            rawProgress = 1.0;
                         }
                     }
 
@@ -2852,7 +2908,7 @@ Scope {
                     NumberAnimation {
                         id: morphAnimPrivacy
                         target: islandPrivacySatellite
-                        property: "morphProgress"
+                        property: "rawProgress"
                     }
 
                     // Background glass capsule

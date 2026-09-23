@@ -562,7 +562,7 @@ ContentPage {
                     value: Math.max(WallpaperSlideshow.minimumInterval, Config.options.background.slideshow.intervalMinutes)
                     from: WallpaperSlideshow.minimumInterval
                     to: 720
-                    stepSize: 5
+                    stepSize: 1
                     onValueChanged: {
                         Config.options.background.slideshow.intervalMinutes = value;
                     }

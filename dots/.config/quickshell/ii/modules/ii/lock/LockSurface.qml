@@ -215,7 +215,7 @@ MouseArea {
         scale: root.toolbarScale
         opacity: root.toolbarOpacity
 
-        // Fingerprint
+        // Fingerprint / keyboard icon — crossfades to indicate state
         Loader {
             id: fingerprintLoader
             Layout.leftMargin: 10
@@ -224,12 +224,44 @@ MouseArea {
             active: root.context.fingerprintsConfigured
             visible: active
 
-            sourceComponent: MaterialSymbol {
-                id: fingerprintIcon
-                fill: 1
-                text: "fingerprint"
-                iconSize: Appearance.font.pixelSize.hugeass
-                color: Appearance.colors.colOnSurfaceVariant
+            sourceComponent: Item {
+                implicitWidth: Appearance.font.pixelSize.hugeass
+                implicitHeight: Appearance.font.pixelSize.hugeass
+
+                // true = user is typing, fingerprint is paused
+                readonly property bool isTyping: root.context.currentText.length > 0
+
+                // Fingerprint icon — visible when idle
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    fill: 1
+                    text: "fingerprint"
+                    iconSize: Appearance.font.pixelSize.hugeass
+                    color: Appearance.colors.colOnSurfaceVariant
+                    opacity: parent.isTyping ? 0 : 1
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Appearance.animation.elementMoveFast.duration
+                            easing.type: Appearance.animation.elementMoveFast.type
+                        }
+                    }
+                }
+
+                // Keyboard icon — visible when typing
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    fill: 1
+                    text: "keyboard"
+                    iconSize: Appearance.font.pixelSize.hugeass
+                    color: Appearance.colors.colOnSurfaceVariant
+                    opacity: parent.isTyping ? 1 : 0
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Appearance.animation.elementMoveFast.duration
+                            easing.type: Appearance.animation.elementMoveFast.type
+                        }
+                    }
+                }
             }
         }
 
