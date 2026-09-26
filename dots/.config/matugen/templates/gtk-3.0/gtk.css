@@ -40,7 +40,7 @@
 /* Translucent GTK 3 Context Menus */
 menu,
 .menu {
-    background-color: rgba(80, 78, 92, 0.35);
+    background-color: rgba(80, 78, 92, 0.28);
     padding: 6px;
     border-radius: 12px;
     border: none;

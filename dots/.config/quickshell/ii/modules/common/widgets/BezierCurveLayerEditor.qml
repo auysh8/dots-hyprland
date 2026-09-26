@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Effects
 import Qt5Compat.GraphicalEffects
 import Quickshell
 import qs
@@ -320,7 +321,18 @@ Item {
             objectName = "bezierCurveWorkbenchOverlay";
             parent = Window.window.contentItem;
             anchors.fill = parent;
+            if (root.show) {
+                GlobalStates.settingsModalOpen = true;
+            }
         }
+    }
+
+    Component.onDestruction: {
+        GlobalStates.settingsModalOpen = false;
+    }
+
+    onShowChanged: {
+        GlobalStates.settingsModalOpen = root.show;
     }
 
     visible: opacity > 0
@@ -332,6 +344,7 @@ Item {
     // Scrim backdrop
     Rectangle {
         anchors.fill: parent
+        radius: Appearance.rounding.verylarge
         color: Appearance.colors.colScrim
 
         MouseArea {
@@ -347,10 +360,15 @@ Item {
         width: Math.min(parent.width - 64, 920)
         height: Math.min(parent.height - 64, 620)
         radius: Appearance.rounding.large ?? 16
-        color: Appearance.colors.colLayer4Base
+        color: Appearance.m3colors.m3surfaceContainerHigh
         border.width: 1
-        border.color: Appearance.colors.colOutlineVariant
+        border.color: Appearance.colors.colLayer0Border
         clip: true
+
+        StyledRectangularShadow {
+            target: card
+            opacity: card.opacity
+        }
 
         scale: root.show ? 1 : 0.95
         Behavior on scale {
@@ -388,6 +406,7 @@ Item {
                         anchors.centerIn: parent
                         text: "content_copy"
                         iconSize: 16
+                        fill: 1
                         color: Appearance.colors.colOnLayer2
                     }
                 }
@@ -403,6 +422,7 @@ Item {
                         anchors.centerIn: parent
                         text: "close"
                         iconSize: 18
+                        fill: 1
                         color: Appearance.colors.colOnLayer2
                     }
                 }
@@ -426,17 +446,21 @@ Item {
                         colBackgroundHover: active ? Appearance.colors.colPrimaryContainerHover : Appearance.colors.colLayer2Hover
                         onClicked: root.applyPreset(modelData)
 
-                        contentItem: RowLayout {
+                        contentItem: Row {
                             id: presetRow
                             anchors.centerIn: parent
                             spacing: 6
 
                             MaterialSymbol {
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.verticalCenterOffset: -1.5
                                 text: modelData.icon
-                                iconSize: 15
+                                iconSize: 14
+                                fill: 1
                                 color: active ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnLayer2
                             }
                             StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
                                 text: modelData.name
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 font.weight: active ? Font.Bold : Font.Normal
@@ -713,23 +737,21 @@ Item {
 
                 // Floating Zoom & Viewport Controls (Material 3 GroupButtons as in KDEDrawer & MediaPage)
                 ButtonGroup {
+                    id: zoomControls
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.margins: 12
-                    width: 114
-                    implicitWidth: 114
-                    implicitHeight: 34
                     spacing: 6
                     padding: 0
+                    color: "transparent"
                     z: 10
 
                     GroupButton {
                         id: zoomInBtn
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
                         baseWidth: 34
                         baseHeight: 34
-                        clickedWidth: baseWidth + 10
+                        clickedWidth: baseWidth + (isAtSide ? 8 : 14)
                         buttonRadius: 17
                         buttonRadiusPressed: 12
                         bounce: true
@@ -741,6 +763,7 @@ Item {
                         onClicked: root.zoomBy(1.25)
 
                         contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                             text: "zoom_in"
@@ -757,10 +780,9 @@ Item {
                     GroupButton {
                         id: zoomOutBtn
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
                         baseWidth: 34
                         baseHeight: 34
-                        clickedWidth: baseWidth + 10
+                        clickedWidth: baseWidth + (isAtSide ? 8 : 14)
                         buttonRadius: 17
                         buttonRadiusPressed: 12
                         bounce: true
@@ -772,6 +794,7 @@ Item {
                         onClicked: root.zoomBy(1 / 1.25)
 
                         contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                             text: "zoom_out"
@@ -788,10 +811,9 @@ Item {
                     GroupButton {
                         id: fitScreenBtn
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
                         baseWidth: 34
                         baseHeight: 34
-                        clickedWidth: baseWidth + 10
+                        clickedWidth: baseWidth + (isAtSide ? 8 : 14)
                         buttonRadius: 17
                         buttonRadiusPressed: 12
                         bounce: true
@@ -803,6 +825,7 @@ Item {
                         onClicked: root.fitToView(true)
 
                         contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                             text: "fit_screen"
@@ -823,51 +846,105 @@ Item {
                 Layout.fillWidth: true
                 spacing: 10
 
-                // Play / Pause Button
-                RippleButton {
-                    implicitWidth: 34
-                    implicitHeight: 34
-                    buttonRadius: Appearance.rounding.small
-                    colBackground: root.playing ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
-                    colBackgroundHover: root.playing ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer2Hover
-                    onClicked: root.togglePlayback()
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: root.playing ? "pause" : "play_arrow"
-                        iconSize: 18
-                        color: root.playing ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
-                    }
-                }
+                // Playback & Edit Controls Group
+                ButtonGroup {
+                    id: playbackButtonGroup
+                    spacing: 6
+                    padding: 0
+                    color: "transparent"
 
-                // Invert / Flip Curve
-                RippleButton {
-                    implicitWidth: 34
-                    implicitHeight: 34
-                    buttonRadius: Appearance.rounding.small
-                    colBackground: Appearance.colors.colLayer2
-                    colBackgroundHover: Appearance.colors.colLayer2Hover
-                    onClicked: root.flipCurve()
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "swap_horiz"
-                        iconSize: 18
-                        color: Appearance.colors.colOnLayer2
-                    }
-                }
+                    // Play / Pause Button
+                    GroupButton {
+                        id: playBtn
+                        Layout.fillWidth: true
+                        baseWidth: 34
+                        baseHeight: 34
+                        clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                        buttonRadius: 17
+                        buttonRadiusPressed: 12
+                        bounce: true
+                        toggled: root.playing
 
-                // Reset to default curve
-                RippleButton {
-                    implicitWidth: 34
-                    implicitHeight: 34
-                    buttonRadius: Appearance.rounding.small
-                    colBackground: Appearance.colors.colLayer2
-                    colBackgroundHover: Appearance.colors.colLayer2Hover
-                    onClicked: root.resetToDefault()
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        text: "restart_alt"
-                        iconSize: 18
-                        color: Appearance.colors.colOnLayer2
+                        colBackground: root.playing ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
+                        colBackgroundHover: root.playing ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer2Hover
+                        colBackgroundActive: root.playing ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer2Hover
+                        onClicked: root.togglePlayback()
+
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            text: root.playing ? "pause" : "play_arrow"
+                            iconSize: 18
+                            fill: 1
+                            color: root.playing ? Appearance.colors.colOnPrimary : (playBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2)
+                        }
+
+                        StyledToolTip {
+                            text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Play / Pause") : "Play / Pause"
+                        }
+                    }
+
+                    // Invert / Flip Curve
+                    GroupButton {
+                        id: flipBtn
+                        Layout.fillWidth: true
+                        baseWidth: 34
+                        baseHeight: 34
+                        clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                        buttonRadius: 17
+                        buttonRadiusPressed: 12
+                        bounce: true
+
+                        colBackground: Appearance.colors.colLayer2
+                        colBackgroundHover: Appearance.colors.colLayer2Hover
+                        colBackgroundActive: Appearance.colors.colLayer2Hover
+                        onClicked: root.flipCurve()
+
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            text: "swap_horiz"
+                            iconSize: 18
+                            fill: 1
+                            color: flipBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                        }
+
+                        StyledToolTip {
+                            text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Flip Curve") : "Flip Curve"
+                        }
+                    }
+
+                    // Reset to default curve
+                    GroupButton {
+                        id: resetBtn
+                        Layout.fillWidth: true
+                        baseWidth: 34
+                        baseHeight: 34
+                        clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                        buttonRadius: 17
+                        buttonRadiusPressed: 12
+                        bounce: true
+
+                        colBackground: Appearance.colors.colLayer2
+                        colBackgroundHover: Appearance.colors.colLayer2Hover
+                        colBackgroundActive: Appearance.colors.colLayer2Hover
+                        onClicked: root.resetToDefault()
+
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            text: "restart_alt"
+                            iconSize: 18
+                            fill: 1
+                            color: resetBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                        }
+
+                        StyledToolTip {
+                            text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Reset to Default") : "Reset to Default"
+                        }
                     }
                 }
 
@@ -903,6 +980,7 @@ Item {
                             anchors.centerIn: parent
                             text: "motion_photos_on"
                             iconSize: 14
+                            fill: 1
                             color: Appearance.colors.colOnPrimary
                         }
                     }

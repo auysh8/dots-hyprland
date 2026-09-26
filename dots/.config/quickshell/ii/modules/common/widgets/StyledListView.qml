@@ -31,28 +31,19 @@ ListView {
     boundsBehavior: Flickable.DragOverBounds
     ScrollBar.vertical: StyledScrollBar {}
 
-    MouseArea {
-        visible: Config?.options?.interactions?.scrolling?.fasterTouchpadScroll ?? true
-        anchors.fill: parent
-        
-        // CRITICAL WAYLAND FIX: We must accept at least one mouse button type for Wayland to consistently route wheel events to this transparent area.
-        acceptedButtons: Qt.AllButtons 
-        propagateComposedEvents: true // Let clicks pass through to items below!
-
-        // Pass clicks through
-        onPressed: mouse => mouse.accepted = false
-        onReleased: mouse => mouse.accepted = false
-        onClicked: mouse => mouse.accepted = false
-        onDoubleClicked: mouse => mouse.accepted = false
-        onPressAndHold: mouse => mouse.accepted = false
-
-        onWheel: function(wheelEvent) {
+    WheelHandler {
+        id: wheelHandler
+        enabled: root.interactive && (Config?.options?.interactions?.scrolling?.fasterTouchpadScroll ?? true)
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: (wheelEvent) => {
             const delta = wheelEvent.angleDelta.y / root.mouseScrollDeltaThreshold;
             var scrollFactor = Math.abs(wheelEvent.angleDelta.y) >= root.mouseScrollDeltaThreshold ? root.mouseScrollFactor : root.touchpadScrollFactor;
 
-            const maxY = Math.max(0, root.contentHeight - root.height);
-            const base = root.contentY;
-            var targetY = Math.max(0, Math.min(base - delta * scrollFactor, maxY));
+            const minY = -root.topMargin;
+            const maxY = Math.max(minY, root.contentHeight + root.bottomMargin - root.height);
+            const base = scrollAnim.running ? root.scrollTargetY : root.contentY;
+            var targetY = Math.max(minY, Math.min(base - delta * scrollFactor, maxY));
 
             root.scrollTargetY = targetY;
             root.contentY = targetY;
@@ -61,13 +52,15 @@ ListView {
     }
 
     onMovementStarted: {
-        root.scrollTargetY = root.contentY
+        scrollAnim.stop();
+        root.scrollTargetY = root.contentY;
     }
 
     Behavior on contentY {
+        enabled: !root.moving && !root.flicking
         NumberAnimation {
             id: scrollAnim
-            alwaysRunToEnd: true
+            alwaysRunToEnd: false
             duration: Appearance.animation.scroll.duration
             easing.type: Appearance.animation.scroll.type
             easing.bezierCurve: Appearance.animation.scroll.bezierCurve
@@ -76,7 +69,9 @@ ListView {
 
     // Keep target synced when not animating (e.g., drag/flick or programmatic changes)
     onContentYChanged: {
-        root.scrollTargetY = root.contentY;
+        if (!scrollAnim.running) {
+            root.scrollTargetY = root.contentY;
+        }
     }
 
     add: Transition {

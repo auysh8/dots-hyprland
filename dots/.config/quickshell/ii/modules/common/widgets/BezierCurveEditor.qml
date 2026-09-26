@@ -710,116 +710,198 @@ Item {
             }
         }
 
-        // Action Toolbar: Play/Pause, Replay, Flip, Copy
-        RowLayout {
+        // Action Toolbar: Play/Pause, Replay, Flip, Reset, Expand, Copy
+        ButtonGroup {
+            id: actionButtonGroup
             Layout.alignment: Qt.AlignHCenter
-            spacing: 8
+            spacing: 6
+            padding: 0
+            color: "transparent"
 
-            RippleButton {
+            GroupButton {
                 id: playBtn
-                implicitWidth: 38
-                implicitHeight: 34
-                buttonRadius: 8
-                colBackground: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.12)
-                colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.22)
+                Layout.fillWidth: true
+                baseWidth: 34
+                baseHeight: 34
+                clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                buttonRadius: 17
+                buttonRadiusPressed: 12
+                bounce: true
+                toggled: root.playing
+
+                colBackground: root.playing ? Appearance.colors.colPrimary : Appearance.colors.colLayer2
+                colBackgroundHover: root.playing ? Appearance.colors.colPrimaryHover : Appearance.colors.colLayer2Hover
+                colBackgroundActive: root.playing ? Appearance.colors.colPrimaryActive : Appearance.colors.colLayer2Hover
                 onClicked: root.togglePlayback()
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: root.playing ? "pause" : "play_arrow"
-                    iconSize: 20
-                    color: Appearance.colors.colPrimary
+                    iconSize: 18
+                    fill: 1
+                    color: root.playing ? Appearance.colors.colOnPrimary : (playBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2)
+                }
+
+                StyledToolTip {
+                    text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Play / Pause") : "Play / Pause"
                 }
             }
 
-            RippleButton {
+            GroupButton {
                 id: replayBtn
-                implicitWidth: 38
-                implicitHeight: 34
-                buttonRadius: 8
-                colBackground: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.08)
-                colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.16)
+                Layout.fillWidth: true
+                baseWidth: 34
+                baseHeight: 34
+                clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                buttonRadius: 17
+                buttonRadiusPressed: 12
+                bounce: true
+
+                colBackground: Appearance.colors.colLayer2
+                colBackgroundHover: Appearance.colors.colLayer2Hover
+                colBackgroundActive: Appearance.colors.colLayer2Hover
                 onClicked: root.reversePlayback()
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: "replay"
                     iconSize: 18
-                    color: Appearance.colors.colOnSurface
+                    fill: 1
+                    color: replayBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                }
+
+                StyledToolTip {
+                    text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Replay") : "Replay"
                 }
             }
 
-            RippleButton {
+            GroupButton {
                 id: flipBtn
-                implicitWidth: 38
-                implicitHeight: 34
-                buttonRadius: 8
+                Layout.fillWidth: true
+                baseWidth: 34
+                baseHeight: 34
+                clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                buttonRadius: 17
+                buttonRadiusPressed: 12
+                bounce: true
                 enabled: root.editable
                 opacity: enabled ? 1 : 0.4
-                colBackground: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.08)
-                colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.16)
+
+                colBackground: Appearance.colors.colLayer2
+                colBackgroundHover: Appearance.colors.colLayer2Hover
+                colBackgroundActive: Appearance.colors.colLayer2Hover
                 onClicked: root.flipCurve()
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: "swap_vert"
                     iconSize: 18
-                    color: Appearance.colors.colOnSurface
+                    fill: 1
+                    color: flipBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                }
+
+                StyledToolTip {
+                    text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Invert Curve") : "Invert Curve"
                 }
             }
 
-            RippleButton {
+            GroupButton {
                 id: resetBtn
-                implicitWidth: 38
-                implicitHeight: 34
-                buttonRadius: 8
+                Layout.fillWidth: true
+                baseWidth: 34
+                baseHeight: 34
+                clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                buttonRadius: 17
+                buttonRadiusPressed: 12
+                bounce: true
                 enabled: root.editable
                 opacity: enabled ? 1 : 0.4
-                colBackground: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.08)
-                colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.16)
+
+                colBackground: Appearance.colors.colLayer2
+                colBackgroundHover: Appearance.colors.colLayer2Hover
+                colBackgroundActive: Appearance.colors.colLayer2Hover
                 onClicked: root.resetCurve()
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: "restart_alt"
                     iconSize: 18
-                    color: Appearance.colors.colOnSurface
+                    fill: 1
+                    color: resetBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                }
+
+                StyledToolTip {
+                    text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Reset to Default") : "Reset to Default"
                 }
             }
 
-            RippleButton {
+            GroupButton {
                 id: expandBtn
-                implicitWidth: 38
-                implicitHeight: 34
-                buttonRadius: 8
+                Layout.fillWidth: true
+                baseWidth: 34
+                baseHeight: 34
+                clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                buttonRadius: 17
+                buttonRadiusPressed: 12
+                bounce: true
                 enabled: root.editable
                 opacity: enabled ? 1 : 0.4
-                colBackground: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.08)
-                colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.16)
+
+                colBackground: Appearance.colors.colLayer2
+                colBackgroundHover: Appearance.colors.colLayer2Hover
+                colBackgroundActive: Appearance.colors.colLayer2Hover
                 onClicked: root.editRequested()
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: "open_in_full"
                     iconSize: 18
-                    color: Appearance.colors.colOnSurface
+                    fill: 1
+                    color: expandBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                }
+
+                StyledToolTip {
+                    text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Open in Full Editor") : "Open in Full Editor"
                 }
             }
 
-            RippleButton {
+            GroupButton {
                 id: copyBtn
-                implicitWidth: 38
-                implicitHeight: 34
-                buttonRadius: 8
-                colBackground: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.08)
-                colBackgroundHover: ColorUtils.applyAlpha(Appearance.colors.colOnSurface, 0.16)
+                Layout.fillWidth: true
+                baseWidth: 34
+                baseHeight: 34
+                clickedWidth: baseWidth + (isAtSide ? 8 : 14)
+                buttonRadius: 17
+                buttonRadiusPressed: 12
+                bounce: true
+
+                colBackground: Appearance.colors.colLayer2
+                colBackgroundHover: Appearance.colors.colLayer2Hover
+                colBackgroundActive: Appearance.colors.colLayer2Hover
                 onClicked: root.copyCoordinateList()
 
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                     text: "content_copy"
                     iconSize: 18
-                    color: Appearance.colors.colOnSurfaceVariant
+                    fill: 1
+                    color: copyBtn.hovered ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
+                }
+
+                StyledToolTip {
+                    text: (typeof Translation !== "undefined" && Translation.tr) ? Translation.tr("Copy Coordinates") : "Copy Coordinates"
                 }
             }
         }

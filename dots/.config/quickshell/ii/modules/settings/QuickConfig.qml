@@ -67,6 +67,7 @@ ContentPage {
                     iconSize: 30
                     text: dark ? "dark_mode" : "light_mode"
                     color: smallLightDarkPreferenceButton.colText
+                    fill: 1
                 }
                 StyledText {
                     Layout.alignment: Qt.AlignHCenter

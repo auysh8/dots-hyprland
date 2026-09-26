@@ -44,6 +44,7 @@ Singleton {
     property real desktopMenuX: 0
     property real desktopMenuY: 0
     property bool widgetPickerOpen: false
+    property bool settingsModalOpen: false
 
     onSidebarRightOpenChanged: {
         if (GlobalStates.sidebarRightOpen) {

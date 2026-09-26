@@ -27,6 +27,7 @@ Rectangle {
             text: "info"
             iconSize: Appearance.font.pixelSize.huge
             color: Appearance.colors.colOnPrimaryContainer
+            fill: 1
         }
 
         ColumnLayout {

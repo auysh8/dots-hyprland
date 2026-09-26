@@ -23,6 +23,7 @@ RowLayout {
         text: root.icon
         iconSize: Appearance.font.pixelSize.normal + 5
         color: Appearance.colors.colOnLayer0
+        fill: 1
     }
 
     StyledText {

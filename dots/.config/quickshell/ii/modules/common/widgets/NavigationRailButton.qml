@@ -117,6 +117,7 @@ TabButton {
                 anchors.centerIn: parent
                 iconSize: 24
                 fill: root.toggled ? 1 : 0
+                scale: root.toggled ? 1.0 : 0.94
                 font.weight: (toggled || root.hovered) ? Font.DemiBold : Font.Normal
                 text: buttonIcon
                 color: toggled 
@@ -125,6 +126,13 @@ TabButton {
 
                 Behavior on color {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                }
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: Appearance.animation.elementMoveFast.duration
+                        easing.type: Easing.OutBack
+                    }
                 }
             }
         }

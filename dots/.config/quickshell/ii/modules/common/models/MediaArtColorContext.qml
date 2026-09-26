@@ -56,10 +56,9 @@ Item {
         localArtChecker.running = false
         coverArtDownloader.running = false
         fallbackCoverArtDownloader.running = false
-        itunesArtFetcher.running = false
 
         if (!root.effectiveArtUrl || root.effectiveArtUrl.length === 0) {
-            console.log("[MediaArtColorContext] effectiveArtUrl is empty, checking youtubeArtFetcher / itunesArtFetcher...")
+            console.log("[MediaArtColorContext] effectiveArtUrl is empty, checking youtubeArtFetcher...")
             root.downloaded = false
             youtubeArtFetcher.running = false
             youtubeArtFetcher.running = true
@@ -127,46 +126,6 @@ Item {
                 }
             }
         }
-        onExited: (exitCode, exitStatus) => {
-            // If youtubeArtFetcher didn't find a direct YouTube video ID, try iTunes Search API
-            if (!root.fallbackArtUrl && !root.artUrl) {
-                itunesArtFetcher.running = false
-                itunesArtFetcher.running = true
-            }
-        }
-    }
-
-    Process {
-        id: itunesArtFetcher
-        command: [
-            "python3", "-c",
-            "import sys, urllib.parse, urllib.request, json\n" +
-            "artist = sys.argv[1].strip() if len(sys.argv) > 1 else ''\n" +
-            "title = sys.argv[2].strip() if len(sys.argv) > 2 else ''\n" +
-            "if not artist and not title: sys.exit(1)\n" +
-            "clean_title = title.split(' - ')[0].split(' • ')[0].split(' (')[0].split(' [')[0].strip()\n" +
-            "term = urllib.parse.quote(f'{artist} {clean_title}'.strip() or title)\n" +
-            "url = f'https://itunes.apple.com/search?term={term}&media=music&entity=song&limit=1'\n" +
-            "req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})\n" +
-            "try:\n" +
-            "    with urllib.request.urlopen(req, timeout=3.5) as r:\n" +
-            "        data = json.loads(r.read().decode('utf-8'))\n" +
-            "        if data.get('resultCount', 0) > 0:\n" +
-            "            art = data['results'][0].get('artworkUrl100', '')\n" +
-            "            if art: print(art.replace('100x100bb.jpg', '600x600bb.jpg'))\n" +
-            "except Exception: pass\n",
-            activePlayer?.trackArtist || "",
-            activePlayer?.trackTitle || ""
-        ]
-        stdout: SplitParser {
-            onRead: data => {
-                var url = String(data).trim()
-                if (url.length > 0 && url.startsWith("http")) {
-                    console.log("[MediaArtColorContext] itunesArtFetcher extracted cover art URL:", url)
-                    root.fallbackArtUrl = url
-                }
-            }
-        }
     }
 
     Process {
@@ -182,10 +141,8 @@ Item {
                 root.downloaded = true
                 console.log("[MediaArtColorContext] Local art verified non-empty! displayedArtFilePath:", root.displayedArtFilePath)
             } else {
-                console.log("[MediaArtColorContext] Local art missing or timed out. Attempting iTunes fallback...")
+                console.log("[MediaArtColorContext] Local art missing or timed out.")
                 root.downloaded = false
-                itunesArtFetcher.running = false
-                itunesArtFetcher.running = true
             }
         }
     }

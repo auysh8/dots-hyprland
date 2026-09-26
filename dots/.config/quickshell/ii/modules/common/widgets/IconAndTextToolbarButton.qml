@@ -20,6 +20,7 @@ ToolbarButton {
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             iconSize: 22
+            fill: 1
             text: iconBtn.iconText
             color: iconBtn.colText
         }

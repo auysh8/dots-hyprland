@@ -94,6 +94,7 @@ Item {
                             anchors.centerIn: parent
                             text: schemeTile.modelData.icon
                             iconSize: Appearance.font.pixelSize.larger
+                            fill: 1
                             color: schemeTile.isSelected ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSecondaryContainer
                         }
 
@@ -233,7 +234,7 @@ Item {
                                 text: transRow.modelData.icon
                                 iconSize: Appearance.font.pixelSize.larger
                                 color: transRow.toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
-                                fill: transRow.toggled ? 1 : 0
+                                fill: 1
                             }
                             StyledText {
                                 Layout.fillWidth: true
@@ -245,6 +246,7 @@ Item {
                                 visible: transRow.toggled
                                 text: "check"
                                 iconSize: Appearance.font.pixelSize.normal
+                                fill: 1
                                 color: Appearance.colors.colOnSecondaryContainer
                             }
                         }

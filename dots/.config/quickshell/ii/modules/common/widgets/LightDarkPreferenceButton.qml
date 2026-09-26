@@ -90,6 +90,7 @@ RippleButton {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: "check"
                                 iconSize: 20
+                                fill: 1
                                 color: lightDarkButtonRoot.toggled ? Appearance.m3colors.m3onPrimary : lightDarkButtonRoot.previewBg
                             }
                         }

@@ -21,6 +21,6 @@ MaterialShape {
         id: symbol
         anchors.centerIn: parent
         color: root.colSymbol
-        fill: root.fill
+        fill: 1
     }
 }

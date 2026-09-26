@@ -1,7 +1,8 @@
 [Style]
+CornerRadius=12
 DolphinSidebarOpacity=70
 DolphinViewOpacity=70
 MenuBarOpacity=70
-MenuOpacity=70
+MenuOpacity=35
 ToolBarOpacity=70
 WidgetDrawShadow=false

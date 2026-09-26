@@ -266,7 +266,9 @@ Item {
 
                             text: segmentContent
                             onTextChanged: {
-                                segmentContent = text
+                                if (editing) {
+                                    segmentContent = text
+                                }
                             }
 
                             Keys.onPressed: (event) => {

@@ -22,7 +22,7 @@ ColumnLayout {
             visible: root.tooltip && root.tooltip.length > 0
             text: "info"
             iconSize: Appearance.font.pixelSize.large
-            
+            fill: 1
             color: Appearance.colors.colSubtext
             MouseArea {
                 id: infoMouseArea

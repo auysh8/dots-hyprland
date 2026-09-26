@@ -25,18 +25,12 @@ Flickable {
         visible: root.isHorizontal && root.showHorizontalScrollBar
     }
 
-    MouseArea {
-        visible: (Config && Config.options && Config.options.interactions && Config.options.interactions.scrolling && Config.options.interactions.scrolling.fasterTouchpadScroll !== undefined) ? Config.options.interactions.scrolling.fasterTouchpadScroll : true
-        anchors.fill: parent
-        acceptedButtons: Qt.AllButtons
-        propagateComposedEvents: true
-
-        onPressed: mouse => mouse.accepted = false
-        onReleased: mouse => mouse.accepted = false
-        onClicked: mouse => mouse.accepted = false
-        onDoubleClicked: mouse => mouse.accepted = false
-        onPressAndHold: mouse => mouse.accepted = false
-        onWheel: function(wheelEvent) {
+    WheelHandler {
+        id: wheelHandler
+        enabled: root.interactive && ((Config && Config.options && Config.options.interactions && Config.options.interactions.scrolling && Config.options.interactions.scrolling.fasterTouchpadScroll !== undefined) ? Config.options.interactions.scrolling.fasterTouchpadScroll : true)
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: (wheelEvent) => {
             if (root.isHorizontal) {
                 const hasHorizontalDelta = Math.abs(wheelEvent.angleDelta.x) > 0;
                 const isShiftWheel = (wheelEvent.modifiers & Qt.ShiftModifier) && Math.abs(wheelEvent.angleDelta.y) > 0;
@@ -47,9 +41,10 @@ Flickable {
                     const delta = rawDelta / root.mouseScrollDeltaThreshold;
                     var scrollFactor = Math.abs(rawDelta) >= root.mouseScrollDeltaThreshold ? root.mouseScrollFactor : root.touchpadScrollFactor;
 
-                    const maxX = Math.max(0, root.contentWidth - root.width);
-                    const base = root.contentX;
-                    var targetX = Math.max(0, Math.min(base - delta * scrollFactor, maxX));
+                    const minX = -root.leftMargin;
+                    const maxX = Math.max(minX, root.contentWidth + root.rightMargin - root.width);
+                    const base = scrollAnimX.running ? root.scrollTargetX : root.contentX;
+                    var targetX = Math.max(minX, Math.min(base - delta * scrollFactor, maxX));
 
                     root.scrollTargetX = targetX;
                     root.contentX = targetX;
@@ -61,9 +56,10 @@ Flickable {
                 const delta = wheelEvent.angleDelta.y / root.mouseScrollDeltaThreshold;
                 var scrollFactor = Math.abs(wheelEvent.angleDelta.y) >= root.mouseScrollDeltaThreshold ? root.mouseScrollFactor : root.touchpadScrollFactor;
 
-                const maxY = Math.max(0, root.contentHeight - root.height);
-                const base = root.contentY;
-                var targetY = Math.max(0, Math.min(base - delta * scrollFactor, maxY));
+                const minY = -root.topMargin;
+                const maxY = Math.max(minY, root.contentHeight + root.bottomMargin - root.height);
+                const base = scrollAnim.running ? root.scrollTargetY : root.contentY;
+                var targetY = Math.max(minY, Math.min(base - delta * scrollFactor, maxY));
 
                 root.scrollTargetY = targetY;
                 root.contentY = targetY;
@@ -73,12 +69,14 @@ Flickable {
     }
 
     onMovementStarted: {
+        scrollAnim.stop();
+        scrollAnimX.stop();
         root.scrollTargetY = root.contentY;
         root.scrollTargetX = root.contentX;
     }
 
     Behavior on contentY {
-        enabled: !root.isHorizontal
+        enabled: !root.isHorizontal && !root.moving && !root.flicking
         NumberAnimation {
             id: scrollAnim
             duration: Appearance.animation.scroll.duration
@@ -88,7 +86,7 @@ Flickable {
     }
 
     Behavior on contentX {
-        enabled: root.isHorizontal
+        enabled: root.isHorizontal && !root.moving && !root.flicking
         NumberAnimation {
             id: scrollAnimX
             duration: Appearance.animation.scroll.duration
@@ -98,10 +96,14 @@ Flickable {
     }
 
     onContentYChanged: {
-        root.scrollTargetY = root.contentY;
+        if (!scrollAnim.running) {
+            root.scrollTargetY = root.contentY;
+        }
     }
 
     onContentXChanged: {
-        root.scrollTargetX = root.contentX;
+        if (!scrollAnimX.running) {
+            root.scrollTargetX = root.contentX;
+        }
     }
 }

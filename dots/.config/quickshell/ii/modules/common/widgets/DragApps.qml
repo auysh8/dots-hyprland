@@ -416,6 +416,7 @@ Item {
                                             horizontalAlignment: Text.AlignHCenter
                                             text: "close"
                                             iconSize: Appearance.font.pixelSize.normal
+                                            fill: 1
                                             color: Appearance.m3colors.m3onSurface
                                         }
                                         onClicked: { windowButton.modelData?.close() }

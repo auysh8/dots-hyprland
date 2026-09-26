@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -44,6 +45,7 @@ Scope {
             id: window
             required property var modelData
             screen: modelData
+            property bool modalOpen: false
 
             visible: root.showSettings
             WlrLayershell.layer: WlrLayer.Overlay
@@ -113,6 +115,16 @@ Scope {
                     id: settingsLoader
                     anchors.fill: parent
                     active: root.showSettings
+
+                    property real blurRadius: GlobalStates.settingsModalOpen ? 48 : 0
+                    Behavior on blurRadius { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+                    layer.enabled: blurRadius > 0
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blurMax: 48
+                        blur: settingsLoader.blurRadius / 48
+                        saturation: 0.5
+                    }
 
                     sourceComponent: SettingsContent {
                         anchors.fill: parent

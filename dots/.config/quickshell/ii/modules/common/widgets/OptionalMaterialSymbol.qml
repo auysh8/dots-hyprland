@@ -7,6 +7,7 @@ Loader {
     id: root
     required property string icon
     property real iconSize: Appearance.font.pixelSize.larger
+    property real fill: 1
     Layout.alignment: Qt.AlignVCenter
 
     active: root.icon && root.icon.length > 0
@@ -22,6 +23,7 @@ Loader {
             iconSize: root.iconSize
             color: root.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSecondaryContainer
             text: root.icon
+            fill: root.fill
         }
     }
 }

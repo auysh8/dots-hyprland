@@ -44,6 +44,7 @@ RippleButton {
                 verticalAlignment: Text.AlignVCenter
                 text: root.iconText
                 iconSize: 18
+                fill: 1
                 color: root.enabled ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3outline
             }
         }

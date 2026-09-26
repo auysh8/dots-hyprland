@@ -39,6 +39,7 @@ ComboBox {
         y: root.height / 2 - height / 2
         text: "keyboard_arrow_down"
         iconSize: Appearance.font.pixelSize.larger
+        fill: 1
         color: Appearance.colors.colOnSecondaryContainer
 
         rotation: root.popup.visible ? 180 : 0
@@ -70,6 +71,7 @@ ComboBox {
                         return root.buttonIcon;
                     }
                     iconSize: Appearance.font.pixelSize.larger
+                    fill: 1
                     color: Appearance.colors.colOnSecondaryContainer
                 }
             }
@@ -141,6 +143,7 @@ ComboBox {
                         anchors.centerIn: parent
                         text: itemDelegate.model?.icon ?? ""
                         iconSize: Appearance.font.pixelSize.larger
+                        fill: 1
                         color: itemDelegate.colText
                     }
                 }

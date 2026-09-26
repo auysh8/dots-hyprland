@@ -303,8 +303,18 @@ ApplicationWindow {
                                                                 anchors.centerIn: parent
                                                                 text: modelData.icon
                                                                 iconSize: 22
+                                                                fill: sideBtn.isSelected ? 1 : 0
+                                                                scale: sideBtn.isSelected ? 1.0 : 0.94
                                                                 rotation: modelData.iconRotation || 0
                                                                 color: sideBtn.isSelected ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+
+                                                                Behavior on color { ColorAnimation { duration: 180 } }
+                                                                Behavior on scale {
+                                                                    NumberAnimation {
+                                                                        duration: 250
+                                                                        easing.type: Easing.OutBack
+                                                                    }
+                                                                }
                                                             }
                                                         }
 

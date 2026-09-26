@@ -11,10 +11,15 @@ import socket
 import logging
 from logging.handlers import RotatingFileHandler
 from contextlib import asynccontextmanager
+import subprocess
+import hashlib
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from gemini_webapi import GeminiClient
+from gemini_webapi.constants import AccountStatus
 
 # Set up logging to both persistent file and stdout
 LOG_DIR = os.path.expanduser("~/.local/state/quickshell")
@@ -50,85 +55,112 @@ if hasattr(signal, "SIGPIPE"):
 client = None
 client_lock = asyncio.Lock()
 client_initialized_at = 0.0
-last_cookies_mtime = 0.0
-last_cookies_path = ""
+last_chrome_cookies_mtime = 0.0
+chrome_cookies_path = ""
 
 class ChatRequest(BaseModel):
     prompt: str
     model: str | None = None
     file_path: str | None = None
 
-def get_latest_cookies_file():
-    possible_bases = [
-        os.path.expanduser("~/.config/zen"),
-        os.path.expanduser("~/.zen")
+def get_chrome_password():
+    for app in ["chrome", "google-chrome", "chromium"]:
+        try:
+            res = subprocess.run(["secret-tool", "lookup", "application", app], capture_output=True, text=True, check=True)
+            if res.stdout.strip():
+                return res.stdout.strip()
+        except Exception:
+            pass
+    return "peanuts"
+
+def decrypt_chrome_cookie(enc_bytes, key):
+    if not enc_bytes:
+        return ""
+    if enc_bytes[:3] in (b"v10", b"v11"):
+        enc_bytes = enc_bytes[3:]
+    try:
+        cipher = Cipher(algorithms.AES(key), modes.CBC(b" " * 16))
+        decryptor = cipher.decryptor()
+        dec = decryptor.update(enc_bytes) + decryptor.finalize()
+        unpad = padding.PKCS7(128).unpadder()
+        val = unpad.update(dec) + unpad.finalize()
+        # In Chrome Linux v11, the first 32 bytes are a signature/header
+        if len(val) > 32 and (val[32:].startswith(b"g.a") or val[32:].startswith(b"sidts-") or val[32:].startswith(b"AK") or val[32:].startswith(b"__")):
+            return val[32:].decode("utf-8", errors="replace")
+        return val.decode("utf-8", errors="replace")
+    except Exception as e:
+        logger.debug(f"Chrome cookie decryption error: {e}")
+        return ""
+
+def get_chrome_cookies_file():
+    possible_paths = [
+        os.path.expanduser("~/.config/google-chrome/Default/Cookies"),
+        os.path.expanduser("~/.config/chromium/Default/Cookies"),
     ]
-    candidates = []
-    for base in possible_bases:
-        if not os.path.exists(base):
-            continue
-        for root, dirs, files in os.walk(base):
-            if "cookies.sqlite" in files:
-                candidates.append(os.path.join(root, "cookies.sqlite"))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-    return candidates[0]
+    for p in possible_paths:
+        if os.path.isfile(p):
+            return p
+    return None
 
-def extract_cookies():
-    global last_cookies_path, last_cookies_mtime
-    profile_path = get_latest_cookies_file()
-    if not profile_path:
-        raise FileNotFoundError("Cookies file not found in Zen browser profile paths")
-
-    last_cookies_path = profile_path
-    last_cookies_mtime = os.path.getmtime(profile_path)
-
+def extract_chrome_cookies(chrome_path: str) -> dict:
+    if not chrome_path or not os.path.exists(chrome_path):
+        return {}
     fd, temp_path = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
-    
     try:
-        shutil.copy2(profile_path, temp_path)
+        shutil.copy2(chrome_path, temp_path)
         conn = sqlite3.connect(temp_path)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT name, value 
-            FROM moz_cookies 
-            WHERE host LIKE '%google.com' 
+            SELECT name, encrypted_value 
+            FROM cookies 
+            WHERE host_key LIKE '%google.com' 
             AND name IN ('__Secure-1PSID', '__Secure-1PSIDTS', '__Secure-1PSIDCC')
+            ORDER BY last_access_utc DESC
         """)
-        cookies = {row[0]: row[1] for row in cursor.fetchall()}
+        password = get_chrome_password()
+        key = hashlib.pbkdf2_hmac("sha1", password.encode("utf-8"), b"saltysalt", 1, 16)
+        cookies = {}
+        for name, enc in cursor.fetchall():
+            if name not in cookies:
+                dec = decrypt_chrome_cookie(enc, key)
+                if dec:
+                    cookies[name] = dec
         conn.close()
         return cookies
     except Exception as e:
-        logger.error(f"Failed to read cookies from {profile_path}: {e}")
+        logger.error(f"Failed to read Chrome cookies from {chrome_path}: {e}")
         return {}
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-async def get_or_init_client(force_refresh: bool = False):
-    global client, client_initialized_at
+async def get_or_init_client(force_refresh: bool = False, require_authenticated: bool = False):
+    global client, client_initialized_at, last_chrome_cookies_mtime, chrome_cookies_path
     async with client_lock:
         now = time.time()
-        
-        # Check if browser cookies were updated on disk
+        chrome_path = get_chrome_cookies_file()
+        if not chrome_path:
+            raise FileNotFoundError("Google Chrome cookies file not found at ~/.config/google-chrome/Default/Cookies")
+
+        chrome_cookies_path = chrome_path
         cookies_changed = False
-        if last_cookies_path and os.path.exists(last_cookies_path):
-            try:
-                current_mtime = os.path.getmtime(last_cookies_path)
-                if current_mtime > last_cookies_mtime:
-                    cookies_changed = True
-            except OSError:
-                pass
+        try:
+            current_mtime = os.path.getmtime(chrome_path)
+            if last_chrome_cookies_mtime > 0 and current_mtime > last_chrome_cookies_mtime:
+                cookies_changed = True
+            last_chrome_cookies_mtime = current_mtime
+        except OSError:
+            pass
 
         expired = (now - client_initialized_at) > 1800  # 30 min expiration
 
         if client is not None and not force_refresh and not cookies_changed and not expired:
-            return client
+            if not require_authenticated or getattr(client, "account_status", None) == AccountStatus.AVAILABLE:
+                return client
 
         if cookies_changed:
-            logger.info("Browser cookies updated on disk. Refreshing GeminiClient...")
+            logger.info("Google Chrome cookies updated on disk. Refreshing GeminiClient...")
         elif expired and client is not None:
             logger.info("Client session expired (>30m). Refreshing GeminiClient...")
 
@@ -139,26 +171,32 @@ async def get_or_init_client(force_refresh: bool = False):
                 logger.debug(f"Error closing old client: {close_err}")
             client = None
 
-        try:
-            cookies = extract_cookies()
-            if '__Secure-1PSID' not in cookies:
-                logger.warning("__Secure-1PSID cookie not found in browser profile.")
+        logger.info(f"Extracting cookies exclusively from Google Chrome ({chrome_path})...")
+        cookies = extract_chrome_cookies(chrome_path)
+        if not cookies or "__Secure-1PSID" not in cookies:
+            raise RuntimeError(f"__Secure-1PSID cookie not found in Google Chrome ({chrome_path})")
 
-            new_client = GeminiClient(
-                secure_1psid=cookies.get('__Secure-1PSID'),
-                secure_1psidts=cookies.get('__Secure-1PSIDTS'),
-                secure_1psidcc=cookies.get('__Secure-1PSIDCC'),
-                timeout=120,
-                watchdog_timeout=120,
-            )
-            await new_client.init(timeout=120)
-            client = new_client
-            client_initialized_at = time.time()
-            logger.info("GeminiClient initialized successfully.")
-            return client
-        except Exception as e:
-            logger.error(f"Failed to initialize GeminiClient: {e}")
-            raise e
+        new_client = GeminiClient(
+            secure_1psid=cookies.get("__Secure-1PSID"),
+            secure_1psidts=cookies.get("__Secure-1PSIDTS"),
+            secure_1psidcc=cookies.get("__Secure-1PSIDCC"),
+            timeout=180,
+            watchdog_timeout=120,
+        )
+        if "__Secure-1PSIDCC" in cookies:
+            new_client._cookies.set("__Secure-1PSIDCC", cookies["__Secure-1PSIDCC"], domain=".google.com", secure=True)
+
+        await new_client.init(timeout=180, watchdog_timeout=120)
+        status = getattr(new_client, "account_status", None)
+        logger.info(f"Google Chrome GeminiClient status: {status}")
+
+        client = new_client
+        client_initialized_at = time.time()
+        if status == AccountStatus.AVAILABLE:
+            logger.info("GeminiClient authenticated successfully using Google Chrome. Status: AVAILABLE")
+        else:
+            logger.warning(f"Google Chrome session status is {status}. If unauthenticated, visit gemini.google.com in Google Chrome to log in or refresh your session.")
+        return client
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -219,18 +257,33 @@ async def chat(request: ChatRequest):
             elif request.file_path:
                 logger.warning(f"file_path specified but not found: {request.file_path}")
 
+            has_files = bool(files)
             # Try request with automatic retry and cookie refresh if session expired
             for attempt in range(2):
-                active_client = await get_or_init_client(force_refresh=(attempt > 0))
+                active_client = await get_or_init_client(
+                    force_refresh=(attempt > 0),
+                    require_authenticated=has_files
+                )
                 if not active_client:
                     raise RuntimeError("GeminiClient could not be initialized")
+
+                if has_files and getattr(active_client, "account_status", None) != AccountStatus.AVAILABLE:
+                    if attempt == 0:
+                        logger.info("Client not authenticated on attempt 0; forcing refresh for file upload...")
+                        await asyncio.sleep(0.5)
+                        continue
+                    err_msg = "Image upload requires an active authenticated Gemini session. Please open Google Chrome and visit gemini.google.com to log in or refresh your session."
+                    logger.warning(err_msg)
+                    yield f"data: {json.dumps({'error': err_msg})}\n\n"
+                    return
 
                 collected_chunks = []
                 failed = False
                 first_chunk_error = False
 
                 try:
-                    async for chunk in active_client.generate_content_stream(request.prompt, model=request.model or "unspecified", files=files):
+                    target_model = None if request.model in (None, "", "unspecified") else request.model
+                    async for chunk in active_client.generate_content_stream(request.prompt, model=target_model, files=files):
                         if hasattr(chunk, 'text_delta') and chunk.text_delta:
                             if not collected_chunks and is_gemini_error_text(chunk.text_delta):
                                 first_chunk_error = True
@@ -251,12 +304,13 @@ async def chat(request: ChatRequest):
                     failed = True
 
                 if failed:
-                    if attempt == 0:
+                    if attempt == 0 and not collected_chunks:
                         logger.info("Retrying request with fresh cookies...")
                         await asyncio.sleep(0.5)
                         continue
                     else:
-                        yield f"data: {json.dumps({'error': 'Failed to generate response after session refresh.'})}\n\n"
+                        if not collected_chunks:
+                            yield f"data: {json.dumps({'error': 'Failed to generate response after session refresh.'})}\n\n"
                         break
 
         except Exception as e:

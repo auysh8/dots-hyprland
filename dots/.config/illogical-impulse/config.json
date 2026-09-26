@@ -103,17 +103,17 @@
     "splitSide": "left",
     "thumbnailPath": "",
     "transitionBezierCurve": [
-      0.4,
-      1.29,
+      0.03,
+      1.11,
       0.94,
       0.54,
       1,
       1
     ],
-    "transitionDurationMs": 1700,
+    "transitionDurationMs": 2350,
     "transitionEasingMode": "customBezier",
     "wallpaperAnimation": "wp_disc",
-    "wallpaperPath": "/home/auysh/Pictures/Wallpapers/shinchan.png",
+    "wallpaperPath": "/home/auysh/Pictures/Wallpapers/superman.png",
     "widgets": {
       "calendar": {
         "enable": true,
@@ -659,7 +659,7 @@
     }
   },
   "sounds": {
-    "battery": false,
+    "battery": true,
     "pomodoro": false,
     "theme": "freedesktop"
   },

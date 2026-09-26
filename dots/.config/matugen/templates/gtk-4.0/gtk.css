@@ -562,8 +562,8 @@ popover contents,
 popover > contents,
 popover.menu > contents,
 popover.menu contents {
-  background: rgba(80, 78, 92, 0.35);
-  background-color: rgba(80, 78, 92, 0.35);
+  background: rgba(80, 78, 92, 0.28);
+  background-color: rgba(80, 78, 92, 0.28);
   box-shadow: none;
   border: none;
   border-radius: 12px;

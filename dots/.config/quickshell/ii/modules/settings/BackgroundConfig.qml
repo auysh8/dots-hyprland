@@ -129,6 +129,7 @@ ContentPage {
                                     text: "desktop_windows"
                                     iconSize: Appearance.font.pixelSize.larger
                                     color: Appearance.colors.colPrimary
+                                    fill: 1
                                 }
                                 StyledText {
                                     text: Translation.tr("Desktop")
@@ -152,6 +153,7 @@ ContentPage {
                                     text: "lock"
                                     iconSize: Appearance.font.pixelSize.larger
                                     color: Appearance.colors.colPrimary
+                                    fill: 1
                                 }
                                 StyledText {
                                     text: Translation.tr("Lockscreen")
@@ -208,6 +210,7 @@ ContentPage {
                                 text: "image"
                                 iconSize: Appearance.font.pixelSize.larger
                                 color: Appearance.colors.colPrimary
+                                fill: 1
                             }
                             StyledText {
                                 text: Config.options.background.wallpaperPath.split("/").pop()
@@ -1345,6 +1348,7 @@ ContentPage {
                                     text: modelData.icon
                                     iconSize: Appearance.font.pixelSize.normal + 5
                                     color: Appearance.colors.colPrimary
+                                    fill: 1
                                 }
                                 Item { Layout.fillWidth: true }
                                 ConfigSwitch {

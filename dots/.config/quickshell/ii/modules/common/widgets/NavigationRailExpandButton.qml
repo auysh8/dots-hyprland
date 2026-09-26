@@ -24,6 +24,7 @@ RippleButton {
         anchors.centerIn: parent
         horizontalAlignment: Text.AlignHCenter
         iconSize: 24
+        fill: 1
         color: Appearance.colors.colOnLayer1
         text: root.parent.expanded ? "menu_open" : "menu"
     }

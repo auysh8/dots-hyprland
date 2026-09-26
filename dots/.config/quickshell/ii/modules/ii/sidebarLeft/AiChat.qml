@@ -390,21 +390,22 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 spacing: 10
                 popin: false
                 topMargin: statusBg.implicitHeight + statusBg.anchors.topMargin * 2
+                interactive: !Ai.generating
+                cacheBuffer: Math.max(height * 2, 3000)
 
-                touchpadScrollFactor: Config.options.interactions.scrolling.touchpadScrollFactor * 1.4
-                mouseScrollFactor: Config.options.interactions.scrolling.mouseScrollFactor * 1.4
+                touchpadScrollFactor: Config.options.interactions.scrolling.touchpadScrollFactor
+                mouseScrollFactor: Config.options.interactions.scrolling.mouseScrollFactor
 
                 property int lastResponseLength: 0
                 onContentHeightChanged: {
-                    if (ScrollBar.vertical.pressed || dragging) return;
-                    if (atYEnd || (contentHeight - contentY - height < 50))
-                        positionViewAtEnd();
+                    if (Ai.generating) {
+                        Qt.callLater(positionViewAtEnd);
+                    }
                 }
                 onCountChanged: {
-                    if (ScrollBar.vertical.pressed || dragging) return;
-                    // Auto-scroll when new messages are added
-                    if (atYEnd || (contentHeight - contentY - height < 50))
-                        positionViewAtEnd();
+                    if (Ai.generating) {
+                        Qt.callLater(positionViewAtEnd);
+                    }
                 }
 
                 add: null // Prevent function calls from being janky

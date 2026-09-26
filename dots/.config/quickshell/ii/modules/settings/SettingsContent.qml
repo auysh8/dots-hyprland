@@ -112,6 +112,7 @@ Item {
                         horizontalAlignment: Text.AlignHCenter
                         text: "close"
                         iconSize: 16
+                        fill: 1
                     }
                 }
             }
@@ -282,8 +283,18 @@ Item {
                                                                 anchors.centerIn: parent
                                                                 text: modelData.icon
                                                                 iconSize: 22
+                                                                fill: sideBtn.isSelected ? 1 : 0
+                                                                scale: sideBtn.isSelected ? 1.0 : 0.94
                                                                 rotation: modelData.iconRotation || 0
                                                                 color: sideBtn.isSelected ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+
+                                                                Behavior on color { ColorAnimation { duration: 180 } }
+                                                                Behavior on scale {
+                                                                    NumberAnimation {
+                                                                        duration: 250
+                                                                        easing.type: Easing.OutBack
+                                                                    }
+                                                                }
                                                             }
                                                         }
 
@@ -325,8 +336,6 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: Appearance.colors.colLayer1
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
                 radius: Appearance.rounding.windowRounding
 
                 Item {

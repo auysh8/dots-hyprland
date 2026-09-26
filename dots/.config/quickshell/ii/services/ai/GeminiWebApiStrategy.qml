@@ -37,6 +37,14 @@ ApiStrategy {
         return "";
     }
 
+    function stripInternalTags(text) {
+        if (!text) return "";
+        // Strip <FollowUp ... /> or unclosed <FollowUp ...>
+        let cleaned = text.replace(/<FollowUp\b[^>]*\/?>/gi, "");
+        cleaned = cleaned.replace(/<FollowUp\b[^>]*$/gi, "");
+        return cleaned;
+    }
+
     function parseResponseLine(line, message) {
         let cleanData = line.trim();
         if (!cleanData || cleanData.startsWith(":"))
@@ -59,8 +67,9 @@ ApiStrategy {
             }
 
             if (dataJson.text) {
-                message.rawContent += dataJson.text;
-                message.content += dataJson.text;
+                let chunkText = stripInternalTags(dataJson.text);
+                message.rawContent += chunkText;
+                message.content += chunkText;
             }
         } catch (e) {
             console.log("[AI] Gemini Web: Could not parse line: ", e);
@@ -69,5 +78,18 @@ ApiStrategy {
         }
 
         return {};
+    }
+
+    function onRequestFinished(message) {
+        if (!message.content || message.content.trim().length === 0) {
+            const errorMsg = "⚠️ Could not reach Gemini server. Check that Google Chrome is logged into Gemini, or click ↻ to retry.";
+            message.rawContent = errorMsg;
+            message.content = errorMsg;
+        } else {
+            const cleaned = stripInternalTags(message.content);
+            message.content = cleaned;
+            message.rawContent = cleaned;
+        }
+        return { finished: true };
     }
 }

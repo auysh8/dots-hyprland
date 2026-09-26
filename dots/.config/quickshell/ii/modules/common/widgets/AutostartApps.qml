@@ -77,6 +77,7 @@ ColumnLayout {
                 text: "motion_play"
                 iconSize: Appearance.font.pixelSize.normal
                 color: Appearance.colors.colPrimary
+                fill: 1
             }
         }
     }
@@ -189,6 +190,7 @@ ColumnLayout {
                         text: "delete"
                         iconSize: Appearance.font.pixelSize.normal
                         color: Appearance.colors.colError
+                        fill: 1
                     }
                 }
             }

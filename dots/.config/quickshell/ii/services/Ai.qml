@@ -33,6 +33,20 @@ Singleton {
         stderr: SplitParser {
             onRead: data => console.log("[Gemini Server ERROR] " + data.trim())
         }
+
+        onExited: (exitCode, exitStatus) => {
+            console.log("[Gemini Server] Process exited (" + exitCode + "). Scheduling restart...");
+            geminiRestartTimer.restart();
+        }
+    }
+
+    Timer {
+        id: geminiRestartTimer
+        interval: 1000
+        repeat: false
+        onTriggered: {
+            geminiServerProcess.running = true;
+        }
     }
 
     property Component aiMessageComponent: AiMessageData {}
@@ -58,6 +72,7 @@ Singleton {
     // property var messages: []
     property var messageIDs: []
     property var messageByID: ({})
+    readonly property bool generating: requester.running
     readonly property var apiKeys: KeyringStorage.keyringData?.apiKeys ?? {}
     readonly property var apiKeysLoaded: KeyringStorage.loaded
     readonly property bool currentModelHasApiKey: {
@@ -661,6 +676,7 @@ Singleton {
 
         function markDone() {
             requester.message.done = true;
+            if (requester.message.thinking) requester.message.thinking = false;
             if (root.postResponseHook) {
                 root.postResponseHook();
                 root.postResponseHook = null; // Reset hook after use
@@ -674,6 +690,7 @@ Singleton {
 
             // Fetch API keys if needed
             if (model?.requires_key && !KeyringStorage.loaded) KeyringStorage.fetchKeyringData();
+            if (model?.api_format === "gemini_web" && !geminiServerProcess.running) geminiServerProcess.running = true;
             
             requester.currentStrategy = root.currentApiStrategy;
             requester.currentStrategy.reset(); // Reset strategy state
@@ -735,7 +752,7 @@ Singleton {
 
             /* Create command string */
             let scriptRequestContent = ""
-            scriptRequestContent += `curl --no-buffer "${endpoint}"`
+            scriptRequestContent += `curl --no-buffer --connect-timeout 10 --max-time 120 "${endpoint}"`
                 + ` ${headerString}`
                 + (authHeader ? ` ${authHeader}` : "")
                 + ` --data '${CF.StringUtils.shellSingleQuoteEscape(JSON.stringify(data))}'`
